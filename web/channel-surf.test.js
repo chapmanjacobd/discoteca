@@ -40,7 +40,14 @@ describe('Channel Surf', () => {
         channelSurfBtn.click();
 
         await vi.waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/random-clip'));
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/api/random-clip'),
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        'X-Disco-Token': 'mock-test-token'
+                    })
+                })
+            );
             
             const pipPlayer = document.getElementById('pip-player');
             expect(pipPlayer.classList.contains('hidden')).toBe(false);
@@ -76,7 +83,14 @@ describe('Channel Surf', () => {
         channelSurfBtn.click();
 
         await vi.waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('type=image'));
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('type=image'),
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        'X-Disco-Token': 'mock-test-token'
+                    })
+                })
+            );
         });
     });
 

@@ -62,6 +62,9 @@ export async function setupTestEnvironment(initialLocalStorage) {
         });
     });
 
+    // Mock disco_token cookie
+    document.cookie = 'disco_token=mock-test-token';
+
     // Mock window.innerWidth
     global.innerWidth = 1024;
 

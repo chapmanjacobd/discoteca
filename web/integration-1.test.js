@@ -7,7 +7,14 @@ describe('Integration Test', () => {
     });
 
     it('initializes correctly', async () => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/databases');
+        expect(global.fetch).toHaveBeenCalledWith(
+            '/api/databases',
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    'X-Disco-Token': 'mock-test-token'
+                })
+            })
+        );
         expect(document.getElementById('search-input')).toBeDefined();
     });
 
@@ -304,7 +311,12 @@ describe('Integration Test', () => {
         // Should fetch metadata for missing paths
         await vi.waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('paths=local-video.mp4')
+                expect.stringContaining('paths=local-video.mp4'),
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        'X-Disco-Token': 'mock-test-token'
+                    })
+                })
             );
         });
     });

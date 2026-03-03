@@ -5598,8 +5598,8 @@ function getIcon(type) {
     if (type.includes('video')) return '🎬';
     if (type.includes('audio')) return '🎵';
     if (type.includes('image')) return '🖼️';
-    if (type.includes('app')) return '📱';
     if (type.includes('epub') || type.includes('pdf') || type.includes('mobi')) return '📚';
+    if (type.includes('app')) return '📱';
     return '📄';
 }
 
