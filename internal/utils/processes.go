@@ -32,9 +32,12 @@ func Cmd(name string, args ...string) (CmdResult, error) {
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			res.ExitCode = exitErr.ExitCode()
-		} else {
-			return res, err
+			if strings.TrimSpace(res.Stderr) != "" {
+				return res, fmt.Errorf("command failed with exit code %d: %s", res.ExitCode, strings.TrimSpace(res.Stderr))
+			}
+			return res, fmt.Errorf("command failed with exit code %d", res.ExitCode)
 		}
+		return res, err
 	}
 
 	return res, nil
@@ -79,9 +82,12 @@ func CmdWithTimeout(ctx context.Context, name string, args ...string) (CmdResult
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			res.ExitCode = exitErr.ExitCode()
-		} else {
-			return res, err
+			if strings.TrimSpace(res.Stderr) != "" {
+				return res, fmt.Errorf("command failed with exit code %d: %s", res.ExitCode, strings.TrimSpace(res.Stderr))
+			}
+			return res, fmt.Errorf("command failed with exit code %d", res.ExitCode)
 		}
+		return res, err
 	}
 
 	return res, nil

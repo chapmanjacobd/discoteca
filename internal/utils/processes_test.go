@@ -50,8 +50,8 @@ func TestCmd(t *testing.T) {
 	}
 
 	res, err = Cmd("false")
-	if err != nil {
-		t.Fatalf("Cmd false failed with non-exit error: %v", err)
+	if err == nil {
+		t.Error("Expected error for Cmd('false'), got nil")
 	}
 	if res.ExitCode != 1 {
 		t.Errorf("Expected exit code 1, got %d", res.ExitCode)

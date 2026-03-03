@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -27,7 +28,7 @@ type MpvCommand struct {
 
 // MpvCall sends a command to mpv via IPC socket and returns the response
 func MpvCall(socketPath string, args ...any) (*MpvResponse, error) {
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := net.DialTimeout("unix", socketPath, 2*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -45,16 +46,63 @@ func MpvCall(socketPath string, args ...any) (*MpvResponse, error) {
 	}
 
 	// Read response
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		return nil, err
+	}
+
 	scanner := bufio.NewScanner(conn)
 	if scanner.Scan() {
 		var resp MpvResponse
 		if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
 			return nil, err
 		}
+		if resp.Error != "" && resp.Error != "success" {
+			return &resp, fmt.Errorf("mpv error: %s", resp.Error)
+		}
 		return &resp, nil
 	}
 
 	return nil, scanner.Err()
+}
+
+// MpvSetProperty sets a property in mpv
+func MpvSetProperty(socketPath string, name string, value any) error {
+	_, err := MpvCall(socketPath, "set_property", name, value)
+	return err
+}
+
+// MpvGetProperty gets a property from mpv
+func MpvGetProperty(socketPath string, name string) (any, error) {
+	resp, err := MpvCall(socketPath, "get_property", name)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}
+
+// MpvPause pauses or unpauses playback
+func MpvPause(socketPath string, pause bool) error {
+	return MpvSetProperty(socketPath, "pause", pause)
+}
+
+// MpvSeek seeks to a specific position
+func MpvSeek(socketPath string, value float64, mode string) error {
+	// mode can be "relative", "absolute", "absolute-percent", "relative-percent"
+	if mode == "" {
+		mode = "relative"
+	}
+	_, err := MpvCall(socketPath, "seek", value, mode)
+	return err
+}
+
+// MpvLoadFile loads a file into mpv
+func MpvLoadFile(socketPath string, path string, mode string) error {
+	// mode can be "replace", "append", "append-play"
+	if mode == "" {
+		mode = "replace"
+	}
+	_, err := MpvCall(socketPath, "loadfile", path, mode)
+	return err
 }
 
 // PathToMpvWatchLaterMD5 returns the MD5 hash of the absolute path as used by mpv

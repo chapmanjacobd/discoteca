@@ -21,16 +21,30 @@ func TestMpvCall(t *testing.T) {
 	defer ln.Close()
 
 	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-		scanner := bufio.NewScanner(conn)
-		if scanner.Scan() {
-			resp := MpvResponse{Data: "pong"}
-			jsonData, _ := json.Marshal(resp)
-			conn.Write(append(jsonData, '\n'))
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				scanner := bufio.NewScanner(c)
+				for scanner.Scan() {
+					var cmd MpvCommand
+					json.Unmarshal(scanner.Bytes(), &cmd)
+
+					var resp MpvResponse
+					if len(cmd.Command) > 0 && cmd.Command[0] == "get_property" {
+						resp = MpvResponse{Data: 50, Error: "success"}
+					} else if len(cmd.Command) > 0 && cmd.Command[0] == "error" {
+						resp = MpvResponse{Error: "invalid property"}
+					} else {
+						resp = MpvResponse{Data: "pong", Error: "success"}
+					}
+					jsonData, _ := json.Marshal(resp)
+					c.Write(append(jsonData, '\n'))
+				}
+			}(conn)
 		}
 	}()
 
@@ -40,6 +54,39 @@ func TestMpvCall(t *testing.T) {
 	}
 	if resp.Data != "pong" {
 		t.Errorf("Expected pong, got %v", resp.Data)
+	}
+
+	val, err := MpvGetProperty(socketPath, "volume")
+	if err != nil {
+		t.Fatalf("MpvGetProperty failed: %v", err)
+	}
+	if val.(float64) != 50 {
+		t.Errorf("Expected 50, got %v", val)
+	}
+
+	err = MpvSetProperty(socketPath, "volume", 60)
+	if err != nil {
+		t.Fatalf("MpvSetProperty failed: %v", err)
+	}
+
+	err = MpvPause(socketPath, true)
+	if err != nil {
+		t.Fatalf("MpvPause failed: %v", err)
+	}
+
+	err = MpvSeek(socketPath, 10, "relative")
+	if err != nil {
+		t.Fatalf("MpvSeek failed: %v", err)
+	}
+
+	err = MpvLoadFile(socketPath, "file.mp4", "replace")
+	if err != nil {
+		t.Fatalf("MpvLoadFile failed: %v", err)
+	}
+
+	_, err = MpvCall(socketPath, "error")
+	if err == nil {
+		t.Error("Expected error for 'error' command, got nil")
 	}
 }
 

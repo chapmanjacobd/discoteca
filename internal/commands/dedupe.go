@@ -132,9 +132,11 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 	slog.Info("Deleting duplicates...")
 	for _, d := range finalCandidates {
 		if c.DedupeCmd != "" {
-			cmdStr := strings.ReplaceAll(c.DedupeCmd, "{}", fmt.Sprintf("'%s'", d.DuplicatePath))
+			quotedDup := utils.ShellQuote(d.DuplicatePath)
+			quotedKeep := utils.ShellQuote(d.KeepPath)
+			cmdStr := strings.ReplaceAll(c.DedupeCmd, "{}", quotedDup)
 			// rmlint style is cmd duplicate keep
-			exec.Command("bash", "-c", cmdStr+" "+fmt.Sprintf("'%s'", d.DuplicatePath)+" "+fmt.Sprintf("'%s'", d.KeepPath)).Run()
+			exec.Command("bash", "-c", cmdStr+" "+quotedDup+" "+quotedKeep).Run()
 		} else if flags.Trash {
 			utils.Trash(flags, d.DuplicatePath)
 		} else {

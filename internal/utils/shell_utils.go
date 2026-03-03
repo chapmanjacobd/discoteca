@@ -10,6 +10,27 @@ import (
 	"github.com/chapmanjacobd/discotheque/internal/models"
 )
 
+// ShellQuote returns a shell-escaped version of the string
+func ShellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	// If it doesn't contain any special characters, return it as is
+	safeChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./"
+	allSafe := true
+	for _, r := range s {
+		if !strings.ContainsRune(safeChars, r) {
+			allSafe = false
+			break
+		}
+	}
+	if allSafe {
+		return s
+	}
+
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 // RenameMoveFile moves a file from src to dst, creating parent directories if needed
 func RenameMoveFile(flags models.GlobalFlags, src, dst string) error {
 	if flags.Simulate {
@@ -64,16 +85,18 @@ func Trash(flags models.GlobalFlags, path string) error {
 		return nil
 	}
 
-	// For now, disco uses direct deletion if trash command not found
-	// or we can try to call a trash utility
-	trashCmd := "trash"
-	if flags.PostAction == "delete" { // This is a bit of a hack to use flags.MoveTo or something if needed
-	}
-
+	trashCmd := "trash-put" // Prefer trash-put from trash-cli
 	err := CmdDetach(trashCmd, path)
 	if err != nil {
+		// Try 'trash' if 'trash-put' fails
+		err = CmdDetach("trash", path)
+	}
+
+	if err != nil {
 		slog.Debug("trash command failed, unlinking instead", "path", path, "error", err)
-		return os.Remove(path)
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("failed to remove file %s: %w", path, err)
+		}
 	}
 	return nil
 }

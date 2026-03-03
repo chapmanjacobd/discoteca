@@ -135,7 +135,7 @@ func RunExitCommand(flags models.GlobalFlags, exitCode int, path string) error {
 	}
 
 	// Replace {} with path
-	cmdStr = strings.ReplaceAll(cmdStr, "{}", fmt.Sprintf("'%s'", path))
+	cmdStr = strings.ReplaceAll(cmdStr, "{}", utils.ShellQuote(path))
 
 	slog.Info("Running exit command", "code", exitCode, "command", cmdStr)
 	cmd := exec.Command("bash", "-c", cmdStr)

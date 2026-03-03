@@ -90,7 +90,9 @@ func Repair(dbPath string) error {
 	slog.Info("Attempting recovery...", "from", corruptMain, "to", dbPath)
 
 	// Attempt .recover
-	cmdRecover := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 \"%s\" \".recover\" | sqlite3 \"%s\"", corruptMain, dbPath))
+	quotedCorrupt := utils.ShellQuote(corruptMain)
+	quotedDB := utils.ShellQuote(dbPath)
+	cmdRecover := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 %s \".recover\" | sqlite3 %s", quotedCorrupt, quotedDB))
 	out, err := cmdRecover.CombinedOutput()
 
 	repairStepSuccess := false
@@ -102,7 +104,7 @@ func Repair(dbPath string) error {
 		os.Remove(dbPath)
 
 		// Fallback to .dump
-		cmdDump := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 \"%s\" \".dump\" | sqlite3 \"%s\"", corruptMain, dbPath))
+		cmdDump := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 %s \".dump\" | sqlite3 %s", quotedCorrupt, quotedDB))
 		out, err = cmdDump.CombinedOutput()
 		if err == nil {
 			slog.Info("Initial recovery step successful via .dump")

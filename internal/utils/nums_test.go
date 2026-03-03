@@ -85,6 +85,26 @@ func TestParseRange(t *testing.T) {
 	}
 }
 
+func TestCalculatePercentiles(t *testing.T) {
+	values := []int64{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
+	res := CalculatePercentiles(values)
+	if len(res) != 101 {
+		t.Errorf("CalculatePercentiles len = %d, want 101", len(res))
+	}
+	if res[0] != 10 {
+		t.Errorf("res[0] = %d, want 10", res[0])
+	}
+	if res[100] != 100 {
+		t.Errorf("res[100] = %d, want 100", res[100])
+	}
+
+	// Test empty
+	resEmpty := CalculatePercentiles(nil)
+	if len(resEmpty) != 101 {
+		t.Errorf("CalculatePercentiles empty len = %d, want 101", len(resEmpty))
+	}
+}
+
 func TestPercent(t *testing.T) {
 	if got := Percent(50, 200); got != 25.0 {
 		t.Errorf("Percent(50, 200) = %v, want 25.0", got)
