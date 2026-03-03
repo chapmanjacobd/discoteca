@@ -88,11 +88,15 @@ func (c *ServeCmd) serveSyncwebContent(w http.ResponseWriter, r *http.Request, f
 	http.ServeContent(w, r, filepath.Base(localPath), time.Now(), rs)
 }
 
+// handleSyncwebFolders returns a list of configured Syncweb folders.
+// GET /api/syncweb/folders
 func (c *ServeCmd) handleSyncwebFolders(w http.ResponseWriter, r *http.Request) {
 	swMu.Lock()
 	defer swMu.Unlock()
 	if swInstance == nil || !swInstance.IsRunning() {
-		http.Error(w, "Syncweb not configured or offline", http.StatusServiceUnavailable)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Syncweb not configured or offline"})
 		return
 	}
 
@@ -104,11 +108,15 @@ func (c *ServeCmd) handleSyncwebFolders(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(folders)
 }
 
+// handleSyncwebLs lists global files in a Syncweb folder.
+// GET /api/syncweb/ls?folder=...&prefix=...
 func (c *ServeCmd) handleSyncwebLs(w http.ResponseWriter, r *http.Request) {
 	swMu.Lock()
 	defer swMu.Unlock()
 	if swInstance == nil || !swInstance.IsRunning() {
-		http.Error(w, "Syncweb not configured or offline", http.StatusServiceUnavailable)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Syncweb not configured or offline"})
 		return
 	}
 
@@ -125,7 +133,9 @@ func (c *ServeCmd) handleSyncwebLs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !found {
-		http.Error(w, "Folder not found or not configured", http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Folder not found or not configured"})
 		return
 	}
 
@@ -184,16 +194,23 @@ func (c *ServeCmd) handleSyncwebLs(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
+// handleSyncwebDownload triggers a download for a Syncweb file.
+// POST /api/syncweb/download
+// Body: {"path": "syncweb://..."}
 func (c *ServeCmd) handleSyncwebDownload(w http.ResponseWriter, r *http.Request) {
 	swMu.Lock()
 	defer swMu.Unlock()
 	if swInstance == nil || !swInstance.IsRunning() {
-		http.Error(w, "Syncweb not configured or offline", http.StatusServiceUnavailable)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Syncweb not configured or offline"})
 		return
 	}
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
@@ -208,31 +225,41 @@ func (c *ServeCmd) handleSyncwebDownload(w http.ResponseWriter, r *http.Request)
 	}
 
 	if req.Path == "" {
-		http.Error(w, "Path required", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Path required"})
 		return
 	}
 
 	localPath, folderID, err := swInstance.ResolveLocalPath(req.Path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: err.Error()})
 		return
 	}
 
 	if c.isPathBlacklisted(localPath) {
-		http.Error(w, "Access denied", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Access denied"})
 		return
 	}
 
 	folderPath, ok := swInstance.GetFolderPath(folderID)
 	if !ok {
-		http.Error(w, "Folder root not found", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Folder root not found"})
 		return
 	}
 	relativePath, _ := filepath.Rel(folderPath, localPath)
 
 	if err := swInstance.Unignore(folderID, relativePath); err != nil {
 		slog.Error("Syncweb download trigger failed", "path", req.Path, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Download trigger failed: " + err.Error()})
 		return
 	}
 
@@ -240,12 +267,17 @@ func (c *ServeCmd) handleSyncwebDownload(w http.ResponseWriter, r *http.Request)
 	fmt.Fprintln(w, "Download triggered")
 }
 
+// handleSyncwebToggle toggles Syncweb between online and offline modes.
+// POST /api/syncweb/toggle
+// Body: {"offline": bool}
 func (c *ServeCmd) handleSyncwebToggle(w http.ResponseWriter, r *http.Request) {
 	swMu.Lock()
 	defer swMu.Unlock()
 
 	if swInstance == nil {
-		http.Error(w, "Syncweb not configured", http.StatusServiceUnavailable)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Syncweb not configured"})
 		return
 	}
 
@@ -253,7 +285,9 @@ func (c *ServeCmd) handleSyncwebToggle(w http.ResponseWriter, r *http.Request) {
 		Offline bool `json:"offline"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
@@ -267,7 +301,9 @@ func (c *ServeCmd) handleSyncwebToggle(w http.ResponseWriter, r *http.Request) {
 			slog.Info("Starting Syncweb backend (Online Mode)")
 			if err := swInstance.Start(); err != nil {
 				slog.Error("Failed to restart Syncweb", "error", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Failed to restart Syncweb: " + err.Error()})
 				return
 			}
 		}
@@ -277,6 +313,8 @@ func (c *ServeCmd) handleSyncwebToggle(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]bool{"offline": !swInstance.IsRunning()})
 }
 
+// handleSyncwebStatus returns the current status of Syncweb.
+// GET /api/syncweb/status
 func (c *ServeCmd) handleSyncwebStatus(w http.ResponseWriter, r *http.Request) {
 	swMu.Lock()
 	defer swMu.Unlock()

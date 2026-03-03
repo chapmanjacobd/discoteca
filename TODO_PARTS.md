@@ -4,12 +4,6 @@
 - [ ] `cmd/disco/main.go`: Improve error handling and logging configuration
 - [ ] `cmd/syncweb/`: Ensure consistency between standalone `syncweb` and the one integrated into `disco`.
 
-## `internal/commands/` (Core Logic)
-- [ ] `serve.go`: Improve API documentation and error responses for the web server.
-- [ ] `dedupe.go`: Optimize deduplication algorithms for large databases.
-- [ ] `syncweb.go`: Implement "Pending devices listing" (currently a placeholder).
-- [ ] `syncweb.go`: Implement "Automatic device acceptance" logic.
-
 ## `internal/db/` & `internal/query/` (Database & Queries)
 - [ ] `schema.sql`: Review and optimize indexes for frequent queries.
 - [ ] `migrations.go`: Ensure migrations are idempotent and robust against partial failures.

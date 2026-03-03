@@ -295,9 +295,13 @@ func (c *ServeCmd) handleDatabases(w http.ResponseWriter, r *http.Request) {
 		ReadOnly:  c.ReadOnly,
 		Dev:       c.Dev,
 	}
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode databases response", "error", err)
+	}
 }
 
+// handleCategories returns a list of categories and their media counts.
+// GET /api/categories
 func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int64)
 	isCustom := make(map[string]bool)
@@ -341,6 +345,10 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			slog.Error("Failed to fetch categories", "db", dbPath, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Failed to fetch categories"})
+			return
 		}
 	}
 
@@ -378,6 +386,8 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
+// handleRatings returns rating statistics.
+// GET /api/ratings
 func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[int64]int64)
 
@@ -395,6 +405,10 @@ func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			slog.Error("Failed to fetch ratings", "db", dbPath, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Failed to fetch ratings"})
+			return
 		}
 	}
 
@@ -553,6 +567,8 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 	return flags
 }
 
+// handleQuery handles media searching and filtering.
+// GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
 func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	flags := c.parseFlags(r)
 	q := r.URL.Query()
@@ -641,7 +657,9 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		slog.Error("Query failed", "dbs", c.Databases, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Query failed: " + err.Error()})
 		return
 	}
 
@@ -702,22 +720,31 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(media)
 }
 
+// handlePlay triggers local playback of a media file via mpv.
+// POST /api/play
+// Body: {"path": "..."}
 func (c *ServeCmd) handlePlay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
 	var req models.PlayResponse
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
 	if !strings.HasPrefix(req.Path, "http") && !utils.FileExists(req.Path) {
 		slog.Warn("File not found, marking as deleted in databases", "path", req.Path)
 		c.markDeletedInAllDBs(r.Context(), req.Path, true)
-		http.Error(w, "file not found", http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "File not found"})
 		return
 	}
 
@@ -726,7 +753,10 @@ func (c *ServeCmd) handlePlay(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command("mpv", req.Path)
 	// We run it in background and don't wait for it
 	if err := cmd.Start(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("Failed to start mpv", "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Failed to start playback: " + err.Error()})
 		return
 	}
 
@@ -756,19 +786,28 @@ func (c *ServeCmd) markDeletedInAllDBs(ctx context.Context, path string, deleted
 	}
 }
 
+// handleDelete marks a file as deleted or restores it in all databases.
+// POST /api/delete
+// Body: {"path": "...", "restore": bool}
 func (c *ServeCmd) handleDelete(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
-		http.Error(w, "Read-only mode", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Read-only mode"})
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
 	var req models.DeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
@@ -776,19 +815,28 @@ func (c *ServeCmd) handleDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleProgress updates the playback progress for a media file.
+// POST /api/progress
+// Body: {"path": "...", "playhead": int64, "completed": bool}
 func (c *ServeCmd) handleProgress(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
-		http.Error(w, "Read-only mode", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Read-only mode"})
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
 	var req models.ProgressRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
@@ -822,13 +870,20 @@ func (c *ServeCmd) handleProgress(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleMarkUnplayed resets play count and progress for a media file.
+// POST /api/mark-unplayed
+// Body: {"path": "..."}
 func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
-		http.Error(w, "Read-only mode", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Read-only mode"})
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
@@ -836,7 +891,9 @@ func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
@@ -861,13 +918,20 @@ func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleMarkPlayed increments play count and resets progress for a media file.
+// POST /api/mark-played
+// Body: {"path": "..."}
 func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
-		http.Error(w, "Read-only mode", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Read-only mode"})
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
@@ -875,7 +939,9 @@ func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
@@ -902,13 +968,20 @@ func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleRate updates the rating for a media file.
+// POST /api/rate
+// Body: {"path": "...", "score": float64}
 func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
-		http.Error(w, "Read-only mode", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Read-only mode"})
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
@@ -917,7 +990,9 @@ func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
 		Score float64 `json:"score"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 

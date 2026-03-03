@@ -247,8 +247,17 @@ type SyncwebDevicesCmd struct {
 func (c *SyncwebDevicesCmd) Run(g *SyncwebCmd) error {
 	return g.WithSyncweb(func(s *syncweb.Syncweb) error {
 		if c.Pending || c.Accept {
-			// TODO: Find correct method for pending devices in Internals
-			slog.Warn("Pending devices listing not yet implemented")
+			pending := s.GetPendingDevices()
+			for id, time := range pending {
+				fmt.Printf("Pending: %s (since %v)\n", id, time)
+				if c.Accept {
+					if err := s.AddDevice(id, id, false); err != nil {
+						slog.Error("Failed to auto-accept device", "id", id, "error", err)
+					} else {
+						slog.Info("Auto-accepted device", "id", id)
+					}
+				}
+			}
 		}
 
 		cfg := s.Node.Cfg.RawCopy()
@@ -661,7 +670,13 @@ func (c *SyncwebAutomaticCmd) Run(g *SyncwebCmd) error {
 
 		for {
 			if c.Devices {
-				// TODO: Find correct method for pending devices in Internals
+				pending := s.GetPendingDevices()
+				for id := range pending {
+					slog.Info("Auto-accepting device", "id", id)
+					if err := s.AddDevice(id, id, false); err != nil {
+						slog.Error("Failed to auto-accept device", "id", id, "error", err)
+					}
+				}
 			}
 
 			if c.Folders {

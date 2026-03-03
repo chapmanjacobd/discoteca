@@ -156,18 +156,14 @@ func (c *DedupeCmd) getMusicDuplicates(dbPath string) ([]DedupeDuplicate, error)
 	}
 	defer sqlDB.Close()
 
-	// Simplified join query for duplicates
+	// Find candidates using GROUP BY to avoid N^2 self-join
 	query := `
-		SELECT m1.path as keep_path, m2.path as duplicate_path, m2.size as duplicate_size
-		FROM media m1
-		JOIN media m2 ON m1.title = m2.title
-			AND m1.artist = m2.artist
-			AND m1.album = m2.album
-			AND ABS(m1.duration - m2.duration) <= 8
-			AND m1.path != m2.path
-		WHERE COALESCE(m1.time_deleted, 0) = 0 AND COALESCE(m2.time_deleted, 0) = 0
-		AND m1.title != '' AND m1.artist != ''
-		ORDER BY m1.size DESC, m1.time_modified DESC
+		SELECT title, artist, album, COUNT(*) as count
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0
+		  AND title != '' AND artist != ''
+		GROUP BY title, artist, album
+		HAVING count > 1
 	`
 
 	rows, err := sqlDB.Query(query)
@@ -178,13 +174,64 @@ func (c *DedupeCmd) getMusicDuplicates(dbPath string) ([]DedupeDuplicate, error)
 
 	var dups []DedupeDuplicate
 	for rows.Next() {
-		var d DedupeDuplicate
-		if err := rows.Scan(&d.KeepPath, &d.DuplicatePath, &d.DuplicateSize); err != nil {
+		var title, artist, album string
+		var count int
+		if err := rows.Scan(&title, &artist, &album, &count); err != nil {
 			return nil, err
 		}
-		dups = append(dups, d)
+
+		// Fetch all files for this candidate group
+		groupQuery := `
+			SELECT path, size, duration
+			FROM media
+			WHERE title = ? AND artist = ? AND album = ?
+			  AND COALESCE(time_deleted, 0) = 0
+			ORDER BY size DESC, time_modified DESC
+		`
+		gRows, err := sqlDB.Query(groupQuery, title, artist, album)
+		if err != nil {
+			continue
+		}
+
+		type item struct {
+			path     string
+			size     int64
+			duration float64
+		}
+		var items []item
+		for gRows.Next() {
+			var i item
+			if err := gRows.Scan(&i.path, &i.size, &i.duration); err == nil {
+				items = append(items, i)
+			}
+		}
+		gRows.Close()
+
+		if len(items) < 2 {
+			continue
+		}
+
+		keep := items[0]
+		for _, dup := range items[1:] {
+			// Basic duration check (already within the group mostly, but let's be sure)
+			if keep.duration > 0 && dup.duration > 0 && MathAbs(keep.duration-dup.duration) > 8 {
+				continue
+			}
+			dups = append(dups, DedupeDuplicate{
+				KeepPath:      keep.path,
+				DuplicatePath: dup.path,
+				DuplicateSize: dup.size,
+			})
+		}
 	}
 	return dups, nil
+}
+
+func MathAbs(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (c *DedupeCmd) getIDDuplicates(dbPath string) ([]DedupeDuplicate, error) {
@@ -195,14 +242,11 @@ func (c *DedupeCmd) getIDDuplicates(dbPath string) ([]DedupeDuplicate, error) {
 	defer sqlDB.Close()
 
 	query := `
-		SELECT m1.path as keep_path, m2.path as duplicate_path, m2.size as duplicate_size
-		FROM media m1
-		JOIN media m2 ON m1.webpath = m2.webpath
-			AND ABS(m1.duration - m2.duration) <= 8
-			AND m1.path != m2.path
-		WHERE COALESCE(m1.time_deleted, 0) = 0 AND COALESCE(m2.time_deleted, 0) = 0
-		AND m1.webpath != ''
-		ORDER BY m1.size DESC
+		SELECT webpath, COUNT(*) as count
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0 AND webpath != ''
+		GROUP BY webpath
+		HAVING count > 1
 	`
 
 	rows, err := sqlDB.Query(query)
@@ -213,11 +257,46 @@ func (c *DedupeCmd) getIDDuplicates(dbPath string) ([]DedupeDuplicate, error) {
 
 	var dups []DedupeDuplicate
 	for rows.Next() {
-		var d DedupeDuplicate
-		if err := rows.Scan(&d.KeepPath, &d.DuplicatePath, &d.DuplicateSize); err != nil {
+		var webpath string
+		var count int
+		if err := rows.Scan(&webpath, &count); err != nil {
 			return nil, err
 		}
-		dups = append(dups, d)
+
+		gRows, err := sqlDB.Query("SELECT path, size, duration FROM media WHERE webpath = ? AND COALESCE(time_deleted, 0) = 0 ORDER BY size DESC", webpath)
+		if err != nil {
+			continue
+		}
+
+		type item struct {
+			path     string
+			size     int64
+			duration float64
+		}
+		var items []item
+		for gRows.Next() {
+			var i item
+			if err := gRows.Scan(&i.path, &i.size, &i.duration); err == nil {
+				items = append(items, i)
+			}
+		}
+		gRows.Close()
+
+		if len(items) < 2 {
+			continue
+		}
+
+		keep := items[0]
+		for _, dup := range items[1:] {
+			if keep.duration > 0 && dup.duration > 0 && MathAbs(keep.duration-dup.duration) > 8 {
+				continue
+			}
+			dups = append(dups, DedupeDuplicate{
+				KeepPath:      keep.path,
+				DuplicatePath: dup.path,
+				DuplicateSize: dup.size,
+			})
+		}
 	}
 	return dups, nil
 }
@@ -230,14 +309,11 @@ func (c *DedupeCmd) getTitleDuplicates(dbPath string) ([]DedupeDuplicate, error)
 	defer sqlDB.Close()
 
 	query := `
-		SELECT m1.path as keep_path, m2.path as duplicate_path, m2.size as duplicate_size
-		FROM media m1
-		JOIN media m2 ON m1.title = m2.title
-			AND ABS(m1.duration - m2.duration) <= 8
-			AND m1.path != m2.path
-		WHERE COALESCE(m1.time_deleted, 0) = 0 AND COALESCE(m2.time_deleted, 0) = 0
-		AND m1.title != ''
-		ORDER BY m1.size DESC
+		SELECT title, COUNT(*) as count
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0 AND title != ''
+		GROUP BY title
+		HAVING count > 1
 	`
 
 	rows, err := sqlDB.Query(query)
@@ -248,11 +324,46 @@ func (c *DedupeCmd) getTitleDuplicates(dbPath string) ([]DedupeDuplicate, error)
 
 	var dups []DedupeDuplicate
 	for rows.Next() {
-		var d DedupeDuplicate
-		if err := rows.Scan(&d.KeepPath, &d.DuplicatePath, &d.DuplicateSize); err != nil {
+		var title string
+		var count int
+		if err := rows.Scan(&title, &count); err != nil {
 			return nil, err
 		}
-		dups = append(dups, d)
+
+		gRows, err := sqlDB.Query("SELECT path, size, duration FROM media WHERE title = ? AND COALESCE(time_deleted, 0) = 0 ORDER BY size DESC", title)
+		if err != nil {
+			continue
+		}
+
+		type item struct {
+			path     string
+			size     int64
+			duration float64
+		}
+		var items []item
+		for gRows.Next() {
+			var i item
+			if err := gRows.Scan(&i.path, &i.size, &i.duration); err == nil {
+				items = append(items, i)
+			}
+		}
+		gRows.Close()
+
+		if len(items) < 2 {
+			continue
+		}
+
+		keep := items[0]
+		for _, dup := range items[1:] {
+			if keep.duration > 0 && dup.duration > 0 && MathAbs(keep.duration-dup.duration) > 8 {
+				continue
+			}
+			dups = append(dups, DedupeDuplicate{
+				KeepPath:      keep.path,
+				DuplicatePath: dup.path,
+				DuplicateSize: dup.size,
+			})
+		}
 	}
 	return dups, nil
 }
@@ -265,13 +376,11 @@ func (c *DedupeCmd) getDurationDuplicates(dbPath string) ([]DedupeDuplicate, err
 	defer sqlDB.Close()
 
 	query := `
-		SELECT m1.path as keep_path, m2.path as duplicate_path, m2.size as duplicate_size
-		FROM media m1
-		JOIN media m2 ON m1.duration = m2.duration
-			AND m1.path != m2.path
-		WHERE COALESCE(m1.time_deleted, 0) = 0 AND COALESCE(m2.time_deleted, 0) = 0
-		AND m1.duration > 0
-		ORDER BY m1.size DESC
+		SELECT duration, COUNT(*) as count
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0 AND duration > 0
+		GROUP BY duration
+		HAVING count > 1
 	`
 
 	rows, err := sqlDB.Query(query)
@@ -282,11 +391,41 @@ func (c *DedupeCmd) getDurationDuplicates(dbPath string) ([]DedupeDuplicate, err
 
 	var dups []DedupeDuplicate
 	for rows.Next() {
-		var d DedupeDuplicate
-		if err := rows.Scan(&d.KeepPath, &d.DuplicatePath, &d.DuplicateSize); err != nil {
+		var duration float64
+		var count int
+		if err := rows.Scan(&duration, &count); err != nil {
 			return nil, err
 		}
-		dups = append(dups, d)
+
+		gRows, err := sqlDB.Query("SELECT path, size FROM media WHERE duration = ? AND COALESCE(time_deleted, 0) = 0 ORDER BY size DESC", duration)
+		if err != nil {
+			continue
+		}
+
+		var paths []string
+		var sizes []int64
+		for gRows.Next() {
+			var p string
+			var s int64
+			if err := gRows.Scan(&p, &s); err == nil {
+				paths = append(paths, p)
+				sizes = append(sizes, s)
+			}
+		}
+		gRows.Close()
+
+		if len(paths) < 2 {
+			continue
+		}
+
+		keep := paths[0]
+		for i, dup := range paths[1:] {
+			dups = append(dups, DedupeDuplicate{
+				KeepPath:      keep,
+				DuplicatePath: dup,
+				DuplicateSize: sizes[i+1],
+			})
+		}
 	}
 	return dups, nil
 }
@@ -298,73 +437,81 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 	}
 	defer sqlDB.Close()
 
-	// 1. Group by size
-	query := "SELECT path, size FROM media WHERE COALESCE(time_deleted, 0) = 0 AND size > 0"
+	// 1. Group by size in SQL
+	query := `
+		SELECT size, COUNT(*) as count
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0 AND size > 0
+		GROUP BY size
+		HAVING count > 1
+	`
 	rows, err := sqlDB.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	sizeGroups := make(map[int64][]string)
+	var dups []DedupeDuplicate
 	for rows.Next() {
-		var path string
 		var size int64
-		if err := rows.Scan(&path, &size); err != nil {
+		var count int
+		if err := rows.Scan(&size, &count); err != nil {
 			return nil, err
 		}
-		sizeGroups[size] = append(sizeGroups[size], path)
-	}
 
-	var candidates []string
-	for _, paths := range sizeGroups {
-		if len(paths) > 1 {
-			candidates = append(candidates, paths...)
+		gRows, err := sqlDB.Query("SELECT path FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0", size)
+		if err != nil {
+			continue
 		}
-	}
-
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-
-	// 2. Sample Hash
-	sampleHashes := make(map[string][]string)
-	for _, p := range candidates {
-		h, err := utils.SampleHashFile(p, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
-		if err == nil && h != "" {
-			sampleHashes[h] = append(sampleHashes[h], p)
+		var paths []string
+		for gRows.Next() {
+			var p string
+			if err := gRows.Scan(&p); err == nil {
+				paths = append(paths, p)
+			}
 		}
-	}
+		gRows.Close()
 
-	var fullHashCandidates []string
-	for _, paths := range sampleHashes {
-		if len(paths) > 1 {
-			fullHashCandidates = append(fullHashCandidates, paths...)
+		if len(paths) < 2 {
+			continue
 		}
-	}
 
-	// 3. Full Hash
-	fullHashes := make(map[string][]string)
-	for _, p := range fullHashCandidates {
-		h, err := utils.FullHashFile(p)
-		if err == nil && h != "" {
-			fullHashes[h] = append(fullHashes[h], p)
+		// 2. Sample Hash within size group
+		sampleHashes := make(map[string][]string)
+		for _, p := range paths {
+			h, err := utils.SampleHashFile(p, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
+			if err == nil && h != "" {
+				sampleHashes[h] = append(sampleHashes[h], p)
+			}
 		}
-	}
 
-	var dups []DedupeDuplicate
-	for _, paths := range fullHashes {
-		if len(paths) > 1 {
-			sort.Strings(paths) // consistent keep path
-			keep := paths[0]
-			var size int64
-			sqlDB.QueryRow("SELECT size FROM media WHERE path = ?", keep).Scan(&size)
-			for _, dup := range paths[1:] {
-				dups = append(dups, DedupeDuplicate{
-					KeepPath:      keep,
-					DuplicatePath: dup,
-					DuplicateSize: size,
-				})
+		for _, sPaths := range sampleHashes {
+			if len(sPaths) < 2 {
+				continue
+			}
+
+			// 3. Full Hash within sample group
+			fullHashes := make(map[string][]string)
+			for _, p := range sPaths {
+				h, err := utils.FullHashFile(p)
+				if err == nil && h != "" {
+					fullHashes[h] = append(fullHashes[h], p)
+				}
+			}
+
+			for _, fPaths := range fullHashes {
+				if len(fPaths) < 2 {
+					continue
+				}
+				sort.Strings(fPaths)
+				keep := fPaths[0]
+				for _, dup := range fPaths[1:] {
+					dups = append(dups, DedupeDuplicate{
+						KeepPath:      keep,
+						DuplicatePath: dup,
+						DuplicateSize: size,
+					})
+				}
 			}
 		}
 	}

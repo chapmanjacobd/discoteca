@@ -84,8 +84,9 @@ func (m *Measurements) Score(id protocol.DeviceID) float64 {
 }
 
 type Syncweb struct {
-	Node         *Node
-	Measurements *Measurements
+	Node           *Node
+	Measurements   *Measurements
+	pendingDevices sync.Map // map[protocol.DeviceID]time.Time
 }
 
 func NewSyncweb(homeDir string, name string, listenAddr string) (*Syncweb, error) {
@@ -94,10 +95,57 @@ func NewSyncweb(homeDir string, name string, listenAddr string) (*Syncweb, error
 		return nil, err
 	}
 
-	return &Syncweb{
+	s := &Syncweb{
 		Node:         node,
 		Measurements: NewMeasurements(),
-	}, nil
+	}
+
+	go s.watchEvents()
+
+	return s, nil
+}
+
+func (s *Syncweb) watchEvents() {
+	sub := s.Node.Subscribe(events.DeviceRejected | events.PendingDevicesChanged | events.DeviceConnected)
+	defer sub.Unsubscribe()
+
+	for {
+		select {
+		case ev := <-sub.C():
+			switch ev.Type {
+			case events.DeviceRejected:
+				data := ev.Data.(map[string]interface{})
+				if deviceIDStr, ok := data["device"].(string); ok {
+					if id, err := protocol.DeviceIDFromString(deviceIDStr); err == nil {
+						s.pendingDevices.Store(id, ev.Time)
+						slog.Info("Device rejected (pending)", "id", id)
+					}
+				}
+			case events.PendingDevicesChanged:
+				// This event is emitted when the set of pending devices changes
+				// Ideally we would fetch the list here, but since we can't get it from Internals,
+				// we rely on DeviceRejected events for now or try to use Discovery
+			case events.DeviceConnected:
+				data := ev.Data.(map[string]interface{})
+				if deviceIDStr, ok := data["id"].(string); ok {
+					if id, err := protocol.DeviceIDFromString(deviceIDStr); err == nil {
+						s.pendingDevices.Delete(id)
+					}
+				}
+			}
+		case <-s.Node.Ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *Syncweb) GetPendingDevices() map[string]time.Time {
+	res := make(map[string]time.Time)
+	s.pendingDevices.Range(func(key, value interface{}) bool {
+		res[key.(protocol.DeviceID).String()] = value.(time.Time)
+		return true
+	})
+	return res
 }
 
 func (s *Syncweb) Start() error {

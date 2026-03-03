@@ -70,3 +70,7 @@ type FilterBinsResponse struct {
 }
 
 type PlaylistResponse []string
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
