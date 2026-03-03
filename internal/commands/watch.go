@@ -1,0 +1,360 @@
+package commands
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/exec"
+	"time"
+
+	"github.com/alecthomas/kong"
+	"github.com/chapmanjacobd/discotheque/internal/history"
+	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/query"
+	"github.com/chapmanjacobd/discotheque/internal/utils"
+)
+
+type WatchCmd struct {
+	models.CoreFlags        `embed:""`
+	models.QueryFlags       `embed:""`
+	models.PathFilterFlags  `embed:""`
+	models.FilterFlags      `embed:""`
+	models.MediaFilterFlags `embed:""`
+	models.TimeFilterFlags  `embed:""`
+	models.DeletedFlags     `embed:""`
+	models.SortFlags        `embed:""`
+	models.DisplayFlags     `embed:""`
+	models.FTSFlags         `embed:""`
+	models.PlaybackFlags    `embed:""`
+	models.MpvActionFlags   `embed:""`
+	models.PostActionFlags  `embed:""`
+
+	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+}
+
+func (c *WatchCmd) Run(ctx *kong.Context) error {
+	models.SetupLogging(c.Verbose)
+	flags := models.GlobalFlags{
+		CoreFlags:        c.CoreFlags,
+		QueryFlags:       c.QueryFlags,
+		PathFilterFlags:  c.PathFilterFlags,
+		FilterFlags:      c.FilterFlags,
+		MediaFilterFlags: c.MediaFilterFlags,
+		TimeFilterFlags:  c.TimeFilterFlags,
+		DeletedFlags:     c.DeletedFlags,
+		SortFlags:        c.SortFlags,
+		DisplayFlags:     c.DisplayFlags,
+		FTSFlags:         c.FTSFlags,
+		PlaybackFlags:    c.PlaybackFlags,
+		MpvActionFlags:   c.MpvActionFlags,
+		PostActionFlags:  c.PostActionFlags,
+	}
+	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	if err != nil {
+		return err
+	}
+
+	media = query.FilterMedia(media, flags)
+	query.SortMedia(media, flags)
+	if c.ReRank != "" {
+		media = query.ReRankMedia(media, flags)
+	}
+
+	if len(media) == 0 {
+		return fmt.Errorf("no media found")
+	}
+
+	for i, m := range media {
+		if !utils.FileExists(m.Path) {
+			continue
+		}
+
+		// Build mpv command for this specific item (to handle Cable and SubMix)
+		args := []string{"mpv"}
+
+		if c.Volume > 0 {
+			args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
+		}
+		if c.Fullscreen {
+			args = append(args, "--fullscreen")
+		}
+
+		// Subtitle Mix logic
+		useSubs := !c.NoSubtitles
+		if useSubs && c.SubtitleMix > 0 {
+			if utils.RandomFloat() < c.SubtitleMix {
+				useSubs = false
+			}
+		}
+
+		if !useSubs {
+			args = append(args, "--no-sub")
+			args = append(args, c.PlayerArgsNoSub...)
+		} else {
+			args = append(args, c.PlayerArgsSub...)
+		}
+
+		if c.Speed != 1.0 {
+			args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
+		}
+
+		// Start/End and Interdimensional Cable
+		start := c.Start
+		end := c.End
+		if c.InterdimensionalCable > 0 {
+			duration := 0
+			if m.Duration != nil {
+				duration = int(*m.Duration)
+			}
+			if duration > c.InterdimensionalCable {
+				s := utils.RandomInt(0, duration-c.InterdimensionalCable)
+				start = fmt.Sprintf("%d", s)
+				end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+			}
+		}
+
+		if start != "" {
+			args = append(args, fmt.Sprintf("--start=%s", start))
+		}
+		if end != "" {
+			args = append(args, fmt.Sprintf("--end=%s", end))
+		}
+
+		if c.SavePlayhead {
+			args = append(args, "--save-position-on-quit")
+		}
+		if c.Mute {
+			args = append(args, "--mute=yes")
+		}
+		if c.Loop {
+			args = append(args, "--loop-file=inf")
+		}
+
+		ipcSocket := c.MpvSocket
+		if ipcSocket == "" {
+			ipcSocket = utils.GetMpvWatchSocket()
+		}
+		args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
+		args = append(args, m.Path)
+
+		if c.Cast {
+			// CastPlay handles its own loop, but we want to handle one by one for Cable?
+			// For now, let's just call it with the single item
+			if err := CastPlay(flags, []models.MediaWithDB{m}, false); err != nil {
+				slog.Error("Cast failed", "path", m.Path, "error", err)
+			}
+			continue
+		}
+
+		// Execute mpv
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+
+		startTime := time.Now()
+		err := cmd.Run()
+
+		// Update history
+		if c.TrackHistory {
+			mediaDuration := 0
+			if m.Duration != nil {
+				mediaDuration = int(*m.Duration)
+			}
+			existingPlayhead := 0
+			if m.Playhead != nil {
+				existingPlayhead = int(*m.Playhead)
+			}
+			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
+
+			if err := history.UpdateHistorySimple(m.DB, []string{m.Path}, playhead, false); err != nil {
+				slog.Error("Warning: failed to update history", "path", m.Path, "error", err)
+			}
+		}
+
+		// Handle Exit Code Hooks
+		exitCode := 0
+		if err != nil {
+			if exitError, ok := err.(*exec.ExitError); ok {
+				exitCode = exitError.ExitCode()
+			} else {
+				return err
+			}
+		}
+
+		if exitCode == 4 {
+			return nil
+		}
+
+		if err := RunExitCommand(flags, exitCode, m.Path); err != nil {
+			slog.Error("Exit command failed", "code", exitCode, "error", err)
+		}
+
+		// Interactive decision
+		if c.Interactive {
+			if err := InteractiveDecision(flags, m); err != nil {
+				slog.Error("Interactive decision failed", "error", err)
+			}
+		}
+
+		// Execute post action for this item
+		if err := ExecutePostAction(flags, []models.MediaWithDB{m}); err != nil {
+			slog.Error("Post action failed", "path", m.Path, "error", err)
+		}
+
+		if i < len(media)-1 && c.InterdimensionalCable > 0 {
+			fmt.Printf("\nChanging channel...\n")
+		}
+	}
+
+	return nil
+}
+
+type ListenCmd struct {
+	models.CoreFlags        `embed:""`
+	models.QueryFlags       `embed:""`
+	models.PathFilterFlags  `embed:""`
+	models.FilterFlags      `embed:""`
+	models.MediaFilterFlags `embed:""`
+	models.TimeFilterFlags  `embed:""`
+	models.DeletedFlags     `embed:""`
+	models.SortFlags        `embed:""`
+	models.DisplayFlags     `embed:""`
+	models.FTSFlags         `embed:""`
+	models.PlaybackFlags    `embed:""`
+	models.MpvActionFlags   `embed:""`
+	models.PostActionFlags  `embed:""`
+
+	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+}
+
+func (c *ListenCmd) Run(ctx *kong.Context) error {
+	models.SetupLogging(c.Verbose)
+	flags := models.GlobalFlags{
+		CoreFlags:        c.CoreFlags,
+		QueryFlags:       c.QueryFlags,
+		PathFilterFlags:  c.PathFilterFlags,
+		FilterFlags:      c.FilterFlags,
+		MediaFilterFlags: c.MediaFilterFlags,
+		TimeFilterFlags:  c.TimeFilterFlags,
+		DeletedFlags:     c.DeletedFlags,
+		SortFlags:        c.SortFlags,
+		DisplayFlags:     c.DisplayFlags,
+		FTSFlags:         c.FTSFlags,
+		PlaybackFlags:    c.PlaybackFlags,
+		MpvActionFlags:   c.MpvActionFlags,
+		PostActionFlags:  c.PostActionFlags,
+	}
+	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	if err != nil {
+		return err
+	}
+
+	media = query.FilterMedia(media, flags)
+	query.SortMedia(media, flags)
+	if c.ReRank != "" {
+		media = query.ReRankMedia(media, flags)
+	}
+
+	if len(media) == 0 {
+		return fmt.Errorf("no media found")
+	}
+
+	for _, m := range media {
+		if !utils.FileExists(m.Path) {
+			continue
+		}
+
+		args := []string{"mpv", "--video=no"}
+
+		if c.Volume > 0 {
+			args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
+		}
+		if c.Speed != 1.0 {
+			args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
+		}
+		if c.Mute {
+			args = append(args, "--mute=yes")
+		}
+		if c.Loop {
+			args = append(args, "--loop-file=inf")
+		}
+
+		// Interdimensional Cable for audio too? why not.
+		start := c.Start
+		end := c.End
+		if c.InterdimensionalCable > 0 {
+			duration := 0
+			if m.Duration != nil {
+				duration = int(*m.Duration)
+			}
+			if duration > c.InterdimensionalCable {
+				s := utils.RandomInt(0, duration-c.InterdimensionalCable)
+				start = fmt.Sprintf("%d", s)
+				end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+			}
+		}
+		if start != "" {
+			args = append(args, fmt.Sprintf("--start=%s", start))
+		}
+		if end != "" {
+			args = append(args, fmt.Sprintf("--end=%s", end))
+		}
+
+		ipcSocket := c.MpvSocket
+		if ipcSocket == "" {
+			ipcSocket = utils.GetMpvWatchSocket()
+		}
+		args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
+		args = append(args, m.Path)
+
+		if c.Cast {
+			if err := CastPlay(flags, []models.MediaWithDB{m}, true); err != nil {
+				slog.Error("Cast failed", "path", m.Path, "error", err)
+			}
+			continue
+		}
+
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		startTime := time.Now()
+		err := cmd.Run()
+
+		if c.TrackHistory {
+			mediaDuration := 0
+			if m.Duration != nil {
+				mediaDuration = int(*m.Duration)
+			}
+			existingPlayhead := 0
+			if m.Playhead != nil {
+				existingPlayhead = int(*m.Playhead)
+			}
+			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
+			history.UpdateHistorySimple(m.DB, []string{m.Path}, playhead, false)
+		}
+
+		exitCode := 0
+		if err != nil {
+			if exitError, ok := err.(*exec.ExitError); ok {
+				exitCode = exitError.ExitCode()
+			}
+		}
+
+		if exitCode == 4 {
+			return nil
+		}
+
+		RunExitCommand(flags, exitCode, m.Path)
+
+		if c.Interactive {
+			InteractiveDecision(flags, m)
+		}
+
+		ExecutePostAction(flags, []models.MediaWithDB{m})
+	}
+
+	return nil
+}

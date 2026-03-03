@@ -1,0 +1,273 @@
+package commands
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log/slog"
+	"maps"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+
+	"github.com/alecthomas/kong"
+	"github.com/chapmanjacobd/discotheque/internal/db"
+	"github.com/chapmanjacobd/discotheque/internal/fs"
+	"github.com/chapmanjacobd/discotheque/internal/metadata"
+	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/utils"
+)
+
+type AddCmd struct {
+	models.CoreFlags        `embed:""`
+	models.PathFilterFlags  `embed:""`
+	models.MediaFilterFlags `embed:""`
+
+	Args     []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
+	Parallel int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
+
+	ScanPaths []string `kong:"-"`
+	Database  string   `kong:"-"`
+}
+
+func (c *AddCmd) AfterApply() error {
+	if err := c.CoreFlags.AfterApply(); err != nil {
+		return err
+	}
+	if err := c.MediaFilterFlags.AfterApply(); err != nil {
+		return err
+	}
+	if len(c.Args) < 2 {
+		return fmt.Errorf("at least one database file and one path to scan are required")
+	}
+
+	// Smart DB detection: first arg MUST be a database for 'add'
+	isDB := strings.HasSuffix(c.Args[0], ".db") && (utils.IsSQLite(c.Args[0]) || !utils.FileExists(c.Args[0]))
+	if isDB {
+		c.Database = c.Args[0]
+		c.ScanPaths = c.Args[1:]
+	} else {
+		return fmt.Errorf("first argument must be a database file (e.g. .db): %s", c.Args[0])
+	}
+
+	if c.Parallel <= 0 {
+		c.Parallel = runtime.NumCPU() * 4
+	}
+	return nil
+}
+
+func (c *AddCmd) Run(ctx *kong.Context) error {
+	models.SetupLogging(c.Verbose)
+	flags := models.GlobalFlags{
+		CoreFlags:        c.CoreFlags,
+		PathFilterFlags:  c.PathFilterFlags,
+		MediaFilterFlags: c.MediaFilterFlags,
+	}
+	dbPath := c.Database
+	c.ScanPaths = utils.ExpandStdin(c.ScanPaths)
+
+	dbExists := utils.FileExists(dbPath)
+	sqlDB, err := db.Connect(dbPath)
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	if err := InitDB(sqlDB); err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	queries := db.New(sqlDB)
+
+	// Step 0: Load existing playlists (roots) to avoid redundant scans
+	existingPlaylists, _ := queries.GetPlaylists(context.Background())
+
+	// Step 1: Load all existing metadata into memory for O(1) checks
+	existingMedia, err := queries.GetAllMediaMetadata(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to load existing metadata: %w", err)
+	}
+
+	type meta struct {
+		size    int64
+		mtime   int64
+		deleted bool
+	}
+	metaCache := make(map[string]meta, len(existingMedia))
+	for _, m := range existingMedia {
+		metaCache[m.Path] = meta{
+			size:    m.Size.Int64,
+			mtime:   m.TimeModified.Int64,
+			deleted: m.TimeDeleted.Int64 > 0,
+		}
+	}
+	if dbExists {
+		slog.Info("Loaded metadata cache from database", "count", len(metaCache))
+	}
+
+	for _, root := range c.ScanPaths {
+		absRoot, err := filepath.Abs(root)
+		if err != nil {
+			slog.Error("Failed to get absolute path", "path", root, "error", err)
+			continue
+		}
+
+		// Check if this path or a parent is already a playlist
+		isSubpath := false
+		for _, pl := range existingPlaylists {
+			if pl.Path.Valid && (absRoot == pl.Path.String || strings.HasPrefix(absRoot, pl.Path.String+string(filepath.Separator))) {
+				slog.Info("Path already covered by existing scan root", "path", absRoot, "root", pl.Path.String)
+				isSubpath = true
+				break
+			}
+		}
+		if isSubpath {
+			continue
+		}
+
+		// Record this new scan root
+		queries.InsertPlaylist(context.Background(), db.InsertPlaylistParams{
+			Path:         sql.NullString{String: absRoot, Valid: true},
+			ExtractorKey: sql.NullString{String: "Local", Valid: true},
+		})
+
+		var filter map[string]bool
+		if c.VideoOnly || c.AudioOnly {
+			filter = make(map[string]bool)
+			if c.VideoOnly {
+				maps.Copy(filter, utils.VideoExtensionMap)
+			}
+			if c.AudioOnly {
+				maps.Copy(filter, utils.AudioExtensionMap)
+			}
+		}
+
+		slog.Info("Scanning", "path", absRoot)
+		foundFiles, err := fs.FindMedia(absRoot, filter)
+		if err != nil {
+			return err
+		}
+
+		if dbExists {
+			slog.Info("Checking for updates", "count", len(foundFiles))
+		}
+
+		// Step 2: Identify which files actually need probing using the cache
+		var toProbe []string
+		skipped := 0
+		for path, stat := range foundFiles {
+			if len(c.Ext) > 0 {
+				matched := false
+				for _, e := range c.Ext {
+					if strings.EqualFold(filepath.Ext(path), e) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+			}
+
+			if existing, ok := metaCache[path]; ok {
+				// Record exists, check if it's still valid
+				if !existing.deleted && existing.size == stat.Size() && existing.mtime == stat.ModTime().Unix() {
+					skipped++
+					continue
+				}
+			}
+			toProbe = append(toProbe, path)
+		}
+
+		if skipped > 0 {
+			slog.Info("Skipped unchanged files", "count", skipped)
+		}
+
+		if len(toProbe) == 0 {
+			continue
+		}
+
+		slog.Info("Extracting metadata", "count", len(toProbe), "parallelism", c.Parallel)
+
+		// Parallel extraction
+		jobs := make(chan string, len(toProbe))
+		results := make(chan *metadata.MediaMetadata, len(toProbe))
+		var wg sync.WaitGroup
+
+		for i := 0; i < c.Parallel; i++ {
+			wg.Go(func() {
+				for path := range jobs {
+					res, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles)
+					if err != nil {
+						slog.Error("Metadata extraction failed", "path", path, "error", err)
+						continue
+					}
+					results <- res
+				}
+			})
+		}
+
+		go func() {
+			for _, f := range toProbe {
+				jobs <- f
+			}
+			close(jobs)
+		}()
+
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		count := 0
+		batchSize := 100
+		var currentBatch []*metadata.MediaMetadata
+
+		flush := func() error {
+			if len(currentBatch) == 0 {
+				return nil
+			}
+			tx, err := sqlDB.Begin()
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
+
+			qtx := queries.WithTx(tx)
+			for _, res := range currentBatch {
+				if err := qtx.UpsertMedia(context.Background(), res.Media); err != nil {
+					slog.Error("Database upsert failed", "path", res.Media.Path, "error", err)
+				}
+				for _, cap := range res.Captions {
+					if err := qtx.InsertCaption(context.Background(), cap); err != nil {
+						slog.Error("Caption insertion failed", "path", res.Media.Path, "error", err)
+					}
+				}
+			}
+			return tx.Commit()
+		}
+
+		for res := range results {
+			currentBatch = append(currentBatch, res)
+			if len(currentBatch) >= batchSize {
+				if err := flush(); err != nil {
+					slog.Error("Failed to commit batch", "error", err)
+				}
+				currentBatch = currentBatch[:0]
+			}
+
+			count++
+			if count%10 == 0 || count == len(toProbe) {
+				fmt.Printf("\rProcessed %d/%d", count, len(toProbe))
+			}
+		}
+		// Final flush
+		if err := flush(); err != nil {
+			slog.Error("Failed to commit final batch", "error", err)
+		}
+		fmt.Println()
+	}
+
+	return nil
+}
