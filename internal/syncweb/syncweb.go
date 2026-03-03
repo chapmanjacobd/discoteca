@@ -23,6 +23,23 @@ type Measurement struct {
 	Errors    int64
 }
 
+type DeviceInfo struct {
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Addresses  []string `json:"addresses"`
+	Introducer bool     `json:"introducer"`
+	Paused     bool     `json:"paused"`
+}
+
+type FolderInfo struct {
+	ID      string   `json:"id"`
+	Label   string   `json:"label"`
+	Path    string   `json:"path"`
+	Type    string   `json:"type"`
+	Paused  bool     `json:"paused"`
+	Devices []string `json:"devices"`
+}
+
 type Measurements struct {
 	mutex sync.RWMutex
 	data  map[protocol.DeviceID]*Measurement
@@ -103,9 +120,11 @@ func (s *Syncweb) AddDevice(deviceID string, name string, introducer bool) error
 	}
 
 	_, err = s.Node.Cfg.Modify(func(cfg *config.Configuration) {
-		for _, dev := range cfg.Devices {
+		for i, dev := range cfg.Devices {
 			if dev.DeviceID == id {
-				return // Already exists
+				cfg.Devices[i].Name = name
+				cfg.Devices[i].Introducer = introducer
+				return
 			}
 		}
 		device := cfg.Defaults.Device.Copy()
@@ -303,14 +322,41 @@ func (s *Syncweb) DeleteDevice(id string) error {
 	return err
 }
 
-// GetFolders returns a list of folder IDs
-func (s *Syncweb) GetFolders() []string {
-	ids := make([]string, 0)
+// GetFolders returns a list of folder information
+func (s *Syncweb) GetFolders() []FolderInfo {
 	cfg := s.Node.Cfg.RawCopy()
+	folders := make([]FolderInfo, 0, len(cfg.Folders))
 	for _, f := range cfg.Folders {
-		ids = append(ids, f.ID)
+		devices := make([]string, 0, len(f.Devices))
+		for _, d := range f.Devices {
+			devices = append(devices, d.DeviceID.String())
+		}
+		folders = append(folders, FolderInfo{
+			ID:      f.ID,
+			Label:   f.Label,
+			Path:    f.Path,
+			Type:    f.Type.String(),
+			Paused:  f.Paused,
+			Devices: devices,
+		})
 	}
-	return ids
+	return folders
+}
+
+// GetDevices returns a list of device information
+func (s *Syncweb) GetDevices() []DeviceInfo {
+	cfg := s.Node.Cfg.RawCopy()
+	devices := make([]DeviceInfo, 0, len(cfg.Devices))
+	for _, d := range cfg.Devices {
+		devices = append(devices, DeviceInfo{
+			ID:         d.DeviceID.String(),
+			Name:       d.Name,
+			Addresses:  d.Addresses,
+			Introducer: d.Introducer,
+			Paused:     d.Paused,
+		})
+	}
+	return devices
 }
 
 // ResolveLocalPath resolves a syncweb:// URL to a local filesystem path,

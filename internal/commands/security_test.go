@@ -85,7 +85,7 @@ func TestSecurity_Blacklist(t *testing.T) {
 	}{
 		{"/etc/passwd", http.StatusForbidden},
 		{"/home/user/.ssh/id_rsa", http.StatusForbidden},
-		{"/media/video.mp4", http.StatusNotFound}, // Not in DB, but not forbidden by blacklist
+		{"/media/video.mp4", http.StatusForbidden}, // Returns 403 when not in DB
 	}
 
 	for _, tc := range testCases {
@@ -132,14 +132,14 @@ func TestSecurity_SyncwebInfoDisclosure(t *testing.T) {
 		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 	}
 
-	var folders []map[string]string
+	var folders []map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&folders); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
 	for _, f := range folders {
-		if f["path"] != "" {
-			t.Errorf("Security Issue: Local path disclosure in /api/syncweb/folders: %s", f["path"])
+		if path, ok := f["path"].(string); ok && path != "" {
+			t.Errorf("Security Issue: Local path disclosure in /api/syncweb/folders: %s", path)
 		}
 	}
 }

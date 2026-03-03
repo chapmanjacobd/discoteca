@@ -42,7 +42,8 @@ func (c *ServeCmd) addSyncwebRoots(resultsMap map[string]LsEntry, counts map[str
 	swMu.Lock()
 	defer swMu.Unlock()
 	if swInstance != nil && (path == "/" || path == "") && swInstance.IsRunning() {
-		for _, id := range swInstance.GetFolders() {
+		for _, folder := range swInstance.GetFolders() {
+			id := folder.ID
 			entryPath := fmt.Sprintf("syncweb://%s/", id)
 			name := id
 			if localPath, ok := swInstance.GetFolderPath(id); ok {
@@ -95,14 +96,10 @@ func (c *ServeCmd) handleSyncwebFolders(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	folderIDs := swInstance.GetFolders()
-	folders := make([]map[string]string, 0, len(folderIDs))
-	for _, id := range folderIDs {
-		folders = append(folders, map[string]string{
-			"id": id,
-		})
+	folders := swInstance.GetFolders()
+	for i := range folders {
+		folders[i].Path = "" // Hide local path from API
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(folders)
 }
@@ -121,8 +118,8 @@ func (c *ServeCmd) handleSyncwebLs(w http.ResponseWriter, r *http.Request) {
 	// Security check: ensure the folder is one we actually have
 	configuredFolders := swInstance.GetFolders()
 	found := false
-	for _, id := range configuredFolders {
-		if id == folderID {
+	for _, f := range configuredFolders {
+		if f.ID == folderID {
 			found = true
 			break
 		}

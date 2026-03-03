@@ -5,11 +5,10 @@
 - [ ] `cmd/syncweb/`: Ensure consistency between standalone `syncweb` and the one integrated into `disco`.
 
 ## `internal/commands/` (Core Logic)
-- [ ] **Refactor `commands.go`**: This "god file" (>2500 lines) must be split into smaller, focused files.
-- [ ] `syncweb.go`: Implement "Pending devices listing" (currently a placeholder).
-- [ ] `syncweb.go`: Implement "Automatic device acceptance" logic.
 - [ ] `serve.go`: Improve API documentation and error responses for the web server.
 - [ ] `dedupe.go`: Optimize deduplication algorithms for large databases.
+- [ ] `syncweb.go`: Implement "Pending devices listing" (currently a placeholder).
+- [ ] `syncweb.go`: Implement "Automatic device acceptance" logic.
 
 ## `internal/db/` & `internal/query/` (Database & Queries)
 - [ ] `schema.sql`: Review and optimize indexes for frequent queries.

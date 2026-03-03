@@ -3,9 +3,11 @@ package syncweb
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/syncthing/syncthing/lib/config"
@@ -22,7 +24,9 @@ type Node struct {
 	EvLogger events.Logger
 	Ctx      context.Context
 	Cancel   context.CancelFunc
+	db       io.Closer
 	running  bool
+	mu       sync.RWMutex
 }
 
 func NewNode(homeDir string, name string, listenAddr string) (*Node, error) {
@@ -111,6 +115,7 @@ func NewNode(homeDir string, name string, listenAddr string) (*Node, error) {
 
 	app, err := syncthing.New(cfg, sdb, evLogger, cert, appOpts)
 	if err != nil {
+		sdb.Close()
 		cancel()
 		return nil, fmt.Errorf("failed to create Syncthing app: %w", err)
 	}
@@ -121,10 +126,16 @@ func NewNode(homeDir string, name string, listenAddr string) (*Node, error) {
 		EvLogger: evLogger,
 		Ctx:      ctx,
 		Cancel:   cancel,
+		db:       sdb,
 	}, nil
 }
 
 func (n *Node) Start() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.running {
+		return nil
+	}
 	if err := n.App.Start(); err != nil {
 		return err
 	}
@@ -133,6 +144,8 @@ func (n *Node) Start() error {
 }
 
 func (n *Node) IsRunning() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	return n.running
 }
 
@@ -142,6 +155,8 @@ func (n *Node) Serve() error {
 }
 
 func (n *Node) Stop() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if !n.running {
 		return
 	}
@@ -149,6 +164,14 @@ func (n *Node) Stop() {
 	n.Cancel()
 	n.App.Wait()
 	n.running = false
+	if n.db != nil {
+		n.db.Close()
+	}
+}
+
+func (n *Node) Close() error {
+	n.Stop()
+	return nil
 }
 
 func (n *Node) MyID() protocol.DeviceID {
