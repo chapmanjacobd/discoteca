@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -36,12 +37,52 @@ func AutoUpdate() {
 	}
 
 	go func() {
+		// "don't check on startup" - wait 15 minutes before the first potential check
+		// and add some jitter to further distribute load.
+		time.Sleep(15*time.Minute + time.Duration(rand.Int63n(int64(15*time.Minute))))
+
 		for {
-			// Check every 30-90 minutes
-			time.Sleep(time.Duration(rand.Int63n(int64(time.Minute*60))) + time.Minute*30)
-			MaybeUpdate()
+			if shouldCheckProbabilistically() {
+				MaybeUpdate()
+			}
+			// Only attempt to check once every 24 hours.
+			time.Sleep(24 * time.Hour)
 		}
 	}()
+}
+
+func shouldCheckProbabilistically() bool {
+	statePath := filepath.Join(GetConfigDir(), "update_state.json")
+
+	var state struct {
+		LastCheck time.Time `json:"last_check"`
+	}
+
+	data, err := os.ReadFile(statePath)
+	if err == nil {
+		json.Unmarshal(data, &state)
+	}
+
+	// Ensure we don't check more than once every 24 hours even if the process restarts.
+	if time.Since(state.LastCheck) < 24*time.Hour {
+		return false
+	}
+
+	// 1. Average of twice per month (2/30 ≈ 0.066).
+	// 2. No more than 10% of users on any given day (0.066 < 0.1).
+	if rand.Float64() >= 0.066 {
+		return false
+	}
+
+	// Update the last check time before performing the check to ensure we don't
+	// retry immediately on failure and stay within the daily quota.
+	state.LastCheck = time.Now()
+	os.MkdirAll(filepath.Dir(statePath), 0755)
+	if newData, err := json.Marshal(state); err == nil {
+		os.WriteFile(statePath, newData, 0644)
+	}
+
+	return true
 }
 
 func whichFilename() string {
