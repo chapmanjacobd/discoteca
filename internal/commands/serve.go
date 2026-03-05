@@ -159,6 +159,10 @@ func (c *ServeCmd) Mux() http.Handler {
 			SameSite: http.SameSiteStrictMode,
 		})
 
+		if strings.HasSuffix(r.URL.Path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript")
+		}
+
 		if c.PublicDir != "" {
 			http.FileServer(http.Dir(c.PublicDir)).ServeHTTP(w, r)
 		} else {
