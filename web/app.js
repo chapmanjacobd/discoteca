@@ -1,19 +1,16 @@
+import { fetchAPI } from './api.js';
+import { state } from './state.js';
+import {
+    formatSize,
+    formatDuration,
+    formatRelativeDate,
+    shortDuration,
+    truncateString,
+    formatParents,
+    getIcon
+} from './utils.js';
+
 document.addEventListener('DOMContentLoaded', () => {
-    function getCookie(name) {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
-    }
-
-    async function fetchAPI(url, options = {}) {
-        const token = getCookie('disco_token');
-        const headers = {
-            ...options.headers,
-            'X-Disco-Token': token
-        };
-        return fetch(url, { ...options, headers });
-    }
-
     const searchInput = document.getElementById('search-input');
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
@@ -172,88 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedSuggestionIndex = -1;
 
     // --- State Management ---
-    const state = {
-        view: localStorage.getItem('disco-view') || 'grid',
-        page: 'search', // 'search', 'trash', 'history', or 'playlist'
-        currentPage: 1,
-        totalCount: 0,
-        filters: {
-            types: JSON.parse(localStorage.getItem('disco-types') || '[]'),
-            search: '',
-            categories: JSON.parse(localStorage.getItem('disco-filter-categories') || '[]'),
-            genre: '',
-            ratings: JSON.parse(localStorage.getItem('disco-filter-ratings') || '[]'),
-            playlist: null, // This will now be the playlist title (string)
-            sort: localStorage.getItem('disco-sort') || 'default',
-            reverse: localStorage.getItem('disco-reverse') === 'true',
-            limit: parseInt(localStorage.getItem('disco-limit')) || 100,
-            all: localStorage.getItem('disco-limit-all') === 'true',
-            excludedDbs: JSON.parse(localStorage.getItem('disco-excluded-dbs') || '[]'),
-            sizes: JSON.parse(localStorage.getItem('disco-filter-sizes') || '[]'),
-            durations: JSON.parse(localStorage.getItem('disco-filter-durations') || '[]'),
-            min_score: '',
-            max_score: '',
-            episodes: JSON.parse(localStorage.getItem('disco-filter-episodes') || '[]'),
-            unplayed: localStorage.getItem('disco-unplayed') === 'true',
-            unfinished: false,
-            completed: false,
-            captions: false,
-            browseCol: '',
-            browseVal: ''
-        },
-        duPath: '',
-        draggedItem: null,
-        applicationStartTime: null,
-        lastActivity: Date.now() - (4 * 60 * 1000), // 4 mins ago
-        player: localStorage.getItem('disco-player') || 'browser',
-        language: localStorage.getItem('disco-language') || '',
-        theme: localStorage.getItem('disco-theme') || 'auto',
-        postPlaybackAction: localStorage.getItem('disco-post-playback') || 'nothing',
-        defaultView: localStorage.getItem('disco-default-view') || 'pip',
-        autoplay: localStorage.getItem('disco-autoplay') !== 'false',
-        imageAutoplay: localStorage.getItem('disco-image-autoplay') === 'true',
-        localResume: localStorage.getItem('disco-local-resume') !== 'false',
-        defaultVideoRate: parseFloat(localStorage.getItem('disco-default-video-rate')) || 1.0,
-        defaultAudioRate: parseFloat(localStorage.getItem('disco-default-audio-rate')) || 1.0,
-        playbackRate: parseFloat(localStorage.getItem('disco-playback-rate')) || 1.0,
-        slideshowDelay: parseInt(localStorage.getItem('disco-slideshow-delay')) || 5,
-        trackShuffleDuration: parseInt(localStorage.getItem('disco-track-shuffle-duration')) || 0,
 
-        playerMode: localStorage.getItem('disco-default-view') || 'pip', // Initialize with preference
-        trashcan: false,
-        readOnly: false,
-        dev: false,
-        categories: [],
-        genres: [],
-        ratings: [],
-        filterBins: {
-            episodes: [], size: [], duration: [],
-            episodes_min: 0, episodes_max: 100,
-            size_min: 0, size_max: 100 * 1024 * 1024,
-            duration_min: 0, duration_max: 3600
-        },
-        playlists: [], // String array of titles
-        playlistItems: [], // Cache for client-side filtering
-        sidebarState: JSON.parse(localStorage.getItem('disco-sidebar-state') || '{}'),
-        lastSuggestions: [],
-        playback: {
-            item: null,
-            timer: null,
-            slideshowTimer: null,
-            surfTimer: null,
-            startTime: null,
-            lastUpdate: 0,
-            lastLocalUpdate: 0,
-            lastPlayedIndex: -1,
-            hasMarkedComplete: false,
-            pendingUpdate: null,
-            skipTimeout: null,
-            lastSkipTime: 0,
-            hlsInstance: null,
-            toastTimer: null,
-            muted: localStorage.getItem('disco-muted') === 'true'
-        }
-    };
 
     function formatSliderValue(type, val) {
         return Math.round(val).toString() + '%';
@@ -5510,86 +5426,4 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-// --- Helpers (Exported for testing) ---
-function formatRelativeDate(timestamp) {
-    if (!timestamp || timestamp === 0) return '-';
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
 
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
-    if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`;
-    return `${Math.floor(diff / 31536000)}y ago`;
-}
-
-function formatSize(bytes) {
-    if (!bytes) return '-';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let i = 0;
-    while (bytes >= 1024 && i < units.length - 1) {
-        bytes /= 1024;
-        i++;
-    }
-    return `${bytes.toFixed(1)} ${units[i]}`;
-}
-
-function formatDuration(seconds) {
-    if (!seconds && seconds !== 0) return '';
-    const totalSeconds = Math.floor(seconds);
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-
-    if (h > 0) {
-        return `${h}:${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
-    }
-    return `${m}:${s < 10 ? '0' + s : s}`;
-}
-
-function shortDuration(seconds) {
-    if (!seconds) return '0s';
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-
-    const parts = [];
-    if (d > 0) parts.push(`${d}d`);
-    if (h > 0) parts.push(`${h}h`);
-    if (m > 0) parts.push(`${m}m`);
-    if (s > 0 && d === 0) parts.push(`${s}s`);
-    return parts.join(' ') || '0s';
-}
-
-function getIcon(type) {
-    if (!type) return '📄';
-    if (type.includes('video')) return '🎬';
-    if (type.includes('audio')) return '🎵';
-    if (type.includes('image')) return '🖼️';
-    if (type.includes('epub') || type.includes('pdf') || type.includes('mobi')) return '📚';
-    if (type.includes('app')) return '📱';
-    return '📄';
-}
-
-function truncateString(str) {
-    if (!str) return '';
-    const limit = window.innerWidth <= 768 ? 35 : 55;
-    if (str.length <= limit) return str;
-    return str.substring(0, limit - 3) + '...';
-}
-
-function formatParents(path) {
-    if (!path) return '';
-    const parts = path.split('/');
-    if (parts.length > 1) {
-        // Remove filename
-        parts.pop();
-        if (parts.length === 0) return '';
-        // Show up to two parent folders
-        const display = parts.slice(-2).join('/');
-        return truncateString(display);
-    }
-    return '';
-}
