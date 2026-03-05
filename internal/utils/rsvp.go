@@ -30,7 +30,7 @@ func ExtractText(path string) (string, error) {
 	case ".epub":
 		// Simple EPUB extraction: unzip html/xhtml files and strip tags
 		// We use sh -c to leverage globbing inside zip which unzip supports via arguments
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("unzip -p %q '*.html' '*.xhtml' '*.htm' '*.xml' | sed -e 's/<[^>]*>/ /g'", path))
+		cmd := exec.Command("bash", "-c", fmt.Sprintf("set -o pipefail; unzip -p %q '*.html' '*.xhtml' '*.htm' '*.xml' | sed -e 's/<[^>]*>/ /g'", path))
 		out, err := cmd.Output()
 		if err != nil {
 			return "", fmt.Errorf("epub extraction failed: %w", err)

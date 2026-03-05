@@ -1,18 +1,6 @@
 # Work Plan
 
 ## 1. Testing Priorities
-
-### Backend (Go)
-- [ ] **`internal/utils/transcode.go`**: 
-    - Test HLS playlist generation.
-    - Test segment extraction logic with mocks for FFmpeg.
-    - Test edge cases for seeking and duration reporting.
-- [ ] **`internal/utils/selfupdate.go`**:
-    - Mock GitHub release API to test update detection.
-    - Verify checksum verification and binary replacement logic.
-- [ ] **`internal/utils/rsvp.go`**:
-    - Test text extraction with corrupt or malformed PDF/EPUB files.
-    - Test edge cases like empty documents or documents with zero recognizable words.
 - [ ] **`internal/commands/serve.go` (Handlers)**:
     - Many API handlers are large and handle multiple parameters. More granular tests for input validation and error states are needed.
 
@@ -36,10 +24,3 @@ The current frontend tests cover basic interactions, but `web/app.js` is quite l
 - [ ] Implement better state management (e.g., using a lightweight store instead of global variables).
 - [ ] Improve UI responsiveness and mobile experience.
 - [ ] Increase test coverage for frontend components (currently 20+ `.test.js` files, but verify depth).
-
-## 4. Implementation Strategy
-
-1.  **Refactor `app.js`**: Break down the monolithic file into smaller, testable modules (e.g., `state.js`, `player.js`, `api.js`, `ui.js`).
-2.  **Mock FFmpeg**: Create a robust mock/stub for FFmpeg commands to allow backend transcode testing in CI environments.
-3.  **New API Endpoints**: Expose the missing CLI functions (Dedupe, Stats, Maintenance) via new `/api/...` endpoints.
-4.  **UI Components**: Build dedicated views/modals for the new features using the existing design system.

@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error('Channel surf failed:', err);
-                showToast('Channel surf failed');
+                errorToast(err, 'Channel surf failed');
                 state.playback.isSurfing = false;
                 channelSurfBtn.classList.remove('active');
             }
@@ -1179,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchPlaylistItems(state.filters.playlist);
         } catch (err) {
             console.error('Reorder failed:', err);
-            showToast('Reorder failed');
+            errorToast(err, 'Reorder failed');
         }
     }
 
@@ -1241,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             clearTimeout(skeletonTimeout);
             console.error('Playlist items fetch failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Failed to load playlist');
+            errorToast(err, 'Failed to load playlist');
         }
     }
 
@@ -1434,7 +1434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             clearTimeout(skeletonTimeout);
             console.error('DU fetch failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Failed to load Disk Usage');
+            errorToast(err, 'Failed to load Disk Usage');
         }
     }
 
@@ -1653,7 +1653,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error('Episodes fetch failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Failed to load Episodes');
+            errorToast(err, 'Failed to load Episodes');
             resultsContainer.innerHTML = `<div class="error">Failed to load episodes.</div>`;
         }
     }
@@ -1771,7 +1771,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCuration(data);
         } catch (err) {
             console.error('Curation fetch failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Failed to load Curation Tool');
+            errorToast(err, 'Failed to load Curation Tool');
             resultsContainer.innerHTML = '<div class="error">Failed to load categorization tool.</div>';
         }
     }
@@ -1980,7 +1980,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Don't refresh curation page necessarily, user might want to keep editing
                 } catch (err) {
                     console.error('Apply failed:', err);
-                    showToast('Failed to run categorization');
+                    errorToast(err, 'Failed to run categorization');
                 } finally {
                     btnRun.disabled = false;
                     btnRun.textContent = 'Run Categorization Now';
@@ -1999,7 +1999,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fetchCuration(); // Refresh
                     } catch (err) {
                         console.error(err);
-                        showToast('Failed to add defaults');
+                        errorToast(err, 'Failed to add defaults');
                     }
                 }
             };
@@ -2057,7 +2057,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchCuration(); // Refresh UI
         } catch (err) {
             console.error(err);
-            showToast('Failed to save keyword');
+            errorToast(err, 'Failed to save keyword');
         }
     }
 
@@ -2069,7 +2069,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchCuration();
         } catch (err) {
             console.error(err);
-            showToast('Failed to delete category');
+            errorToast(err, 'Failed to delete category');
         }
     }
 
@@ -2085,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchCuration();
         } catch (err) {
             console.error(err);
-            showToast('Failed to delete keyword');
+            errorToast(err, 'Failed to delete keyword');
         }
     }
 
@@ -2304,7 +2304,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchTrash();
         } catch (err) {
             console.error('Empty bin failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Failed to empty bin');
+            errorToast(err, 'Failed to empty bin');
         }
     }
 
@@ -2323,7 +2323,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchTrash();
         } catch (err) {
             console.error('Permanent delete failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Failed to delete');
+            errorToast(err, 'Failed to delete');
         }
     }
 
@@ -2365,7 +2365,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error('Delete/Restore failed:', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Action failed');
+            errorToast(err, 'Action failed');
             if (itemEl) itemEl.classList.remove('fade-out');
         } finally {
             if (content) content.style.overflow = '';
@@ -2428,12 +2428,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         playSibling(1);
                     }
                 } else {
-                    showToast('Playback failed');
+                    errorToast(err, 'Playback failed');
                 }
             }
         } catch (err) {
             console.error('Playback failed', err);
-            showToast(err.message === 'Access Denied' ? err.message : 'Playback failed');
+            errorToast(err, 'Playback failed');
         }
     }
 
@@ -2685,7 +2685,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Marked as played', '✅');
             } catch (err) {
                 console.error('Failed to mark as played:', err);
-                showToast(err.message === 'Access Denied' ? err.message : 'Action failed');
+                errorToast(err, 'Action failed');
                 return;
             }
         }
@@ -2734,7 +2734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Marked as unplayed', '⭕');
             } catch (err) {
                 console.error('Failed to mark as unplayed:', err);
-                showToast(err.message === 'Access Denied' ? err.message : 'Action failed');
+                errorToast(err, 'Action failed');
                 return;
             }
         }
@@ -3079,7 +3079,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.loop = true;
             }
 
-            el.onerror = () => handleMediaError(item);
+            el.onerror = () => {
+                const currentSrc = el.src || '';
+                if (needsTranscode && (currentSrc.includes('/api/hls/playlist') || (state.playback.hlsInstance && state.playback.hlsInstance.url === currentSrc))) {
+                    console.warn("HLS failed, trying direct stream fallback...");
+                    if (state.playback.hlsInstance) {
+                        state.playback.hlsInstance.destroy();
+                        state.playback.hlsInstance = null;
+                    }
+                    el.src = url;
+                    el.playbackRate = state.playbackRate;
+                    seekToProgress(el, localPos);
+                } else {
+                    handleMediaError(item);
+                }
+            };
 
             if (needsTranscode) {
                 const hlsUrl = `/api/hls/playlist?path=${encodeURIComponent(path)}`;
@@ -3104,6 +3118,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         seekToProgress(el, localPos);
                         el.playbackRate = state.playbackRate;
                         el.play().catch(e => console.log("Auto-play blocked:", e));
+                    });
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        if (data.fatal) {
+                            console.warn("HLS.js fatal error, trying direct stream fallback:", data.type);
+                            hls.destroy();
+                            state.playback.hlsInstance = null;
+                            el.src = url;
+                            el.playbackRate = state.playbackRate;
+                            seekToProgress(el, localPos);
+                        }
                     });
                     state.playback.hlsInstance = hls;
                 } else {
@@ -4269,16 +4293,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helpers ---
+    function errorToast(err, fallbackMsg) {
+        if (err.message === 'Access Denied' || err.message === 'Unauthorized') {
+            showToast(err.message);
+            return true;
+        }
+        if (fallbackMsg) {
+            showToast(fallbackMsg);
+        }
+        return false;
+    }
+
     function showToast(msg, customEmoji) {
         if (state.playback.toastTimer) {
             clearTimeout(state.playback.toastTimer);
         }
 
         let icon = customEmoji;
-        const lowerMsg = msg.toLowerCase();
-        if (lowerMsg === 'forbidden' || lowerMsg === 'unauthorized' || lowerMsg === 'access denied' || 
-            lowerMsg.includes(': forbidden') || lowerMsg.includes(': unauthorized') || lowerMsg.includes(': access denied')) {
+        const lowerMsg = (msg || '').toLowerCase();
+        if (lowerMsg === 'access denied' || lowerMsg.includes(': forbidden')) {
             msg = 'Access Denied';
+            icon = '🚫';
+        } else if (lowerMsg === 'unauthorized' || lowerMsg.includes(': unauthorized')) {
+            msg = 'Unauthorized';
             icon = '🚫';
         }
 
@@ -4357,7 +4394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             showToast(`Copied path to clipboard`, '📋');
                         }).catch(err => {
                             console.error('Failed to copy path:', err);
-                            showToast('Failed to copy path');
+                            errorToast(err, 'Failed to copy path');
                         });
                     }
                     return;
@@ -4819,38 +4856,118 @@ document.addEventListener('DOMContentLoaded', () => {
         let touchStartX = 0;
         let touchStartY = 0;
         let touchStartTime = 0;
+        let lastTapTime = 0;
+        let isLongPress = false;
+        let longPressTimeout = null;
+        let initialSeekTime = 0;
+        const seekIndicator = document.getElementById('seek-indicator');
+        let seekTimer = null;
+
+        function showIndicator(text) {
+            if (!seekIndicator) return;
+            seekIndicator.textContent = text;
+            seekIndicator.classList.remove('hidden');
+            if (seekTimer) clearTimeout(seekTimer);
+            seekTimer = setTimeout(() => seekIndicator.classList.add('hidden'), 1000);
+        }
 
         pipPlayer.addEventListener('touchstart', (e) => {
             if (e.target.closest('.pip-controls') || e.target.closest('button') || e.target.closest('select')) return;
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
+
+            const touch = e.changedTouches[0];
+            touchStartX = touch.screenX;
+            touchStartY = touch.screenY;
             touchStartTime = Date.now();
-        }, { passive: true });
+
+            const media = pipViewer.querySelector('video, audio');
+
+            // Double tap detection
+            const now = Date.now();
+            if (now - lastTapTime < 300 && media && media.tagName === 'VIDEO') {
+                const rect = pipPlayer.getBoundingClientRect();
+                const relativeX = (touch.clientX - rect.left) / rect.width;
+
+                if (relativeX < 0.33) {
+                    media.currentTime = Math.max(0, media.currentTime - 10);
+                    showIndicator('⏪ -10s');
+                } else if (relativeX > 0.66) {
+                    media.currentTime = Math.min(media.duration, media.currentTime + 10);
+                    showIndicator('⏩ +10s');
+                } else {
+                    if (media.paused) media.play();
+                    else media.pause();
+                    showIndicator(media.paused ? '⏸️' : '▶️');
+                }
+                lastTapTime = 0;
+                touchStartTime = 0; // Prevent swipe after double tap
+                if (e.cancelable) e.preventDefault();
+                return;
+            }
+            lastTapTime = now;
+
+            // Long press for seeking
+            isLongPress = false;
+            if (longPressTimeout) clearTimeout(longPressTimeout);
+            longPressTimeout = setTimeout(() => {
+                if (touchStartTime === 0) return;
+                isLongPress = true;
+                if (media) initialSeekTime = media.currentTime;
+            }, 500);
+
+        }, { passive: false });
 
         pipPlayer.addEventListener('touchmove', (e) => {
             if (touchStartTime === 0) return;
-            const diffX = e.changedTouches[0].screenX - touchStartX;
-            const diffY = e.changedTouches[0].screenY - touchStartY;
+            const touch = e.changedTouches[0];
+            const diffX = touch.screenX - touchStartX;
+            const diffY = touch.screenY - touchStartY;
+
+            if (isLongPress) {
+                const media = pipViewer.querySelector('video, audio');
+                if (media && !isNaN(media.duration)) {
+                    // MX Player style: movement relative to screen width
+                    const screenWidth = window.innerWidth;
+                    const sensitivity = 0.5; // Swiping full screen = half video duration
+                    const timeDiff = (diffX / screenWidth) * media.duration * sensitivity;
+                    const targetTime = Math.max(0, Math.min(media.duration, initialSeekTime + timeDiff));
+                    media.currentTime = targetTime;
+
+                    const timeStr = formatDuration(targetTime) + ' / ' + formatDuration(media.duration);
+                    showIndicator(timeStr);
+                    if (e.cancelable) e.preventDefault();
+                }
+                return;
+            }
 
             // If it's clearly a gesture for the player, prevent page scroll
             if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
                 if (e.cancelable) e.preventDefault();
+                // If moving significantly before long press, cancel it
+                if (!isLongPress && (Math.abs(diffX) > 30 || Math.abs(diffY) > 30)) {
+                    clearTimeout(longPressTimeout);
+                }
             }
         }, { passive: false });
 
         pipPlayer.addEventListener('touchend', (e) => {
+            clearTimeout(longPressTimeout);
+            if (touchStartTime === 0) return;
+
+            if (isLongPress) {
+                isLongPress = false;
+                touchStartTime = 0;
+                return;
+            }
+
             if (e.target.closest('.pip-controls') || e.target.closest('button') || e.target.closest('select')) {
                 touchStartTime = 0;
                 return;
             }
 
-            const touchEndX = e.changedTouches[0].screenX;
-            const touchEndY = e.changedTouches[0].screenY;
-            const touchEndTime = Date.now();
-
-            const diffX = touchEndX - touchStartX;
-            const diffY = touchEndY - touchStartY;
-            const duration = touchEndTime - touchStartTime;
+            const touch = e.changedTouches[0];
+            const diffX = touch.screenX - touchStartX;
+            const diffY = touch.screenY - touchStartY;
+            const duration = Date.now() - touchStartTime;
 
             // Thresholds: < 500ms duration
             if (touchStartTime !== 0 && duration < 500) {

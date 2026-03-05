@@ -2321,8 +2321,20 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Generate thumbnail
 	mime := utils.DetectMimeType(path)
-	var args []string
 
+	if strings.HasPrefix(mime, "image/") {
+		if info, err := os.Stat(path); err == nil && info.Size() < 500*1024 {
+			data, err := os.ReadFile(path)
+			if err == nil {
+				w.Header().Set("Content-Type", mime)
+				w.Header().Set("Cache-Control", "public, max-age=31536000")
+				w.Write(data)
+				return
+			}
+		}
+	}
+
+	var args []string
 	if strings.HasPrefix(mime, "video/") {
 		args = []string{"-ss", "25", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
 	} else if strings.HasPrefix(mime, "image/") {
@@ -2938,30 +2950,12 @@ func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	duration := float64(*m.Duration)
-	segments := int(math.Ceil(duration / HLS_SEGMENT_DURATION))
 
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	fmt.Fprintf(w, "#EXTM3U\n")
-	fmt.Fprintf(w, "#EXT-X-VERSION:3\n")
-	fmt.Fprintf(w, "#EXT-X-TARGETDURATION:%d\n", HLS_SEGMENT_DURATION)
-	fmt.Fprintf(w, "#EXT-X-MEDIA-SEQUENCE:0\n")
-	fmt.Fprintf(w, "#EXT-X-PLAYLIST-TYPE:VOD\n")
-
-	for i := range segments {
-		segDuration := float64(HLS_SEGMENT_DURATION)
-		if i == segments-1 {
-			rem := math.Mod(duration, HLS_SEGMENT_DURATION)
-			if rem > 0 {
-				segDuration = rem
-			}
-		}
-		fmt.Fprintf(w, "#EXTINF:%f,\n", segDuration)
-		fmt.Fprintf(w, "/api/hls/segment?path=%s&index=%d\n", url.QueryEscape(path), i)
-	}
-
-	fmt.Fprintf(w, "#EXT-X-ENDLIST\n")
+	playlist := utils.GenerateHLSPlaylist(path, duration, HLS_SEGMENT_DURATION)
+	fmt.Fprint(w, playlist)
 }
 
 func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
@@ -3016,32 +3010,7 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	strategy := utils.GetTranscodeStrategy(m)
 	slog.Debug("HLS Segment request", "index", index, "start", startTime, "strategy", strategy, "path", path)
 
-	args := []string{
-		"-ss", fmt.Sprintf("%f", startTime),
-		"-i", path,
-		"-t", fmt.Sprintf("%d", HLS_SEGMENT_DURATION),
-	}
-
-	if strategy.VideoCopy {
-		args = append(args, "-c:v", "copy")
-	} else {
-		args = append(args,
-			"-vf", "scale=-2:720", // Downscale to 720p for performance/bandwidth
-			"-c:v", "libx264",
-			"-preset", "ultrafast",
-			"-pix_fmt", "yuv420p",
-		)
-	}
-
-	// For HLS (MPEG-TS), AAC is the safest and most compatible choice.
-	args = append(args,
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-ac", "2",
-		"-f", "mpegts",
-		"-output_ts_offset", fmt.Sprintf("%f", startTime), // Align timestamps
-		"pipe:1",
-	)
+	args := utils.GetHLSSegmentArgs(path, startTime, HLS_SEGMENT_DURATION, strategy)
 
 	// Skip logging for segments to avoid spam
 	// slog.Debug("HLS Segment", "index", index, "start", startTime)

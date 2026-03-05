@@ -629,7 +629,6 @@ func ResolvePercentileFlags(ctx context.Context, dbs []string, flags models.Glob
 		} else {
 			sqlQuery, args = qb.BuildSelect(field)
 		}
-		// fmt.Printf("Query for %s: %s %v\n", field, sqlQuery, args)
 
 		var values []int64
 		var mu sync.Mutex
@@ -640,14 +639,12 @@ func ResolvePercentileFlags(ctx context.Context, dbs []string, flags models.Glob
 				defer wg.Done()
 				sqlDB, err := db.Connect(path)
 				if err != nil {
-					fmt.Printf("Connect error in ResolvePercentileFlags: %v\n", err)
 					return
 				}
 				defer sqlDB.Close()
 
 				rows, err := sqlDB.QueryContext(ctx, sqlQuery, args...)
 				if err != nil {
-					fmt.Printf("Query error in ResolvePercentileFlags: %v\n", err)
 					return
 				}
 				defer rows.Close()
@@ -655,15 +652,12 @@ func ResolvePercentileFlags(ctx context.Context, dbs []string, flags models.Glob
 				if field == "episodes" {
 					// Filtered counts
 					gCounts := make(map[string]int64)
-					count := 0
 					for rows.Next() {
 						var p string
 						if err := rows.Scan(&p); err == nil {
 							gCounts[filepath.Dir(p)]++
-							count++
 						}
 					}
-					fmt.Printf("Resolved episodes: %d rows, %d dirs\n", count, len(gCounts))
 
 					mu.Lock()
 					for _, c := range gCounts {
@@ -678,7 +672,6 @@ func ResolvePercentileFlags(ctx context.Context, dbs []string, flags models.Glob
 							localValues = append(localValues, v.Int64)
 						}
 					}
-					fmt.Printf("Resolved %s: %d values\n", field, len(localValues))
 					mu.Lock()
 					values = append(values, localValues...)
 					mu.Unlock()

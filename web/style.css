@@ -1217,6 +1217,28 @@ main {
     justify-content: center;
     border-radius: inherit;
     overflow: hidden;
+    position: relative;
+}
+
+#seek-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 1.2rem;
+    pointer-events: none;
+    z-index: 1000;
+    transition: opacity 0.2s;
+}
+
+#seek-indicator.hidden {
+    display: none;
+    opacity: 0;
 }
 
 #media-viewer img,

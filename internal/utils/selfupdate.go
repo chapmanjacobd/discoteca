@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/mattn/go-isatty"
@@ -104,7 +107,48 @@ func doUpdate(url string) {
 		fmt.Fprintln(os.Stderr, "couldn't get os.Executable:", err)
 		return
 	}
+	if doUpdateAt(curp, url) {
+		fmt.Fprintln(os.Stderr, "new version downloaded, exiting to get restarted")
+		os.Exit(0)
+	}
+}
 
+func verifyChecksum(ctx context.Context, url string, data []byte) error {
+	// Try downloading checksum
+	checksumUrl := url + ".sha256"
+	req, err := http.NewRequestWithContext(ctx, "GET", checksumUrl, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// If checksum file not found, we'll just skip verification for now
+		// unless we want it to be mandatory.
+		return nil
+	}
+
+	expectedHex, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	actualHash := sha256.Sum256(data)
+	actualHex := fmt.Sprintf("%x", actualHash)
+
+	if strings.TrimSpace(string(expectedHex)) != actualHex {
+		return fmt.Errorf("expected %s, got %s", string(expectedHex), actualHex)
+	}
+
+	return nil
+}
+
+func doUpdateAt(curp, url string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -114,59 +158,74 @@ func doUpdate(url string) {
 	f, err := os.Create(newp)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't make file to update:", err)
-		return
+		return false
 	}
 	defer f.Close()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error creating request:", err)
-		return
+		return false
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't download update:", err)
-		return
+		return false
 	}
 	defer resp.Body.Close()
 
-	xzr, err := xz.NewReader(resp.Body)
+	// 1. Read the update into a buffer so we can checksum it
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "couldn't read update:", err)
+		return false
+	}
+
+	// 2. Download checksum if available
+	if err := verifyChecksum(ctx, url, data); err != nil {
+		fmt.Fprintln(os.Stderr, "checksum verification failed:", err)
+		return false
+	}
+
+	// 3. Decompress and write
+	xzr, err := xz.NewReader(bytes.NewReader(data))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't decompress update:", err)
-		return
+		return false
 	}
 
 	if _, err = io.Copy(f, xzr); err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't write update:", err)
-		return
+		return false
 	}
 
 	if err := os.Chmod(newp, 0o755); err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't chmod update:", err)
-		return
+		return false
 	}
 
 	if err := os.Rename(curp, oldp); err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't rename original file:", err)
-		return
+		return false
 	}
 
 	if err := os.Rename(newp, curp); err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't rename new file:", err)
 		os.Rename(oldp, curp) // Try to rollback
-		return
+		return false
 	}
 
-	fmt.Fprintln(os.Stderr, "new version downloaded, exiting to get restarted")
-	os.Exit(0)
+	return true
 }
+
+var githubApiUrl = "https://api.github.com/repos/chapmanjacobd/discotheque/releases/latest"
 
 func checkUpdate() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/repos/chapmanjacobd/discotheque/releases/latest", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", githubApiUrl, nil)
 	if err != nil {
 		return ""
 	}

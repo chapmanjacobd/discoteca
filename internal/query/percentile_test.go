@@ -139,37 +139,65 @@ func TestResolvePercentileFlags(t *testing.T) {
 			t.Errorf("Expected Specials absolute count '1', got %s", resolved.FileCounts)
 		}
 	})
+t.Run("Stability Test (Global vs Dynamic)", func(t *testing.T) {
+	// Category filter that would change the distribution
+	// dir0 has files with sizes 1000, 2000, ..., 10000
+	flags := models.GlobalFlags{
+		MediaFilterFlags: models.MediaFilterFlags{Category: []string{"dir0"}},
+		FilterFlags:      models.FilterFlags{Size: []string{"p0-100"}},
+	}
 
-	t.Run("Stability Test (Global vs Dynamic)", func(t *testing.T) {
-		// Category filter that would change the distribution
-		flags := models.GlobalFlags{
-			MediaFilterFlags: models.MediaFilterFlags{Category: []string{"dir0"}}, // only items 1-10
-			FilterFlags:      models.FilterFlags{Size: []string{"p0-100"}},
+	// Resolved Size (p0-100) should now be resolved to the filtered set (dir0)
+	resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
+	if err != nil {
+		t.Fatalf("ResolvePercentileFlags failed: %v", err)
+	}
+
+	// Verify it resolved to something (absolute values start with + or -)
+	hasAbsolute := false
+	for _, s := range resolved.Size {
+		if strings.HasPrefix(s, "+") || strings.HasPrefix(s, "-") {
+			hasAbsolute = true
+			break
 		}
+	}
+	if !hasAbsolute {
+		t.Errorf("Expected p0-100 to be resolved to absolute values, got %v", resolved.Size)
+	}
 
-		// Resolved Size (p0-100) is currently kept as-is (dynamic at query builder time)
-		resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
-		if err != nil {
-			t.Fatalf("ResolvePercentileFlags failed: %v", err)
+	// dir0 sizes: 1000, 2000, ..., 10000.
+	// p10 of dir0 should be 1000.
+	// p50 of dir0 should be 5000.
+	flags.FilterFlags.Size = []string{"p10-50"}
+	resolved, _ = ResolvePercentileFlags(ctx, dbs, flags)
+
+	foundP10 := false
+	foundP50 := false
+	for _, s := range resolved.Size {
+		if s == "+1000" {
+			foundP10 = true
 		}
-
-		t.Logf("Resolved p0-100 Size: %v", resolved.Size)
-
-		// Set (p10-50) -> Global
-		// Globally, size ranges from 1000 to 100000.
-		// Our density-aware CalculatePercentiles maps p10 of [1000, 2000, ..., 100000] to 11000.
-		flags.FilterFlags.Size = []string{"p10-50"}
-		resolved, _ = ResolvePercentileFlags(ctx, dbs, flags)
-		t.Logf("Resolved p10-50 Size (Global): %v", resolved.Size)
-
-		has11000 := false
-		for _, s := range resolved.Size {
-			if s == "+11000" {
-				has11000 = true
-			}
+		if s == "-5000" {
+			foundP50 = true
 		}
-		if !has11000 {
-			t.Errorf("Expected global resolution for p10-50 (global p10 is 11000), got %v", resolved.Size)
+	}
+
+	if !foundP10 || !foundP50 {
+		t.Errorf("Expected p10-50 for dir0 to resolve to +1000 and -5000, got %v", resolved.Size)
+	}
+
+	// Now change category to dir9 (sizes 91000 to 100000)
+	flags.MediaFilterFlags.Category = []string{"dir9"}
+	resolved, _ = ResolvePercentileFlags(ctx, dbs, flags)
+
+	foundP10Dir9 := false
+	for _, s := range resolved.Size {
+		if s == "+91000" {
+			foundP10Dir9 = true
 		}
-	})
+	}
+	if !foundP10Dir9 {
+		t.Errorf("Expected p10-50 for dir9 to resolve to +91000, got %v", resolved.Size)
+	}
+})
 }

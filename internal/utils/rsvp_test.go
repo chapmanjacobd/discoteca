@@ -2,6 +2,7 @@ package utils
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -36,5 +37,58 @@ func TestExtractText(t *testing.T) {
 	}
 	if strings.TrimSpace(text) != content {
 		t.Errorf("expected %q, got %q", content, text)
+	}
+
+	// Test empty file
+	emptyFile, _ := os.CreateTemp("", "empty*.txt")
+	defer os.Remove(emptyFile.Name())
+	text, err = ExtractText(emptyFile.Name())
+	if err != nil {
+		t.Fatalf("ExtractText failed on empty file: %v", err)
+	}
+	if text != "" {
+		t.Errorf("expected empty string, got %q", text)
+	}
+
+	// Test non-existent file
+	_, err = ExtractText("/non/existent/path.txt")
+	if err == nil {
+		t.Error("expected error for non-existent file, got nil")
+	}
+
+	// Test malformed PDF (if pdftotext is available)
+	pdftotextPath, _ := exec.LookPath("pdftotext")
+	if pdftotextPath != "" {
+		badPdf, _ := os.CreateTemp("", "bad*.pdf")
+		defer os.Remove(badPdf.Name())
+		os.WriteFile(badPdf.Name(), []byte("not a pdf"), 0o644)
+		_, err = ExtractText(badPdf.Name())
+		if err == nil {
+			t.Error("expected error for malformed PDF, got nil")
+		}
+	}
+
+	// Test malformed EPUB (if unzip is available)
+	unzipPath, _ := exec.LookPath("unzip")
+	if unzipPath != "" {
+		badEpub, _ := os.CreateTemp("", "bad*.epub")
+		defer os.Remove(badEpub.Name())
+		os.WriteFile(badEpub.Name(), []byte("not a zip"), 0o644)
+		_, err = ExtractText(badEpub.Name())
+		if err == nil {
+			t.Error("expected error for malformed EPUB, got nil")
+		}
+	}
+}
+
+func TestGenerateRSVPAss_Empty(t *testing.T) {
+	ass, duration := GenerateRSVPAss("", 60)
+	if ass != "" || duration != 0 {
+		t.Errorf("expected empty string and 0 duration for empty input, got %q and %f", ass, duration)
+	}
+
+	ass, duration = GenerateRSVPAss("   ", 60)
+	if ass != "" || duration != 0 {
+		t.Errorf("expected empty string and 0 duration for whitespace input, got %q and %f", ass, duration)
 	}
 }

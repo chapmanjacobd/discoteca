@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"fmt"
+	"math"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -12,6 +15,62 @@ type TranscodeStrategy struct {
 	VideoCopy      bool
 	AudioCopy      bool
 	TargetMime     string
+}
+
+func GenerateHLSPlaylist(path string, duration float64, segmentDuration int) string {
+	segments := int(math.Ceil(duration / float64(segmentDuration)))
+
+	var sb strings.Builder
+	sb.WriteString("#EXTM3U\n")
+	sb.WriteString("#EXT-X-VERSION:3\n")
+	fmt.Fprintf(&sb, "#EXT-X-TARGETDURATION:%d\n", segmentDuration)
+	sb.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
+	sb.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
+
+	for i := 0; i < segments; i++ {
+		segDuration := float64(segmentDuration)
+		if i == segments-1 {
+			rem := math.Mod(duration, float64(segmentDuration))
+			if rem > 0 {
+				segDuration = rem
+			}
+		}
+		fmt.Fprintf(&sb, "#EXTINF:%f,\n", segDuration)
+		fmt.Fprintf(&sb, "/api/hls/segment?path=%s&index=%d\n", url.QueryEscape(path), i)
+	}
+
+	sb.WriteString("#EXT-X-ENDLIST\n")
+	return sb.String()
+}
+
+func GetHLSSegmentArgs(path string, startTime float64, segmentDuration int, strategy TranscodeStrategy) []string {
+	args := []string{
+		"-ss", fmt.Sprintf("%f", startTime),
+		"-i", path,
+		"-t", fmt.Sprintf("%d", segmentDuration),
+	}
+
+	if strategy.VideoCopy {
+		args = append(args, "-c:v", "copy")
+	} else {
+		args = append(args,
+			"-vf", "scale=-2:720", // Downscale to 720p for performance/bandwidth
+			"-c:v", "libx264",
+			"-preset", "ultrafast",
+			"-pix_fmt", "yuv420p",
+		)
+	}
+
+	// For HLS (MPEG-TS), AAC is the safest and most compatible choice.
+	args = append(args,
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-ac", "2",
+		"-f", "mpegts",
+		"-output_ts_offset", fmt.Sprintf("%f", startTime), // Align timestamps
+		"pipe:1",
+	)
+	return args
 }
 
 func GetTranscodeStrategy(m models.Media) TranscodeStrategy {

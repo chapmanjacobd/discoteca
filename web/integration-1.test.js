@@ -447,6 +447,40 @@ describe('Integration Test', () => {
         });
     });
 
+    it('shows unauthorized toast on 401', async () => {
+        // Mock 401 response for play API
+        global.fetch.mockImplementation((url) => {
+            if (typeof url !== 'string') url = url.toString();
+            if (url.includes('/api/play')) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 401,
+                    headers: { get: () => null },
+                    text: () => Promise.resolve('Unauthorized')
+                });
+            }
+            return Promise.resolve({
+                ok: true,
+                status: 200,
+                headers: { get: () => '0' },
+                json: () => Promise.resolve([])
+            });
+        });
+
+        window.disco.state.player = 'system';
+        await new Promise(r => setTimeout(r, 100));
+
+        const card = document.querySelector('.media-card');
+        const title = card.querySelector('.media-title');
+        title.click();
+
+        await vi.waitFor(() => {
+            const toast = document.getElementById('toast');
+            expect(toast.textContent).toContain('Unauthorized');
+            expect(toast.textContent).toContain('🚫');
+        });
+    });
+
     it('paginates results', async () => {
         const nextBtn = document.getElementById('next-page');
         const prevBtn = document.getElementById('prev-page');
