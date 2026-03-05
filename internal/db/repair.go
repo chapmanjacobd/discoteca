@@ -102,7 +102,7 @@ func Repair(dbPath string) error {
 		slog.Info("Initial recovery step successful via .dump")
 		repairStepSuccess = true
 	} else {
-		slog.Warn(".dump failed, falling back to .recover", "error", err)
+		slog.Warn(".dump failed, falling back to .recover", "error", err, "output", string(out))
 		os.Remove(dbPath)
 
 		// Fallback to .recover
