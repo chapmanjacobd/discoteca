@@ -1512,6 +1512,7 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
+	flags := c.parseFlags(r)
 	path := r.URL.Query().Get("path")
 
 	// Clean and normalize the path
@@ -1534,118 +1535,88 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	}
 	targetDepth := currentDepth + 1 // We want to show children at this depth
 
-	// Fetch files that are children of the current path
-	// We aggregate in Go to avoid complex SQL
-	querySQL := `
-		SELECT path, size, duration, type
-		FROM media
-		WHERE time_deleted = 0
-		  AND (path LIKE ? OR ? = '')
-		  AND (length(path) - length(replace(path, '/', ''))) >= ?
-	`
+	// Use MediaQuery to get all media with all filters applied
+	// We need to override the path filter to only get children of current path
+	originalWhere := flags.Where
+	if cleanPath != "" {
+		// Add path prefix filter
+		flags.Where = append(flags.Where, "path LIKE '"+cleanPath+"/%'")
+	} else {
+		// At root level - no path filter needed
+	}
 
-	slog.Debug("DU query", "cleanPath", cleanPath, "targetDepth", targetDepth, "sql", querySQL)
+	// Ensure we get all media (no limit for aggregation)
+	flags.All = true
+	flags.Limit = 0
+
+	allMedia, err := query.MediaQuery(r.Context(), c.Databases, flags)
+	if err != nil {
+		slog.Error("Failed to fetch media for DU", "error", err)
+		http.Error(w, "Query failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Restore original where clause for future use
+	flags.Where = originalWhere
 
 	// Separate maps for direct files and folders
 	directFiles := make(map[string]*models.MediaWithDB)
 	folders := make(map[string]*models.FolderStats)
 
-	// Parse type filter
-	typeFilter := r.URL.Query().Get("type")
+	for _, media := range allMedia {
+		filePath := media.Path
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			rows, err := sqlDB.QueryContext(r.Context(), querySQL,
-				cleanPath+"%", // ? - path LIKE pattern
-				cleanPath,     // ? - empty path check
-				targetDepth,   // ? - minimum depth (children only)
-			)
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
+		// Calculate the file's depth (number of path components)
+		parts := strings.Split(filePath, string(filepath.Separator))
+		isAbsolute := len(parts) > 0 && parts[0] == ""
 
-			for rows.Next() {
-				var filePath string
-				var size, duration sql.NullInt64
-				var mediaType sql.NullString
-				if err := rows.Scan(&filePath, &size, &duration, &mediaType); err != nil {
-					return err
-				}
+		// Remove empty first element if path starts with /
+		if isAbsolute {
+			parts = parts[1:]
+		}
+		fileDepth := len(parts)
 
-				// Apply type filter
-				if typeFilter != "" && mediaType.Valid {
-					if !strings.HasPrefix(mediaType.String, typeFilter) {
-						continue
+		if fileDepth == targetDepth {
+			// This is a direct child file - add to files list
+			directFiles[filePath] = &media
+		} else if fileDepth > targetDepth {
+			// This file is in a subfolder - group by subfolder
+			var parent string
+			if currentDepth == 0 {
+				// Root level: parent is first component
+				if len(parts) > 0 {
+					parent = parts[0]
+					if isAbsolute {
+						parent = string(filepath.Separator) + parent
 					}
 				}
-
-				// Calculate the file's depth (number of path components)
-				parts := strings.Split(filePath, string(filepath.Separator))
-				isAbsolute := len(parts) > 0 && parts[0] == ""
-
-				// Remove empty first element if path starts with /
-				if isAbsolute {
-					parts = parts[1:]
-				}
-				fileDepth := len(parts)
-
-				if fileDepth == targetDepth {
-					// This is a direct child file - add to files list
-					media := &models.MediaWithDB{
-						Media: models.Media{
-							Path:     filePath,
-							Size:     &size.Int64,
-							Duration: &duration.Int64,
-							Type:     &mediaType.String,
-						},
-						DB: dbPath,
+			} else {
+				// Subdirectory: parent is path up to targetDepth components
+				if len(parts) >= targetDepth {
+					parent = strings.Join(parts[:targetDepth], string(filepath.Separator))
+					if isAbsolute {
+						parent = string(filepath.Separator) + parent
 					}
-					directFiles[filePath] = media
-				} else if fileDepth > targetDepth {
-					// This file is in a subfolder - group by subfolder
-					var parent string
-					if currentDepth == 0 {
-						// Root level: parent is first component
-						if len(parts) > 0 {
-							parent = parts[0]
-							if isAbsolute {
-								parent = string(filepath.Separator) + parent
-							}
-						}
-					} else {
-						// Subdirectory: parent is path up to targetDepth components
-						if len(parts) >= targetDepth {
-							parent = strings.Join(parts[:targetDepth], string(filepath.Separator))
-							if isAbsolute {
-								parent = string(filepath.Separator) + parent
-							}
-						} else {
-							parent = filePath
-						}
-					}
-
-					if parent == "" {
-						continue
-					}
-
-					if _, ok := folders[parent]; !ok {
-						folders[parent] = &models.FolderStats{Path: parent}
-					}
-					stat := folders[parent]
-					stat.Count++
-					if size.Valid {
-						stat.TotalSize += size.Int64
-					}
-					if duration.Valid {
-						stat.TotalDuration += duration.Int64
-					}
+				} else {
+					parent = filePath
 				}
 			}
-			return rows.Err()
-		})
-		if err != nil {
-			slog.Error("Failed to fetch DU stats", "db", dbPath, "error", err)
+
+			if parent == "" {
+				continue
+			}
+
+			if _, ok := folders[parent]; !ok {
+				folders[parent] = &models.FolderStats{Path: parent}
+			}
+			stat := folders[parent]
+			stat.Count++
+			if media.Size != nil {
+				stat.TotalSize += *media.Size
+			}
+			if media.Duration != nil {
+				stat.TotalDuration += *media.Duration
+			}
 		}
 	}
 

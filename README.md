@@ -3722,6 +3722,8 @@ Flags:
         Only copy columns that exist in target
   --skip-columns
         Columns to skip during merge
+  --databases
+        Specific database paths to query (must be in server's allowed list). Can be specified multiple times.
   --threads
         Use N threads for parallel processing
   -i, --ignore-errors

@@ -24,14 +24,7 @@ export function formatSize(bytes) {
 
 export function formatDuration(seconds) {
     if (!seconds && seconds !== 0) return '';
-    
-    // Safeguard against unreasonable values (max 31 days)
-    // If duration seems corrupted, show a message
-    if (seconds < 0 || seconds > 2678400) {
-        console.warn('Unreasonable duration value:', seconds);
-        return 'Invalid duration';
-    }
-    
+
     const totalSeconds = Math.floor(seconds);
 
     const d = Math.floor(totalSeconds / 86400);

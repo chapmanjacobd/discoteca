@@ -1437,6 +1437,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchDU(path = '') {
         const isFirstDUVisit = state.page !== 'du';
+        const prevPath = state.duPath;
+        const isForwardNav = prevPath && path.startsWith(prevPath);
+        const isBackwardNav = prevPath && prevPath.startsWith(path);
+        
         state.page = 'du';
         state.duPath = path;
 
@@ -1465,7 +1469,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const resp = await fetchAPI(`/api/du?${params.toString()}`);
             clearTimeout(skeletonTimeout);
             if (!resp.ok) throw new Error('Failed to fetch DU');
-            state.duData = await resp.json();
+            let data = await resp.json();
+            
+            // Auto-skip through single-item folders (forward navigation only, including initial load)
+            // Skip backward navigation check - only auto-skip on forward nav or initial load
+            const shouldAutoSkip = (isForwardNav || isFirstDUVisit) && data && data.length === 1;
+            if (shouldAutoSkip) {
+                const singleItem = data[0];
+                // Check if it's a folder (has count > 0 or is a folder path)
+                const isFolder = singleItem.count > 0 || (singleItem.files && singleItem.files.length === 0);
+                if (isFolder) {
+                    // Auto-navigate into this folder
+                    state.duPath = singleItem.path + (singleItem.path.endsWith('/') ? '' : '/');
+                    syncUrl();
+                    fetchDU(state.duPath);
+                    return;
+                }
+            }
+            
+            state.duData = data;
             renderDU(state.duData);
         } catch (err) {
             clearTimeout(skeletonTimeout);
