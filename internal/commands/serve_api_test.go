@@ -89,7 +89,7 @@ func TestDUServerSideFiltering(t *testing.T) {
 	InitDB(db)
 	_, err := db.Exec(`
 		INSERT INTO media (path, type, size, duration, time_deleted)
-		VALUES 
+		VALUES
 		('media/video/v1.mp4', 'video', 1000, 10, 0),
 		('media/audio/a1.mp3', 'audio', 2000, 20, 0)
 	`)
@@ -116,14 +116,20 @@ func TestDUServerSideFiltering(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should find "media/video" or "media"
-	foundVideo := false
+	// Should find "media/video" folder (immediate parent of the video file)
+	// The video filter should still apply, so we should see the media/video folder
+	// with accurate size aggregation from video files
+	foundVideoFolder := false
 	for _, r := range resp {
 		if r.Path == "media/video" || r.Path == "/media/video" {
-			foundVideo = true
+			foundVideoFolder = true
+			// Size should include video file (1000 bytes)
+			if r.TotalSize < 1000 {
+				t.Errorf("Expected media/video folder to include video size, got %d", r.TotalSize)
+			}
 		}
 	}
-	if !foundVideo {
-		t.Errorf("Did not find video path in response: %v", resp)
+	if !foundVideoFolder {
+		t.Errorf("Did not find media/video folder in response: %v", resp)
 	}
 }

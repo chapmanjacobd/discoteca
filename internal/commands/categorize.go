@@ -76,7 +76,9 @@ func (c *CategorizeCmd) CompileRegexes() map[string][]*regexp.Regexp {
 			for rows.Next() {
 				var cat, kw string
 				if err := rows.Scan(&cat, &kw); err == nil {
-					re, err := regexp.Compile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
+					// Use case-insensitive word boundary match for categorization
+					// This ensures "rock" matches "rock_concert" but not "brock"
+					re, err := regexp.Compile(`(?i)(?:^|[^a-zA-Z0-9])` + regexp.QuoteMeta(kw) + `(?:$|[^a-zA-Z0-9])`)
 					if err == nil {
 						compiled[cat] = append(compiled[cat], re)
 					}

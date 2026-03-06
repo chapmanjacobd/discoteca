@@ -129,7 +129,7 @@ describe('Advanced Integration Tests', () => {
         // 1. Normal search on All Media
         const allMediaBtn = document.getElementById('all-media-btn');
         allMediaBtn.click();
-        
+
         const searchInput = document.getElementById('search-input');
         searchInput.value = 'normal';
         searchInput.dispatchEvent(new Event('input'));
@@ -139,10 +139,10 @@ describe('Advanced Integration Tests', () => {
             const calls = global.fetch.mock.calls;
             const hasQueryCall = calls.some(call => call[0].includes('/api/query') && call[0].includes('search=normal'));
             expect(hasQueryCall).toBe(true);
-            
+
             // Check that results container has normal media cards
             expect(document.querySelector('.grid .media-card')).toBeTruthy();
-            expect(document.querySelector('.captions-list-view .caption-row')).toBeNull();
+            expect(document.querySelector('.captions-list-view')).toBeNull();
         });
 
         // 2. Caption search on Captions page
@@ -158,20 +158,20 @@ describe('Advanced Integration Tests', () => {
 
         searchInput.value = 'findme';
         searchInput.dispatchEvent(new Event('input'));
-        
+
         // Wait for debounce
         await new Promise(r => setTimeout(r, 400));
 
         await vi.waitFor(() => {
             const calls = global.fetch.mock.calls;
-            const hasCaptionsQuery = calls.some(call => 
-                (call[0].includes('captions=true') || call[0].includes('view=captions')) && 
+            const hasCaptionsQuery = calls.some(call =>
+                (call[0].includes('captions=true') || call[0].includes('view=captions')) &&
                 call[0].includes('search=findme')
             );
             expect(hasCaptionsQuery).toBe(true);
-            
-            // Check that results container has caption rows
-            expect(document.querySelector('.captions-list-view .caption-row')).toBeTruthy();
+
+            // Check that results container has caption cards (grouped by media)
+            expect(document.querySelector('.captions-list-view .caption-media-card')).toBeTruthy();
             expect(document.querySelector('.grid .media-card')).toBeNull();
         });
     });

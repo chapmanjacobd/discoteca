@@ -2050,9 +2050,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = `
             <p>Drag these keywords to a category on the left.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                ℹ️ Count shows unique occurrences in uncategorized file names/titles. Each word is counted once per file.
+            </p>
             <div class="tags-cloud">
                 ${suggestions.map(tag => `
-                    <span class="curation-tag suggestion-tag" draggable="true" data-word="${tag.word}" title="${tag.count} occurrences">
+                    <span class="curation-tag suggestion-tag" draggable="true" data-word="${tag.word}" title="${tag.count} uncategorized files contain this word">
                         ${tag.word} <small>${tag.count}</small>
                     </span>
                 `).join('')}
@@ -2257,8 +2260,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentMedia = currentMedia.filter(item => (item.time_last_played || 0) > 0);
             }
 
+            // Caption search filtering with context
+            if (state.page === 'captions' && state.filters.search) {
+                const searchTerm = state.filters.search.toLowerCase();
+                
+                // Group captions by path
+                const captionsByPath = {};
+                currentMedia.forEach(item => {
+                    if (!captionsByPath[item.path]) {
+                        captionsByPath[item.path] = [];
+                    }
+                    captionsByPath[item.path].push(item);
+                });
+                
+                // Find matches and add context
+                const filteredCaptions = [];
+                Object.keys(captionsByPath).forEach(path => {
+                    const captions = captionsByPath[path];
+                    const matches = [];
+                    
+                    // Find matching captions
+                    captions.forEach((cap, idx) => {
+                        if (cap.caption_text && cap.caption_text.toLowerCase().includes(searchTerm)) {
+                            cap._isMatch = true;
+                            matches.push(idx);
+                        } else {
+                            cap._isMatch = false;
+                        }
+                    });
+                    
+                    // Add matches with context (1 before and 1 after)
+                    matches.forEach(matchIdx => {
+                        // Add context before
+                        if (matchIdx > 0 && !captions[matchIdx - 1]._included) {
+                            captions[matchIdx - 1]._included = true;
+                            filteredCaptions.push(captions[matchIdx - 1]);
+                        }
+                        // Add match
+                        if (!captions[matchIdx]._included) {
+                            captions[matchIdx]._included = true;
+                            filteredCaptions.push(captions[matchIdx]);
+                        }
+                        // Add context after
+                        if (matchIdx < captions.length - 1 && !captions[matchIdx + 1]._included) {
+                            captions[matchIdx + 1]._included = true;
+                            filteredCaptions.push(captions[matchIdx + 1]);
+                        }
+                    });
+                });
+                
+                // Use filtered captions if we have matches, otherwise use all
+                if (filteredCaptions.length > 0) {
+                    currentMedia = filteredCaptions;
+                }
+                
+                // Update count
+                state.totalCount = currentMedia.length;
+            }
+
             // Update total count after client-side filtering
-            if (state.filters.unplayed || state.filters.unfinished || state.filters.completed || state.page === 'history' || state.filters.excludedDbs.length > 0) {
+            if ((state.filters.unplayed || state.filters.unfinished || state.filters.completed || state.page === 'history' || state.filters.excludedDbs.length > 0) && 
+                !(state.page === 'captions' && state.filters.search)) {
                 state.totalCount = currentMedia.length;
             }
 
@@ -3960,30 +4022,87 @@ document.addEventListener('DOMContentLoaded', () => {
             item.caption_time !== null && item.caption_time !== undefined
         );
 
+        // Group captions by media path
+        const captionsByPath = {};
         itemsWithCaptions.forEach(item => {
-            const row = document.createElement('div');
-            row.className = 'caption-row';
+            if (!captionsByPath[item.path]) {
+                captionsByPath[item.path] = [];
+            }
+            captionsByPath[item.path].push(item);
+        });
 
-            const basename = item.path.split('/').pop();
-            const captionTime = item.caption_time || 0;
-            const timeStr = formatDuration(captionTime);
+        // Render grouped captions
+        Object.keys(captionsByPath).forEach(path => {
+            const captions = captionsByPath[path];
+            const card = document.createElement('div');
+            card.className = 'media-card caption-media-card';
+            card.dataset.path = path;
 
-            row.innerHTML = `
-                <div class="caption-header">
-                    <span class="caption-basename" title="${item.path}">${basename}</span>
-                    <span class="caption-timestamp">${timeStr}</span>
+            const basename = path.split('/').pop();
+            const type = captions[0].type || '';
+            const thumbUrl = type.includes('image') ? 
+                `/api/thumbnail?path=${encodeURIComponent(path)}` :
+                `/api/raw?path=${encodeURIComponent(path)}`;
+
+            // Build caption segments HTML
+            let captionsHtml = '';
+            captions.forEach((cap, idx) => {
+                const timeStr = formatDuration(cap.caption_time);
+                const isMatch = cap._isMatch; // Will be set during search
+                captionsHtml += `
+                    <div class="caption-segment ${isMatch ? 'caption-match' : ''}" data-time="${cap.caption_time}">
+                        <span class="caption-time-link" title="Jump to ${timeStr}">${timeStr}</span>
+                        <span class="caption-text">${cap.caption_text}</span>
+                    </div>
+                `;
+            });
+
+            card.innerHTML = `
+                <div class="caption-media-header">
+                    <div class="caption-media-thumb">
+                        ${type.includes('image') ? 
+                            `<img src="${thumbUrl}" loading="lazy">` :
+                            `<div class="caption-media-icon">🎬</div>`
+                        }
+                    </div>
+                    <div class="caption-media-info">
+                        <div class="media-title" title="${path}">${basename}</div>
+                        <div class="caption-count">${captions.length} caption${captions.length !== 1 ? 's' : ''}</div>
+                    </div>
                 </div>
-                <div class="caption-text">${item.caption_text || '(no text)'}</div>
+                <div class="caption-segments-container">
+                    ${captionsHtml}
+                </div>
             `;
 
-            row.onclick = () => {
-                playMedia(item).then(() => {
+            // Click on card header plays media
+            const header = card.querySelector('.caption-media-header');
+            header.onclick = (e) => {
+                e.stopPropagation();
+                playMedia(captions[0]).then(() => {
                     const media = pipViewer.querySelector('video, audio');
-                    if (media) media.currentTime = captionTime;
+                    if (media) media.currentTime = captions[0].caption_time;
                 });
             };
 
-            fragment.appendChild(row);
+            // Click on caption segment jumps to that time
+            card.querySelectorAll('.caption-segment').forEach(seg => {
+                seg.onclick = (e) => {
+                    e.stopPropagation();
+                    const time = parseFloat(seg.dataset.time);
+                    playMedia(captions[0]).then(() => {
+                        const media = pipViewer.querySelector('video, audio');
+                        if (media) {
+                            media.currentTime = time;
+                            // Highlight the segment briefly
+                            seg.classList.add('caption-playing');
+                            setTimeout(() => seg.classList.remove('caption-playing'), 2000);
+                        }
+                    });
+                };
+            });
+
+            fragment.appendChild(card);
         });
 
         resultsContainer.appendChild(fragment);

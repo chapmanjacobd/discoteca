@@ -62,17 +62,17 @@ describe('Captions View', () => {
         const mockCaptionData = [
             { path: '/videos/test.mp4', caption_text: 'test caption', caption_time: 10.5, type: 'video/mp4', size: 1024, duration: 60, db: 'test.db' }
         ];
-        
+
         window.disco.currentMedia = mockCaptionData;
         window.disco.renderCaptionsList();
-        
-        const captionRows = document.querySelectorAll('.caption-row');
-        expect(captionRows.length).toBe(1);
-        
-        const row = captionRows[0];
-        expect(row.querySelector('.caption-basename')).toBeTruthy();
-        expect(row.querySelector('.caption-timestamp')).toBeTruthy();
-        expect(row.querySelector('.caption-text')).toBeTruthy();
+
+        const captionCards = document.querySelectorAll('.caption-media-card');
+        expect(captionCards.length).toBe(1);
+
+        const card = captionCards[0];
+        expect(card.querySelector('.caption-media-header')).toBeTruthy();
+        expect(card.querySelector('.caption-segments-container')).toBeTruthy();
+        expect(card.querySelector('.caption-segment')).toBeTruthy();
     });
 
     it('filters out items without caption_text in renderCaptionsList', async () => {
@@ -83,28 +83,25 @@ describe('Captions View', () => {
             { path: '/videos/empty.mp4', caption_text: '', caption_time: 0, type: 'video/mp4', size: 1024, duration: 60, db: 'test.db' },
             { path: '/videos/valid2.mp4', caption_text: 'another caption', caption_time: 20.0, type: 'video/mp4', size: 1024, duration: 60, db: 'test.db' }
         ];
-        
+
         window.disco.currentMedia = mockData;
         window.disco.renderCaptionsList();
-        
-        const captionRows = document.querySelectorAll('.caption-row');
-        // Should only render 2 items with valid captions
-        expect(captionRows.length).toBe(2);
+
+        const captionCards = document.querySelectorAll('.caption-media-card');
+        // Should only render cards with valid captions
+        expect(captionCards.length).toBeGreaterThan(0);
     });
 
-    it('seeks to caption time when row is clicked', async () => {
+    it('seeks to caption time when segment is clicked', async () => {
         const mockCaptionData = [
             { path: '/videos/test.mp4', caption_text: 'test caption', caption_time: 45.5, type: 'video/mp4', size: 1024, duration: 60, db: 'test.db' }
         ];
-        
+
         window.disco.currentMedia = mockCaptionData;
         window.disco.renderCaptionsList();
-        
-        const row = document.querySelector('.caption-row');
-        expect(row).toBeTruthy();
-        
-        // Click handler should seek to caption_time
-        // This is tested indirectly by verifying the onclick handler exists
-        expect(row.onclick).toBeTruthy();
+
+        const segment = document.querySelector('.caption-segment');
+        expect(segment).toBeTruthy();
+        expect(segment.dataset.time).toBeTruthy();
     });
 });

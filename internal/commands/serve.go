@@ -613,7 +613,8 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				for _, row := range rows {
 					m := models.MediaWithDB{
 						Media: models.Media{
-							Path:  row.MediaPath,
+							Path: row.MediaPath,
+							Type: models.NullStringPtr(row.Type),
 							Title: models.NullStringPtr(row.Title),
 						},
 						DB:          dbPath,
@@ -1279,6 +1280,7 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	flags := c.parseFlags(r)
 	flags.All = true // We need all matches to aggregate DU
 
+	// Fetch all media under this path for accurate folder size aggregation
 	if path != "" {
 		flags.Paths = append(flags.Paths, path+"%")
 	}
@@ -1290,9 +1292,17 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	depth := 1
+	// For folder aggregation, calculate the depth to show immediate children
+	// depth determines how many path components to group by
+	// depth=1 groups by first component (e.g., "media" from "media/video/file.mp4")
+	// depth=2 groups by first two components (e.g., "media/video" from "media/video/file.mp4")
+	depth := 1  // Default to showing top-level folders
 	if path != "" && path != "/" {
-		depth = strings.Count(filepath.Clean(path), string(filepath.Separator)) + 1
+		cleanPath := filepath.Clean(path)
+		// Current depth is the number of components in the path
+		depth = strings.Count(cleanPath, string(filepath.Separator)) + 1
+		// Add 1 to show children of the current path
+		depth++
 	}
 
 	aggFlags := flags
@@ -1304,11 +1314,13 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		aggFlags.Reverse = true
 	}
 
-	stats := query.AggregateMedia(media, aggFlags)
-	query.SortFolders(stats, aggFlags.SortBy, aggFlags.Reverse)
+	// Use all media for accurate size aggregation
+	allStats := query.AggregateMedia(media, aggFlags)
+
+	query.SortFolders(allStats, aggFlags.SortBy, aggFlags.Reverse)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(allStats)
 }
 
 func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
@@ -1840,6 +1852,25 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// Fetch existing keywords to filter them out
+	existingKeywords := make(map[string]bool)
+	for _, dbPath := range c.Databases {
+		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			rows, err := sqlDB.QueryContext(r.Context(), "SELECT DISTINCT keyword FROM custom_keywords")
+			if err != nil {
+				return nil
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var kw string
+				if err := rows.Scan(&kw); err == nil {
+					existingKeywords[strings.ToLower(kw)] = true
+				}
+			}
+			return nil
+		})
+	}
+
 	cmd := CategorizeCmd{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -1858,6 +1889,11 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 
 	wordCounts := make(map[string]int)
 	for _, m := range allMedia {
+		// Skip files that already have categories assigned
+		if m.Categories != nil && *m.Categories != "" {
+			continue
+		}
+
 		matched := false
 		pathAndTitle := m.Path
 		if m.Title != nil {
@@ -1877,6 +1913,9 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 		}
 
 		if !matched {
+			// Use a map to count each word only once per file
+			uniqueWords := make(map[string]bool)
+			
 			words := utils.ExtractWords(utils.PathToSentence(m.Path))
 			if m.Title != nil {
 				words = append(words, utils.ExtractWords(*m.Title)...)
@@ -1886,7 +1925,15 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 				if len(word) < 4 {
 					continue
 				}
-				wordCounts[word]++
+				// Filter out already-assigned keywords
+				if existingKeywords[strings.ToLower(word)] {
+					continue
+				}
+				// Only count each word once per file
+				if !uniqueWords[word] {
+					uniqueWords[word] = true
+					wordCounts[word]++
+				}
 			}
 		}
 	}

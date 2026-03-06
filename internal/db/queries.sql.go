@@ -52,7 +52,7 @@ func (q *Queries) DeletePlaylist(ctx context.Context, arg DeletePlaylistParams) 
 }
 
 const getAllCaptions = `-- name: GetAllCaptions :many
-SELECT c.media_path, c.time, c.text, m.title
+SELECT c.media_path, c.time, c.text, m.title, m.type
 FROM captions c
 JOIN media m ON c.media_path = m.path
 WHERE m.time_deleted = 0
@@ -66,6 +66,7 @@ type GetAllCaptionsRow struct {
 	Time      sql.NullFloat64 `json:"time"`
 	Text      sql.NullString  `json:"text"`
 	Title     sql.NullString  `json:"title"`
+	Type      sql.NullString  `json:"type"`
 }
 
 func (q *Queries) GetAllCaptions(ctx context.Context, limit int64) ([]GetAllCaptionsRow, error) {
@@ -82,6 +83,7 @@ func (q *Queries) GetAllCaptions(ctx context.Context, limit int64) ([]GetAllCapt
 			&i.Time,
 			&i.Text,
 			&i.Title,
+			&i.Type,
 		); err != nil {
 			return nil, err
 		}
@@ -586,6 +588,89 @@ func (q *Queries) GetMediaByPathExact(ctx context.Context, path string) (Media, 
 		&i.Longitude,
 	)
 	return i, err
+}
+
+const getMediaByPathPrefix = `-- name: GetMediaByPathPrefix :many
+SELECT path, title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, mood, bpm, "key", decade, categories, city, country, description, language, webpath, uploader, time_uploaded, time_downloaded, view_count, num_comments, favorite_count, score, upvote_ratio, latitude, longitude FROM media
+WHERE time_deleted = 0
+  AND path LIKE ?
+  AND path NOT LIKE ?
+ORDER BY path
+LIMIT ?
+`
+
+type GetMediaByPathPrefixParams struct {
+	Path        string        `json:"path"`
+	TimeDeleted sql.NullInt64 `json:"time_deleted"`
+	Limit       int64         `json:"limit"`
+}
+
+func (q *Queries) GetMediaByPathPrefix(ctx context.Context, arg GetMediaByPathPrefixParams) ([]Media, error) {
+	rows, err := q.db.QueryContext(ctx, getMediaByPathPrefix, arg.Path, arg.TimeDeleted, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Media{}
+	for rows.Next() {
+		var i Media
+		if err := rows.Scan(
+			&i.Path,
+			&i.Title,
+			&i.Duration,
+			&i.Size,
+			&i.TimeCreated,
+			&i.TimeModified,
+			&i.TimeDeleted,
+			&i.TimeFirstPlayed,
+			&i.TimeLastPlayed,
+			&i.PlayCount,
+			&i.Playhead,
+			&i.Type,
+			&i.Width,
+			&i.Height,
+			&i.Fps,
+			&i.VideoCodecs,
+			&i.AudioCodecs,
+			&i.SubtitleCodecs,
+			&i.VideoCount,
+			&i.AudioCount,
+			&i.SubtitleCount,
+			&i.Album,
+			&i.Artist,
+			&i.Genre,
+			&i.Mood,
+			&i.Bpm,
+			&i.Key,
+			&i.Decade,
+			&i.Categories,
+			&i.City,
+			&i.Country,
+			&i.Description,
+			&i.Language,
+			&i.Webpath,
+			&i.Uploader,
+			&i.TimeUploaded,
+			&i.TimeDownloaded,
+			&i.ViewCount,
+			&i.NumComments,
+			&i.FavoriteCount,
+			&i.Score,
+			&i.UpvoteRatio,
+			&i.Latitude,
+			&i.Longitude,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getMediaByPlayCount = `-- name: GetMediaByPlayCount :many
@@ -1643,7 +1728,7 @@ func (q *Queries) RemovePlaylistItem(ctx context.Context, arg RemovePlaylistItem
 }
 
 const searchCaptions = `-- name: SearchCaptions :many
-SELECT c.media_path, c.time, c.text, m.title
+SELECT c.media_path, c.time, c.text, m.title, m.type
 FROM captions c
 JOIN captions_fts f ON c.rowid = f.rowid
 JOIN media m ON c.media_path = m.path
@@ -1664,6 +1749,7 @@ type SearchCaptionsRow struct {
 	Time      sql.NullFloat64 `json:"time"`
 	Text      sql.NullString  `json:"text"`
 	Title     sql.NullString  `json:"title"`
+	Type      sql.NullString  `json:"type"`
 }
 
 func (q *Queries) SearchCaptions(ctx context.Context, arg SearchCaptionsParams) ([]SearchCaptionsRow, error) {
@@ -1680,6 +1766,7 @@ func (q *Queries) SearchCaptions(ctx context.Context, arg SearchCaptionsParams) 
 			&i.Time,
 			&i.Text,
 			&i.Title,
+			&i.Type,
 		); err != nil {
 			return nil, err
 		}

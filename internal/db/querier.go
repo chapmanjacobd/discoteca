@@ -23,6 +23,7 @@ type Querier interface {
 	GetMediaByDuration(ctx context.Context, arg GetMediaByDurationParams) ([]Media, error)
 	GetMediaByPath(ctx context.Context, arg GetMediaByPathParams) ([]Media, error)
 	GetMediaByPathExact(ctx context.Context, path string) (Media, error)
+	GetMediaByPathPrefix(ctx context.Context, arg GetMediaByPathPrefixParams) ([]Media, error)
 	GetMediaByPlayCount(ctx context.Context, arg GetMediaByPlayCountParams) ([]Media, error)
 	GetMediaBySize(ctx context.Context, arg GetMediaBySizeParams) ([]Media, error)
 	GetMediaByType(ctx context.Context, arg GetMediaByTypeParams) ([]Media, error)
