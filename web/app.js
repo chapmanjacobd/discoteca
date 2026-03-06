@@ -2575,6 +2575,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function playSibling(offset, isUser = false, isDelete = false) {
         if (currentMedia.length === 0) return;
 
+        const wasFullscreen = !!document.fullscreenElement;
+
         if (isUser && !isDelete) {
             stopSlideshow();
         }
@@ -2621,7 +2623,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (nextIndex >= 0 && nextIndex < currentMedia.length) {
             if (state.player === 'browser') {
-                openInPiP(currentMedia[nextIndex], isNewSession);
+                openInPiP(currentMedia[nextIndex], isNewSession, false, wasFullscreen);
             } else {
                 playMedia(currentMedia[nextIndex]);
             }
@@ -2633,7 +2635,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 performSearch().then(() => {
                     if (currentMedia.length > 0) {
                         if (state.player === 'browser') {
-                            openInPiP(currentMedia[0], isNewSession);
+                            openInPiP(currentMedia[0], isNewSession, false, wasFullscreen);
                         } else {
                             playMedia(currentMedia[0]);
                         }
@@ -2646,7 +2648,7 @@ document.addEventListener('DOMContentLoaded', () => {
             performSearch().then(() => {
                 if (currentMedia.length > 0) {
                     if (state.player === 'browser') {
-                        openInPiP(currentMedia[currentMedia.length - 1], isNewSession);
+                        openInPiP(currentMedia[currentMedia.length - 1], isNewSession, false, wasFullscreen);
                     } else {
                         playMedia(currentMedia[currentMedia.length - 1]);
                     }
@@ -2852,6 +2854,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // If state.playback.item is null, the player was likely closed manually.
         if (!state.playback.item || state.playback.item.path !== item.path) return;
 
+        const wasFullscreen = !!document.fullscreenElement;
+
         // Clear handlers to prevent other events (like onended) from firing after error
         const media = pipViewer.querySelector('video, audio, img');
         if (media) {
@@ -2891,7 +2895,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.playback.skipTimeout = setTimeout(() => {
                 if (state.playback.skipTimeout) { // Check if it was cleared in the meantime
                     state.playback.skipTimeout = null;
-                    playSibling(1);
+                    playSibling(1, false, false, wasFullscreen);
                 }
             }, 1200);
         } else {
@@ -2903,7 +2907,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function openInPiP(item, isNewSession = false, isSurfing = false) {
+    async function openInPiP(item, isNewSession = false, isSurfing = false, forceFullscreen = false) {
         state.playback.isSurfing = isSurfing;
 
         if (state.playback.slideshowTimer) {
@@ -2915,7 +2919,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.playback.surfTimer = null;
         }
 
-        const wasFullscreen = !!document.fullscreenElement;
+        const wasFullscreen = forceFullscreen || !!document.fullscreenElement;
 
         if (isNewSession) {
             // New explicit request: reset state.imageAutoplay to user preference
@@ -4336,6 +4340,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         toast.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+        
+        // Move toast into fullscreen element if active
+        if (document.fullscreenElement) {
+            if (toast.parentElement !== document.fullscreenElement) {
+                document.fullscreenElement.appendChild(toast);
+            }
+        } else if (toast.parentElement !== document.body) {
+            document.body.appendChild(toast);
+        }
+
         toast.classList.remove('hidden');
 
         state.playback.toastTimer = setTimeout(() => {
@@ -4429,10 +4443,11 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'delete':
                 if (state.playback.item && !pipPlayer.classList.contains('hidden')) {
                     const itemToDelete = state.playback.item;
+                    const wasFullscreen = !!document.fullscreenElement;
                     if (e.shiftKey) {
                         closePiP();
                     } else {
-                        playSibling(1, true, true);
+                        playSibling(1, true, true, wasFullscreen);
                     }
                     deleteMedia(itemToDelete.path);
                     return;
@@ -4554,22 +4569,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // If we just had an error, don't trigger post-playback skip
         if (state.playback.skipTimeout) return;
 
+        const wasFullscreen = !!document.fullscreenElement;
+
         if (state.postPlaybackAction === 'delete') {
             deleteMedia(item.path);
-            if (state.autoplay) playSibling(1);
+            if (state.autoplay) playSibling(1, false, true, wasFullscreen);
         } else if (state.postPlaybackAction === 'ask') {
             openModal('confirm-modal');
             document.getElementById('confirm-yes').onclick = () => {
                 closeModal('confirm-modal');
                 deleteMedia(item.path);
-                if (state.autoplay) playSibling(1);
+                if (state.autoplay) playSibling(1, false, true, wasFullscreen);
             };
             document.getElementById('confirm-no').onclick = () => {
                 closeModal('confirm-modal');
-                if (state.autoplay) playSibling(1);
+                if (state.autoplay) playSibling(1, false, false, wasFullscreen);
             };
         } else {
-            if (state.autoplay) playSibling(1);
+            if (state.autoplay) playSibling(1, false, false, wasFullscreen);
         }
     }
 
@@ -5550,6 +5567,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const fsBtn = document.getElementById('doc-fullscreen');
         if (fsBtn) {
             fsBtn.title = document.fullscreenElement ? 'Exit Fullscreen' : 'Toggle Fullscreen';
+        }
+
+        // If exiting fullscreen, move toast back to body
+        if (!document.fullscreenElement && toast.parentElement !== document.body) {
+            document.body.appendChild(toast);
         }
     });
 
