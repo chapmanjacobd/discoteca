@@ -3672,7 +3672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPagination() {
-        if (state.filters.all || state.page === 'trash' || state.page === 'playlist' || state.page === 'history') {
+        if (state.filters.all || state.page === 'trash' || state.page === 'playlist' || state.page === 'history' || state.page === 'captions') {
             paginationContainer.classList.add('hidden');
             return;
         }
@@ -4011,7 +4011,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCaptionsList() {
-        resultsContainer.className = 'captions-list-view';
         resultsContainer.innerHTML = '';
 
         const fragment = document.createDocumentFragment();
@@ -4031,7 +4030,24 @@ document.addEventListener('DOMContentLoaded', () => {
             captionsByPath[item.path].push(item);
         });
 
-        // Render grouped captions
+        // Handle different view modes
+        if (state.view === 'details') {
+            // Details mode: show table with aggregated info per path
+            renderCaptionsDetails(captionsByPath, fragment);
+        } else if (state.view === 'group') {
+            // Group mode: same as grid for captions (already grouped by path)
+            renderCaptionsGrid(captionsByPath, fragment);
+        } else {
+            // Default grid view
+            renderCaptionsGrid(captionsByPath, fragment);
+        }
+
+        resultsContainer.appendChild(fragment);
+        resultsContainer.className = state.view === 'details' ? 'details-view' : 'captions-list-view';
+    }
+
+    function renderCaptionsGrid(captionsByPath, fragment) {
+        // Render grouped captions as cards
         Object.keys(captionsByPath).forEach(path => {
             const captions = captionsByPath[path];
             const card = document.createElement('div');
@@ -4040,7 +4056,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const basename = path.split('/').pop();
             const type = captions[0].type || '';
-            const thumbUrl = type.includes('image') ? 
+            const thumbUrl = type.includes('image') ?
                 `/api/thumbnail?path=${encodeURIComponent(path)}` :
                 `/api/raw?path=${encodeURIComponent(path)}`;
 
@@ -4060,7 +4076,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="caption-media-header">
                     <div class="caption-media-thumb">
-                        ${type.includes('image') ? 
+                        ${type.includes('image') ?
                             `<img src="${thumbUrl}" loading="lazy">` :
                             `<div class="caption-media-icon">🎬</div>`
                         }
@@ -4104,8 +4120,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
             fragment.appendChild(card);
         });
+    }
 
-        resultsContainer.appendChild(fragment);
+    function renderCaptionsDetails(captionsByPath, fragment) {
+        // Create details table for captions
+        const table = document.createElement('table');
+        table.className = 'details-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Path</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Duration</th>
+                    <th>Captions</th>
+                    <th>First Caption</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+
+        const tbody = table.querySelector('tbody');
+
+        Object.keys(captionsByPath).forEach(path => {
+            const captions = captionsByPath[path];
+            const firstCap = captions[0];
+            const tr = document.createElement('tr');
+            tr.dataset.path = path;
+
+            const size = formatSize(firstCap.size || 0);
+            const duration = formatDuration(firstCap.duration || 0);
+
+            tr.innerHTML = `
+                <td>${path}</td>
+                <td>${firstCap.type || 'unknown'}</td>
+                <td>${size}</td>
+                <td>${duration}</td>
+                <td>${captions.length}</td>
+                <td>${firstCap.caption_text ? firstCap.caption_text.substring(0, 50) + (firstCap.caption_text.length > 50 ? '...' : '') : ''}</td>
+            `;
+
+            tr.onclick = () => {
+                playMedia(firstCap).then(() => {
+                    const media = pipViewer.querySelector('video, audio');
+                    if (media) media.currentTime = captions[0].caption_time;
+                });
+            };
+
+            tbody.appendChild(tr);
+        });
+
+        fragment.appendChild(table);
     }
 
     function renderDetailsTable() {
@@ -5626,6 +5691,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'extension':
                     valA = a.path.split('.').pop().toLowerCase();
                     valB = b.path.split('.').pop().toLowerCase();
+                    break;
+                case 'type':
+                    valA = a.type || '';
+                    valB = b.type || '';
                     break;
                 case 'random': return Math.random() - 0.5;
                 default: return 0;

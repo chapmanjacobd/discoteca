@@ -1157,6 +1157,18 @@ func sortMediaBasic(media []models.MediaWithDB, sortBy string, reverse bool, nat
 		case "title":
 			return utils.StringValue(media[i].Title) < utils.StringValue(media[j].Title)
 		case "duration":
+			// Sort nulls last for ascending, nulls first for descending
+			iNil := media[i].Duration == nil
+			jNil := media[j].Duration == nil
+			if iNil && jNil {
+				return false
+			}
+			if iNil {
+				return !reverse // nulls last for asc
+			}
+			if jNil {
+				return reverse // nulls first for desc
+			}
 			return utils.Int64Value(media[i].Duration) < utils.Int64Value(media[j].Duration)
 		case "size":
 			return utils.Int64Value(media[i].Size) < utils.Int64Value(media[j].Size)
@@ -1191,9 +1203,22 @@ func sortMediaBasic(media []models.MediaWithDB, sortBy string, reverse bool, nat
 		case "time_deleted":
 			return utils.Int64Value(media[i].TimeDeleted) < utils.Int64Value(media[j].TimeDeleted)
 		case "type":
+			// Sort nulls last for ascending, nulls first for descending
+			iNil := media[i].Type == nil || *media[i].Type == ""
+			jNil := media[j].Type == nil || *media[j].Type == ""
+			if iNil && jNil {
+				return false
+			}
+			if iNil {
+				return !reverse // nulls last for asc
+			}
+			if jNil {
+				return reverse // nulls first for desc
+			}
 			return utils.StringValue(media[i].Type) < utils.StringValue(media[j].Type)
 		default:
-			return media[i].Path < media[j].Path
+			// Use natural sorting for path (handles numbers correctly)
+			return utils.NaturalLess(media[i].Path, media[j].Path)
 		}
 	}
 

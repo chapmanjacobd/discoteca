@@ -1277,49 +1277,131 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 
 func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	flags := c.parseFlags(r)
-	flags.All = true // We need all matches to aggregate DU
+	
+	// Clean and normalize the path
+	cleanPath := filepath.Clean(path)
+	if cleanPath == "." {
+		cleanPath = ""
+	}
+	
+	// Calculate the depth of current path
+	// "" or "/" = depth 0
+	// "/media" = depth 1  
+	// "/media/videos" = depth 2
+	currentDepth := 0
+	if cleanPath != "" && cleanPath != "/" {
+		currentDepth = strings.Count(cleanPath, string(filepath.Separator)) + 1
+	}
+	minDepth := currentDepth + 1 // Only fetch files deeper than current path
 
-	// Fetch all media under this path for accurate folder size aggregation
-	if path != "" {
-		flags.Paths = append(flags.Paths, path+"%")
+	// Fetch only files that are children (deeper than current path)
+	// We aggregate in Go to avoid complex SQL
+	querySQL := `
+		SELECT path, size, duration, type
+		FROM media
+		WHERE time_deleted = 0
+		  AND (path LIKE ? OR ? = '')
+		  AND (length(path) - length(replace(path, '/', ''))) >= ?
+	`
+
+	filesByParent := make(map[string]*models.FolderStats)
+	
+	// Parse type filter
+	typeFilter := r.URL.Query().Get("type")
+	
+	for _, dbPath := range c.Databases {
+		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			rows, err := sqlDB.QueryContext(r.Context(), querySQL,
+				cleanPath+"%",  // ? - path LIKE pattern
+				cleanPath,      // ? - empty path check
+				minDepth,       // ? - minimum depth (children only)
+			)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			for rows.Next() {
+				var filePath string
+				var size, duration sql.NullInt64
+				var mediaType sql.NullString
+				if err := rows.Scan(&filePath, &size, &duration, &mediaType); err != nil {
+					return err
+				}
+				
+				// Apply type filter
+				if typeFilter != "" && mediaType.Valid {
+					if !strings.HasPrefix(mediaType.String, typeFilter) {
+						continue
+					}
+				}
+				
+				// Calculate parent at the target depth (immediate child of current path)
+				var parent string
+				parts := strings.Split(filePath, string(filepath.Separator))
+				
+				// Remove empty first element if path starts with /
+				if len(parts) > 0 && parts[0] == "" {
+					parts = parts[1:]
+				}
+				
+				if currentDepth == 0 {
+					// Root level: parent is first component
+					if len(parts) > 0 {
+						parent = parts[0]
+					}
+				} else {
+					// Subdirectory: parent is path up to currentDepth+1 components
+					if len(parts) >= currentDepth+1 {
+						parent = strings.Join(parts[:currentDepth+1], string(filepath.Separator))
+					} else {
+						parent = filePath
+					}
+				}
+				
+				if parent == "" {
+					continue
+				}
+				
+				if _, ok := filesByParent[parent]; !ok {
+					filesByParent[parent] = &models.FolderStats{Path: parent}
+				}
+				stat := filesByParent[parent]
+				stat.Count++
+				if size.Valid {
+					stat.TotalSize += size.Int64
+				}
+				if duration.Valid {
+					stat.TotalDuration += duration.Int64
+				}
+			}
+			return rows.Err()
+		})
+		if err != nil {
+			slog.Error("Failed to fetch DU stats", "db", dbPath, "error", err)
+		}
 	}
 
-	media, err := query.MediaQuery(r.Context(), c.Databases, flags)
-	if err != nil {
-		slog.Error("Failed to fetch media for DU", "path", path, "error", err)
-		http.Error(w, "Query failed", http.StatusInternalServerError)
-		return
+	// Convert map to slice
+	stats := make([]models.FolderStats, 0, len(filesByParent))
+	for _, stat := range filesByParent {
+		stat.ExistsCount = stat.Count
+		stats = append(stats, *stat)
 	}
 
-	// For folder aggregation, calculate the depth to group by
-	// depth=1 groups by first component (e.g., "/media" from "/media/video/file.mp4")
-	// depth=2 groups by first two components (e.g., "/media/video" from "/media/video/file.mp4")
-	// The aggregation will show immediate children of the current path
-	depth := 1 // Default for root path (shows top-level folders)
-	if path != "" && path != "/" {
-		cleanPath := filepath.Clean(path)
-		// Depth = number of components in current path + 1
-		// This makes aggregation show items one level deeper than current path
-		depth = strings.Count(cleanPath, string(filepath.Separator)) + 2
+	// Sort results
+	sortBy := r.URL.Query().Get("sort")
+	reverse := r.URL.Query().Get("reverse") == "true"
+	
+	if sortBy == "" {
+		sortBy = "size"
+		reverse = true
 	}
-
-	aggFlags := flags
-	aggFlags.Depth = depth
-	aggFlags.Parents = false
-	// Default sort for DU is by size descending (only if no sort specified)
-	if aggFlags.SortBy == "" {
-		aggFlags.SortBy = "size"
-		aggFlags.Reverse = true
-	}
-
-	// Use all media for accurate size aggregation
-	allStats := query.AggregateMedia(media, aggFlags)
-
-	query.SortFolders(allStats, aggFlags.SortBy, aggFlags.Reverse)
+	
+	query.SortFolders(stats, sortBy, reverse)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(allStats)
+	json.NewEncoder(w).Encode(stats)
 }
 
 func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
