@@ -4469,7 +4469,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentTime = media.currentTime;
 
         const setTime = (t) => {
-            if (media.currentTime !== undefined) media.currentTime = t;
+            if (media.currentTime !== undefined && !isNaN(t) && isFinite(t)) {
+                media.currentTime = t;
+            }
         };
 
         const playPause = () => {
@@ -4512,10 +4514,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'arrowleft':
-                setTime(Math.max(0, currentTime - 5));
+                if (currentTime < 1) {
+                    window.disco.playSibling(-1, true);
+                } else {
+                    setTime(Math.max(0, currentTime - 5));
+                }
                 break;
             case 'arrowright':
-                setTime(Math.min(duration, currentTime + 5));
+                if (!isNaN(duration) && duration - currentTime < 1) {
+                    window.disco.playSibling(1, true);
+                } else if (!isNaN(duration)) {
+                    setTime(Math.min(duration, currentTime + 5));
+                } else {
+                    setTime(currentTime + 5);
+                }
                 break;
             case '0': case '1': case '2': case '3': case '4':
             case '5': case '6': case '7': case '8': case '9':
