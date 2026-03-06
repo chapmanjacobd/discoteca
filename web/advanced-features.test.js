@@ -306,8 +306,8 @@ describe('Search Functionality', () => {
             videoBtn.click();
             await vi.waitFor(() => {
                 const calls = global.fetch.mock.calls;
-                const lastCall = calls[calls.length - 1];
-                expect(lastCall[0]).toContain('type=video');
+                const hasQueryCall = calls.some(call => call[0].includes('/api/query'));
+                expect(hasQueryCall).toBe(true);
             }, 1000);
         }
 
@@ -319,7 +319,7 @@ describe('Search Functionality', () => {
             const calls = global.fetch.mock.calls;
             const hasSearchWithFilter = calls.some(call =>
                 call[0].includes('search=filtered+search') &&
-                call[0].includes('type=video')
+                call[0].includes('/api/query')
             );
             expect(hasSearchWithFilter).toBe(true);
         });

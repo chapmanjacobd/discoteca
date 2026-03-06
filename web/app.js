@@ -534,7 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSliderPos('size', 'sizes', sizeMinSlider, sizeMaxSlider);
             updateSliderPos('duration', 'durations', durationMinSlider, durationMaxSlider);
 
-            renderMediaTypeList();
             renderFilterBins();
             updateSliderLabels();
         } catch (err) {
@@ -614,6 +613,45 @@ document.addEventListener('DOMContentLoaded', () => {
         updateNavActiveStates();
     }
 
+    function resetFilters() {
+        // Clear all filter-related state
+        state.filters.categories = [];
+        state.filters.genre = '';
+        state.filters.ratings = [];
+        state.filters.sizes = [];
+        state.filters.durations = [];
+        state.filters.episodes = [];
+        state.filters.types = [];
+        state.filters.unplayed = false;
+        state.filters.unfinished = false;
+        state.filters.completed = false;
+
+        // Clear sidebar filter UI
+        document.querySelectorAll('.sidebar .category-btn.active').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Reset sliders to default
+        if (episodesMinSlider) episodesMinSlider.value = 0;
+        if (episodesMaxSlider) episodesMaxSlider.value = 100;
+        if (sizeMinSlider) sizeMinSlider.value = 0;
+        if (sizeMaxSlider) sizeMaxSlider.value = 100;
+        if (durationMinSlider) durationMinSlider.value = 0;
+        if (durationMaxSlider) durationMaxSlider.value = 100;
+        updateSliderLabels();
+
+        // Save to localStorage
+        localStorage.setItem('disco-filter-categories', '[]');
+        localStorage.setItem('disco-filter-ratings', '[]');
+        localStorage.setItem('disco-filter-sizes', '[]');
+        localStorage.setItem('disco-filter-durations', '[]');
+        localStorage.setItem('disco-filter-episodes', '[]');
+        localStorage.setItem('disco-types', '[]');
+
+        updateNavActiveStates();
+        performSearch();
+    }
+
     // --- Modal Management ---
     function openModal(id) {
         document.getElementById(id).classList.remove('hidden');
@@ -650,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.durations.forEach(b => params.append('duration', getBinQueryParam(b)));
 
         state.filters.types.forEach(t => params.append('type', t));
-        
+
         // Add sort parameters
         if (state.filters.sort && state.filters.sort !== 'default') {
             params.append('sort', state.filters.sort);
@@ -1397,17 +1435,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const isFirstDUVisit = state.page !== 'du';
         state.page = 'du';
         state.duPath = path;
-        
+
         // Set default sort for DU view on first visit: size descending
         if (isFirstDUVisit) {
             state.filters.sort = 'size';
             state.filters.reverse = true;
+            state.view = 'grid'; // Default to grid view in DU
             const sortBy = document.getElementById('sort-by');
             const sortReverseBtn = document.getElementById('sort-reverse-btn');
             if (sortBy) sortBy.value = 'size';
             if (sortReverseBtn) sortReverseBtn.classList.add('active');
         }
-        
+
         syncUrl();
 
         const skeletonTimeout = setTimeout(() => {
@@ -1468,6 +1507,109 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         resultsCount.textContent = `${totalFolders} folders, ${totalFiles} files`;
 
+        // Render based on current view mode
+        if (state.view === 'details') {
+            renderDUDetails(data);
+        } else {
+            renderDUGrid(data);
+        }
+
+        paginationContainer.classList.add('hidden');
+        updateNavActiveStates();
+    }
+
+    function renderDUDetails(data) {
+        // Table view for DU data
+        resultsContainer.className = 'details-view du-view';
+        resultsContainer.innerHTML = '';
+
+        const table = document.createElement('table');
+        table.className = 'details-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Duration</th>
+                    <th>Files</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+
+        const tbody = table.querySelector('tbody');
+
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+
+            // Check if this is a single file
+            const isSingleFile = (item.count === 0 && item.files && item.files.length === 1) ||
+                                 (item.files && item.files.length === 1 && item.files[0].path === item.path);
+
+            if (isSingleFile) {
+                // Single file row
+                const mediaItem = item.files[0];
+                const name = mediaItem.title || mediaItem.path.split('/').pop();
+                const type = mediaItem.type || 'unknown';
+                const size = formatSize(mediaItem.size);
+                const duration = formatDuration(mediaItem.duration);
+
+                tr.innerHTML = `
+                    <td>📄 ${name}</td>
+                    <td>${type}</td>
+                    <td>${size}</td>
+                    <td>${duration}</td>
+                    <td>-</td>
+                `;
+                tr.onclick = () => playMedia(mediaItem);
+            } else if (item.files && item.files.length > 0) {
+                // Multiple individual files - render each
+                item.files.forEach(mediaItem => {
+                    const fileTr = document.createElement('tr');
+                    const name = mediaItem.title || mediaItem.path.split('/').pop();
+                    const type = mediaItem.type || 'unknown';
+                    const size = formatSize(mediaItem.size);
+                    const duration = formatDuration(mediaItem.duration);
+
+                    fileTr.innerHTML = `
+                        <td>📄 ${name}</td>
+                        <td>${type}</td>
+                        <td>${size}</td>
+                        <td>${duration}</td>
+                        <td>-</td>
+                    `;
+                    fileTr.onclick = () => playMedia(mediaItem);
+                    tbody.appendChild(fileTr);
+                });
+                return;
+            } else {
+                // Folder row
+                const name = item.path.split('/').pop() || item.path;
+                const size = formatSize(item.total_size);
+                const duration = formatDuration(item.total_duration);
+                const count = item.count;
+
+                tr.innerHTML = `
+                    <td>📁 ${name}</td>
+                    <td>folder</td>
+                    <td>${size}</td>
+                    <td>${duration}</td>
+                    <td>${count}</td>
+                `;
+                tr.onclick = () => fetchDU(item.path + (item.path.endsWith('/') ? '' : '/'));
+            }
+
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('mouseover', () => tr.style.background = 'var(--sidebar-bg)');
+            tr.addEventListener('mouseout', () => tr.style.background = '');
+            tbody.appendChild(tr);
+        });
+
+        resultsContainer.appendChild(table);
+    }
+
+    function renderDUGrid(data) {
         resultsContainer.className = 'grid du-view';
         resultsContainer.innerHTML = '';
 
@@ -1477,7 +1619,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
 
             // Check if this is a single file (not a folder)
-            // A single file item has count=0 or has exactly one file matching the item path
             const isSingleFile = (item.count === 0 && item.files && item.files.length === 1) ||
                                  (item.files && item.files.length === 1 && item.files[0].path === item.path);
 
@@ -1564,9 +1705,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             resultsContainer.appendChild(card);
         });
-
-        paginationContainer.classList.add('hidden');
-        updateNavActiveStates();
     }
 
     function showEpisodesLoading() {
@@ -1826,7 +1964,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <p>Manage categories and keywords. Drag keywords from the suggestion pool to a category, or add them manually.</p>
             <div style="display: flex; gap: 1rem; margin: 1.5rem 0;">
                 <button id="run-auto-categorize" class="category-btn" style="background: var(--accent-color); color: white;">Run Categorization Now</button>
-                <button id="add-default-cats" class="category-btn">Add Default Categories</button>
             </div>
         `;
         resultsContainer.appendChild(headerEl);
@@ -1841,16 +1978,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const categoriesCol = document.createElement('div');
         categoriesCol.className = 'curation-col';
         categoriesCol.style.flex = '1';
-        categoriesCol.style.overflowY = 'auto';
+        categoriesCol.style.display = 'flex';
+        categoriesCol.style.flexDirection = 'column';
         categoriesCol.style.borderRight = '1px solid var(--border-color)';
         categoriesCol.style.paddingRight = '1rem';
 
-        categoriesCol.innerHTML = `<h3>Categories</h3>`;
+        // Categories header with buttons
+        const categoriesHeader = document.createElement('div');
+        categoriesHeader.style.display = 'flex';
+        categoriesHeader.style.justifyContent = 'space-between';
+        categoriesHeader.style.alignItems = 'center';
+        categoriesHeader.style.marginBottom = '1rem';
+        categoriesHeader.innerHTML = `
+            <h3 style="margin: 0;">Categories</h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <button id="add-default-cats" class="category-btn" style="font-size: 0.85rem; padding: 4px 8px;">Add Default Categories</button>
+                <button id="new-category-btn" class="category-btn" style="font-size: 0.85rem; padding: 4px 8px;">+ New Category</button>
+            </div>
+        `;
+        categoriesCol.appendChild(categoriesHeader);
+
+        // Scrollable categories list
         const categoriesList = document.createElement('div');
         categoriesList.className = 'curation-cat-list';
         categoriesList.style.display = 'flex';
         categoriesList.style.flexDirection = 'column';
         categoriesList.style.gap = '1rem';
+        categoriesList.style.overflowY = 'auto';
+        categoriesList.style.flex = '1';
 
         // Render existing categories
         keywordsData.forEach(cat => {
@@ -1924,30 +2079,22 @@ document.addEventListener('DOMContentLoaded', () => {
             categoriesList.appendChild(card);
         });
 
-        // Add New Category Button at bottom of list
-        const newCatBtn = document.createElement('button');
-        newCatBtn.className = 'category-btn';
-        newCatBtn.style.marginTop = '1rem';
-        newCatBtn.style.width = '100%';
-        newCatBtn.style.border = '1px dashed var(--border-color)';
-        newCatBtn.textContent = '+ New Category';
-        newCatBtn.onclick = async () => {
-            const name = prompt('New Category Name:');
-            if (name) {
-                // To create a category, we need at least one keyword.
-                // Or we can just refresh, but the backend only stores keywords.
-                // So we'll prompt for a keyword too or add a placeholder?
-                // Let's prompt for keyword immediately.
-                const kw = prompt(`Add first keyword for "${name}":`);
-                if (kw) {
-                    await addKeyword(name, kw);
-                }
-            }
-        };
-        categoriesList.appendChild(newCatBtn);
-
         categoriesCol.appendChild(categoriesList);
         container.appendChild(categoriesCol);
+
+        // Setup New Category button (in header)
+        const newCatBtn = categoriesCol.querySelector('#new-category-btn');
+        if (newCatBtn) {
+            newCatBtn.onclick = async () => {
+                const name = prompt('New Category Name:');
+                if (name) {
+                    const kw = prompt(`Add first keyword for "${name}":`);
+                    if (kw) {
+                        await addKeyword(name, kw);
+                    }
+                }
+            };
+        }
 
         // --- Right Column: Suggestions ---
         const suggestionsCol = document.createElement('div');
@@ -2021,7 +2168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        const btnDefaults = headerEl.querySelector('#add-default-cats');
+        const btnDefaults = categoriesCol.querySelector('#add-default-cats');
         if (btnDefaults) {
             btnDefaults.onclick = async () => {
                 if (confirm('Add default categories and keywords? (Existing ones will be kept)')) {
@@ -2134,9 +2281,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.page !== 'trash' && state.page !== 'history' && state.page !== 'playlist' && state.page !== 'du' && state.page !== 'curation' && state.page !== 'captions') {
             state.page = 'search';
         }
-        state.filters.search = searchInput.value;
-        state.filters.sort = sortBy.value;
-        state.filters.limit = parseInt(limitInput.value) || 100;
+        state.filters.search = searchInput ? searchInput.value : '';
+        state.filters.sort = sortBy ? sortBy.value : 'default';
+        state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
         state.filters.all = limitAll ? limitAll.checked : false;
 
         syncUrl();
@@ -2184,13 +2331,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('offset', (state.currentPage - 1) * state.filters.limit);
             }
 
-            if (state.page === 'captions' || state.filters.captions) params.append('captions', 'true');
+            if (state.page === 'captions' || state.filters.captions) {
+                params.append('captions', 'true');
+                // Use aggregation for better performance
+                params.append('aggregate', 'true');
+            }
 
             if (state.page === 'trash') {
                 params.append('trash', 'true');
             } else if (state.page === 'history') {
                 params.append('watched', 'true');
             }
+
+            // Request filter counts for sidebar bins (eliminates separate /api/filter-bins call)
+            params.append('include_counts', 'true');
 
             const resp = await fetchAPI(`/api/query?${params.toString()}`, {
                 signal: searchAbortController.signal
@@ -2210,6 +2364,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let data = await resp.json();
             if (!data) data = [];
+
+            // Extract filter counts if included in response
+            if (data && typeof data === 'object' && data.items && data.counts) {
+                state.filterBins = data.counts;
+                data = data.items;
+                renderFilterBins();
+            }
 
             // Merge local progress if enabled
             if (state.localResume) {
@@ -2263,7 +2424,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Caption search filtering with context
             if (state.page === 'captions' && state.filters.search) {
                 const searchTerm = state.filters.search.toLowerCase();
-                
+
                 // Group captions by path
                 const captionsByPath = {};
                 currentMedia.forEach(item => {
@@ -2272,13 +2433,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     captionsByPath[item.path].push(item);
                 });
-                
+
                 // Find matches and add context
                 const filteredCaptions = [];
                 Object.keys(captionsByPath).forEach(path => {
                     const captions = captionsByPath[path];
                     const matches = [];
-                    
+
                     // Find matching captions
                     captions.forEach((cap, idx) => {
                         if (cap.caption_text && cap.caption_text.toLowerCase().includes(searchTerm)) {
@@ -2288,7 +2449,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             cap._isMatch = false;
                         }
                     });
-                    
+
                     // Add matches with context (1 before and 1 after)
                     matches.forEach(matchIdx => {
                         // Add context before
@@ -2308,18 +2469,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 });
-                
+
                 // Use filtered captions if we have matches, otherwise use all
                 if (filteredCaptions.length > 0) {
                     currentMedia = filteredCaptions;
                 }
-                
+
                 // Update count
                 state.totalCount = currentMedia.length;
             }
 
             // Update total count after client-side filtering
-            if ((state.filters.unplayed || state.filters.unfinished || state.filters.completed || state.page === 'history' || state.filters.excludedDbs.length > 0) && 
+            if ((state.filters.unplayed || state.filters.unfinished || state.filters.completed || state.page === 'history' || state.filters.excludedDbs.length > 0) &&
                 !(state.page === 'captions' && state.filters.search)) {
                 state.totalCount = currentMedia.length;
             }
@@ -2355,7 +2516,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             updateNavActiveStates();
             renderResults();
-            fetchFilterBins(params);
+            // Filter bins are now fetched with search results via include_counts=true
         } catch (err) {
             clearTimeout(skeletonTimeout);
             if (err.name === 'AbortError') return;
@@ -3744,7 +3905,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (currentMedia.length === 0) {
-            resultsContainer.innerHTML = '<div class="no-results">No media found</div>';
+            // Remove grid class so empty state can be full width
+            resultsContainer.className = 'no-results-container';
+            resultsContainer.innerHTML = `
+                <div class="no-results" style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: calc(100vh - 200px);
+                    text-align: center;
+                    color: var(--text-muted);
+                    max-width: 500px;
+                    margin: 0 auto;
+                ">
+                    <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;">🎒</div>
+                    <h2 style="margin: 0 0 0.5rem 0; color: var(--text);">No media found</h2>
+                    <p style="margin: 0; max-width: 400px;">
+                        ${state.filters.search ?
+                            `No results for "${state.filters.search}". Try adjusting your search or filters.` :
+                            'Try adjusting your filters or add some media to your library.'}
+                    </p>
+                    ${state.filters.types.length > 0 || state.filters.categories.length > 0 || state.filters.sizes.length > 0 || state.filters.durations.length > 0 ? `
+                        <button class="category-btn" onclick="window.disco.resetFilters()" style="margin-top: 1.5rem;">
+                            Clear all filters
+                        </button>
+                    ` : ''}
+                </div>
+            `;
             resultsContainer.style.minHeight = '';
             paginationContainer.classList.add('hidden');
             return;
@@ -4060,18 +4248,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 `/api/thumbnail?path=${encodeURIComponent(path)}` :
                 `/api/raw?path=${encodeURIComponent(path)}`;
 
-            // Build caption segments HTML
+            // Get caption count from aggregated data or count manually
+            const captionCount = captions[0].caption_count || captions.length;
+
+            // Build caption segments HTML (only show first few if many)
             let captionsHtml = '';
-            captions.forEach((cap, idx) => {
+            const maxSegments = captions[0].caption_count > 10 ? 10 : captions.length;
+            for (let i = 0; i < Math.min(maxSegments, captions.length); i++) {
+                const cap = captions[i];
                 const timeStr = formatDuration(cap.caption_time);
-                const isMatch = cap._isMatch; // Will be set during search
+                const isMatch = cap._isMatch;
                 captionsHtml += `
                     <div class="caption-segment ${isMatch ? 'caption-match' : ''}" data-time="${cap.caption_time}">
                         <span class="caption-time-link" title="Jump to ${timeStr}">${timeStr}</span>
                         <span class="caption-text">${cap.caption_text}</span>
                     </div>
                 `;
-            });
+            }
+            if (captions[0].caption_count > 10) {
+                captionsHtml += `<div class="caption-more">+${captions[0].caption_count - 10} more captions</div>`;
+            }
 
             card.innerHTML = `
                 <div class="caption-media-header">
@@ -4083,7 +4279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="caption-media-info">
                         <div class="media-title" title="${path}">${basename}</div>
-                        <div class="caption-count">${captions.length} caption${captions.length !== 1 ? 's' : ''}</div>
+                        <div class="caption-count">${captionCount} caption${captionCount !== 1 ? 's' : ''}</div>
                     </div>
                 </div>
                 <div class="caption-segments-container">
@@ -5428,7 +5624,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // View Toggles
         if (viewGrid) viewGrid.classList.toggle('active', state.view === 'grid');
-        if (viewGroup) viewGroup.classList.toggle('active', state.view === 'group');
+        if (viewGroup) {
+            // Hide Group view button in DU mode (doesn't make sense for disk usage)
+            viewGroup.style.display = state.page === 'du' ? 'none' : '';
+            viewGroup.classList.toggle('active', state.view === 'group');
+        }
         if (viewDetails) viewDetails.classList.toggle('active', state.view === 'details');
 
         // Handle playlists and categories in the sidebar lists
@@ -5471,9 +5671,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (trashBtn) {
         trashBtn.onclick = () => {
-            // Remove active from other categories
+            // Reset ALL filters when entering trash mode for safety
+            // This prevents dangerous situations where filters could show untrashed files in trash view
             state.filters.categories = [];
             state.filters.ratings = [];
+            state.filters.types = [];
+            state.filters.sizes = [];
+            state.filters.durations = [];
+            state.filters.episodes = [];
+            state.filters.genre = '';
+            state.filters.playlist = null;
+            state.filters.unplayed = false;
+            state.filters.unfinished = false;
+            state.filters.completed = false;
+            state.filters.search = '';
+            if (searchInput) searchInput.value = '';
+
+            // Reset sidebar UI
+            document.querySelectorAll('.sidebar .category-btn.active').forEach(btn => {
+                if (btn.id !== 'trash-btn') btn.classList.remove('active');
+            });
+
+            // Reset sliders
+            if (episodesMinSlider) episodesMinSlider.value = 0;
+            if (episodesMaxSlider) episodesMaxSlider.value = 100;
+            if (sizeMinSlider) sizeMinSlider.value = 0;
+            if (sizeMaxSlider) sizeMaxSlider.value = 100;
+            if (durationMinSlider) durationMinSlider.value = 0;
+            if (durationMaxSlider) durationMaxSlider.value = 100;
+            updateSliderLabels();
+
+            // Save to localStorage
+            localStorage.setItem('disco-filter-categories', '[]');
+            localStorage.setItem('disco-filter-ratings', '[]');
+            localStorage.setItem('disco-filter-sizes', '[]');
+            localStorage.setItem('disco-filter-durations', '[]');
+            localStorage.setItem('disco-filter-episodes', '[]');
+            localStorage.setItem('disco-types', '[]');
+
             state.page = 'trash';
             updateNavActiveStates();
             fetchTrash();
@@ -5834,7 +6069,8 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchGenres();
     fetchRatings();
     fetchPlaylists();
-    fetchFilterBins();
+    // Filter bins are now fetched with search results via include_counts=true
+    renderMediaTypeList(); // Render media type buttons on initial load
     renderCategoryList();
     initSidebarPersistence();
     onUrlChange();
@@ -5878,6 +6114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         readUrl,
         syncUrl,
         showToast,
+        resetFilters,
         state
     };
 });

@@ -587,6 +587,9 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 			limit = 1000000
 		}
 
+		// Check if aggregation is requested
+		aggregate := q.Get("aggregate") == "true"
+
 		for _, dbPath := range c.Databases {
 			err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
@@ -610,18 +613,56 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 					return err
 				}
 
-				for _, row := range rows {
-					m := models.MediaWithDB{
-						Media: models.Media{
-							Path:  row.MediaPath,
-							Type:  models.NullStringPtr(row.Type),
-							Title: models.NullStringPtr(row.Title),
-						},
-						DB:          dbPath,
-						CaptionText: row.Text.String,
-						CaptionTime: row.Time.Float64,
+				if aggregate {
+					// Aggregate captions by media path
+					aggregated := make(map[string]*models.MediaWithDB)
+					for _, row := range rows {
+						path := row.MediaPath
+						if _, ok := aggregated[path]; !ok {
+							aggregated[path] = &models.MediaWithDB{
+								Media: models.Media{
+									Path:     path,
+									Type:     models.NullStringPtr(row.Type),
+									Title:    models.NullStringPtr(row.Title),
+									Size:     models.NullInt64Ptr(row.Size),
+									Duration: models.NullInt64Ptr(row.Duration),
+								},
+								DB: dbPath,
+							}
+						}
+						// Accumulate caption data
+						stat := aggregated[path]
+						if stat.CaptionText == "" {
+							stat.CaptionText = row.Text.String
+						}
+						if stat.CaptionTime == 0 {
+							stat.CaptionTime = row.Time.Float64
+						}
+						// Count captions
+						stat.CaptionCount++
+						// Accumulate caption duration (in seconds, stored as int64)
+						if row.Time.Valid {
+							stat.CaptionDuration += int64(row.Time.Float64)
+						}
 					}
-					media = append(media, m)
+					for _, m := range aggregated {
+						media = append(media, *m)
+					}
+				} else {
+					// Return individual caption rows (legacy behavior)
+					for _, row := range rows {
+						m := models.MediaWithDB{
+							Media: models.Media{
+								Path:  row.MediaPath,
+								Type:  models.NullStringPtr(row.Type),
+								Title: models.NullStringPtr(row.Title),
+							},
+							DB:          dbPath,
+							CaptionText: row.Text.String,
+							CaptionTime: row.Time.Float64,
+						}
+						media = append(media, m)
+					}
 				}
 				return nil
 			})
@@ -633,7 +674,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		totalCount := len(media)
 
 		// Pagination for captions (since we fetched them all or up to limit per DB)
-		if !flags.All && flags.Limit > 0 {
+		if !flags.All && flags.Limit > 0 && !aggregate {
 			start := flags.Offset
 			if start > len(media) {
 				media = []models.MediaWithDB{}
@@ -656,6 +697,13 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Query failed: " + err.Error()})
 		return
+	}
+
+	// Check if filter counts are requested
+	includeCounts := q.Get("include_counts") == "true"
+	var filterCounts *models.FilterBinsResponse
+	if includeCounts {
+		filterCounts = c.calculateFilterCounts(ctx, flags)
 	}
 
 	// Caption enrichment for main media grid
@@ -710,9 +758,18 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("X-Total-Count", strconv.FormatInt(totalCount, 10))
 	w.Header().Set("Content-Type", "application/json")
-
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	json.NewEncoder(w).Encode(media)
+
+	// Return counts with media if requested
+	if includeCounts && filterCounts != nil {
+		response := map[string]any{
+			"items":  media,
+			"counts": filterCounts,
+		}
+		json.NewEncoder(w).Encode(response)
+	} else {
+		json.NewEncoder(w).Encode(media)
+	}
 }
 
 // handlePlay triggers local playback of a media file via mpv.
@@ -1277,24 +1334,28 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 
 func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	
+
 	// Clean and normalize the path
 	cleanPath := filepath.Clean(path)
 	if cleanPath == "." {
 		cleanPath = ""
 	}
-	
-	// Calculate the depth of current path
+
+	// Calculate the depth of current path (number of path components)
 	// "" or "/" = depth 0
-	// "/media" = depth 1  
+	// "/media" = depth 1
 	// "/media/videos" = depth 2
 	currentDepth := 0
 	if cleanPath != "" && cleanPath != "/" {
-		currentDepth = strings.Count(cleanPath, string(filepath.Separator)) + 1
+		parts := strings.Split(cleanPath, string(filepath.Separator))
+		if len(parts) > 0 && parts[0] == "" {
+			parts = parts[1:]
+		}
+		currentDepth = len(parts)
 	}
-	minDepth := currentDepth + 1 // Only fetch files deeper than current path
+	targetDepth := currentDepth + 1 // We want to show children at this depth
 
-	// Fetch only files that are children (deeper than current path)
+	// Fetch files that are children of the current path
 	// We aggregate in Go to avoid complex SQL
 	querySQL := `
 		SELECT path, size, duration, type
@@ -1304,17 +1365,21 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		  AND (length(path) - length(replace(path, '/', ''))) >= ?
 	`
 
-	filesByParent := make(map[string]*models.FolderStats)
-	
+	slog.Debug("DU query", "cleanPath", cleanPath, "targetDepth", targetDepth, "sql", querySQL)
+
+	// Separate maps for direct files and folders
+	directFiles := make(map[string]*models.MediaWithDB)
+	folders := make(map[string]*models.FolderStats)
+
 	// Parse type filter
 	typeFilter := r.URL.Query().Get("type")
-	
+
 	for _, dbPath := range c.Databases {
 		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
 			rows, err := sqlDB.QueryContext(r.Context(), querySQL,
-				cleanPath+"%",  // ? - path LIKE pattern
-				cleanPath,      // ? - empty path check
-				minDepth,       // ? - minimum depth (children only)
+				cleanPath+"%", // ? - path LIKE pattern
+				cleanPath,     // ? - empty path check
+				targetDepth,   // ? - minimum depth (children only)
 			)
 			if err != nil {
 				return err
@@ -1328,51 +1393,74 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 				if err := rows.Scan(&filePath, &size, &duration, &mediaType); err != nil {
 					return err
 				}
-				
+
 				// Apply type filter
 				if typeFilter != "" && mediaType.Valid {
 					if !strings.HasPrefix(mediaType.String, typeFilter) {
 						continue
 					}
 				}
-				
-				// Calculate parent at the target depth (immediate child of current path)
-				var parent string
+
+				// Calculate the file's depth (number of path components)
 				parts := strings.Split(filePath, string(filepath.Separator))
-				
+				isAbsolute := len(parts) > 0 && parts[0] == ""
+
 				// Remove empty first element if path starts with /
-				if len(parts) > 0 && parts[0] == "" {
+				if isAbsolute {
 					parts = parts[1:]
 				}
-				
-				if currentDepth == 0 {
-					// Root level: parent is first component
-					if len(parts) > 0 {
-						parent = parts[0]
+				fileDepth := len(parts)
+
+				if fileDepth == targetDepth {
+					// This is a direct child file - add to files list
+					media := &models.MediaWithDB{
+						Media: models.Media{
+							Path:     filePath,
+							Size:     &size.Int64,
+							Duration: &duration.Int64,
+							Type:     &mediaType.String,
+						},
+						DB: dbPath,
 					}
-				} else {
-					// Subdirectory: parent is path up to currentDepth+1 components
-					if len(parts) >= currentDepth+1 {
-						parent = strings.Join(parts[:currentDepth+1], string(filepath.Separator))
+					directFiles[filePath] = media
+				} else if fileDepth > targetDepth {
+					// This file is in a subfolder - group by subfolder
+					var parent string
+					if currentDepth == 0 {
+						// Root level: parent is first component
+						if len(parts) > 0 {
+							parent = parts[0]
+							if isAbsolute {
+								parent = string(filepath.Separator) + parent
+							}
+						}
 					} else {
-						parent = filePath
+						// Subdirectory: parent is path up to targetDepth components
+						if len(parts) >= targetDepth {
+							parent = strings.Join(parts[:targetDepth], string(filepath.Separator))
+							if isAbsolute {
+								parent = string(filepath.Separator) + parent
+							}
+						} else {
+							parent = filePath
+						}
 					}
-				}
-				
-				if parent == "" {
-					continue
-				}
-				
-				if _, ok := filesByParent[parent]; !ok {
-					filesByParent[parent] = &models.FolderStats{Path: parent}
-				}
-				stat := filesByParent[parent]
-				stat.Count++
-				if size.Valid {
-					stat.TotalSize += size.Int64
-				}
-				if duration.Valid {
-					stat.TotalDuration += duration.Int64
+
+					if parent == "" {
+						continue
+					}
+
+					if _, ok := folders[parent]; !ok {
+						folders[parent] = &models.FolderStats{Path: parent}
+					}
+					stat := folders[parent]
+					stat.Count++
+					if size.Valid {
+						stat.TotalSize += size.Int64
+					}
+					if duration.Valid {
+						stat.TotalDuration += duration.Int64
+					}
 				}
 			}
 			return rows.Err()
@@ -1382,26 +1470,46 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Convert map to slice
-	stats := make([]models.FolderStats, 0, len(filesByParent))
-	for _, stat := range filesByParent {
-		stat.ExistsCount = stat.Count
-		stats = append(stats, *stat)
+	// Combine folders and files into results
+	var results []models.FolderStats
+
+	// Add folders
+	for _, stat := range folders {
+		results = append(results, *stat)
+	}
+
+	// Add direct files as single-file "folders"
+	for _, file := range directFiles {
+		var fileSize, fileDuration int64
+		if file.Size != nil {
+			fileSize = *file.Size
+		}
+		if file.Duration != nil {
+			fileDuration = *file.Duration
+		}
+		results = append(results, models.FolderStats{
+			Path:          file.Path,
+			Count:         0,
+			TotalSize:     fileSize,
+			TotalDuration: fileDuration,
+			ExistsCount:   0,
+			Files:         []models.MediaWithDB{*file},
+		})
 	}
 
 	// Sort results
 	sortBy := r.URL.Query().Get("sort")
 	reverse := r.URL.Query().Get("reverse") == "true"
-	
+
 	if sortBy == "" {
 		sortBy = "size"
 		reverse = true
 	}
-	
-	query.SortFolders(stats, sortBy, reverse)
+
+	query.SortFolders(results, sortBy, reverse)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(results)
 }
 
 func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
@@ -1637,6 +1745,162 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// calculateFilterCounts computes filter bin counts for the current query
+// This is a simplified version of handleFilterBins for use with include_counts
+func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.GlobalFlags) *models.FilterBinsResponse {
+	flags.All = true
+	flags.Limit = 0
+
+	var mu sync.Mutex
+	resp := models.FilterBinsResponse{}
+
+	calculateBins := func(filterToIgnore string, isGlobal bool) ([]int64, []int64, map[string]int64) {
+		var tempFlags models.GlobalFlags
+		if isGlobal {
+			tempFlags = models.GlobalFlags{
+				DeletedFlags: models.DeletedFlags{
+					HideDeleted: flags.HideDeleted,
+					OnlyDeleted: flags.OnlyDeleted,
+				},
+			}
+		} else {
+			tempFlags = flags
+			tempFlags.Where = append([]string{}, flags.Where...)
+
+			if filterToIgnore == "size" {
+				tempFlags.Size = nil
+			} else if filterToIgnore == "duration" {
+				tempFlags.Duration = nil
+			} else if filterToIgnore == "episodes" {
+				tempFlags.FileCounts = ""
+			}
+		}
+
+		var sizes []int64
+		var durations []int64
+		parentCounts := make(map[string]int64)
+
+		qb := query.NewQueryBuilder(tempFlags)
+		sqlQuery, args := qb.BuildSelect("path, size, duration")
+
+		var wg sync.WaitGroup
+		for _, dbPath := range c.Databases {
+			wg.Add(1)
+			go func(path string) {
+				defer wg.Done()
+				c.execDB(ctx, path, func(sqlDB *sql.DB) error {
+					rows, err := sqlDB.QueryContext(ctx, sqlQuery, args...)
+					if err != nil {
+						return err
+					}
+					defer rows.Close()
+
+					var localSizes []int64
+					var localDurations []int64
+					localParentCounts := make(map[string]int64)
+
+					for rows.Next() {
+						var p string
+						var s, d sql.NullInt64
+						if err := rows.Scan(&p, &s, &d); err == nil {
+							if s.Valid {
+								localSizes = append(localSizes, s.Int64)
+							}
+							if d.Valid {
+								localDurations = append(localDurations, d.Int64)
+							}
+							parent := filepath.Dir(p)
+							localParentCounts[parent]++
+						}
+					}
+
+					mu.Lock()
+					sizes = append(sizes, localSizes...)
+					durations = append(durations, localDurations...)
+					for k, v := range localParentCounts {
+						parentCounts[k] += v
+					}
+					mu.Unlock()
+					return nil
+				})
+			}(dbPath)
+		}
+		wg.Wait()
+		return sizes, durations, parentCounts
+	}
+
+	// Calculate bins (simplified - just the main distributions)
+	_, sizes, _ := calculateBins("size", false)
+	durations, _, _ := calculateBins("duration", false)
+	_, _, parentCounts := calculateBins("episodes", false)
+
+	// Build size bins
+	if len(sizes) > 0 {
+		resp.SizeMin = slices.Min(sizes)
+		resp.SizeMax = slices.Max(sizes)
+		p16 := utils.Percentile(sizes, 16.6)
+		p33 := utils.Percentile(sizes, 33.3)
+		p50 := utils.Percentile(sizes, 50.0)
+		p66 := utils.Percentile(sizes, 66.6)
+		p83 := utils.Percentile(sizes, 83.3)
+		maxS := utils.Percentile(sizes, 100)
+
+		sbins := []float64{0, p16, p33, p50, p66, p83, maxS}
+		for i := 0; i < len(sbins)-1; i++ {
+			minS := int64(sbins[i])
+			maxS := int64(sbins[i+1])
+			if i == 0 {
+				resp.Size = append(resp.Size, models.FilterBin{Label: "under " + utils.FormatSize(maxS), Max: maxS})
+			} else if i == len(sbins)-2 {
+				resp.Size = append(resp.Size, models.FilterBin{Label: utils.FormatSize(minS) + "+", Min: minS})
+			} else {
+				resp.Size = append(resp.Size, models.FilterBin{Label: utils.FormatSize(minS) + " - " + utils.FormatSize(maxS), Min: minS, Max: maxS})
+			}
+		}
+	}
+
+	// Build duration bins
+	if len(durations) > 0 {
+		resp.DurationMin = slices.Min(durations)
+		resp.DurationMax = slices.Max(durations)
+		p16 := utils.Percentile(durations, 16.6)
+		p33 := utils.Percentile(durations, 33.3)
+		p50 := utils.Percentile(durations, 50.0)
+		p66 := utils.Percentile(durations, 66.6)
+		p83 := utils.Percentile(durations, 83.3)
+		maxD := utils.Percentile(durations, 100)
+
+		dbins := []float64{0, p16, p33, p50, p66, p83, maxD}
+		for i := 0; i < len(dbins)-1; i++ {
+			minD := int64(dbins[i])
+			maxD := int64(dbins[i+1])
+			if i == 0 {
+				resp.Duration = append(resp.Duration, models.FilterBin{Label: "under " + utils.FormatDuration(int(maxD)), Max: maxD})
+			} else if i == len(dbins)-2 {
+				resp.Duration = append(resp.Duration, models.FilterBin{Label: utils.FormatDuration(int(minD)) + "+", Min: minD})
+			} else {
+				resp.Duration = append(resp.Duration, models.FilterBin{Label: utils.FormatDuration(int(minD)) + " - " + utils.FormatDuration(int(maxD)), Min: minD, Max: maxD})
+			}
+		}
+	}
+
+	// Build episode bins
+	var allEps []int64
+	for _, count := range parentCounts {
+		allEps = append(allEps, count)
+	}
+	if len(allEps) > 0 {
+		resp.EpisodesMin = slices.Min(allEps)
+		resp.EpisodesMax = slices.Max(allEps)
+		resp.EpisodesPercentiles = utils.CalculatePercentiles(allEps)
+	}
+
+	resp.SizePercentiles = utils.CalculatePercentiles(sizes)
+	resp.DurationPercentiles = utils.CalculatePercentiles(durations)
+
+	return &resp
 }
 
 func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Request) {

@@ -132,7 +132,7 @@ func TestDUServerSideFiltering(t *testing.T) {
 		t.Errorf("Did not find media folder in response: %v", resp)
 	}
 
-	// 2. Test with specific path - should show immediate children only
+	// 2. Test with specific path - should show immediate children (files and folders)
 	req2 := httptest.NewRequest(http.MethodGet, "/api/du?path=media", nil)
 	w2 := httptest.NewRecorder()
 	handler.ServeHTTP(w2, req2)
@@ -140,26 +140,34 @@ func TestDUServerSideFiltering(t *testing.T) {
 	var resp2 []struct {
 		Path      string `json:"path"`
 		TotalSize int64  `json:"total_size"`
+		Count     int    `json:"count"`
 	}
 	if err := json.NewDecoder(w2.Body).Decode(&resp2); err != nil {
 		t.Fatal(err)
 	}
 
-	// Should find "media/video" and "media/audio" (immediate children of "media")
-	foundVideo := false
-	foundAudio := false
+	// Files are in subfolders, so we should see folders
+	// media/video (contains v1.mp4), media/audio (contains a1.mp3)
+	foundVideoFolder := false
+	foundAudioFolder := false
 	for _, r := range resp2 {
 		if r.Path == "media/video" {
-			foundVideo = true
+			foundVideoFolder = true
+			if r.Count != 1 {
+				t.Errorf("Expected media/video to have 1 file, got %d", r.Count)
+			}
 		}
 		if r.Path == "media/audio" {
-			foundAudio = true
+			foundAudioFolder = true
+			if r.Count != 1 {
+				t.Errorf("Expected media/audio to have 1 file, got %d", r.Count)
+			}
 		}
 	}
-	if !foundVideo {
+	if !foundVideoFolder {
 		t.Errorf("Did not find media/video folder in response: %v", resp2)
 	}
-	if !foundAudio {
+	if !foundAudioFolder {
 		t.Errorf("Did not find media/audio folder in response: %v", resp2)
 	}
 }

@@ -288,7 +288,7 @@ WHERE media_path = ?
 ORDER BY time;
 
 -- name: GetAllCaptions :many
-SELECT c.media_path, c.time, c.text, m.title, m.type
+SELECT c.media_path, c.time, c.text, m.title, m.type, m.size, m.duration
 FROM captions c
 JOIN media m ON c.media_path = m.path
 WHERE m.time_deleted = 0
@@ -297,7 +297,7 @@ ORDER BY c.media_path, c.time
 LIMIT ?;
 
 -- name: SearchCaptions :many
-SELECT c.media_path, c.time, c.text, m.title, m.type
+SELECT c.media_path, c.time, c.text, m.title, m.type, m.size, m.duration
 FROM captions c
 JOIN captions_fts f ON c.rowid = f.rowid
 JOIN media m ON c.media_path = m.path

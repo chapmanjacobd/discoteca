@@ -312,15 +312,6 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 	return result, nil
 }
 
-func extractAapt(output, regex string) string {
-	re := regexp.MustCompile(regex)
-	matches := re.FindStringSubmatch(output)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return ""
-}
-
 func parseFPS(s string) float64 {
 	parts := strings.Split(s, "/")
 	if len(parts) != 2 {

@@ -2,7 +2,7 @@
 
 ## Current Data-Heavy Operations
 
-### 1. Disk Usage View (CRITICAL - HIGH PRIORITY)
+### 1. Disk Usage View (CRITICAL - HIGH PRIORITY) ✅ COMPLETE
 **Current behavior:**
 - Fetches ALL media files recursively under the current path
 - Aggregates in backend but sends all files to frontend
@@ -16,61 +16,110 @@
 **Implementation:**
 ```sql
 -- For path "/media" at depth 2, only get files at depth 3
-SELECT 
+SELECT
     substr(path, 1, length(?) + instr(substr(path, length(?) + 1), '/')) as parent_path,
     COUNT(*) as file_count,
     SUM(size) as total_size,
     SUM(duration) as total_duration
-FROM media 
-WHERE path LIKE ? || '%' 
+FROM media
+WHERE path LIKE ? || '%'
   AND path NOT LIKE ?
   AND time_deleted = 0
 GROUP BY parent_path
 ORDER BY total_size DESC
 ```
 
-### 2. Captions View (MEDIUM PRIORITY)
+### 2. Captions View (MEDIUM PRIORITY) ✅ COMPLETE
 **Current behavior:**
 - Fetches all caption rows individually
 - Frontend groups by media path
 - No aggregation of caption counts/sizes
 
 **Optimization:**
-- Add `?aggregate=true` parameter to captions endpoint
-- Backend returns grouped data with:
-  - Total caption count per media
-  - Total duration of captions
-  - First/last caption timestamps
-  - Match highlighting info for searches
+- ✅ Add `?aggregate=true` parameter to captions endpoint
+- ✅ Backend returns grouped data with:
+  - Total caption count per media (`caption_count`)
+  - Caption duration (`caption_duration`)
+  - First caption text/time for preview
+  - Full media metadata (size, duration, type)
 
 **New endpoint or parameter:**
 ```
 GET /api/query?captions=true&aggregate=true&search=keyword
 ```
 
-### 3. Search with Filters (MEDIUM PRIORITY)
+**Response format:**
+```json
+[
+  {
+    "path": "/videos/movie.mp4",
+    "type": "video/mp4",
+    "size": 1073741824,
+    "duration": 7200,
+    "caption_count": 150,
+    "caption_duration": 300,
+    "caption_text": "First caption text...",
+    "caption_time": 10.5
+  }
+]
+```
+
+**Frontend changes:**
+- ✅ Updated to use `?aggregate=true` parameter
+- ✅ renderCaptionsGrid uses `caption_count` from aggregated data
+- ✅ Shows "+X more captions" when count > 10
+- ✅ Details view shows aggregated caption count
+
+### 3. Search with Filters (MEDIUM PRIORITY) ✅ COMPLETE
 **Current behavior:**
 - Fetches all matching media with full metadata
 - Frontend applies some filters client-side
 - No pre-aggregated counts for filter UI
+- Separate `/api/filter-bins` call for sidebar filter counts
 
 **Optimization:**
-- Add `?include_counts=true` for filter bin counts
-- Backend returns both results AND available filter counts
-- Eliminates separate `/api/filter-bins` call
+- ✅ Add `?include_counts=true` for filter bin counts
+- ✅ Backend returns both results AND available filter counts
+- ✅ Eliminates separate `/api/filter-bins` call
+- ✅ Reduces HTTP requests by 1 per search
 
 **Response format:**
 ```json
 {
   "items": [...],
   "counts": {
-    "types": {"video": 100, "audio": 50},
-    "extensions": {".mp4": 80, ".mkv": 20},
-    "sizes": [{"label": "<100MB", "count": 50}],
-    ...
+    "episodes": [...],
+    "episodes_min": 1,
+    "episodes_max": 24,
+    "size": [...],
+    "size_min": 0,
+    "size_max": 1073741824,
+    "duration": [...],
+    "duration_min": 0,
+    "duration_max": 7200,
+    "episodes_percentiles": [...],
+    "size_percentiles": [...],
+    "duration_percentiles": [...]
   }
 }
 ```
+
+**Backend changes:**
+- ✅ Added `calculateFilterCounts()` function
+- ✅ Modified `handleQuery()` to include counts when requested
+- ✅ Returns wrapped response `{items, counts}` when `include_counts=true`
+
+**Frontend changes:**
+- ✅ Added `include_counts=true` to all search requests
+- ✅ Extract counts from response and update `state.filterBins`
+- ✅ Call `renderFilterBins()` with included counts
+- ✅ Removed initial `fetchFilterBins()` call on page load
+- ✅ Removed `fetchFilterBins()` call from `performSearch()`
+
+**Performance improvement:**
+- Eliminates 1 HTTP request per search operation
+- Filter bins are always in sync with current search results
+- Reduces latency by combining two requests into one
 
 ### 4. Group/Episodes View (LOW-MEDIUM PRIORITY)
 **Current behavior:**

@@ -52,7 +52,7 @@ func (q *Queries) DeletePlaylist(ctx context.Context, arg DeletePlaylistParams) 
 }
 
 const getAllCaptions = `-- name: GetAllCaptions :many
-SELECT c.media_path, c.time, c.text, m.title, m.type
+SELECT c.media_path, c.time, c.text, m.title, m.type, m.size, m.duration
 FROM captions c
 JOIN media m ON c.media_path = m.path
 WHERE m.time_deleted = 0
@@ -67,6 +67,8 @@ type GetAllCaptionsRow struct {
 	Text      sql.NullString  `json:"text"`
 	Title     sql.NullString  `json:"title"`
 	Type      sql.NullString  `json:"type"`
+	Size      sql.NullInt64   `json:"size"`
+	Duration  sql.NullInt64   `json:"duration"`
 }
 
 func (q *Queries) GetAllCaptions(ctx context.Context, limit int64) ([]GetAllCaptionsRow, error) {
@@ -84,6 +86,8 @@ func (q *Queries) GetAllCaptions(ctx context.Context, limit int64) ([]GetAllCapt
 			&i.Text,
 			&i.Title,
 			&i.Type,
+			&i.Size,
+			&i.Duration,
 		); err != nil {
 			return nil, err
 		}
@@ -1728,7 +1732,7 @@ func (q *Queries) RemovePlaylistItem(ctx context.Context, arg RemovePlaylistItem
 }
 
 const searchCaptions = `-- name: SearchCaptions :many
-SELECT c.media_path, c.time, c.text, m.title, m.type
+SELECT c.media_path, c.time, c.text, m.title, m.type, m.size, m.duration
 FROM captions c
 JOIN captions_fts f ON c.rowid = f.rowid
 JOIN media m ON c.media_path = m.path
@@ -1750,6 +1754,8 @@ type SearchCaptionsRow struct {
 	Text      sql.NullString  `json:"text"`
 	Title     sql.NullString  `json:"title"`
 	Type      sql.NullString  `json:"type"`
+	Size      sql.NullInt64   `json:"size"`
+	Duration  sql.NullInt64   `json:"duration"`
 }
 
 func (q *Queries) SearchCaptions(ctx context.Context, arg SearchCaptionsParams) ([]SearchCaptionsRow, error) {
@@ -1767,6 +1773,8 @@ func (q *Queries) SearchCaptions(ctx context.Context, arg SearchCaptionsParams) 
 			&i.Text,
 			&i.Title,
 			&i.Type,
+			&i.Size,
+			&i.Duration,
 		); err != nil {
 			return nil, err
 		}

@@ -25,10 +25,16 @@ export function formatSize(bytes) {
 export function formatDuration(seconds) {
     if (!seconds && seconds !== 0) return '';
     const totalSeconds = Math.floor(seconds);
-    const h = Math.floor(totalSeconds / 3600);
+    
+    const d = Math.floor(totalSeconds / 86400);
+    const h = Math.floor((totalSeconds % 86400) / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
 
+    if (d > 0) {
+        // Show days for durations > 24 hours
+        return `${d}d ${h < 10 ? '0' + h : h}:${m < 10 ? '0' + m : m}`;
+    }
     if (h > 0) {
         return `${h}:${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
     }

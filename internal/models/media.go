@@ -120,10 +120,12 @@ func (m *Media) ParentAtDepth(depth int) string {
 // MediaWithDB wraps Media with the database path it came from
 type MediaWithDB struct {
 	Media
-	DB          string  `json:"db,omitempty"`
-	Transcode   bool    `json:"transcode"`
-	CaptionText string  `json:"caption_text"`
-	CaptionTime float64 `json:"caption_time"`
+	DB              string  `json:"db,omitempty"`
+	Transcode       bool    `json:"transcode"`
+	CaptionText     string  `json:"caption_text"`
+	CaptionTime     float64 `json:"caption_time"`
+	CaptionCount    int64   `json:"caption_count"`
+	CaptionDuration int64   `json:"caption_duration"`
 }
 
 // FolderStats aggregates media by folder

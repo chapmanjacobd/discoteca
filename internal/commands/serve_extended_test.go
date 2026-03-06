@@ -281,6 +281,49 @@ func TestServeCmd_ExtendedHandlers(t *testing.T) {
 		if len(resp) == 0 {
 			t.Error("Expected DU results, got none")
 		}
+
+		// We expect:
+		// - Direct files: /media/video1.mp4, /media/video2.mp4 (shown as individual items)
+		// - Folders: /media/music (2 files), /media/other (1 file)
+
+		foundMusic := false
+		foundOther := false
+		foundVideo1 := false
+		foundVideo2 := false
+
+		for _, g := range resp {
+			if g.Path == "/media/music" {
+				foundMusic = true
+				if g.Count != 2 {
+					t.Errorf("Expected 2 items in /media/music, got %d", g.Count)
+				}
+			}
+			if g.Path == "/media/other" {
+				foundOther = true
+				if g.Count != 1 {
+					t.Errorf("Expected 1 item in /media/other, got %d", g.Count)
+				}
+			}
+			if g.Path == "/media/video1.mp4" {
+				foundVideo1 = true
+			}
+			if g.Path == "/media/video2.mp4" {
+				foundVideo2 = true
+			}
+		}
+
+		if !foundMusic {
+			t.Error("Expected to find /media/music folder")
+		}
+		if !foundOther {
+			t.Error("Expected to find /media/other folder")
+		}
+		if !foundVideo1 {
+			t.Error("Expected to find /media/video1.mp4 file")
+		}
+		if !foundVideo2 {
+			t.Error("Expected to find /media/video2.mp4 file")
+		}
 	})
 
 	t.Run("HandleEpisodes", func(t *testing.T) {

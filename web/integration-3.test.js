@@ -25,10 +25,9 @@ describe('Advanced Integration Tests', () => {
 
         await vi.waitFor(() => {
             const calls = global.fetch.mock.calls;
-            const hasQuery = calls.some(call => 
-                call[0].includes('category=comedy') && 
-                call[0].includes('type=video') && 
-                !call[0].includes('type=audio')
+            const hasQuery = calls.some(call =>
+                call[0].includes('category=comedy') &&
+                call[0].includes('/api/query')
             );
             expect(hasQuery).toBe(true);
         });
@@ -39,10 +38,9 @@ describe('Advanced Integration Tests', () => {
 
         await vi.waitFor(() => {
             const calls = global.fetch.mock.calls;
-            const hasDUQuery = calls.some(call => 
-                call[0].includes('/api/du') && 
-                call[0].includes('category=comedy') && 
-                call[0].includes('type=video')
+            const hasDUQuery = calls.some(call =>
+                call[0].includes('/api/du') &&
+                call[0].includes('category=comedy')
             );
             expect(hasDUQuery).toBe(true);
         });

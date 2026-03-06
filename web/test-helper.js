@@ -30,15 +30,47 @@ export async function setupTestEnvironment(initialLocalStorage) {
             data = mocks.ratings || [{ rating: 5, count: 1 }, { rating: 0, count: 10 }];
         } else if (url.includes('/api/playlists')) {
             data = mocks.playlists || ['My Playlist'];
-        } else if (url.includes('/api/filter-bins')) {
-            data = mocks.filter_bins || { 
-                episodes: [], size: [], duration: [],
-                episodes_min: 0, episodes_max: 100,
-                size_min: 0, size_max: 100 * 1024 * 1024,
-                duration_min: 0, duration_max: 3600
-            };
         } else if (url.includes('/api/query')) {
-            if (url.includes('captions=true')) {
+            // Return filter counts with results when include_counts=true
+            if (url.includes('include_counts=true')) {
+                let items;
+                if (url.includes('captions=true')) {
+                    items = mocks.media_with_captions || [
+                        { path: 'video1.mp4', type: 'video/mp4', size: 1024, duration: 60, db: 'test.db', caption_text: 'sample caption', caption_time: 10.5 },
+                    ];
+                } else if (url.includes('type=')) {
+                    // Filter by type if specified
+                    const typeMatch = url.match(/type=([^&]+)/);
+                    if (typeMatch) {
+                        const filterType = decodeURIComponent(typeMatch[1]);
+                        // Match partial types (e.g., "video" matches "video/mp4")
+                        items = (mocks.media || []).filter(m => m.type && m.type.includes(filterType));
+                        if (items.length === 0) {
+                            // Return empty array if no matches
+                            items = [];
+                        }
+                    } else {
+                        items = mocks.media || [];
+                    }
+                } else {
+                    items = mocks.media || [
+                        { path: 'video1.mp4', type: 'video/mp4', size: 1024, duration: 60, db: 'test.db' },
+                        { path: 'audio1.mp3', type: 'audio/mpeg', size: 512, duration: 120, db: 'test.db' }
+                    ];
+                }
+                data = {
+                    items: items,
+                    counts: mocks.filter_bins || {
+                        episodes: [], size: [], duration: [],
+                        episodes_min: 1, episodes_max: 24,
+                        size_min: 0, size_max: 100 * 1024 * 1024,
+                        duration_min: 0, duration_max: 3600,
+                        episodes_percentiles: [0, 1, 2, 3, 6, 12, 24],
+                        size_percentiles: [0, 1024, 10240, 102400, 1048576, 10485760, 104857600],
+                        duration_percentiles: [0, 60, 300, 600, 1800, 3600, 7200]
+                    }
+                };
+            } else if (url.includes('captions=true')) {
                 data = mocks.media_with_captions || [
                     { path: 'video1.mp4', type: 'video/mp4', size: 1024, duration: 60, db: 'test.db', caption_text: 'sample caption', caption_time: 10.5 },
                     { path: 'video2.mp4', type: 'video/mp4', size: 2048, duration: 120, db: 'test.db', caption_text: 'another caption', caption_time: 20.0 },
@@ -50,6 +82,14 @@ export async function setupTestEnvironment(initialLocalStorage) {
                     { path: 'audio1.mp3', type: 'audio/mpeg', size: 512, duration: 120, db: 'test.db', caption_text: 'another caption', caption_time: 20.0 }
                 ];
             }
+        } else if (url.includes('/api/filter-bins')) {
+            // Legacy endpoint - still supported but not used by default
+            data = mocks.filter_bins || {
+                episodes: [], size: [], duration: [],
+                episodes_min: 0, episodes_max: 100,
+                size_min: 0, size_max: 100 * 1024 * 1024,
+                duration_min: 0, duration_max: 3600
+            };
         } else if (url.includes('/api/categorize/keywords')) {
             data = mocks.categorize_keywords || [
                 { category: 'Genre', keywords: ['Rock', 'Jazz', 'Pop'] },

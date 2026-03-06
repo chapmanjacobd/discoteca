@@ -10,9 +10,15 @@ func FormatDuration(seconds int) string {
 	if seconds == 0 {
 		return "-"
 	}
-	h := seconds / 3600
+	d := seconds / 86400
+	h := (seconds % 86400) / 3600
 	m := (seconds % 3600) / 60
 	s := seconds % 60
+
+	if d > 0 {
+		// Show days for durations > 24 hours
+		return fmt.Sprintf("%dd %02d:%02d", d, h, m)
+	}
 	if h > 0 {
 		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
 	}
