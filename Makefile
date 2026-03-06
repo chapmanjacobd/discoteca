@@ -1,4 +1,4 @@
-.PHONY: build test cover webtest webcover clean fmt lint sql install all readme dev
+.PHONY: build test cover webtest webcover e2e e2e-ui e2e-debug e2e-install clean fmt lint sql install all readme dev
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
@@ -27,6 +27,25 @@ webtest:
 
 webcover:
 	npm run cover --prefix web
+
+# E2E Tests (requires built binary)
+e2e-install:
+	cd e2e && npm install && npx playwright install chromium
+
+e2e: build e2e-install
+	cd e2e && npx playwright test --project=chromium
+
+e2e-ui: build e2e-install
+	cd e2e && npx playwright test --ui
+
+e2e-debug: build e2e-install
+	cd e2e && npx playwright test --debug
+
+e2e-headed: build e2e-install
+	cd e2e && npx playwright test --headed
+
+e2e-report:
+	cd e2e && npx playwright show-report
 
 fmt:
 	gofmt -s -w -e .

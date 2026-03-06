@@ -1,0 +1,30 @@
+{
+  "name": "discotheque-e2e",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "description": "End-to-end tests for Discothèque",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "install:browsers": "playwright install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chapmanjacobd/discotheque.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/chapmanjacobd/discotheque/issues"
+  },
+  "homepage": "https://github.com/chapmanjacobd/discotheque#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.3.5"
+  }
+}

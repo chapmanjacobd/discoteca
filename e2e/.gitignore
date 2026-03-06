@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Test results
+test-results/
+playwright-report/
+blob-report/
+
+# Test database
+fixtures/test.db
+
+# Screenshots and videos
+*.png
+*.webm
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
