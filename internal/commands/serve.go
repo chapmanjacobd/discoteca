@@ -1539,141 +1539,189 @@ func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
-func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
-	flags := c.parseFlags(r)
-	q := r.URL.Query()
+// filterBinsData holds the raw collected data for building filter bins
+type filterBinsData struct {
+	sizes        []int64
+	durations    []int64
+	parentCounts map[string]int64
+}
 
-	flags.All = true
-	flags.Limit = 0
-
+// computeFilterBinsData queries all databases and collects size, duration, and parent count data
+// This is the single source of truth for filter bins data collection
+func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.GlobalFlags, filterToIgnore string) filterBinsData {
 	var mu sync.Mutex
-	resp := models.FilterBinsResponse{}
+	var allSizes []int64
+	var allDurations []int64
+	allParentCounts := make(map[string]int64)
 
-	calculateBins := func(filterToIgnore string, isGlobal bool) ([]int64, []int64, map[string]int64) {
-		var tempFlags models.GlobalFlags
-		if isGlobal {
-			tempFlags = models.GlobalFlags{
-				DeletedFlags: models.DeletedFlags{
-					HideDeleted: flags.HideDeleted,
-					OnlyDeleted: flags.OnlyDeleted,
-				},
-			}
-		} else {
-			tempFlags = flags
-			// Deep copy Where slice to avoid side effects
-			tempFlags.Where = append([]string{}, flags.Where...)
+	// Build flags for this query, ignoring the specified filter
+	tempFlags := flags
+	tempFlags.Where = append([]string{}, flags.Where...)
+	tempFlags.All = true
+	tempFlags.Limit = 0
 
-			if filterToIgnore == "size" {
-				tempFlags.Size = nil
-			} else if filterToIgnore == "duration" {
-				tempFlags.Duration = nil
-			} else if filterToIgnore == "episodes" {
-				tempFlags.FileCounts = ""
-			}
-		}
+	if filterToIgnore == "size" {
+		tempFlags.Size = nil
+	} else if filterToIgnore == "duration" {
+		tempFlags.Duration = nil
+	} else if filterToIgnore == "episodes" {
+		tempFlags.FileCounts = ""
+	}
 
-		var sizes []int64
-		var durations []int64
-		parentCounts := make(map[string]int64)
+	qb := query.NewQueryBuilder(tempFlags)
+	sqlQuery, args := qb.BuildSelect("path, size, duration")
 
-		qb := query.NewQueryBuilder(tempFlags)
-		sqlQuery, args := qb.BuildSelect("path, size, duration")
-		slog.Info("FilterBins query", "sql", sqlQuery, "args", args, "isGlobal", isGlobal)
+	var wg sync.WaitGroup
+	for _, dbPath := range c.Databases {
+		wg.Add(1)
+		go func(path string) {
+			defer wg.Done()
+			c.execDB(ctx, path, func(sqlDB *sql.DB) error {
+				rows, err := sqlDB.QueryContext(ctx, sqlQuery, args...)
+				if err != nil {
+					return err
+				}
+				defer rows.Close()
 
-		var wg sync.WaitGroup
-		for _, dbPath := range c.Databases {
-			wg.Add(1)
-			go func(path string) {
-				defer wg.Done()
-				c.execDB(r.Context(), path, func(sqlDB *sql.DB) error {
-					rows, err := sqlDB.QueryContext(r.Context(), sqlQuery, args...)
-					if err != nil {
-						return err
-					}
-					defer rows.Close()
+				var localSizes []int64
+				var localDurations []int64
+				localParentCounts := make(map[string]int64)
 
-					var localSizes []int64
-					var localDurations []int64
-					localParentCounts := make(map[string]int64)
-					var sampleCount int
-
-					for rows.Next() {
-						var p string
-						var s, d sql.NullInt64
-						if err := rows.Scan(&p, &s, &d); err == nil {
-							sampleCount++
-							if sampleCount <= 3 {
-								slog.Info("FilterBins sample", "path", p, "size", s.Int64, "duration", d.Int64, "sizeValid", s.Valid, "durationValid", d.Valid)
-							}
-							// Validate data to catch corrupted values
-							// Size should be between 1 byte and 100TB
-							if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
-								localSizes = append(localSizes, s.Int64)
-							} else if s.Valid {
-								slog.Warn("FilterBins: Skipping corrupted size value", "path", p, "size", s.Int64)
-							}
-							// Duration should be between 1 second and 31 days
-							if d.Valid && d.Int64 > 0 && d.Int64 < 2678400 {
-								localDurations = append(localDurations, d.Int64)
-							} else if d.Valid {
-								slog.Warn("FilterBins: Skipping corrupted duration value", "path", p, "duration", d.Int64)
-							}
-							parent := filepath.Dir(p)
-							localParentCounts[parent]++
+				for rows.Next() {
+					var p string
+					var s, d sql.NullInt64
+					if err := rows.Scan(&p, &s, &d); err == nil {
+						// Validate size: between 1 byte and 100TB
+						if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
+							localSizes = append(localSizes, s.Int64)
 						}
+						// Validate duration: between 1 second and 31 days
+						if d.Valid && d.Int64 > 0 && d.Int64 < 2678400 {
+							localDurations = append(localDurations, d.Int64)
+						}
+						parent := filepath.Dir(p)
+						localParentCounts[parent]++
 					}
+				}
 
-					slog.Info("FilterBins DB result", "dbPath", path, "samplesRead", sampleCount, "sizesCollected", len(localSizes), "durationsCollected", len(localDurations))
-					if len(localSizes) > 0 {
-						slog.Info("FilterBins size stats", "min", slices.Min(localSizes), "max", slices.Max(localSizes))
-					}
-					if len(localDurations) > 0 {
-						slog.Info("FilterBins duration stats", "min", slices.Min(localDurations), "max", slices.Max(localDurations))
-					}
+				mu.Lock()
+				allSizes = append(allSizes, localSizes...)
+				allDurations = append(allDurations, localDurations...)
+				for k, v := range localParentCounts {
+					allParentCounts[k] += v
+				}
+				mu.Unlock()
+				return nil
+			})
+		}(dbPath)
+	}
+	wg.Wait()
 
-					mu.Lock()
-					sizes = append(sizes, localSizes...)
-					durations = append(durations, localDurations...)
-					for k, v := range localParentCounts {
-						parentCounts[k] += v
-					}
-					mu.Unlock()
-					return nil
-				})
-			}(dbPath)
+	return filterBinsData{
+		sizes:        allSizes,
+		durations:    allDurations,
+		parentCounts: allParentCounts,
+	}
+}
+
+// buildSizeBins creates size filter bins from raw size data
+func buildSizeBins(sizes []int64) (minVal, maxVal int64, bins []models.FilterBin, percentiles []int64) {
+	if len(sizes) == 0 {
+		return 0, 0, nil, nil
+	}
+
+	minVal = slices.Min(sizes)
+	maxVal = slices.Max(sizes)
+	percentiles = utils.CalculatePercentiles(sizes)
+
+	p16 := int64(utils.Percentile(sizes, 16.6))
+	p33 := int64(utils.Percentile(sizes, 33.3))
+	p50 := int64(utils.Percentile(sizes, 50.0))
+	p66 := int64(utils.Percentile(sizes, 66.6))
+	p83 := int64(utils.Percentile(sizes, 83.3))
+
+	sbins := []int64{0, p16, p33, p50, p66, p83, maxVal}
+	for i := 0; i < len(sbins)-1; i++ {
+		minS := sbins[i]
+		maxS := sbins[i+1]
+		if i == 0 {
+			bins = append(bins, models.FilterBin{Label: "less than " + utils.FormatSize(maxS), Max: maxS})
+		} else if i == len(sbins)-2 {
+			bins = append(bins, models.FilterBin{Label: utils.FormatSize(minS) + "+", Min: minS})
+		} else {
+			bins = append(bins, models.FilterBin{Label: utils.FormatSize(minS) + " - " + utils.FormatSize(maxS), Min: minS, Max: maxS})
 		}
-		wg.Wait()
-		return sizes, durations, parentCounts
 	}
 
-	// 1. Episodes Bins
-	epSet := q.Has("episodes")
-	_, _, parentCounts := calculateBins("episodes", epSet)
-	var allEps []int64
-	var epsGT1 []int64
-	for _, c := range parentCounts {
-		allEps = append(allEps, c)
-		if c > 1 {
-			epsGT1 = append(epsGT1, c)
+	return minVal, maxVal, bins, percentiles
+}
+
+// buildDurationBins creates duration filter bins from raw duration data
+func buildDurationBins(durations []int64) (minVal, maxVal int64, bins []models.FilterBin, percentiles []int64) {
+	if len(durations) == 0 {
+		return 0, 0, nil, nil
+	}
+
+	minVal = slices.Min(durations)
+	maxVal = slices.Max(durations)
+	percentiles = utils.CalculatePercentiles(durations)
+
+	p16 := int64(utils.Percentile(durations, 16.6))
+	p33 := int64(utils.Percentile(durations, 33.3))
+	p50 := int64(utils.Percentile(durations, 50.0))
+	p66 := int64(utils.Percentile(durations, 66.6))
+	p83 := int64(utils.Percentile(durations, 83.3))
+
+	dbins := []int64{0, p16, p33, p50, p66, p83, maxVal}
+	for i := 0; i < len(dbins)-1; i++ {
+		minD := dbins[i]
+		maxD := dbins[i+1]
+		if i == 0 {
+			bins = append(bins, models.FilterBin{Label: "under " + utils.FormatDuration(int(maxD)), Max: maxD})
+		} else if i == len(dbins)-2 {
+			bins = append(bins, models.FilterBin{Label: utils.FormatDuration(int(minD)) + "+", Min: minD})
+		} else {
+			bins = append(bins, models.FilterBin{Label: utils.FormatDuration(int(minD)) + " - " + utils.FormatDuration(int(maxD)), Min: minD, Max: maxD})
 		}
 	}
-	if len(allEps) > 0 {
-		resp.EpisodesMin = slices.Min(allEps)
-		resp.EpisodesMax = slices.Max(allEps)
+
+	return minVal, maxVal, bins, percentiles
+}
+
+// buildEpisodeBins creates episode count filter bins from parent counts
+func buildEpisodeBins(parentCounts map[string]int64) (minVal, maxVal int64, bins []models.FilterBin, percentiles []int64) {
+	if len(parentCounts) == 0 {
+		return 0, 0, nil, nil
 	}
 
-	resp.Episodes = append(resp.Episodes, models.FilterBin{Label: "Specials", Value: 1})
-	if len(epsGT1) > 0 {
-		q1 := int64(utils.Percentile(epsGT1, 16.6))
-		q2 := int64(utils.Percentile(epsGT1, 33.3))
-		q3 := int64(utils.Percentile(epsGT1, 50.0))
-		q4 := int64(utils.Percentile(epsGT1, 66.6))
-		q5 := int64(utils.Percentile(epsGT1, 83.3))
-		maxEps := int64(utils.Percentile(epsGT1, 100))
+	var allCounts []int64
+	var countsGT1 []int64
+	for _, count := range parentCounts {
+		allCounts = append(allCounts, count)
+		if count > 1 {
+			countsGT1 = append(countsGT1, count)
+		}
+	}
 
-		rawBins := []int64{2, q1, q2, q3, q4, q5, maxEps}
+	minVal = slices.Min(allCounts)
+	maxVal = slices.Max(allCounts)
+	percentiles = utils.CalculatePercentiles(allCounts)
+
+	// Always include "Specials" bin for single files
+	bins = append(bins, models.FilterBin{Label: "Specials", Value: 1})
+
+	if len(countsGT1) > 0 {
+		q1 := int64(utils.Percentile(countsGT1, 16.6))
+		q2 := int64(utils.Percentile(countsGT1, 33.3))
+		q3 := int64(utils.Percentile(countsGT1, 50.0))
+		q4 := int64(utils.Percentile(countsGT1, 66.6))
+		q5 := int64(utils.Percentile(countsGT1, 83.3))
+		maxCount := int64(utils.Percentile(countsGT1, 100))
+
+		rawBins := []int64{2, q1, q2, q3, q4, q5, maxCount}
 		slices.Sort(rawBins)
 
+		// Remove duplicates
 		uniqueBins := []int64{rawBins[0]}
 		for i := 1; i < len(rawBins); i++ {
 			if rawBins[i] > uniqueBins[len(uniqueBins)-1] {
@@ -1681,6 +1729,7 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Build range bins
 		for i := 0; i < len(uniqueBins)-1; i++ {
 			minE := uniqueBins[i]
 			maxE := uniqueBins[i+1]
@@ -1692,250 +1741,84 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if displayMin == maxE {
-				resp.Episodes = append(resp.Episodes, models.FilterBin{Label: fmt.Sprintf("%d", displayMin), Value: displayMin})
+				bins = append(bins, models.FilterBin{Label: fmt.Sprintf("%d", displayMin), Value: displayMin})
 			} else {
-				resp.Episodes = append(resp.Episodes, models.FilterBin{Label: fmt.Sprintf("%d-%d", displayMin, maxE), Min: displayMin, Max: maxE})
+				bins = append(bins, models.FilterBin{Label: fmt.Sprintf("%d-%d", displayMin, maxE), Min: displayMin, Max: maxE})
 			}
 		}
+
+		// Add final "X+" bin if not already covered
 		lastMax := uniqueBins[len(uniqueBins)-1]
 		alreadyAdded := false
-		if len(resp.Episodes) > 0 {
-			lastBin := resp.Episodes[len(resp.Episodes)-1]
+		if len(bins) > 0 {
+			lastBin := bins[len(bins)-1]
 			if lastBin.Max == lastMax || lastBin.Value == lastMax {
 				alreadyAdded = true
 			}
 		}
 		if !alreadyAdded {
-			resp.Episodes = append(resp.Episodes, models.FilterBin{Label: fmt.Sprintf("%d+", lastMax), Min: lastMax})
+			bins = append(bins, models.FilterBin{Label: fmt.Sprintf("%d+", lastMax), Min: lastMax})
 		}
 	}
 
-	// 2. File Size Bins
-	sizeSet := q.Has("size") || q.Has("min_size") || q.Has("max_size")
-	sizes, _, _ := calculateBins("size", sizeSet)
-	if len(sizes) > 0 {
-		resp.SizeMin = slices.Min(sizes)
-		resp.SizeMax = slices.Max(sizes)
+	return minVal, maxVal, bins, percentiles
+}
 
-		p16 := int64(utils.Percentile(sizes, 16.6))
-		p33 := int64(utils.Percentile(sizes, 33.3))
-		p50 := int64(utils.Percentile(sizes, 50.0))
-		p66 := int64(utils.Percentile(sizes, 66.6))
-		p83 := int64(utils.Percentile(sizes, 83.3))
-		maxS := int64(utils.Percentile(sizes, 100))
+// handleFilterBins handles the /api/filter-bins endpoint
+func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
+	flags := c.parseFlags(r)
+	q := r.URL.Query()
 
-		sbins := []int64{0, p16, p33, p50, p66, p83, maxS}
-		for i := 0; i < len(sbins)-1; i++ {
-			minS := sbins[i]
-			maxS := sbins[i+1]
-			if i == 0 {
-				resp.Size = append(resp.Size, models.FilterBin{Label: "less than " + utils.FormatSize(maxS), Max: maxS})
-			} else if i == len(sbins)-2 {
-				resp.Size = append(resp.Size, models.FilterBin{Label: utils.FormatSize(minS) + "+", Min: minS})
-			} else {
-				resp.Size = append(resp.Size, models.FilterBin{Label: utils.FormatSize(minS) + " - " + utils.FormatSize(maxS), Min: minS, Max: maxS})
-			}
-		}
-	}
+	// Set flags to get all data for bin calculation
+	flags.All = true
+	flags.Limit = 0
 
-	// 3. Duration Bins
-	durSet := q.Has("duration") || q.Has("min_duration") || q.Has("max_duration")
-	_, durations, _ := calculateBins("duration", durSet)
-	if len(durations) > 0 {
-		resp.DurationMin = slices.Min(durations)
-		resp.DurationMax = slices.Max(durations)
+	resp := models.FilterBinsResponse{}
 
-		p16 := int64(utils.Percentile(durations, 16.6))
-		p33 := int64(utils.Percentile(durations, 33.3))
-		p50 := int64(utils.Percentile(durations, 50.0))
-		p66 := int64(utils.Percentile(durations, 66.6))
-		p83 := int64(utils.Percentile(durations, 83.3))
-		maxD := int64(utils.Percentile(durations, 100))
+	// Collect data for each filter type, ignoring that filter to get full distribution
+	episodesOnly := q.Has("episodes")
+	sizeOnly := q.Has("size") || q.Has("min_size") || q.Has("max_size")
+	durationOnly := q.Has("duration") || q.Has("min_duration") || q.Has("max_duration")
 
-		dbins := []int64{0, p16, p33, p50, p66, p83, maxD}
-		for i := 0; i < len(dbins)-1; i++ {
-			minD := dbins[i]
-			maxD := dbins[i+1]
-			if i == 0 {
-				resp.Duration = append(resp.Duration, models.FilterBin{Label: "under " + utils.FormatDuration(int(maxD)), Max: maxD})
-			} else if i == len(dbins)-2 {
-				resp.Duration = append(resp.Duration, models.FilterBin{Label: utils.FormatDuration(int(minD)) + "+", Min: minD})
-			} else {
-				resp.Duration = append(resp.Duration, models.FilterBin{Label: utils.FormatDuration(int(minD)) + " - " + utils.FormatDuration(int(maxD)), Min: minD, Max: maxD})
-			}
-		}
-	}
+	// Get episode data
+	epData := c.computeFilterBinsData(r.Context(), flags, "episodes")
+	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
-	// 4. Percentile Mappings for Sliders
-	resp.EpisodesPercentiles = utils.CalculatePercentiles(allEps)
-	resp.SizePercentiles = utils.CalculatePercentiles(sizes)
-	resp.DurationPercentiles = utils.CalculatePercentiles(durations)
+	// Get size data
+	sizeData := c.computeFilterBinsData(r.Context(), flags, "size")
+	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
+
+	// Get duration data
+	durData := c.computeFilterBinsData(r.Context(), flags, "duration")
+	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
+
+	// Log query info for debugging
+	slog.Info("FilterBins computed",
+		"episodesOnly", episodesOnly,
+		"sizeOnly", sizeOnly,
+		"durationOnly", durationOnly,
+		"sizeCount", len(sizeData.sizes),
+		"durationCount", len(durData.durations),
+		"parentCount", len(epData.parentCounts))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
 // calculateFilterCounts computes filter bin counts for the current query
-// This is a simplified version of handleFilterBins for use with include_counts
+// This is used with include_counts to provide filter UI data alongside query results
 func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.GlobalFlags) *models.FilterBinsResponse {
-	flags.All = true
-	flags.Limit = 0
+	resp := &models.FilterBinsResponse{}
 
-	var mu sync.Mutex
-	resp := models.FilterBinsResponse{}
+	// Collect data for each filter type
+	data := c.computeFilterBinsData(ctx, flags, "")
 
-	calculateBins := func(filterToIgnore string, isGlobal bool) ([]int64, []int64, map[string]int64) {
-		var tempFlags models.GlobalFlags
-		if isGlobal {
-			tempFlags = models.GlobalFlags{
-				DeletedFlags: models.DeletedFlags{
-					HideDeleted: flags.HideDeleted,
-					OnlyDeleted: flags.OnlyDeleted,
-				},
-			}
-		} else {
-			tempFlags = flags
-			tempFlags.Where = append([]string{}, flags.Where...)
+	// Build all bin types from the same data source
+	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(data.sizes)
+	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(data.durations)
+	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(data.parentCounts)
 
-			if filterToIgnore == "size" {
-				tempFlags.Size = nil
-			} else if filterToIgnore == "duration" {
-				tempFlags.Duration = nil
-			} else if filterToIgnore == "episodes" {
-				tempFlags.FileCounts = ""
-			}
-		}
-
-		var sizes []int64
-		var durations []int64
-		parentCounts := make(map[string]int64)
-
-		qb := query.NewQueryBuilder(tempFlags)
-		sqlQuery, args := qb.BuildSelect("path, size, duration")
-
-		var wg sync.WaitGroup
-		for _, dbPath := range c.Databases {
-			wg.Add(1)
-			go func(path string) {
-				defer wg.Done()
-				c.execDB(ctx, path, func(sqlDB *sql.DB) error {
-					rows, err := sqlDB.QueryContext(ctx, sqlQuery, args...)
-					if err != nil {
-						return err
-					}
-					defer rows.Close()
-
-					var localSizes []int64
-					var localDurations []int64
-					localParentCounts := make(map[string]int64)
-
-					for rows.Next() {
-						var p string
-						var s, d sql.NullInt64
-						if err := rows.Scan(&p, &s, &d); err == nil {
-							// Validate data to catch corrupted values
-							// Size should be between 1 byte and 100TB
-							if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
-								localSizes = append(localSizes, s.Int64)
-							} else if s.Valid {
-								slog.Warn("Skipping corrupted size value", "path", p, "size", s.Int64)
-							}
-							// Duration should be between 1 second and 31 days
-							if d.Valid && d.Int64 > 0 && d.Int64 < 2678400 {
-								localDurations = append(localDurations, d.Int64)
-							} else if d.Valid {
-								slog.Warn("Skipping corrupted duration value", "path", p, "duration", d.Int64)
-							}
-							parent := filepath.Dir(p)
-							localParentCounts[parent]++
-						}
-					}
-
-					mu.Lock()
-					sizes = append(sizes, localSizes...)
-					durations = append(durations, localDurations...)
-					for k, v := range localParentCounts {
-						parentCounts[k] += v
-					}
-					mu.Unlock()
-					return nil
-				})
-			}(dbPath)
-		}
-		wg.Wait()
-		return sizes, durations, parentCounts
-	}
-
-	// Calculate bins (simplified - just the main distributions)
-	sizes, _, _ := calculateBins("size", false)
-	_, durations, _ := calculateBins("duration", false)
-	_, _, parentCounts := calculateBins("episodes", false)
-
-	// Build size bins
-	if len(sizes) > 0 {
-		resp.SizeMin = slices.Min(sizes)
-		resp.SizeMax = slices.Max(sizes)
-		p16 := utils.Percentile(sizes, 16.6)
-		p33 := utils.Percentile(sizes, 33.3)
-		p50 := utils.Percentile(sizes, 50.0)
-		p66 := utils.Percentile(sizes, 66.6)
-		p83 := utils.Percentile(sizes, 83.3)
-		maxS := utils.Percentile(sizes, 100)
-
-		sbins := []float64{0, p16, p33, p50, p66, p83, maxS}
-		for i := 0; i < len(sbins)-1; i++ {
-			minS := int64(sbins[i])
-			maxS := int64(sbins[i+1])
-			if i == 0 {
-				resp.Size = append(resp.Size, models.FilterBin{Label: "under " + utils.FormatSize(maxS), Max: maxS})
-			} else if i == len(sbins)-2 {
-				resp.Size = append(resp.Size, models.FilterBin{Label: utils.FormatSize(minS) + "+", Min: minS})
-			} else {
-				resp.Size = append(resp.Size, models.FilterBin{Label: utils.FormatSize(minS) + " - " + utils.FormatSize(maxS), Min: minS, Max: maxS})
-			}
-		}
-	}
-
-	// Build duration bins
-	if len(durations) > 0 {
-		resp.DurationMin = slices.Min(durations)
-		resp.DurationMax = slices.Max(durations)
-		p16 := utils.Percentile(durations, 16.6)
-		p33 := utils.Percentile(durations, 33.3)
-		p50 := utils.Percentile(durations, 50.0)
-		p66 := utils.Percentile(durations, 66.6)
-		p83 := utils.Percentile(durations, 83.3)
-		maxD := utils.Percentile(durations, 100)
-
-		dbins := []float64{0, p16, p33, p50, p66, p83, maxD}
-		for i := 0; i < len(dbins)-1; i++ {
-			minD := int64(dbins[i])
-			maxD := int64(dbins[i+1])
-			if i == 0 {
-				resp.Duration = append(resp.Duration, models.FilterBin{Label: "under " + utils.FormatDuration(int(maxD)), Max: maxD})
-			} else if i == len(dbins)-2 {
-				resp.Duration = append(resp.Duration, models.FilterBin{Label: utils.FormatDuration(int(minD)) + "+", Min: minD})
-			} else {
-				resp.Duration = append(resp.Duration, models.FilterBin{Label: utils.FormatDuration(int(minD)) + " - " + utils.FormatDuration(int(maxD)), Min: minD, Max: maxD})
-			}
-		}
-	}
-
-	// Build episode bins
-	var allEps []int64
-	for _, count := range parentCounts {
-		allEps = append(allEps, count)
-	}
-	if len(allEps) > 0 {
-		resp.EpisodesMin = slices.Min(allEps)
-		resp.EpisodesMax = slices.Max(allEps)
-		resp.EpisodesPercentiles = utils.CalculatePercentiles(allEps)
-	}
-
-	resp.SizePercentiles = utils.CalculatePercentiles(sizes)
-	resp.DurationPercentiles = utils.CalculatePercentiles(durations)
-
-	return &resp
+	return resp
 }
 
 func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Request) {
