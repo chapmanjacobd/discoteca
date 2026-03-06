@@ -261,34 +261,34 @@
 
                     <div class="full-toggle">
                         <label class="switch">
-                            <input type="checkbox" id="setting-hide-pip-speed">
+                            <input type="checkbox" id="setting-show-pip-speed">
                             <span class="slider round"></span>
                         </label>
                         <div class="toggle-text">
-                            <h3>Hide Speed Button</h3>
-                            <p>Hide the playback speed control in the player</p>
+                            <h3>Show Speed Button</h3>
+                            <p>Show the playback speed control in the player</p>
                         </div>
                     </div>
 
                     <div class="full-toggle">
                         <label class="switch">
-                            <input type="checkbox" id="setting-hide-pip-surf">
+                            <input type="checkbox" id="setting-show-pip-surf">
                             <span class="slider round"></span>
                         </label>
                         <div class="toggle-text">
-                            <h3>Hide Surf Button</h3>
-                            <p>Hide the channel surf button in the player</p>
+                            <h3>Show Surf Button</h3>
+                            <p>Show the channel surf button in the player</p>
                         </div>
                     </div>
 
                     <div class="full-toggle">
                         <label class="switch">
-                            <input type="checkbox" id="setting-hide-pip-stream">
+                            <input type="checkbox" id="setting-show-pip-stream">
                             <span class="slider round"></span>
                         </label>
                         <div class="toggle-text">
-                            <h3>Hide Stream Button</h3>
-                            <p>Hide the HLS/Direct stream toggle button</p>
+                            <h3>Show Stream Button</h3>
+                            <p>Show the HLS/Direct stream toggle button</p>
                         </div>
                     </div>
                     <div class="setting-item">
@@ -324,13 +324,21 @@
                         </div>
                     </div>
                     <div class="setting-item">
-                        <label for="setting-slideshow-delay">Image Autoplay Delay (s):</label>
+                        <label for="setting-slideshow-delay">Image Autoplay Delay (seconds):</label>
                         <input type="number" id="setting-slideshow-delay" value="5" min="1">
                     </div>
                     <div class="setting-item">
-                        <label for="setting-track-shuffle-duration">Track shuffle/preview duration (s):</label>
+                        <label for="setting-track-shuffle-duration">Track shuffle/preview duration (seconds):</label>
                         <input type="number" id="setting-track-shuffle-duration" value="0" min="0" placeholder="0 for full">
                     </div>
+
+                    <details style="margin-top: 2rem; cursor: pointer;">
+                        <summary style="font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1rem;">Advanced Settings</summary>
+                        <div class="setting-item" style="margin-top: 1rem;">
+                            <label for="setting-auto-loop-max">Auto-Loop Max Duration (seconds):</label>
+                            <input type="number" id="setting-auto-loop-max" min="0" placeholder="0 to disable">
+                        </div>
+                    </details>
                 </section>
                 <section>
                     <h3>Search</h3>
@@ -462,6 +470,7 @@
                         <div class="shortcut-item"><span>r</span> <span>Toggle Surf</span></div>
                         <div class="shortcut-item"><span>j / J</span> <span>Cycle / Reverse Subs</span></div>
                         <div class="shortcut-item"><span>l</span> <span>Toggle Loop</span></div>
+                        <div class="shortcut-item"><span>Shift + L</span> <span>Toggle Auto-Loop</span></div>
                         <div class="shortcut-item"><span>← / →</span> <span>Seek -5s / +5s</span></div>
                         <div class="shortcut-item"><span>0-9</span> <span>Seek to %</span></div>
                         <div class="shortcut-item"><span>Shift + 0</span> <span>Unrate</span></div>

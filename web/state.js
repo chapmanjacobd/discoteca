@@ -39,14 +39,15 @@ export const state = {
     autoplay: localStorage.getItem('disco-autoplay') !== 'false',
     imageAutoplay: localStorage.getItem('disco-image-autoplay') === 'true',
     localResume: localStorage.getItem('disco-local-resume') !== 'false',
-    hidePipSpeed: localStorage.getItem('disco-hide-pip-speed') !== 'false',
-    hidePipSurf: localStorage.getItem('disco-hide-pip-surf') !== 'false',
-    hidePipStream: localStorage.getItem('disco-hide-pip-stream') !== 'false',
+    showPipSpeed: localStorage.getItem('disco-show-pip-speed') === 'true',
+    showPipSurf: localStorage.getItem('disco-show-pip-surf') === 'true',
+    showPipStream: localStorage.getItem('disco-show-pip-stream') === 'true',
     defaultVideoRate: parseFloat(localStorage.getItem('disco-default-video-rate')) || 1.0,
     defaultAudioRate: parseFloat(localStorage.getItem('disco-default-audio-rate')) || 1.0,
     playbackRate: parseFloat(localStorage.getItem('disco-playback-rate')) || 1.0,
     slideshowDelay: parseInt(localStorage.getItem('disco-slideshow-delay')) || 5,
     trackShuffleDuration: parseInt(localStorage.getItem('disco-track-shuffle-duration')) || 0,
+    autoLoopMaxDuration: parseInt(localStorage.getItem('disco-auto-loop-max-duration')) || 30,
 
     playerMode: localStorage.getItem('disco-default-view') || 'pip', // Initialize with preference
     trashcan: false,

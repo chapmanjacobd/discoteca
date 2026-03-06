@@ -233,31 +233,31 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('setting-default-video-rate').value = state.defaultVideoRate;
     document.getElementById('setting-default-audio-rate').value = state.defaultAudioRate;
 
-    const settingHidePipSpeed = document.getElementById('setting-hide-pip-speed');
-    const settingHidePipSurf = document.getElementById('setting-hide-pip-surf');
-    const settingHidePipStream = document.getElementById('setting-hide-pip-stream');
+    const settingShowPipSpeed = document.getElementById('setting-show-pip-speed');
+    const settingShowPipSurf = document.getElementById('setting-show-pip-surf');
+    const settingShowPipStream = document.getElementById('setting-show-pip-stream');
 
-    if (settingHidePipSpeed) {
-        settingHidePipSpeed.checked = state.hidePipSpeed;
-        settingHidePipSpeed.onchange = (e) => {
-            state.hidePipSpeed = e.target.checked;
-            localStorage.setItem('disco-hide-pip-speed', state.hidePipSpeed);
+    if (settingShowPipSpeed) {
+        settingShowPipSpeed.checked = state.showPipSpeed;
+        settingShowPipSpeed.onchange = (e) => {
+            state.showPipSpeed = e.target.checked;
+            localStorage.setItem('disco-show-pip-speed', state.showPipSpeed);
             updatePipVisibility();
         };
     }
-    if (settingHidePipSurf) {
-        settingHidePipSurf.checked = state.hidePipSurf;
-        settingHidePipSurf.onchange = (e) => {
-            state.hidePipSurf = e.target.checked;
-            localStorage.setItem('disco-hide-pip-surf', state.hidePipSurf);
+    if (settingShowPipSurf) {
+        settingShowPipSurf.checked = state.showPipSurf;
+        settingShowPipSurf.onchange = (e) => {
+            state.showPipSurf = e.target.checked;
+            localStorage.setItem('disco-show-pip-surf', state.showPipSurf);
             updatePipVisibility();
         };
     }
-    if (settingHidePipStream) {
-        settingHidePipStream.checked = state.hidePipStream;
-        settingHidePipStream.onchange = (e) => {
-            state.hidePipStream = e.target.checked;
-            localStorage.setItem('disco-hide-pip-stream', state.hidePipStream);
+    if (settingShowPipStream) {
+        settingShowPipStream.checked = state.showPipStream;
+        settingShowPipStream.onchange = (e) => {
+            state.showPipStream = e.target.checked;
+            localStorage.setItem('disco-show-pip-stream', state.showPipStream);
             updatePipVisibility();
         };
     }
@@ -266,6 +266,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('setting-slideshow-delay').value = state.slideshowDelay;
     if (settingTrackShuffleDuration) settingTrackShuffleDuration.value = state.trackShuffleDuration;
+    const settingAutoLoopMax = document.getElementById('setting-auto-loop-max');
+    if (settingAutoLoopMax) {
+        settingAutoLoopMax.value = state.autoLoopMaxDuration;
+        settingAutoLoopMax.onchange = (e) => {
+            state.autoLoopMaxDuration = parseInt(e.target.value) || 0;
+            localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration);
+        };
+    }
     if (limitInput) limitInput.value = state.filters.limit;
     if (limitAll) limitAll.checked = state.filters.all;
     const initialUnplayedEl = document.getElementById('filter-unplayed');
@@ -2877,9 +2885,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const surfBtn = document.getElementById('channel-surf-btn');
         const streamBtn = document.getElementById('pip-stream-type');
 
-        if (speedBtn) speedBtn.classList.toggle('hidden', state.hidePipSpeed);
-        if (surfBtn) surfBtn.classList.toggle('hidden', state.hidePipSurf);
-        if (streamBtn) streamBtn.classList.toggle('hidden', state.hidePipStream);
+        if (speedBtn) speedBtn.classList.toggle('hidden', !state.showPipSpeed);
+        if (surfBtn) surfBtn.classList.toggle('hidden', !state.showPipSurf);
+        if (streamBtn) streamBtn.classList.toggle('hidden', !state.showPipStream);
     }
 
     async function openInPiP(item, isNewSession = false, isSurfing = false) {
@@ -2983,12 +2991,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const slideshowBtn = document.getElementById('pip-slideshow');
         const speedBtn = document.getElementById('pip-speed');
         if (speedBtn) {
-            if (type.includes('image')) {
+            if (type.includes('image') || !state.showPipSpeed) {
                 speedBtn.classList.add('hidden');
                 if (pipSpeedMenu) pipSpeedMenu.classList.add('hidden');
             } else {
                 speedBtn.classList.remove('hidden');
             }
+        }
+
+        const surfBtn = document.getElementById('channel-surf-btn');
+        if (surfBtn) {
+            surfBtn.classList.toggle('hidden', !state.showPipSurf);
         }
 
         if (slideshowBtn) {
@@ -3007,6 +3020,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (streamBtn) {
             streamBtn.textContent = needsTranscode ? '🔄 HLS' : '⚡ Direct';
             streamBtn.title = `Currently using ${needsTranscode ? 'Transcoding (HLS)' : 'Direct Stream'}. Click to switch.`;
+            streamBtn.classList.toggle('hidden', !state.showPipStream || type.includes('image'));
         }
 
         const nativePipBtn = document.getElementById('pip-native');
@@ -3061,8 +3075,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('disco-muted', el.muted);
             };
 
-            // Loop short videos/GIFs (under 8s)
-            if (item.duration > 0 && item.duration < 8) {
+            // Auto-Loop short media
+            if (state.autoLoopMaxDuration > 0 && item.duration > 0 && item.duration <= state.autoLoopMaxDuration) {
                 el.loop = true;
             }
 
@@ -3200,6 +3214,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             el.onerror = () => handleMediaError(item);
+
+            // Auto-Loop short media
+            if (state.autoLoopMaxDuration > 0 && item.duration > 0 && item.duration <= state.autoLoopMaxDuration) {
+                el.loop = true;
+            }
 
             seekToProgress(el, localPos);
 
@@ -4374,7 +4393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2. Rating shortcuts (require active PiP item but not necessarily visible/unpaused)
-        if (e.shiftKey && ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].includes(e.code)) {
+        if (e.shiftKey && ['Digit0', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].includes(e.code)) {
             if (state.playback.item) {
                 const score = parseInt(e.code.replace('Digit', ''));
                 rateMedia(state.playback.item, score);
@@ -4444,6 +4463,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'l':
+                if (e.shiftKey) {
+                    // Toggle automatic looping preference
+                    if (state.autoLoopMaxDuration > 0) {
+                        state.autoLoopMaxDuration = 0;
+                    } else {
+                        state.autoLoopMaxDuration = 30; // Default to 30s when toggling on
+                    }
+                    localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration);
+                    const settingAutoLoopMax = document.getElementById('setting-auto-loop-max');
+                    if (settingAutoLoopMax) settingAutoLoopMax.value = state.autoLoopMaxDuration;
+                    showToast(`Auto-Loop: ${state.autoLoopMaxDuration > 0 ? state.autoLoopMaxDuration + 's' : 'OFF'}`, '🔁');
+                    return;
+                }
                 if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
                     media.loop = !media.loop;
                     showToast(media.loop ? 'Loop: ON' : 'Loop: OFF', '🔁');

@@ -1024,10 +1024,11 @@ main {
 
 /* Settings items */
 .setting-item {
-    margin-bottom: 1rem;
+    padding: 1.35rem 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .setting-item input[type="number"],
@@ -1291,7 +1292,13 @@ main {
 
 #settings-button:hover {
     background: var(--hover-color);
-    animation: spin 0.5s;
+}
+
+/* Only show spinning animation on touch/mobile devices */
+@media (hover: none) and (pointer: coarse), (max-width: 768px) {
+    #settings-button:hover {
+        animation: spin 0.5s;
+    }
 }
 
 .modal-body section h3 {
@@ -1557,7 +1564,7 @@ main {
         height: 40px;
         font-size: 1.2rem;
     }
-    
+
     .category-btn {
         padding: 0.8rem 1rem; /* Better touch target */
     }
@@ -1579,7 +1586,7 @@ main {
     .search-container {
         margin: 0;
     }
-    
+
     .view-toggle {
         display: none; /* Hide view toggle on very small screens to save space */
     }
