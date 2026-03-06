@@ -1474,10 +1474,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxSize = Math.max(...data.map(d => d.total_size || 0));
 
         data.forEach(item => {
-            const isFile = item.count === 0 && item.files && item.files.length === 1 && item.files[0].path === item.path;
             const card = document.createElement('div');
 
-            if (isFile) {
+            // Check if this is a single file (not a folder)
+            // A single file item has count=0 or has exactly one file matching the item path
+            const isSingleFile = (item.count === 0 && item.files && item.files.length === 1) ||
+                                 (item.files && item.files.length === 1 && item.files[0].path === item.path);
+
+            if (isSingleFile) {
+                // Render as clickable media card
                 const mediaItem = item.files[0];
                 card.className = 'media-card';
                 card.dataset.path = mediaItem.path;
@@ -1500,7 +1505,36 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 `;
+            } else if (item.files && item.files.length > 0) {
+                // Render individual files from the files array as clickable media cards
+                item.files.forEach(mediaItem => {
+                    const fileCard = document.createElement('div');
+                    fileCard.className = 'media-card';
+                    fileCard.dataset.path = mediaItem.path;
+                    fileCard.onclick = () => playMedia(mediaItem);
+
+                    const title = truncateString(mediaItem.title || mediaItem.path.split('/').pop());
+                    const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(mediaItem.path)}`;
+                    const size = formatSize(mediaItem.size);
+                    const duration = formatDuration(mediaItem.duration);
+
+                    fileCard.innerHTML = `
+                        <div class="media-thumb">
+                            <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')">
+                            <span class="media-duration">${duration}</span>
+                        </div>
+                        <div class="media-info">
+                            <div class="media-title">${title}</div>
+                            <div class="media-meta">
+                                <span>${size}</span>
+                            </div>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(fileCard);
+                });
+                return; // Skip the rest for this item since we already added the files
             } else {
+                // Render as folder card
                 card.className = 'media-card du-card';
                 card.onclick = () => fetchDU(item.path + (item.path.endsWith('/') ? '' : '/'));
 

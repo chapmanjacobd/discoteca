@@ -301,4 +301,45 @@ describe('Disk Usage View', () => {
         const resultsCount = document.getElementById('results-count');
         expect(resultsCount.textContent.length).toBeGreaterThan(0);
     });
+
+    it('renders files as clickable media cards', async () => {
+        const duBtn = document.getElementById('du-btn');
+        duBtn.click();
+
+        await vi.waitFor(() => {
+            const mediaCards = document.querySelectorAll('.media-card');
+            return mediaCards.length > 0;
+        });
+
+        const mediaCards = document.querySelectorAll('.media-card');
+        expect(mediaCards.length).toBeGreaterThan(0);
+        
+        // Verify first media card has onclick handler
+        const firstCard = mediaCards[0];
+        expect(firstCard.dataset.path).toBeTruthy();
+    });
+
+    it('opens file in PiP player when clicked', async () => {
+        const duBtn = document.getElementById('du-btn');
+        duBtn.click();
+
+        await vi.waitFor(() => {
+            const mediaCards = document.querySelectorAll('.media-card');
+            return mediaCards.length > 0;
+        });
+
+        const mediaCards = document.querySelectorAll('.media-card');
+        const firstCard = mediaCards[0];
+        
+        // Click the media card
+        firstCard.click();
+
+        await vi.waitFor(() => {
+            const pipPlayer = document.getElementById('pip-player');
+            return !pipPlayer.classList.contains('hidden');
+        });
+
+        // Verify media was opened
+        expect(window.disco.state.playback.item).toBeTruthy();
+    });
 });

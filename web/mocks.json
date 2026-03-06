@@ -76,21 +76,30 @@
       "total_size": 1073741824,
       "total_duration": 7200,
       "count": 5,
-      "files": []
+      "files": [
+        {"path": "/videos/movies/action1.mp4", "title": "Action Movie 1", "type": "video/mp4", "size": 214748364, "duration": 7200},
+        {"path": "/videos/movies/comedy1.mp4", "title": "Comedy Movie 1", "type": "video/mp4", "size": 214748364, "duration": 7200}
+      ]
     },
     {
       "path": "/videos/music/",
       "total_size": 536870912,
       "total_duration": 3600,
       "count": 10,
-      "files": []
+      "files": [
+        {"path": "/videos/music/rock1.mp4", "title": "Rock Video 1", "type": "video/mp4", "size": 53687091, "duration": 360},
+        {"path": "/videos/music/jazz1.mp4", "title": "Jazz Video 1", "type": "video/mp4", "size": 53687091, "duration": 360}
+      ]
     },
     {
       "path": "/audio/",
       "total_size": 268435456,
       "total_duration": 1800,
       "count": 20,
-      "files": []
+      "files": [
+        {"path": "/audio/song1.mp3", "title": "Song 1", "type": "audio/mpeg", "size": 13421772, "duration": 180},
+        {"path": "/audio/song2.mp3", "title": "Song 2", "type": "audio/mpeg", "size": 13421772, "duration": 180}
+      ]
     }
   ],
   "databases": {
