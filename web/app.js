@@ -1450,10 +1450,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchDU(path = '') {
-        const isFirstDUVisit = state.page !== 'du';
         const prevPath = state.duPath;
         const isForwardNav = prevPath && path.startsWith(prevPath);
         const isBackwardNav = prevPath && prevPath.startsWith(path);
+        // Detect first visit by checking if we haven't loaded any DU data yet
+        const hasLoadedDuData = state.duData && state.duData.length > 0;
+        const isFirstDUVisit = !hasLoadedDuData;
+        // Track if we're auto-skipping to prevent infinite recursion
+        const isAutoSkipRecursion = prevPath && path.startsWith(prevPath) && path !== prevPath;
 
         state.page = 'du';
         state.duPath = path;
@@ -1490,8 +1494,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let data = await resp.json();
 
             // Auto-skip through single-item folders recursively (including initial load)
-            // Keep auto-skipping as long as we have exactly one folder
-            let shouldAutoSkip = isFirstDUVisit && data && data.length === 1;
+            // Auto-skip on first visit OR during auto-skip recursion (when navigating deeper)
+            let shouldAutoSkip = (isFirstDUVisit || isAutoSkipRecursion) && data && data.length === 1;
             if (shouldAutoSkip) {
                 const singleItem = data[0];
                 // Check if it's a folder (count > 0 means it has files in subdirectories)

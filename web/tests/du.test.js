@@ -342,4 +342,164 @@ describe('Disk Usage View', () => {
         // Verify media was opened
         expect(window.disco.state.playback.item).toBeTruthy();
     });
+
+    it('auto-skips single folder at root level on initial load', async () => {
+        // Reset state before test
+        window.disco.state.page = 'search';
+        window.disco.state.duPath = '';
+        window.disco.state.duData = null;
+        
+        let fetchCallCount = 0;
+        
+        // Clear existing mocks and set up fresh - must return Promises like real fetch
+        // Return different data for different paths to avoid infinite loop
+        global.fetch.mockClear();
+        global.fetch.mockImplementation((url) => {
+            if (typeof url !== 'string') url = url.toString();
+            
+            if (url.includes('/api/databases')) {
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ databases: ['test.db'], trashcan: false, read_only: false, dev: false })
+                });
+            } else if (url.includes('/api/du')) {
+                fetchCallCount++;
+                const urlObj = new URL(url, 'http://localhost');
+                const pathParam = urlObj.searchParams.get('path') || '';
+                
+                // Return different data based on path
+                let data;
+                if (pathParam === '') {
+                    // Root: single folder -> should auto-skip
+                    data = [
+                        { path: '/videos/', total_size: 1073741824, total_duration: 7200, count: 5, files: [] }
+                    ];
+                } else {
+                    // /videos/: multiple files -> should stop auto-skip
+                    data = [
+                        { path: '/videos/movie1.mp4', total_size: 536870912, total_duration: 3600, count: 0, files: [{ path: '/videos/movie1.mp4', type: 'video/mp4', size: 536870912, duration: 3600 }] },
+                        { path: '/videos/movie2.mp4', total_size: 536870912, total_duration: 3600, count: 0, files: [{ path: '/videos/movie2.mp4', type: 'video/mp4', size: 536870912, duration: 3600 }] }
+                    ];
+                }
+                
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    headers: { get: () => null },
+                    json: () => Promise.resolve(data)
+                });
+            }
+            
+            return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve([])
+            });
+        });
+
+        // Navigate to DU - first reset duData to ensure isFirstDUVisit is true
+        window.disco.state.duData = null;
+        const duBtn = document.getElementById('du-btn');
+        duBtn.click();
+
+        // Give async operations a chance to start
+        await new Promise(r => setTimeout(r, 50));
+
+        // Wait for auto-navigation to complete - wait for duPath to change
+        await vi.waitFor(() => {
+            return window.disco.state.duPath === '/videos/';
+        }, 5000, 100);
+
+        expect(window.disco.state.duPath).toBe('/videos/');
+        
+        // Verify fetch was called twice (once for root, once for auto-skipped folder)
+        const duCalls = global.fetch.mock.calls.filter(call => call[0].includes('/api/du'));
+        expect(duCalls.length).toBe(2);
+    });
+
+    it('does not auto-skip when there are multiple folders at root', async () => {
+        // Mock DU data with multiple folders at root
+        const multipleFoldersData = [
+            { path: '/videos/', total_size: 1073741824, total_duration: 7200, count: 5, files: [] },
+            { path: '/audio/', total_size: 536870912, total_duration: 3600, count: 10, files: [] }
+        ];
+
+        global.fetch.mockImplementation((url) => {
+            if (typeof url !== 'string') url = url.toString();
+            
+            if (url.includes('/api/databases')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ databases: ['test.db'], trashcan: false, read_only: false, dev: false })
+                });
+            } else if (url.includes('/api/du')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve(multipleFoldersData)
+                });
+            }
+            
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve([])
+            });
+        });
+
+        const duBtn = document.getElementById('du-btn');
+        duBtn.click();
+
+        await vi.waitFor(() => {
+            return window.disco.state.page === 'du';
+        }, 2000);
+
+        // Should stay at root
+        expect(window.disco.state.duPath).toBe('');
+        
+        // Should only fetch once (no auto-skip)
+        const duCalls = global.fetch.mock.calls.filter(call => call[0].includes('/api/du'));
+        expect(duCalls.length).toBe(1);
+    });
+
+    it('does not auto-skip when single item is a file not a folder', async () => {
+        // Mock DU data with single file at root
+        const singleFileData = [
+            { path: '/video.mp4', total_size: 1073741824, total_duration: 7200, count: 0, files: [{ path: '/video.mp4', type: 'video/mp4', size: 1073741824, duration: 7200 }] }
+        ];
+
+        global.fetch.mockImplementation((url) => {
+            if (typeof url !== 'string') url = url.toString();
+            
+            if (url.includes('/api/databases')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ databases: ['test.db'], trashcan: false, read_only: false, dev: false })
+                });
+            } else if (url.includes('/api/du')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve(singleFileData)
+                });
+            }
+            
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve([])
+            });
+        });
+
+        const duBtn = document.getElementById('du-btn');
+        duBtn.click();
+
+        await vi.waitFor(() => {
+            return window.disco.state.page === 'du';
+        }, 2000);
+
+        // Should stay at root
+        expect(window.disco.state.duPath).toBe('');
+        
+        // Should only fetch once (no auto-skip)
+        const duCalls = global.fetch.mock.calls.filter(call => call[0].includes('/api/du'));
+        expect(duCalls.length).toBe(1);
+    });
 });

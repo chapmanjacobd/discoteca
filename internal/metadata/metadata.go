@@ -390,24 +390,24 @@ func cleanCaptionText(s string) string {
 	s = re.ReplaceAllString(s, "")
 	// Strip SRT-style formatting if any
 	s = strings.TrimSpace(s)
-	
+
 	// Filter out malformed text that looks like unclosed/empty HTML attributes
 	// e.g., "untitled chapter 1" from malformed <untitled chapter="" 1="">
 	// These typically contain = signs with empty quoted values
 	if strings.Contains(s, "=") && strings.Contains(s, `""`) {
 		return ""
 	}
-	
+
 	// Check if the remaining text is just whitespace or common noise patterns
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
-	
+
 	// Filter out text that's only special characters or very short noise
 	if len(s) < 2 {
 		return ""
 	}
-	
+
 	return s
 }
