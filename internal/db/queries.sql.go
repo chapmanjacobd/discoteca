@@ -57,7 +57,7 @@ FROM captions c
 JOIN media m ON c.media_path = m.path
 WHERE m.time_deleted = 0
   AND c.text IS NOT NULL AND c.text != ''
-ORDER BY c.media_path, c.time
+ORDER BY RANDOM()
 LIMIT ?
 `
 

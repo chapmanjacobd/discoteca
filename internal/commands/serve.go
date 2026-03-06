@@ -607,6 +607,133 @@ func (c *ServeCmd) getDatabasesForQuery(flags models.GlobalFlags) ([]string, err
 	return c.filterDatabases(flags.Databases)
 }
 
+// getCaptionsWithContext fetches captions matching a query along with 2 captions before and after each match
+func (c *ServeCmd) getCaptionsWithContext(ctx context.Context, queries *database.Queries, queryStr string, limit int64) ([]database.SearchCaptionsRow, error) {
+	// First, get the matching captions
+	matches, err := queries.SearchCaptions(ctx, database.SearchCaptionsParams{
+		Query: queryStr,
+		Limit: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(matches) == 0 {
+		return matches, nil
+	}
+
+	// Get unique media paths that have matches
+	pathSet := make(map[string]bool)
+	for _, m := range matches {
+		pathSet[m.MediaPath] = true
+	}
+	var paths []string
+	for path := range pathSet {
+		paths = append(paths, path)
+	}
+
+	// Get all captions for those media paths
+	var allCaptions []database.Captions
+	for _, path := range paths {
+		captions, err := queries.GetCaptionsForMedia(ctx, path)
+		if err != nil {
+			slog.Warn("Failed to get captions for media", "path", path, "error", err)
+			continue
+		}
+		allCaptions = append(allCaptions, captions...)
+	}
+
+	// Create a set of match times for each path
+	matchTimes := make(map[string]map[float64]bool)
+	for _, m := range matches {
+		if matchTimes[m.MediaPath] == nil {
+			matchTimes[m.MediaPath] = make(map[float64]bool)
+		}
+		if m.Time.Valid {
+			matchTimes[m.MediaPath][m.Time.Float64] = true
+		}
+	}
+
+	// For each match, find 2 captions before and after
+	var result []database.SearchCaptionsRow
+	added := make(map[string]map[float64]bool)
+
+	for _, m := range matches {
+		if !m.Time.Valid {
+			continue
+		}
+		matchTime := m.Time.Float64
+		path := m.MediaPath
+
+		// Add the match itself
+		if added[path] == nil {
+			added[path] = make(map[float64]bool)
+		}
+		if !added[path][matchTime] {
+			result = append(result, database.SearchCaptionsRow(m))
+			added[path][matchTime] = true
+		}
+
+		// Find 2 captions before
+		beforeCount := 0
+		for _, c := range allCaptions {
+			if c.MediaPath != path || !c.Time.Valid {
+				continue
+			}
+			captionTime := c.Time.Float64
+			if captionTime < matchTime && !matchTimes[path][captionTime] {
+				if beforeCount < 2 && !added[path][captionTime] {
+					result = append(result, database.SearchCaptionsRow{
+						MediaPath: c.MediaPath,
+						Time:      c.Time,
+						Text:      c.Text,
+						Title:     sql.NullString{},
+						Type:      sql.NullString{},
+						Size:      sql.NullInt64{},
+						Duration:  sql.NullInt64{},
+					})
+					added[path][captionTime] = true
+					beforeCount++
+				}
+			}
+		}
+
+		// Find 2 captions after
+		afterCount := 0
+		for _, c := range allCaptions {
+			if c.MediaPath != path || !c.Time.Valid {
+				continue
+			}
+			captionTime := c.Time.Float64
+			if captionTime > matchTime && !matchTimes[path][captionTime] {
+				if afterCount < 2 && !added[path][captionTime] {
+					result = append(result, database.SearchCaptionsRow{
+						MediaPath: c.MediaPath,
+						Time:      c.Time,
+						Text:      c.Text,
+						Title:     sql.NullString{},
+						Type:      sql.NullString{},
+						Size:      sql.NullInt64{},
+						Duration:  sql.NullInt64{},
+					})
+					added[path][captionTime] = true
+					afterCount++
+				}
+			}
+		}
+	}
+
+	// Sort by media_path and time
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].MediaPath != result[j].MediaPath {
+			return result[i].MediaPath < result[j].MediaPath
+		}
+		return result[i].Time.Float64 < result[j].Time.Float64
+	})
+
+	return result, nil
+}
+
 // handleQuery handles media searching and filtering.
 // GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
 func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
@@ -650,11 +777,10 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				var err error
 
 				if queryStr != "" {
-					rows, err = queries.SearchCaptions(ctx, database.SearchCaptionsParams{
-						Query: queryStr,
-						Limit: int64(limit),
-					})
+					// Search with context - get all captions for matched media
+					rows, err = c.getCaptionsWithContext(ctx, queries, queryStr, int64(limit))
 				} else {
+					// No search - return up to 20 random captions
 					var rawRows []database.GetAllCaptionsRow
 					rawRows, err = queries.GetAllCaptions(ctx, int64(limit))
 					for _, r := range rawRows {

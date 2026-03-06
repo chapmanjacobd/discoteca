@@ -714,24 +714,33 @@ document.addEventListener('DOMContentLoaded', () => {
             params.set('mode', 'curation');
         } else if (state.page === 'captions') {
             params.set('mode', 'captions');
-        } else {
-            state.filters.categories.forEach(c => params.append('category', c));
-            if (state.filters.genre) params.set('genre', state.filters.genre);
-            state.filters.ratings.forEach(r => params.append('rating', r));
+        }
+
+        // History filters apply across all modes (like Media Type filters)
+        if (state.filters.unplayed || state.filters.unfinished || state.filters.completed) {
+            if (state.filters.unfinished) params.set('history', 'in-progress');
+            else if (state.filters.unplayed) params.set('history', 'unplayed');
+            else if (state.filters.completed) params.set('history', 'completed');
+        }
+
+        if (state.page !== 'curation') {
+            // Include search and sidebar filters for non-curation modes
+            if (state.page !== 'history') {
+                // Categories, genre, ratings don't apply in history mode
+                state.filters.categories.forEach(c => params.append('category', c));
+                if (state.filters.genre) params.set('genre', state.filters.genre);
+                state.filters.ratings.forEach(r => params.append('rating', r));
+            }
             if (state.filters.search) params.set('search', state.filters.search);
             if (state.filters.min_score) params.set('min_score', state.filters.min_score);
             if (state.filters.max_score) params.set('max_score', state.filters.max_score);
-            if (state.filters.unplayed || state.filters.unfinished || state.filters.completed) {
-                if (state.filters.unfinished) params.set('history', 'in-progress');
-                else if (state.filters.unplayed) params.set('history', 'unplayed');
-                else if (state.filters.completed) params.set('history', 'completed');
-            }
 
             state.filters.episodes.forEach(b => params.append('episodes', getBinQueryParam(b)));
             state.filters.sizes.forEach(b => params.append('size', getBinQueryParam(b)));
             state.filters.durations.forEach(b => params.append('duration', getBinQueryParam(b)));
         }
 
+        // Media Type filters apply across all modes except DU, trash, and playlist
         if (state.page !== 'du' && state.page !== 'trash' && state.page !== 'playlist') {
             state.filters.types.forEach(t => params.append('type', t));
         }
@@ -766,10 +775,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageParam = params.get('p');
         state.currentPage = pageParam ? parseInt(pageParam) : 1;
 
+        // Read history filter from URL - applies across all modes
+        const historyFilter = params.get('history');
+        state.filters.unfinished = historyFilter === 'in-progress';
+        state.filters.unplayed = historyFilter === 'unplayed';
+        state.filters.completed = historyFilter === 'completed';
+
         if (mode === 'trash') {
             state.page = 'trash';
             state.filters.categories = [];
             state.filters.ratings = [];
+            // Read filter bins for trash mode
+            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
+            state.filters.sizes = params.getAll('size').map(parseFilterBin);
+            state.filters.durations = params.getAll('duration').map(parseFilterBin);
         } else if (mode === 'history') {
             state.page = 'history';
             state.filters.categories = [];
@@ -784,6 +803,10 @@ document.addEventListener('DOMContentLoaded', () => {
             state.duPath = params.get('path') || '';
             state.filters.categories = [];
             state.filters.ratings = [];
+            // Read filter bins for DU mode
+            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
+            state.filters.sizes = params.getAll('size').map(parseFilterBin);
+            state.filters.durations = params.getAll('duration').map(parseFilterBin);
         } else if (mode === 'curation') {
             state.page = 'curation';
             state.filters.categories = [];
@@ -792,6 +815,10 @@ document.addEventListener('DOMContentLoaded', () => {
             state.page = 'captions';
             state.filters.categories = [];
             state.filters.ratings = [];
+            // Read filter bins for captions mode
+            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
+            state.filters.sizes = params.getAll('size').map(parseFilterBin);
+            state.filters.durations = params.getAll('duration').map(parseFilterBin);
         } else {
             state.page = 'search';
             state.filters.types = params.getAll('type');
@@ -807,51 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
             state.filters.min_score = params.get('min_score') || '';
             state.filters.max_score = params.get('max_score') || '';
 
-            // Read history filter from URL
-            const historyFilter = params.get('history');
-            state.filters.unfinished = historyFilter === 'in-progress';
-            state.filters.unplayed = historyFilter === 'unplayed';
-            state.filters.completed = historyFilter === 'completed';
-
-            state.filters.episodes = params.getAll('episodes').map(val => {
-                if (val.startsWith('p')) {
-                    const [min, max] = val.substring(1).split('-').map(Number);
-                    return { label: `${min}-${max}%`, value: '@p', min, max };
-                }
-                if (val.includes('-')) {
-                    const [min, max] = val.split('-').map(Number);
-                    return { label: val, min, max };
-                }
-                if (val.startsWith('+')) return { label: val, min: Number(val.substring(1)) };
-                if (val.startsWith('-')) return { label: val, max: Number(val.substring(1)) };
-                return { label: val, value: Number(val) };
-            });
-            state.filters.sizes = params.getAll('size').map(val => {
-                if (val.startsWith('p')) {
-                    const [min, max] = val.substring(1).split('-').map(Number);
-                    return { label: `${min}-${max}%`, value: '@p', min, max };
-                }
-                if (val.includes('-')) {
-                    const [min, max] = val.split('-').map(Number);
-                    return { label: val, min, max };
-                }
-                if (val.startsWith('+')) return { label: val, min: Number(val.substring(1)) };
-                if (val.startsWith('-')) return { label: val, max: Number(val.substring(1)) };
-                return { label: val, value: Number(val) };
-            });
-            state.filters.durations = params.getAll('duration').map(val => {
-                if (val.startsWith('p')) {
-                    const [min, max] = val.substring(1).split('-').map(Number);
-                    return { label: `${min}-${max}%`, value: '@p', min, max };
-                }
-                if (val.includes('-')) {
-                    const [min, max] = val.split('-').map(Number);
-                    return { label: val, min, max };
-                }
-                if (val.startsWith('+')) return { label: val, min: Number(val.substring(1)) };
-                if (val.startsWith('-')) return { label: val, max: Number(val.substring(1)) };
-                return { label: val, value: Number(val) };
-            });
+            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
+            state.filters.sizes = params.getAll('size').map(parseFilterBin);
+            state.filters.durations = params.getAll('duration').map(parseFilterBin);
 
             if (openSections) {
                 if (state.filters.categories.length > 0) state.sidebarState['details-categories'] = true;
@@ -879,6 +864,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 filterBrowseValContainer.classList.add('hidden');
             }
         }
+    }
+
+    // Helper function to parse filter bin values
+    function parseFilterBin(val) {
+        if (val.startsWith('p')) {
+            const [min, max] = val.substring(1).split('-').map(Number);
+            return { label: `${min}-${max}%`, value: '@p', min, max };
+        }
+        if (val.includes('-')) {
+            const [min, max] = val.split('-').map(Number);
+            return { label: val, min, max };
+        }
+        if (val.startsWith('+')) return { label: val, min: Number(val.substring(1)) };
+        if (val.startsWith('-')) return { label: val, max: Number(val.substring(1)) };
+        return { label: val, value: Number(val) };
     }
 
     const onUrlChange = () => {
@@ -4259,10 +4259,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get caption count from aggregated data or count manually
             const captionCount = captions[0].caption_count || captions.length;
 
-            // Build caption segments HTML (only show first few if many)
+            // Build caption segments HTML - show all segments
             let captionsHtml = '';
-            const maxSegments = captions[0].caption_count > 10 ? 10 : captions.length;
-            for (let i = 0; i < Math.min(maxSegments, captions.length); i++) {
+            for (let i = 0; i < captions.length; i++) {
                 const cap = captions[i];
                 const timeStr = formatDuration(cap.caption_time);
                 const isMatch = cap._isMatch;
@@ -4272,9 +4271,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="caption-text">${cap.caption_text}</span>
                     </div>
                 `;
-            }
-            if (captions[0].caption_count > 10) {
-                captionsHtml += `<div class="caption-more">+${captions[0].caption_count - 10} more captions</div>`;
             }
 
             card.innerHTML = `
@@ -5763,10 +5759,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (historyInProgressBtn) {
         historyInProgressBtn.onclick = () => {
             if (state.filters.unfinished) {
+                // Toggle off
                 state.filters.unfinished = false;
-                state.page = 'search';
             } else {
-                if (state.page !== 'trash') state.page = 'search';
+                // Toggle on - mutually exclusive with other history filters
                 state.filters.unfinished = true;
                 state.filters.completed = false;
                 state.filters.unplayed = false;
@@ -5780,10 +5776,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (historyUnplayedBtn) {
         historyUnplayedBtn.onclick = () => {
             if (state.filters.unplayed) {
+                // Toggle off
                 state.filters.unplayed = false;
-                state.page = 'search';
             } else {
-                if (state.page !== 'trash') state.page = 'search';
+                // Toggle on - mutually exclusive with other history filters
                 state.filters.unplayed = true;
                 state.filters.unfinished = false;
                 state.filters.completed = false;
@@ -5797,10 +5793,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (historyCompletedBtn) {
         historyCompletedBtn.onclick = () => {
             if (state.filters.completed) {
+                // Toggle off
                 state.filters.completed = false;
-                state.page = 'search';
             } else {
-                if (state.page !== 'trash') state.page = 'search';
+                // Toggle on - mutually exclusive with other history filters
                 state.filters.completed = true;
                 state.filters.unfinished = false;
                 state.filters.unplayed = false;

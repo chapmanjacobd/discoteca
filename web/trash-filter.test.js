@@ -40,12 +40,12 @@ describe('Trash Filter Behavior', () => {
         expect(window.disco.state.currentPage).toBe(1);
     });
 
-    it('switches to Search page when history filters clicked outside Trash', async () => {
+    it('preserves current page when history filters clicked outside Trash', async () => {
         const inProgressBtn = document.getElementById('history-in-progress-btn');
-        
+
         // Start in 'search' page (default)
         expect(window.disco.state.page).toBe('search');
-        
+
         // Click In Progress (Turn ON)
         inProgressBtn.click();
         expect(window.disco.state.filters.unfinished).toBe(true);
@@ -56,11 +56,12 @@ describe('Trash Filter Behavior', () => {
 
         // Now Go to playlist page
         window.disco.state.page = 'playlist';
-        
+
         // Click In Progress (Turn ON)
         inProgressBtn.click();
-        
-        // Should switch to search page
-        expect(window.disco.state.page).toBe('search');
+
+        // Should stay on playlist page (history filters work across all modes now)
+        expect(window.disco.state.page).toBe('playlist');
+        expect(window.disco.state.filters.unfinished).toBe(true);
     });
 });
