@@ -80,6 +80,10 @@ type TimeFilterFlags struct {
 	PlayedBefore   string `help:"Last played before date (YYYY-MM-DD)" group:"Time"`
 }
 
+type DatabaseFlags struct {
+	Databases []string `help:"Specific database paths to query (must be in server's allowed list). Can be specified multiple times." group:"Database"`
+}
+
 type DeletedFlags struct {
 	HideDeleted bool `default:"true" help:"Exclude deleted files from results" group:"Deleted"`
 	OnlyDeleted bool `help:"Include only deleted files in results" group:"Deleted"`
@@ -266,6 +270,7 @@ type GlobalFlags struct {
 	PostActionFlags  `embed:""`
 	HashingFlags     `embed:""`
 	MergeFlags       `embed:""`
+	DatabaseFlags    `embed:""`
 
 	Threads      int  `help:"Use N threads for parallel processing"`
 	IgnoreErrors bool `short:"i" help:"Ignore errors and continue to next file"`

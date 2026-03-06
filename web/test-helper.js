@@ -178,6 +178,11 @@ export async function setupTestEnvironment(initialLocalStorage) {
     HTMLElement.prototype.scrollTo = vi.fn();
     HTMLElement.prototype.scrollIntoView = vi.fn();
     global.IntersectionObserver = class { constructor() { } observe() { } unobserve() { } disconnect() { } };
+
+    // Mock HTMLMediaElement methods (play, pause, etc.) to avoid JSDOM warnings
+    HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+    HTMLMediaElement.prototype.pause = vi.fn();
+
     global.Hls = class {
         static isSupported() { return true; }
         loadSource() { }

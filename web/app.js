@@ -3823,6 +3823,13 @@ document.addEventListener('DOMContentLoaded', () => {
         pipPlayer.classList.add('hidden');
         document.body.classList.remove('has-pip');
 
+        // Exit fullscreen if active
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(err => {
+                console.error('Failed to exit fullscreen:', err);
+            });
+        }
+
         // Reset mode to default preference
         state.playerMode = state.defaultView;
         state.playback.item = null;

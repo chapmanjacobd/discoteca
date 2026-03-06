@@ -561,7 +561,50 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 	if groupBy := q.Get("group_by"); groupBy == "parent" {
 		flags.GroupByParent = true
 	}
+
+	// Parse database filter from request
+	if dbs := q["db"]; len(dbs) > 0 {
+		flags.Databases = dbs
+	}
+
 	return flags
+}
+
+// filterDatabases validates and filters the requested databases against the server's allowed list
+// Returns an error if any requested database is not in the allowed list
+func (c *ServeCmd) filterDatabases(requested []string) ([]string, error) {
+	// If no specific databases requested, use all configured databases
+	if len(requested) == 0 {
+		return c.Databases, nil
+	}
+
+	// Build a set of allowed databases for quick lookup
+	allowedSet := make(map[string]bool, len(c.Databases))
+	for _, db := range c.Databases {
+		allowedSet[db] = true
+	}
+
+	// Validate each requested database
+	var filtered []string
+	for _, db := range requested {
+		if !allowedSet[db] {
+			return nil, fmt.Errorf("database not in allowed list: %s", db)
+		}
+		filtered = append(filtered, db)
+	}
+
+	// If all databases were filtered out, return empty list (no results)
+	if len(filtered) == 0 {
+		return []string{}, nil
+	}
+
+	return filtered, nil
+}
+
+// getDatabasesForQuery returns the list of databases to query based on request flags
+// It validates that all requested databases are in the server's allowed list
+func (c *ServeCmd) getDatabasesForQuery(flags models.GlobalFlags) ([]string, error) {
+	return c.filterDatabases(flags.Databases)
 }
 
 // handleQuery handles media searching and filtering.
@@ -573,8 +616,15 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
+	// Validate and filter databases
+	dbs, err := c.getDatabasesForQuery(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	// Pre-resolve percentiles so Count matches Query results
-	resolvedFlags, err := query.ResolvePercentileFlags(ctx, c.Databases, flags)
+	resolvedFlags, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 	if err == nil {
 		flags = resolvedFlags
 	}
@@ -593,7 +643,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		// Check if aggregation is requested
 		aggregate := q.Get("aggregate") == "true"
 
-		for _, dbPath := range c.Databases {
+		for _, dbPath := range dbs {
 			err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
 				var rows []database.SearchCaptionsRow
@@ -693,9 +743,9 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	media, err := query.MediaQuery(ctx, c.Databases, flags)
+	media, err := query.MediaQuery(ctx, dbs, flags)
 	if err != nil {
-		slog.Error("Query failed", "dbs", c.Databases, "error", err)
+		slog.Error("Query failed", "dbs", dbs, "error", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Query failed: " + err.Error()})
@@ -706,13 +756,13 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	includeCounts := q.Get("include_counts") == "true"
 	var filterCounts *models.FilterBinsResponse
 	if includeCounts {
-		filterCounts = c.calculateFilterCounts(ctx, flags)
+		filterCounts = c.calculateFilterCounts(ctx, flags, dbs)
 	}
 
 	// Caption enrichment for main media grid
 	if flags.WithCaptions && len(flags.Search) > 0 {
 		queryStr := strings.Join(flags.Search, " ")
-		for _, dbPath := range c.Databases {
+		for _, dbPath := range dbs {
 			err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
 				// Enrich existing results with matching caption segments
@@ -745,9 +795,9 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	totalCount, err := query.MediaQueryCount(ctx, c.Databases, flags)
+	totalCount, err := query.MediaQueryCount(ctx, dbs, flags)
 	if err != nil {
-		slog.Error("Count query failed", "dbs", c.Databases, "error", err)
+		slog.Error("Count query failed", "dbs", dbs, "error", err)
 		// Don't fail the whole request just for count
 	}
 
@@ -1546,9 +1596,9 @@ type filterBinsData struct {
 	parentCounts map[string]int64
 }
 
-// computeFilterBinsData queries all databases and collects size, duration, and parent count data
+// computeFilterBinsData queries specified databases and collects size, duration, and parent count data
 // This is the single source of truth for filter bins data collection
-func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.GlobalFlags, filterToIgnore string) filterBinsData {
+func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.GlobalFlags, filterToIgnore string, dbs []string) filterBinsData {
 	var mu sync.Mutex
 	var allSizes []int64
 	var allDurations []int64
@@ -1572,7 +1622,7 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 	sqlQuery, args := qb.BuildSelect("path, size, duration")
 
 	var wg sync.WaitGroup
-	for _, dbPath := range c.Databases {
+	for _, dbPath := range dbs {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
@@ -1769,6 +1819,13 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	flags := c.parseFlags(r)
 	q := r.URL.Query()
 
+	// Validate and filter databases
+	dbs, err := c.getDatabasesForQuery(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	// Set flags to get all data for bin calculation
 	flags.All = true
 	flags.Limit = 0
@@ -1781,15 +1838,15 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	durationOnly := q.Has("duration") || q.Has("min_duration") || q.Has("max_duration")
 
 	// Get episode data
-	epData := c.computeFilterBinsData(r.Context(), flags, "episodes")
+	epData := c.computeFilterBinsData(r.Context(), flags, "episodes", dbs)
 	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
 	// Get size data
-	sizeData := c.computeFilterBinsData(r.Context(), flags, "size")
+	sizeData := c.computeFilterBinsData(r.Context(), flags, "size", dbs)
 	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
 
 	// Get duration data
-	durData := c.computeFilterBinsData(r.Context(), flags, "duration")
+	durData := c.computeFilterBinsData(r.Context(), flags, "duration", dbs)
 	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
 	// Log query info for debugging
@@ -1797,6 +1854,7 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 		"episodesOnly", episodesOnly,
 		"sizeOnly", sizeOnly,
 		"durationOnly", durationOnly,
+		"databases", len(dbs),
 		"sizeCount", len(sizeData.sizes),
 		"durationCount", len(durData.durations),
 		"parentCount", len(epData.parentCounts))
@@ -1807,11 +1865,11 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 
 // calculateFilterCounts computes filter bin counts for the current query
 // This is used with include_counts to provide filter UI data alongside query results
-func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.GlobalFlags) *models.FilterBinsResponse {
+func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.GlobalFlags, dbs []string) *models.FilterBinsResponse {
 	resp := &models.FilterBinsResponse{}
 
-	// Collect data for each filter type
-	data := c.computeFilterBinsData(ctx, flags, "")
+	// Collect data for each filter type from specified databases
+	data := c.computeFilterBinsData(ctx, flags, "", dbs)
 
 	// Build all bin types from the same data source
 	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(data.sizes)

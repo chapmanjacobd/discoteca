@@ -2,8 +2,22 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setupTestEnvironment } from './test-helper';
 
 describe('Playback Features', () => {
+    let currentFullscreenElement = null;
+
     beforeEach(async () => {
         await setupTestEnvironment();
+
+        // Mock fullscreen state - must be set up AFTER app.js is loaded
+        currentFullscreenElement = null;
+        Object.defineProperty(document, 'fullscreenElement', {
+            get: () => currentFullscreenElement,
+            configurable: true
+        });
+
+        document.exitFullscreen = vi.fn().mockImplementation(() => {
+            currentFullscreenElement = null;
+            return Promise.resolve();
+        });
     });
 
     it('toggles fullscreen with f key', async () => {
@@ -274,6 +288,48 @@ describe('Playback Features', () => {
         await vi.waitFor(() => {
             const pipPlayer = document.getElementById('pip-player');
             expect(pipPlayer.classList.contains('hidden')).toBe(true);
+        });
+    });
+
+    it('exits fullscreen when closing player with s key', async () => {
+        const card = document.querySelector('.media-card');
+        card.click();
+
+        await vi.waitFor(() => {
+            const pipPlayer = document.getElementById('pip-player');
+            return !pipPlayer.classList.contains('hidden');
+        });
+
+        const mediaViewer = document.getElementById('media-viewer');
+
+        // Set fullscreen state
+        currentFullscreenElement = mediaViewer;
+
+        const sEvent = new KeyboardEvent('keydown', { key: 's', bubbles: true });
+        document.dispatchEvent(sEvent);
+
+        await vi.waitFor(() => {
+            expect(document.exitFullscreen).toHaveBeenCalled();
+        });
+    });
+
+    it('exits fullscreen when closing player with q key', async () => {
+        const card = document.querySelector('.media-card');
+        card.click();
+
+        await vi.waitFor(() => {
+            const pipPlayer = document.getElementById('pip-player');
+            return !pipPlayer.classList.contains('hidden');
+        });
+
+        // Set fullscreen state
+        currentFullscreenElement = document.getElementById('media-viewer');
+
+        const qEvent = new KeyboardEvent('keydown', { key: 'q', bubbles: true });
+        document.dispatchEvent(qEvent);
+
+        await vi.waitFor(() => {
+            expect(document.exitFullscreen).toHaveBeenCalled();
         });
     });
 
