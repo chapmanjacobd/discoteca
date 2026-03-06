@@ -1414,15 +1414,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDU(data) {
         if (!data) data = [];
 
-        // Show current path in toolbar (truncated)
-        const duPathDisplay = document.getElementById('du-path-display');
-        const duCurrentPath = document.getElementById('du-current-path');
-        if (duPathDisplay && duCurrentPath) {
-            duPathDisplay.classList.remove('hidden');
+        // Show current path in toolbar input
+        const duToolbar = document.getElementById('du-toolbar');
+        const duPathInput = document.getElementById('du-path-input');
+        const duBackBtn = document.getElementById('du-back-btn');
+        
+        if (duToolbar && duPathInput) {
+            duToolbar.classList.remove('hidden');
             const displayPath = state.duPath || '/';
-            const truncated = displayPath.length > 60 ? '...' + displayPath.slice(-57) : displayPath;
-            duCurrentPath.textContent = truncated;
-            duCurrentPath.title = displayPath;
+            duPathInput.value = displayPath;
+            duPathInput.title = displayPath;
+            
+            // Show/hide back button based on current path
+            if (duBackBtn) {
+                if (state.duPath && state.duPath !== '/' && state.duPath !== '.') {
+                    duBackBtn.style.display = 'block';
+                } else {
+                    duBackBtn.style.display = 'none';
+                }
+            }
         }
 
         // Show folder/file count in results-info
@@ -1440,33 +1450,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultsContainer.className = 'grid du-view';
         resultsContainer.innerHTML = '';
-
-        // Add "Back" item if not at root
-        if (state.duPath && state.duPath !== '/' && state.duPath !== '.') {
-            const backCard = document.createElement('div');
-            backCard.className = 'media-card du-card back-card';
-            backCard.onclick = () => {
-                let p = state.duPath;
-                if (p.endsWith('/') && p.length > 1) p = p.slice(0, -1);
-                const lastSlash = p.lastIndexOf('/');
-                if (lastSlash === -1) {
-                    fetchDU('');
-                } else {
-                    let parent = p.substring(0, lastSlash + 1);
-                    fetchDU(parent);
-                }
-            };
-            backCard.innerHTML = `
-                <div class="media-thumb" style="display: flex; align-items: center; justify-content: center; font-size: 3rem; background: var(--sidebar-bg);">
-                    🔙
-                </div>
-                <div class="media-info">
-                    <div class="media-title">Go Back</div>
-                    <div class="media-meta">To parent directory</div>
-                </div>
-            `;
-            resultsContainer.appendChild(backCard);
-        }
 
         const maxSize = Math.max(...data.map(d => d.total_size || 0));
 
@@ -3616,10 +3599,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderResults() {
         if (!currentMedia) currentMedia = [];
 
-        // Hide DU path display when not in DU view
-        const duPathDisplay = document.getElementById('du-path-display');
-        if (duPathDisplay && state.page !== 'du') {
-            duPathDisplay.classList.add('hidden');
+        // Hide DU toolbar when not in DU view
+        const duToolbar = document.getElementById('du-toolbar');
+        if (duToolbar && state.page !== 'du') {
+            duToolbar.classList.add('hidden');
         }
 
         // Prevent scroll jump by keeping current height temporarily
@@ -5342,6 +5325,49 @@ document.addEventListener('DOMContentLoaded', () => {
             updateNavActiveStates();
             fetchDU(state.duPath);
         };
+    }
+
+    // DU back button
+    const duBackBtn = document.getElementById('du-back-btn');
+    if (duBackBtn) {
+        duBackBtn.onclick = () => {
+            if (state.duPath && state.duPath !== '/' && state.duPath !== '.') {
+                let p = state.duPath;
+                if (p.endsWith('/') && p.length > 1) p = p.slice(0, -1);
+                const lastSlash = p.lastIndexOf('/');
+                if (lastSlash === -1) {
+                    fetchDU('');
+                } else {
+                    let parent = p.substring(0, lastSlash + 1);
+                    fetchDU(parent);
+                }
+            }
+        };
+    }
+
+    // DU path input - allows editing and navigation
+    const duPathInput = document.getElementById('du-path-input');
+    if (duPathInput) {
+        // Select all text on click for easy copy
+        duPathInput.addEventListener('click', () => {
+            duPathInput.select();
+        });
+
+        // Navigate to path on Enter
+        duPathInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const newPath = duPathInput.value.trim();
+                if (newPath && newPath !== state.duPath) {
+                    fetchDU(newPath);
+                }
+            }
+        });
+
+        // Also select on focus
+        duPathInput.addEventListener('focus', () => {
+            duPathInput.select();
+        });
     }
 
     if (captionsBtn) {

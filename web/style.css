@@ -448,7 +448,7 @@ main {
     border: 1px solid var(--border-color);
 }
 
-.du-path-display {
+.du-toolbar {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -460,18 +460,39 @@ main {
     min-width: 0;
 }
 
-.du-path-display.hidden {
+.du-toolbar.hidden {
     display: none;
 }
 
-#du-current-path {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
+#du-back-btn {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+
+#du-back-btn:hover {
+    background: var(--hover-color);
+}
+
+.du-path-input {
+    flex: 1;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    color: var(--text-color);
     font-family: monospace;
+    font-size: 0.85rem;
+    outline: none;
+    min-width: 0;
+}
+
+.du-path-input:focus {
+    border-color: var(--accent-color);
 }
 
 .sidebar-buttons {

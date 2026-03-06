@@ -576,7 +576,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		flags = resolvedFlags
 	}
 
-	if q.Get("view") == "captions" {
+	if q.Get("view") == "captions" || q.Get("captions") == "true" {
 		var media []models.MediaWithDB
 		queryStr := strings.Join(flags.Search, " ")
 		limit := flags.Limit
