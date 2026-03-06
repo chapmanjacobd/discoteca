@@ -1517,16 +1517,16 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 
 	// Clean and normalize the path
 	cleanPath := filepath.Clean(path)
-	if cleanPath == "." {
+	if cleanPath == "." || cleanPath == "/" {
 		cleanPath = ""
 	}
 
 	// Calculate the depth of current path (number of path components)
-	// "" or "/" = depth 0
+	// "" = depth 0
 	// "/media" = depth 1
 	// "/media/videos" = depth 2
 	currentDepth := 0
-	if cleanPath != "" && cleanPath != "/" {
+	if cleanPath != "" {
 		parts := strings.Split(cleanPath, string(filepath.Separator))
 		if len(parts) > 0 && parts[0] == "" {
 			parts = parts[1:]
