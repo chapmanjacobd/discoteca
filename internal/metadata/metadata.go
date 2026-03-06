@@ -350,6 +350,11 @@ func parseSubtitleFile(subPath, mediaPath string) ([]db.InsertCaptionParams, err
 			if len(matches) > 0 {
 				startTime := utils.FromTimestampSeconds(strings.ReplaceAll(matches[0], ",", "."))
 
+				// Skip captions that start before 10 seconds
+				if startTime < 10.0 {
+					continue
+				}
+
 				// Text can span multiple lines until empty line
 				var textLines []string
 				for j := i + 1; j < len(lines); j++ {
@@ -385,5 +390,23 @@ func cleanCaptionText(s string) string {
 	s = re.ReplaceAllString(s, "")
 	// Strip SRT-style formatting if any
 	s = strings.TrimSpace(s)
+	
+	// Filter out malformed text that looks like unclosed/empty HTML attributes
+	// e.g., "untitled chapter 1" from malformed <untitled chapter="" 1="">
+	if strings.Contains(s, "=") && !strings.Contains(s, " ") {
+		return ""
+	}
+	
+	// Check if the remaining text is just whitespace or common noise patterns
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	
+	// Filter out text that's only special characters or very short noise
+	if len(s) < 2 {
+		return ""
+	}
+	
 	return s
 }
