@@ -72,8 +72,6 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 		mediaType = "image"
 	} else if strings.HasPrefix(mimeStr, "text/") || mimeStr == "application/pdf" || mimeStr == "application/epub+zip" || mimeStr == "application/x-zim" {
 		mediaType = "text"
-	} else if mimeStr == "application/vnd.android.package-archive" {
-		mediaType = "app"
 	} else if mimeStr != "" {
 		// Fallback to coarse mimetype category
 		parts := strings.Split(mimeStr, "/")
@@ -90,24 +88,6 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 
 	result := &MediaMetadata{
 		Media: params,
-	}
-
-	if mediaType == "app" {
-		// Extract APK metadata
-		if aaptPath, err := exec.LookPath("aapt"); err == nil {
-			cmd := exec.CommandContext(ctx, aaptPath, "dump", "badging", path)
-			if output, err := cmd.Output(); err == nil {
-				params.Title = utils.ToNullString(extractAapt(string(output), `application-label:'([^']*)'`))
-				if params.Title.String == "" {
-					params.Title = utils.ToNullString(extractAapt(string(output), `package: name='([^']*)'`))
-				}
-				params.Artist = utils.ToNullString(extractAapt(string(output), `package: .*versionName='([^']*)'`))
-				params.Language = utils.ToNullString(extractAapt(string(output), `sdkVersion:'([^']*)'`)) // Hack: use language for sdk version
-				params.Description = utils.ToNullString(extractAapt(string(output), `package: name='([^']*)' versionCode='([^']*)' versionName='([^']*)' platformBuildVersionName='([^']*)'`))
-			}
-		}
-		result.Media = params
-		return result, nil
 	}
 
 	if mediaType == "text" && utils.TextExtensionMap[strings.ToLower(filepath.Ext(path))] {
