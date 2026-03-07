@@ -1230,37 +1230,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function filterPlaylistItems() {
         if (!state.playlistItems) return;
 
-        let filtered = [...state.playlistItems];
-
-        // Filter by type
-        const types = state.filters.types || [];
-        const hasVideo = types.includes('video');
-        const hasAudio = types.includes('audio');
-        const hasImage = types.includes('image');
-        const hasText = types.includes('text');
-
-        if (hasVideo || hasAudio || hasImage || hasText) {
-            filtered = filtered.filter(item => {
-                const mime = item.type || '';
-                if (hasVideo && mime.startsWith('video')) return true;
-                if (hasAudio && mime.startsWith('audio')) return true;
-                if (hasImage && mime.startsWith('image')) return true;
-                if (hasText && (mime.startsWith('text') || mime === '')) return true;
-                return false;
-            });
-        }
-
-        // Filter by search text (client-side)
-        if (state.filters.search) {
-            const query = state.filters.search.toLowerCase();
-            filtered = filtered.filter(item => {
-                const title = (item.title || '').toLowerCase();
-                const path = (item.path || '').toLowerCase();
-                return title.includes(query) || path.includes(query);
-            });
-        }
-
-        currentMedia = filtered;
+        // Server returns playlist items - no need for client-side filtering
+        // Playlists are typically small, user-curated collections
+        currentMedia = state.playlistItems;
         sortPlaylistItems();
         renderResults();
         syncUrl();
@@ -2452,60 +2424,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentMedia = currentMedia.filter(item => (item.time_last_played || 0) > 0);
             }
 
-            // Caption search filtering with context
-            if (state.page === 'captions' && state.filters.search) {
-                const searchTerm = state.filters.search.toLowerCase();
-
-                // Group captions by path
-                const captionsByPath = {};
-                currentMedia.forEach(item => {
-                    if (!captionsByPath[item.path]) {
-                        captionsByPath[item.path] = [];
-                    }
-                    captionsByPath[item.path].push(item);
-                });
-
-                // Find matches and add context
-                const filteredCaptions = [];
-                Object.keys(captionsByPath).forEach(path => {
-                    const captions = captionsByPath[path];
-                    const matches = [];
-
-                    // Find matching captions
-                    captions.forEach((cap, idx) => {
-                        if (cap.caption_text && cap.caption_text.toLowerCase().includes(searchTerm)) {
-                            cap._isMatch = true;
-                            matches.push(idx);
-                        } else {
-                            cap._isMatch = false;
-                        }
-                    });
-
-                    // Add matches with context (1 before and 1 after)
-                    matches.forEach(matchIdx => {
-                        // Add context before
-                        if (matchIdx > 0 && !captions[matchIdx - 1]._included) {
-                            captions[matchIdx - 1]._included = true;
-                            filteredCaptions.push(captions[matchIdx - 1]);
-                        }
-                        // Add match
-                        if (!captions[matchIdx]._included) {
-                            captions[matchIdx]._included = true;
-                            filteredCaptions.push(captions[matchIdx]);
-                        }
-                        // Add context after
-                        if (matchIdx < captions.length - 1 && !captions[matchIdx + 1]._included) {
-                            captions[matchIdx + 1]._included = true;
-                            filteredCaptions.push(captions[matchIdx + 1]);
-                        }
-                    });
-                });
-
-                // Use filtered captions if we have matches, otherwise use all
-                if (filteredCaptions.length > 0) {
-                    currentMedia = filteredCaptions;
-                }
-            }
+            // Caption search filtering
+            // Server already returns filtered results with context (2 before/after matches)
+            // No client-side filtering needed - just use the data as-is
 
             // Local sorting for play_count if global progress is disabled
             if (!!state.readOnly && state.filters.sort === 'play_count') {

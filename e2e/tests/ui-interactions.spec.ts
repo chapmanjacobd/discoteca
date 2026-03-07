@@ -32,7 +32,7 @@ test.describe('Fullscreen Toggle', () => {
     
     // Note: Actual fullscreen may be blocked by browser, but we can test the button click
     await fullscreenBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Button should still be visible (may have changed icon)
     await expect(fullscreenBtn).toBeVisible();
@@ -54,7 +54,7 @@ test.describe('Fullscreen Toggle', () => {
 
     // Click fullscreen
     await fullscreenBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Button state may change
     const newAriaLabel = await fullscreenBtn.getAttribute('aria-label');
@@ -82,7 +82,7 @@ test.describe('Fullscreen Toggle', () => {
 
     // Press F for fullscreen
     await page.keyboard.press('f');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Player should still be visible
     await expect(page.locator('#pip-player')).toBeVisible();
@@ -101,7 +101,7 @@ test.describe('Fullscreen Toggle', () => {
     // Double-click on video
     const video = page.locator('video, #pip-player').first();
     await video.dblclick();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Player should still be visible
     await expect(page.locator('#pip-player')).toBeVisible();
@@ -120,11 +120,11 @@ test.describe('Fullscreen Toggle', () => {
     // Click fullscreen
     const fullscreenBtn = page.locator('#pip-fullscreen, .fullscreen-btn').first();
     await fullscreenBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Press Escape
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Player should still be visible
     await expect(page.locator('#pip-player')).toBeVisible();
@@ -151,30 +151,38 @@ test.describe('Fullscreen Toggle', () => {
 });
 
 test.describe('Metadata Modal', () => {
-  test('metadata button opens metadata modal', async ({ page, server }) => {
+  test('metadata modal opens with keyboard shortcut', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
+
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card to open player
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to have video/audio content
+    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.waitForTimeout(1000);
 
-    // Find and click metadata/info button
-    const infoBtn = page.locator('#pip-info, .info-btn, button:has-text("Info"), .metadata-btn, button:has-text("Metadata")');
-    if (await infoBtn.count() > 0) {
-      await infoBtn.first().click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should be visible
-      const modal = page.locator('#metadata-modal, .metadata-modal, .info-modal, [role="dialog"]');
-      await expect(modal.first()).toBeVisible();
-    }
+    // Modal should be visible
+    const modal = page.locator('#metadata-modal');
+    await expect(modal.first()).toBeVisible();
   });
 
   test('metadata modal shows file path', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
+
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
@@ -184,250 +192,292 @@ test.describe('Metadata Modal', () => {
     const cardTitle = await firstCard.locator('.media-title').textContent();
 
     await firstCard.click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show file path
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText).toContain(cardTitle || '');
-    }
+    // Modal should show file path
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText).toContain(cardTitle || '');
   });
 
   test('metadata modal shows file size', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show size information
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText.toLowerCase()).toMatch(/(size|bytes|mb|kb|gb)/);
-    }
+    // Modal should show size information
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText.toLowerCase()).toMatch(/(size|bytes|mb|kb|gb)/);
   });
 
   test('metadata modal shows duration', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show duration
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText.toLowerCase()).toMatch(/(duration|time|length|:)/);
-    }
+    // Modal should show duration
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText.toLowerCase()).toMatch(/(duration|time|length|:)/);
   });
 
   test('metadata modal shows codec information', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show codec info
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText.toLowerCase()).toMatch(/(codec|video|audio|h\\.?264|aac|mp3|format)/);
-    }
+    // Modal should show codec info
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText.toLowerCase()).toMatch(/(codec|video|audio|h\\.?264|aac|mp3|format)/);
   });
 
   test('metadata modal shows resolution', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show resolution
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText).toMatch(/\d+x\d+/);
-    }
+    // Modal should show resolution
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText).toMatch(/\d+x\d+/);
   });
 
   test('metadata modal can be closed', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Close modal
-      const closeBtn = page.locator('.close-modal, .modal-close, button:has-text("Close"), [aria-label="Close"]');
-      await closeBtn.first().click();
-      await page.waitForTimeout(500);
+    // Close modal using close button
+    const closeBtn = page.locator('.close-modal');
+    await closeBtn.first().click();
+    await page.waitForTimeout(1000);
 
-      // Modal should be hidden
-      const modal = page.locator('#metadata-modal, .metadata-modal');
-      await expect(modal.first()).not.toBeVisible();
-    }
+    // Modal should be hidden
+    const modal = page.locator('#metadata-modal');
+    await expect(modal.first()).not.toBeVisible();
   });
 
   test('metadata modal closes with Escape key', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Press Escape
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
+    // Press Escape to close
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(1000);
 
-      // Modal should be hidden
-      const modal = page.locator('#metadata-modal, .metadata-modal');
-      await expect(modal.first()).not.toBeVisible();
-    }
+    // Modal should be hidden
+    const modal = page.locator('#metadata-modal');
+    await expect(modal.first()).not.toBeVisible();
   });
 
   test('metadata modal closes when clicking outside', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Click outside modal
-      await page.locator('body').click({ position: { x: 10, y: 10 } });
-      await page.waitForTimeout(500);
+    // Click outside modal (on body)
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(1000);
 
-      // Modal should be hidden
-      const modal = page.locator('#metadata-modal, .metadata-modal');
-      await expect(modal.first()).not.toBeVisible();
-    }
+    // Modal should be hidden
+    const modal = page.locator('#metadata-modal');
+    await expect(modal.first()).not.toBeVisible();
   });
 
   test('metadata modal shows play count', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show play count
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText.toLowerCase()).toMatch(/(play|count|watched|times)/);
-    }
+    // Modal should show play count
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText.toLowerCase()).toMatch(/(play|count|watched|times)/);
   });
 
   test('metadata modal shows last played date', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal should show last played date
-      const modal = page.locator('#metadata-modal, .metadata-modal').first();
-      const modalText = await modal.textContent();
-      expect(modalText.toLowerCase()).toMatch(/(last|played|date|time|ago)/);
-    }
+    // Modal should show last played date
+    const modal = page.locator('#metadata-modal');
+    const modalText = await modal.first().textContent();
+    expect(modalText.toLowerCase()).toMatch(/(last|played|date|time|ago)/);
   });
 
   test('metadata modal is scrollable for long content', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    await page.waitForTimeout(1000);
+
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     await page.locator('.media-card').first().click();
-    await waitForPlayer(page);
+    
+    // Wait for player to be ready
+    await page.waitForSelector('#pip-player', { timeout: 10000, state: 'attached' });
+    await page.waitForTimeout(1000);
 
-    // Open metadata modal
-    const infoBtn = page.locator('#pip-info, .info-btn, .metadata-btn').first();
-    if (await infoBtn.count() > 0) {
-      await infoBtn.click();
-      await page.waitForTimeout(500);
+    // Press 'i' key to open metadata modal
+    await page.keyboard.press('i');
+    await page.waitForTimeout(1000);
 
-      // Modal body should be scrollable
-      const modalBody = page.locator('.modal-body, .metadata-content');
-      const isScrollable = await modalBody.first().evaluate((el) => 
+    // Modal body should be scrollable
+    const modalBody = page.locator('.modal-body, .metadata-content');
+    if (await modalBody.count() > 0) {
+      const isScrollable = await modalBody.first().evaluate((el) =>
         el.scrollHeight > el.clientHeight
       );
-      
+
       // May or may not be scrollable depending on content
       expect(typeof isScrollable).toBe('boolean');
     }
@@ -465,7 +515,7 @@ test.describe('Trash Functionality', () => {
     const trashBtn = page.locator('.trash-btn, .delete-btn').first();
     if (await trashBtn.count() > 0) {
       await trashBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
       // Confirmation dialog should appear
       const confirmDialog = page.locator('[role="alertdialog"], .confirm-dialog, .modal:has-text("delete"), .modal:has-text("trash")');
@@ -487,12 +537,12 @@ test.describe('Trash Functionality', () => {
     const trashBtn = page.locator('.trash-btn, .delete-btn').first();
     if (await trashBtn.count() > 0) {
       await trashBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
       // Click cancel
       const cancelBtn = page.locator('button:has-text("Cancel"), .btn-cancel, [aria-label="Cancel"]');
       await cancelBtn.first().click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
       // Dialog should be hidden
       const confirmDialog = page.locator('[role="alertdialog"], .confirm-dialog');
@@ -522,7 +572,7 @@ test.describe('Trash Functionality', () => {
       const trashBtn = page.locator('.trash-btn, .delete-btn').first();
       if (await trashBtn.count() > 0) {
         await trashBtn.click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(1000);
 
         // Confirm deletion
         const confirmBtn = page.locator('button:has-text("Delete"), button:has-text("Yes"), .btn-confirm, [aria-label="Confirm"]');
@@ -571,7 +621,7 @@ test.describe('Trash Functionality', () => {
 
     // Press Delete key
     await page.keyboard.press('Delete');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Confirmation dialog should appear
     const confirmDialog = page.locator('[role="alertdialog"], .confirm-dialog');
@@ -605,7 +655,7 @@ test.describe('Trash Functionality', () => {
       const trashBtn = page.locator('.trash-btn, .delete-btn').first();
       if (await trashBtn.count() > 0) {
         await trashBtn.click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(1000);
 
         // Confirm deletion
         const confirmBtn = page.locator('button:has-text("Delete"), button:has-text("Yes")').first();
