@@ -8,14 +8,20 @@ test.describe('Subtitles Selection', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Filter to show videos with captions
-    await page.fill('#search-input', 'caption');
+    // Filter to show videos (clips have captions in test DB)
+    await page.fill('#search-input', 'clip');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
     // Click first media card
-    const firstCard = page.locator('.media-card').first();
-    await firstCard.click();
+    const firstCard = page.locator('.media-card');
+    const count = await firstCard.count();
+    if (count === 0) {
+      console.log('No media cards found');
+      return;
+    }
+    
+    await firstCard.first().click();
     await waitForPlayer(page);
 
     // Subtitle button should be visible

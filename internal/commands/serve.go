@@ -1697,8 +1697,13 @@ type filterBinsData struct {
 // This is the single source of truth for filter bins data collection
 func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.GlobalFlags, filterToIgnore string, dbs []string) filterBinsData {
 	var mu sync.Mutex
-	var allSizes []int64
-	var allDurations []int64
+	// Track sizes and durations with their parent paths for filtering
+	type itemWithParent struct {
+		size      int64
+		duration  int64
+		parentDir string
+	}
+	var allItems []itemWithParent
 	allParentCounts := make(map[string]int64)
 
 	// Build flags for this query, ignoring the specified filter
@@ -1730,30 +1735,33 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 				}
 				defer rows.Close()
 
-				var localSizes []int64
-				var localDurations []int64
+				var localItems []itemWithParent
 				localParentCounts := make(map[string]int64)
 
 				for rows.Next() {
 					var p string
 					var s, d sql.NullInt64
 					if err := rows.Scan(&p, &s, &d); err == nil {
-						// Validate size: between 1 byte and 100TB
-						if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
-							localSizes = append(localSizes, s.Int64)
-						}
-						// Validate duration: between 1 second and 31 days
-						if d.Valid && d.Int64 > 0 && d.Int64 < 2678400 {
-							localDurations = append(localDurations, d.Int64)
-						}
 						parent := filepath.Dir(p)
 						localParentCounts[parent]++
+
+						var sizeVal, durVal int64
+						if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
+							sizeVal = s.Int64
+						}
+						if d.Valid && d.Int64 > 0 && d.Int64 < 2678400 {
+							durVal = d.Int64
+						}
+						localItems = append(localItems, itemWithParent{
+							size:      sizeVal,
+							duration:  durVal,
+							parentDir: parent,
+						})
 					}
 				}
 
 				mu.Lock()
-				allSizes = append(allSizes, localSizes...)
-				allDurations = append(allDurations, localDurations...)
+				allItems = append(allItems, localItems...)
 				for k, v := range localParentCounts {
 					allParentCounts[k] += v
 				}
@@ -1763,6 +1771,45 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 		}(dbPath)
 	}
 	wg.Wait()
+
+	// Apply FileCounts (episodes) filter in post-processing if not being ignored
+	// This matches the logic in MediaQuery for consistent filtering
+	if filterToIgnore != "episodes" && flags.FileCounts != "" {
+		r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
+			return strconv.ParseInt(s, 10, 64)
+		})
+		if err == nil {
+			// Filter parent counts to only those matching the file count range
+			filteredParentCounts := make(map[string]int64)
+			for parent, count := range allParentCounts {
+				if r.Matches(count) {
+					filteredParentCounts[parent] = count
+				}
+			}
+			allParentCounts = filteredParentCounts
+
+			// Filter items to only those from matching parents
+			filteredItems := make([]itemWithParent, 0, len(allItems))
+			for _, item := range allItems {
+				if _, ok := allParentCounts[item.parentDir]; ok {
+					filteredItems = append(filteredItems, item)
+				}
+			}
+			allItems = filteredItems
+		}
+	}
+
+	// Extract sizes and durations from filtered items
+	allSizes := make([]int64, 0, len(allItems))
+	allDurations := make([]int64, 0, len(allItems))
+	for _, item := range allItems {
+		if item.size > 0 {
+			allSizes = append(allSizes, item.size)
+		}
+		if item.duration > 0 {
+			allDurations = append(allDurations, item.duration)
+		}
+	}
 
 	return filterBinsData{
 		sizes:        allSizes,
@@ -1962,16 +2009,20 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 
 // calculateFilterCounts computes filter bin counts for the current query
 // This is used with include_counts to provide filter UI data alongside query results
+// Each filter dimension is calculated independently (ignoring that filter) to avoid recursive constraints
 func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.GlobalFlags, dbs []string) *models.FilterBinsResponse {
 	resp := &models.FilterBinsResponse{}
 
-	// Collect data for each filter type from specified databases
-	data := c.computeFilterBinsData(ctx, flags, "", dbs)
+	// Collect data for each filter type, ignoring that filter to get full distribution
+	// This prevents recursive constraints where filtering by duration would shrink the duration range itself
+	epData := c.computeFilterBinsData(ctx, flags, "episodes", dbs)
+	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
-	// Build all bin types from the same data source
-	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(data.sizes)
-	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(data.durations)
-	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(data.parentCounts)
+	sizeData := c.computeFilterBinsData(ctx, flags, "size", dbs)
+	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
+
+	durData := c.computeFilterBinsData(ctx, flags, "duration", dbs)
+	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
 	return resp
 }
