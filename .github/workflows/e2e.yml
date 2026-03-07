@@ -62,12 +62,12 @@ jobs:
         working-directory: ./e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps
 
       - name: Run Playwright tests
         working-directory: ./e2e
         run: |
-          npx playwright test --project=chromium
+          npx playwright test
         env:
           DISCO_BINARY: ${{ github.workspace }}/disco
           DISCO_BASE_URL: http://localhost:8080
