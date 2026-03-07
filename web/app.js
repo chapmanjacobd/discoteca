@@ -1,4 +1,4 @@
-import { fetchAPI } from './api.js';
+import { fetchAPI, getCookie } from './api.js';
 import { state } from './state.js';
 import {
     formatSize,
@@ -3167,10 +3167,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const type = item.type || "";
-        // Handle Documents separately
+        
+        // Handle Documents - close PiP if open and open document modal
         if (type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi')) {
+            // Close PiP if it's open
+            if (!pipPlayer.classList.contains('hidden')) {
+                closePiP();
+            }
             openInDocumentViewer(item);
             return;
+        }
+
+        // Close document modal if switching from document to media
+        const docModal = document.getElementById('document-modal');
+        if (docModal && !docModal.classList.contains('hidden')) {
+            closeModal('document-modal');
         }
 
         // Reset playback rate to default for new media if not currently playing something
@@ -3598,41 +3609,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('document-modal');
         const title = document.getElementById('document-title');
         const container = document.getElementById('document-container');
-        const epubViewer = document.getElementById('epub-viewer');
-        const pdfCanvas = document.getElementById('pdf-canvas');
-        const pageInfo = document.getElementById('doc-page-info');
-        const zoomInfo = document.getElementById('doc-zoom-info');
+
+        openModal('document-modal');
 
         title.textContent = truncateString(item.path.split('/').pop());
         title.title = item.path;
-        epubViewer.innerHTML = '';
-        epubViewer.tabIndex = 0; // Make focusable for keyboard shortcuts
-        pdfCanvas.classList.add('hidden');
-        epubViewer.classList.add('hidden');
+
+        // Clear previous viewer content
+        container.innerHTML = '';
 
         const url = `/api/raw?path=${encodeURIComponent(item.path)}`;
-        const type = item.type || '';
-        const pathLower = item.path.toLowerCase();
 
-        // Helper to show/hide EPUB-only controls
-        const toggleEpubControls = (show) => {
-            const controls = ['doc-prev', 'doc-next', 'doc-zoom-in', 'doc-zoom-out', 'doc-zoom-info'];
-            controls.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    if (show) el.classList.remove('hidden');
-                    else el.classList.add('hidden');
-                }
-            });
-        };
-
+        // Setup fullscreen button
         const fsBtn = document.getElementById('doc-fullscreen');
-        const modalContent = modal.querySelector('.modal-content');
         if (fsBtn) {
             fsBtn.classList.remove('hidden');
-            fsBtn.onclick = () => toggleFullscreen(modalContent);
+            fsBtn.onclick = () => toggleFullscreen(container);
         }
 
+        // Setup RSVP button
         const rsvpBtn = document.getElementById('doc-rsvp');
         if (rsvpBtn) {
             rsvpBtn.onclick = () => {
@@ -3641,61 +3636,14 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        if (type.includes('epub') || pathLower.endsWith('.epub')) {
-            toggleEpubControls(true);
-            epubViewer.classList.remove('hidden');
-            const book = ePub(url);
-            const rendition = book.renderTo("epub-viewer", {
-                width: "100%",
-                height: "100%",
-                flow: "scrolled",
-                manager: "continuous"
-            });
-            rendition.display();
-
-            document.getElementById('doc-prev').onclick = () => rendition.prev();
-            document.getElementById('doc-next').onclick = () => rendition.next();
-
-            let zoom = 100;
-            document.getElementById('doc-zoom-in').onclick = () => {
-                zoom += 10;
-                epubViewer.style.fontSize = `${zoom}%`;
-                zoomInfo.textContent = `${zoom}%`;
-            };
-            document.getElementById('doc-zoom-out').onclick = () => {
-                zoom = Math.max(50, zoom - 10);
-                epubViewer.style.fontSize = `${zoom}%`;
-                zoomInfo.textContent = `${zoom}%`;
-            };
-            pageInfo.textContent = "";
-        } else if (type.includes('pdf') || pathLower.endsWith('.pdf')) {
-            toggleEpubControls(false);
-            // Browsers have great built-in PDF viewers, let's use iframe but in the large modal
-            const iframe = document.createElement('iframe');
-            iframe.src = url;
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.border = 'none';
-            epubViewer.classList.remove('hidden');
-            epubViewer.appendChild(iframe);
-            pageInfo.textContent = "";
-            document.getElementById('doc-prev').onclick = null;
-            document.getElementById('doc-next').onclick = null;
-        } else {
-            toggleEpubControls(false);
-            // Fallback for other text
-            const iframe = document.createElement('iframe');
-            iframe.src = url;
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.border = 'none';
-            epubViewer.classList.remove('hidden');
-            epubViewer.appendChild(iframe);
-            pageInfo.textContent = "";
-        }
-
-        openModal('document-modal');
-        epubViewer.focus();
+        // Use iframe for all document types - modern browsers have built-in PDF viewers
+        // and browser extensions handle EPUB files better than any JS library
+        const iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        container.appendChild(iframe);
     }
 
     function showMetadata(item) {
@@ -3773,13 +3721,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!el) return;
 
         if (document.fullscreenElement) {
-            if (document.fullscreenElement === el) {
-                document.exitFullscreen();
-            } else {
-                el.requestFullscreen().catch(err => {
-                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-            }
+            document.exitFullscreen().catch(err => {
+                console.error(`Error attempting to exit full-screen mode: ${err.message}`);
+            });
         } else {
             el.requestFullscreen().catch(err => {
                 console.error(`Error attempting to enable full-screen mode: ${err.message}`);
@@ -4127,14 +4071,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnDelete = card.querySelector('.media-action-btn.delete');
             if (btnDelete) btnDelete.onclick = (e) => {
                 e.stopPropagation();
-                openModal('confirm-modal');
-                document.getElementById('confirm-yes').onclick = () => {
-                    closeModal('confirm-modal');
-                    deleteMedia(item.path, false);
-                };
-                document.getElementById('confirm-no').onclick = () => {
-                    closeModal('confirm-modal');
-                };
+                deleteMedia(item.path, false);
             };
 
             const btnRSVP = card.querySelector('.media-action-btn.rsvp');
@@ -4561,14 +4498,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnDelete = tr.querySelector('.delete-btn');
             if (btnDelete) btnDelete.onclick = (e) => {
                 e.stopPropagation();
-                openModal('confirm-modal');
-                document.getElementById('confirm-yes').onclick = () => {
-                    closeModal('confirm-modal');
-                    deleteMedia(item.path, false);
-                };
-                document.getElementById('confirm-no').onclick = () => {
-                    closeModal('confirm-modal');
-                };
+                deleteMedia(item.path, false);
             };
 
             const btnRestore = tr.querySelector('.restore-btn');
@@ -4793,22 +4723,86 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 1. Independent shortcuts (don't require active PiP)
+        const pipPlayer = document.getElementById('pip-player');
+        const docModal = document.getElementById('document-modal');
+        const isPipVisible = pipPlayer && !pipPlayer.classList.contains('hidden');
+        const isDocModalVisible = docModal && !docModal.classList.contains('hidden');
+        const hasActiveViewer = isPipVisible || isDocModalVisible;
+
+        // Helper to get hovered media card
+        const getHoveredMediaCard = () => {
+            const hovered = document.querySelector('.media-card:hover');
+            if (hovered) {
+                const pathEl = hovered.querySelector('[data-path]');
+                if (pathEl) return pathEl.dataset.path;
+                // Try to get path from data attribute on card itself
+                if (hovered.dataset.path) return hovered.dataset.path;
+            }
+            return null;
+        };
+
+        // 1. Rating shortcuts (1-5) - work anytime, prefer active viewer, fallback to hovered card
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && ['1', '2', '3', '4', '5'].includes(e.key)) {
+            const score = parseInt(e.key);
+            // Rate current playing item or hovered card
+            if (state.playback.item) {
+                rateMedia(state.playback.item, score);
+            } else {
+                const hoveredPath = getHoveredMediaCard();
+                if (hoveredPath) {
+                    const hoveredItem = currentMedia.find(m => m.path === hoveredPath);
+                    if (hoveredItem) {
+                        rateMedia(hoveredItem, score);
+                    }
+                }
+            }
+            return;
+        }
+
+        // 0: Unrate (set rating to 0)
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '0') {
+            if (state.playback.item) {
+                rateMedia(state.playback.item, 0);
+            } else {
+                const hoveredPath = getHoveredMediaCard();
+                if (hoveredPath) {
+                    const hoveredItem = currentMedia.find(m => m.path === hoveredPath);
+                    if (hoveredItem) {
+                        rateMedia(hoveredItem, 0);
+                    }
+                }
+            }
+            return;
+        }
+
+        // 2. Seek shortcuts (Shift+0-9) - seek to 0%, 10%, 20%, ... 90%, 100%
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && 
+            ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+            if (isPipVisible) {
+                const media = pipViewer.querySelector('video, audio');
+                if (media && !isNaN(media.duration)) {
+                    const percent = e.key === '0' ? 1.0 : parseInt(e.key) / 10;
+                    media.currentTime = media.duration * percent;
+                    showToast(`Seek to ${e.key === '0' ? 100 : parseInt(e.key) * 10}%`, '⏩');
+                }
+            }
+            return;
+        }
+
+        // 2. Independent shortcuts (don't require active viewer)
         if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-            // Escape key closes the topmost visible modal
+            // Escape key closes the topmost visible modal (but not document-modal, handled below)
             if (e.key === 'Escape') {
-                // Find all visible modals and close the one with highest z-index
-                // (if equal z-index, the last one in DOM order is visually on top)
                 const allModals = document.querySelectorAll('.modal:not(.hidden)');
                 if (allModals.length > 0) {
-                    // Get the last visible modal (topmost in DOM = visually on top when z-index is equal)
                     const topmostModal = allModals[allModals.length - 1];
-                    topmostModal.classList.add('hidden');
-                    e.preventDefault();
-                    return;
+                    if (topmostModal.id !== 'document-modal') {
+                        topmostModal.classList.add('hidden');
+                        e.preventDefault();
+                        return;
+                    }
                 }
-                // No modal was open, let the event continue to be processed
-                // (will close PiP if active, or hide search suggestions)
+                // Let Escape fall through to close PiP or document-modal below
             }
 
             switch (e.key.toLowerCase()) {
@@ -4856,69 +4850,71 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return;
                 case 'f':
-                    const docModal = document.getElementById('document-modal');
-                    const pipPlayer = document.getElementById('pip-player');
-                    if (!docModal.classList.contains('hidden')) {
-                        toggleFullscreen(docModal.querySelector('.modal-content'));
-                    } else if (!pipPlayer.classList.contains('hidden')) {
+                    if (isDocModalVisible) {
+                        toggleFullscreen(document.getElementById('document-container'));
+                    } else if (isPipVisible) {
                         toggleFullscreen(pipViewer);
                     }
                     return;
             }
         }
 
-        switch (e.key.toLowerCase()) {
-            case 'delete':
-                if (state.playback.item && !pipPlayer.classList.contains('hidden')) {
-                    const itemToDelete = state.playback.item;
-                    openModal('confirm-modal');
-                    document.getElementById('confirm-yes').onclick = () => {
-                        closeModal('confirm-modal');
-                        if (e.shiftKey) {
-                            closePiP();
-                        } else {
-                            playSibling(1, true, true);
-                        }
-                        deleteMedia(itemToDelete.path);
-                    };
-                    document.getElementById('confirm-no').onclick = () => {
-                        closeModal('confirm-modal');
-                    };
-                    return;
-                }
-                break;
+        // 3. Global shortcuts that require an active viewer (PiP or document modal)
+        if (!hasActiveViewer) {
+            return;
         }
 
-        // 2. Rating shortcuts (require active PiP item but not necessarily visible/unpaused)
-        if (e.shiftKey && ['Digit0', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].includes(e.code)) {
-            if (state.playback.item) {
-                const score = parseInt(e.code.replace('Digit', ''));
-                rateMedia(state.playback.item, score);
+        // Close shortcuts (work for both PiP and document modal)
+        switch (e.key.toLowerCase()) {
+            case 'q':
+            case 'w':
+            case 's':
+            case 'escape':
+                if (isDocModalVisible) {
+                    closeModal('document-modal');
+                } else if (isPipVisible) {
+                    closePiP();
+                }
+                e.preventDefault();
+                return;
+            case 'delete':
+                if (state.playback.item) {
+                    const itemToDelete = state.playback.item;
+                    if (isDocModalVisible) {
+                        closeModal('document-modal');
+                    } else if (isPipVisible && e.shiftKey) {
+                        closePiP();
+                    } else if (isPipVisible) {
+                        playSibling(1, true, true);
+                    }
+                    deleteMedia(itemToDelete.path);
+                }
+                e.preventDefault();
+                return;
+        }
+
+        // Navigation shortcuts (seamlessly switch between PiP and document modal)
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                playSibling(e.key === 'ArrowLeft' ? -1 : 1, true);
+                e.preventDefault();
             }
             return;
         }
 
-        // 3. Playback shortcuts (require active & visible PiP)
-        const media = pipViewer.querySelector('video, audio, img');
-        const isPipVisible = !pipPlayer.classList.contains('hidden');
-
-        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                const isImage = media && media.tagName === 'IMG';
-                if (!isPipVisible || isImage) {
-                    playSibling(e.key === 'ArrowLeft' ? -1 : 1, true);
-                    return;
-                }
-            }
+        // Only process media-specific shortcuts if PiP is visible
+        if (!isPipVisible) {
+            return;
         }
 
-        if (!media || !isPipVisible) {
+        const media = pipViewer.querySelector('video, audio, img');
+        if (!media) {
             return;
         }
 
         const isPlaying = (media.paused === false);
         const duration = media.duration;
-        const currentTime = media.currentTime;
+        const currentTime = media.currentTime || 0;
 
         const setTime = (t) => {
             if (media.currentTime !== undefined && !isNaN(t) && isFinite(t)) {
@@ -4930,20 +4926,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (media.tagName === 'IMG') {
                 if (state.playback.slideshowTimer) stopSlideshow();
                 else startSlideshow();
-            }
-            else {
+            } else {
                 if (media.paused) media.play();
                 else media.pause();
             }
         };
 
         switch (e.key.toLowerCase()) {
-            case 'q':
-            case 'w':
-            case 's':
-            case 'escape':
-                closePiP();
-                break;
             case ' ':
             case 'k':
                 e.preventDefault();
@@ -4965,7 +4954,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (state.autoLoopMaxDuration > 0) {
                         state.autoLoopMaxDuration = 0;
                     } else {
-                        state.autoLoopMaxDuration = 30; // Default to 30s when toggling on
+                        state.autoLoopMaxDuration = 30;
                     }
                     localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration);
                     const settingAutoLoopMax = document.getElementById('setting-auto-loop-max');
@@ -4978,47 +4967,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(media.loop ? 'Loop: ON' : 'Loop: OFF', '🔁');
                 }
                 break;
+            case 'r':
+                toggleChannelSurf();
+                break;
             case 'arrowleft':
                 if (currentTime < 1) {
-                    window.disco.playSibling(-1, true);
+                    playSibling(-1, true);
                 } else {
                     setTime(Math.max(0, currentTime - 5));
                 }
                 break;
             case 'arrowright':
                 if (!isNaN(duration) && duration - currentTime < 1) {
-                    window.disco.playSibling(1, true);
+                    playSibling(1, true);
                 } else if (!isNaN(duration)) {
                     setTime(Math.min(duration, currentTime + 5));
-                } else {
-                    setTime(currentTime + 5);
-                }
-                break;
-            case 'r':
-                toggleChannelSurf();
-                break;
-            case '0': case '1': case '2': case '3': case '4':
-            case '5': case '6': case '7': case '8': case '9':
-                if (e.code.startsWith('Digit')) {
-                    if (e.shiftKey) {
-                        const score = parseInt(e.code.replace('Digit', ''));
-                        if (score >= 0 && score <= 5 && state.playback.item) {
-                            rateMedia(state.playback.item, score);
-                        }
-                        return;
-                    }
-                    const percent = parseInt(e.code.replace('Digit', '')) / 10;
-                    if (!isNaN(duration)) {
-                        setTime(duration * percent);
-                    }
                 }
                 break;
         }
     });
-
     // --- Dev Mode Auto-Reload ---
-    function setupAutoReload() {
-        const events = new EventSource('/api/events');
+    async function setupAutoReload() {
+        const url = '/api/events';
+        try {
+            const res = await fetch(url, { credentials: 'include' });
+            if (res.status === 401) {
+                location.reload();
+                return;
+            }
+        } catch {
+            // Network error, will retry
+        }
+
+        const events = new EventSource(url);
         events.onmessage = (event) => {
             const startTime = event.data;
             if (state.applicationStartTime && state.applicationStartTime !== startTime) {
@@ -5029,7 +5010,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         events.onerror = () => {
             events.close();
-            // Retry connection after a delay
             setTimeout(setupAutoReload, 2000);
         };
     }

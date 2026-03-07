@@ -11,7 +11,7 @@ import * as fs from 'fs';
 export async function waitForPlayer(page: Page, timeout: number = 10000): Promise<void> {
   try {
     // Try waiting for any player element
-    await page.waitForSelector('#pip-player, #player-container, .player, video, audio', { 
+    await page.waitForSelector('#pip-player, #player-container, .player, video, audio', {
       timeout,
       state: 'visible'
     });
@@ -33,7 +33,7 @@ export async function isPlayerOpen(page: Page): Promise<boolean> {
   if (await player.count() > 0) {
     return await player.first().isVisible();
   }
-  
+
   // Check for video/audio elements
   const videoCount = await page.locator('video').count();
   const audioCount = await page.locator('audio').count();
@@ -94,13 +94,13 @@ export const test = base.extend<{
 
     page.on('console', msg => {
       if (msg.type() === 'error') {
-        console.error(`BROWSER ERROR [${project}]:`, msg.text());
+        console.error(`console.error:`, msg.text());
       } else {
-        console.log(`BROWSER LOG [${project}]:`, msg.text());
+        console.log(`console.log:`, msg.text());
       }
     });
     page.on('pageerror', err => {
-      console.error(`BROWSER PAGE ERROR [${project}]:`, err.message);
+      console.error(`page.error:`, err.message);
     });
 
     await use(server);

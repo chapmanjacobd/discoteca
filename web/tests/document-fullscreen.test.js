@@ -29,10 +29,10 @@ describe('Document Fullscreen', () => {
 
     it('toggles fullscreen when the button is clicked', async () => {
         const item = { path: 'test.txt', type: 'text/plain' };
-        
+
         // 1. Open document viewer
         window.disco.openInDocumentViewer(item);
-        
+
         const modal = document.getElementById('document-modal');
         expect(modal.classList.contains('hidden')).toBe(false);
 
@@ -40,16 +40,16 @@ describe('Document Fullscreen', () => {
         expect(fsBtn).not.toBeNull();
         expect(fsBtn.classList.contains('hidden')).toBe(false);
 
-        const modalContent = modal.querySelector('.modal-content');
+        const container = document.getElementById('document-container');
 
         // 2. Click fullscreen button to enter
         fsBtn.click();
-        expect(modalContent.requestFullscreen).toHaveBeenCalled();
-        expect(document.fullscreenElement).toBe(modalContent);
+        expect(container.requestFullscreen).toHaveBeenCalled();
+        expect(document.fullscreenElement).toBe(container);
 
         // 3. Verify title change if implemented (I only added title update in global listener)
         // Wait, I haven't added the global listener yet!
-        
+
         // 4. Click fullscreen button to exit
         fsBtn.click();
         expect(document.exitFullscreen).toHaveBeenCalled();
@@ -59,16 +59,16 @@ describe('Document Fullscreen', () => {
     it('toggles fullscreen when "f" key is pressed', async () => {
         const item = { path: 'test.txt', type: 'text/plain' };
         window.disco.openInDocumentViewer(item);
-        
+
         const modal = document.getElementById('document-modal');
-        const modalContent = modal.querySelector('.modal-content');
+        const container = document.getElementById('document-container');
 
         // Press 'f'
         const event = new KeyboardEvent('keydown', { key: 'f', bubbles: true });
         document.dispatchEvent(event);
 
-        expect(modalContent.requestFullscreen).toHaveBeenCalled();
-        expect(document.fullscreenElement).toBe(modalContent);
+        expect(container.requestFullscreen).toHaveBeenCalled();
+        expect(document.fullscreenElement).toBe(container);
 
         // Press 'f' again
         document.dispatchEvent(event);

@@ -418,59 +418,7 @@ test.describe('Trash Functionality', () => {
     await expect(trashBtn.first()).toBeVisible();
   });
 
-  test('trash button opens confirmation dialog', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-
-    // Wait for media to load
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Hover and click trash button
-    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
-    await firstCard.hover();
-    await page.waitForTimeout(500);
-
-    const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
-    if (await trashBtn.count() > 0) {
-      await trashBtn.click();
-      await page.waitForTimeout(1000);
-
-      // Confirmation dialog should appear
-      const confirmDialog = page.locator('#confirm-modal');
-      await expect(confirmDialog.first()).toBeVisible();
-    }
-  });
-
-  test('trash confirmation can be cancelled', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-
-    // Wait for media to load
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Hover and click trash button
-    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
-    await firstCard.hover();
-    await page.waitForTimeout(500);
-
-    const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
-    if (await trashBtn.count() > 0) {
-      await trashBtn.click();
-      await page.waitForTimeout(1000);
-
-      // Click cancel
-      const cancelBtn = page.locator('button:has-text("Cancel"), .btn-cancel, [aria-label="Cancel"]');
-      await cancelBtn.first().click();
-      await page.waitForTimeout(1000);
-
-      // Dialog should be hidden
-      const confirmDialog = page.locator('#confirm-modal');
-      await expect(confirmDialog.first()).not.toBeVisible();
-
-      // Card should still exist
-      await expect(firstCard).toBeVisible();
-    }
-  });
-
-  test('trash deletes media from view', async ({ page, server }) => {
+  test('trash button deletes media immediately without confirmation', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
     // Wait for media to load
@@ -491,10 +439,9 @@ test.describe('Trash Functionality', () => {
         await trashBtn.click();
         await page.waitForTimeout(1000);
 
-        // Confirm deletion
-        const confirmBtn = page.locator('button:has-text("Delete"), button:has-text("Yes"), .btn-confirm, [aria-label="Confirm"]');
-        await confirmBtn.first().click();
-        await page.waitForTimeout(1000);
+        // No confirmation dialog should appear - deletion is immediate
+        const confirmDialog = page.locator('#confirm-modal');
+        await expect(confirmDialog.first()).not.toBeVisible();
 
         // Card should be removed from view
         const remainingCards = page.locator('.media-card');
@@ -519,37 +466,40 @@ test.describe('Trash Functionality', () => {
     const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
     const ariaLabel = await trashBtn.getAttribute('aria-label');
     const title = await trashBtn.getAttribute('title');
-    
+
     // Should have either aria-label or title
     expect(ariaLabel || title).toBeTruthy();
     expect(ariaLabel || title).toMatch(/(delete|trash|remove)/i);
   });
 
-  test('trash keyboard shortcut works', async ({ page, server }) => {
+  test('trash keyboard shortcut deletes immediately', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Select first card
-    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
-    await firstCard.click();
-    await page.waitForTimeout(300);
+    // Get initial card count
+    const initialCards = page.locator('.media-card');
+    const initialCount = await initialCards.count();
 
-    // Press Delete key
-    await page.keyboard.press('Delete');
-    await page.waitForTimeout(1000);
+    if (initialCount > 0) {
+      // Select first card
+      const firstCard = initialCards.first();
+      await firstCard.click();
+      await page.waitForTimeout(300);
 
-    // Confirmation dialog should appear
-    const confirmDialog = page.locator('#confirm-modal');
-    await expect(confirmDialog.first()).toBeVisible();
+      // Press Delete key
+      await page.keyboard.press('Delete');
+      await page.waitForTimeout(1000);
 
-    // Cancel the deletion
-    const cancelBtn = page.locator('button:has-text("Cancel")');
-    if (await cancelBtn.count() > 0) {
-      await cancelBtn.first().click();
-    } else {
-      await page.keyboard.press('Escape');
+      // No confirmation dialog should appear - deletion is immediate
+      const confirmDialog = page.locator('#confirm-modal');
+      await expect(confirmDialog.first()).not.toBeVisible();
+
+      // Card should be removed
+      const remainingCards = page.locator('.media-card');
+      const remainingCount = await remainingCards.count();
+      expect(remainingCount).toBeLessThan(initialCount);
     }
   });
 
@@ -572,11 +522,6 @@ test.describe('Trash Functionality', () => {
       const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
       if (await trashBtn.count() > 0) {
         await trashBtn.click();
-        await page.waitForTimeout(1000);
-
-        // Confirm deletion
-        const confirmBtn = page.locator('button:has-text("Delete"), button:has-text("Yes")').first();
-        await confirmBtn.click();
         await page.waitForTimeout(1000);
 
         // Success notification should appear
@@ -602,6 +547,81 @@ test.describe('Trash Functionality', () => {
       const trashBtn = deletedCards.first().locator('.media-action-btn.delete, .trash-btn, .delete-btn');
       const isDisabled = await trashBtn.first().isDisabled();
       expect(isDisabled).toBe(true);
+    }
+  });
+
+  test('confirm dialog appears after playback when post-playback is set to "ask"', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
+
+    // Wait for media to load
+    await page.waitForSelector('.media-card', { timeout: 10000 });
+
+    // Set post-playback action to "ask" to enable confirmation dialog after playback
+    await page.click('#settings-button');
+    await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 5000 });
+    await page.selectOption('#setting-post-playback', 'ask');
+    await page.click('#settings-modal .close-modal');
+    await page.waitForSelector('#settings-modal', { state: 'hidden', timeout: 5000 });
+
+    // Click first media card to open player
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
+    await firstCard.click();
+    await page.waitForTimeout(1000);
+
+    // Wait for player to open
+    await page.waitForSelector('#pip-player:not(.hidden)', { timeout: 10000 });
+
+    // Simulate playback ending by triggering the ended event or waiting for it
+    // For testing, we can close the player which should trigger post-playback handling
+    const closeBtn = page.locator('#pip-close, .pip-close');
+    if (await closeBtn.count() > 0) {
+      await closeBtn.first().click();
+      await page.waitForTimeout(1000);
+
+      // Confirmation dialog should appear after playback ends
+      const confirmDialog = page.locator('#confirm-modal');
+      await expect(confirmDialog.first()).toBeVisible();
+
+      // Cancel the deletion
+      const keepBtn = page.locator('#confirm-no');
+      await keepBtn.first().click();
+      await page.waitForTimeout(500);
+
+      // Dialog should be hidden
+      await expect(confirmDialog.first()).not.toBeVisible();
+    }
+  });
+
+  test('confirm dialog does not appear when post-playback is set to "nothing"', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
+
+    // Wait for media to load
+    await page.waitForSelector('.media-card', { timeout: 10000 });
+
+    // Set post-playback action to "nothing"
+    await page.click('#settings-button');
+    await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 5000 });
+    await page.selectOption('#setting-post-playback', 'nothing');
+    await page.click('#settings-modal .close-modal');
+    await page.waitForSelector('#settings-modal', { state: 'hidden', timeout: 5000 });
+
+    // Click first media card to open player
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
+    await firstCard.click();
+    await page.waitForTimeout(1000);
+
+    // Wait for player to open
+    await page.waitForSelector('#pip-player:not(.hidden)', { timeout: 10000 });
+
+    // Close the player
+    const closeBtn = page.locator('#pip-close, .pip-close');
+    if (await closeBtn.count() > 0) {
+      await closeBtn.first().click();
+      await page.waitForTimeout(1000);
+
+      // No confirmation dialog should appear
+      const confirmDialog = page.locator('#confirm-modal');
+      await expect(confirmDialog.first()).not.toBeVisible();
     }
   });
 });

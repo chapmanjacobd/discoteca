@@ -8,8 +8,6 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css">
     <script src="lib/hls.min.js"></script>
-    <script src="lib/pdf.min.mjs" type="module"></script>
-    <script src="lib/epub.min.js"></script>
 </head>
 
 <body>
@@ -510,28 +508,16 @@
     </div>
 
     <!-- Document Viewer Modal -->
-    <div id="document-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="document-title">Document</h2>
-                <div class="doc-controls" style="display: flex;">
-                    <button id="doc-prev" class="category-btn" title="Previous Page">←</button>
-                    <span id="doc-page-info">Page 1 of 1</span>
-                    <button id="doc-next" class="category-btn" title="Next Page">→</button>
-                    <button id="doc-zoom-out" class="category-btn" title="Zoom Out">-</button>
-                    <span id="doc-zoom-info">100%</span>
-                    <button id="doc-zoom-in" class="category-btn" title="Zoom In">+</button>
-                    <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
-                    <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen">⛶</button>
-                    <button class="close-modal" title="Close">&times;</button>
-                </div>
-            </div>
-            <div id="document-container">
-                <!-- Canvas or epub container will be injected here -->
-                <div id="epub-viewer"></div>
-                <canvas id="pdf-canvas" class="hidden"></canvas>
+    <div id="document-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; background: var(--bg-color); z-index: 3000;">
+        <div class="modal-header">
+            <h2 id="document-title">Document</h2>
+            <div class="doc-controls">
+                <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
+                <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen (F)">⛶</button>
+                <button class="close-modal" title="Close (Esc)">&times;</button>
             </div>
         </div>
+        <div id="document-container" style="flex: 1 1 0; overflow: hidden; display: flex; width: 100%; height: calc(100vh - 50px);"></div>
     </div>
     <div id="toast" class="hidden"></div>
 
