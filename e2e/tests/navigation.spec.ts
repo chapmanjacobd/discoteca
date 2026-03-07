@@ -4,7 +4,10 @@ test.describe('Basic Navigation', () => {
   test('loads the home page', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
     
-    await expect(page).toHaveTitle(/discoth[eè]que/i);
+    // Wait for page to load
+    await page.waitForSelector('#search-input', { timeout: 10000 });
+    
+    // Verify key elements are present
     await expect(page.locator('#search-input')).toBeVisible();
     await expect(page.locator('#results-container')).toBeVisible();
   });

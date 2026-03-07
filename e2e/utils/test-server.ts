@@ -1,11 +1,28 @@
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as net from 'net';
 
 export interface TestServerOptions {
   databasePath?: string;
   port?: number;
   verbose?: boolean;
+}
+
+// Find a free port dynamically
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.listen(0, () => {
+      const address = server.address();
+      if (typeof address === 'object' && address && address.port) {
+        server.close(() => resolve(address.port));
+      } else {
+        reject(new Error('Failed to get port'));
+      }
+    });
+    server.on('error', reject);
+  });
 }
 
 export class TestServer {
@@ -15,13 +32,19 @@ export class TestServer {
   private port: number;
 
   constructor(options: TestServerOptions = {}) {
-    this.port = options.port || 8080;
-    this.baseUrl = `http://localhost:${this.port}`;
+    this.port = options.port || 0; // 0 means find free port dynamically
     this.databasePath = options.databasePath || path.join(__dirname, '../fixtures/test.db');
+    this.baseUrl = ''; // Will be set after server starts
   }
 
   async start(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      // Find free port if not specified
+      if (this.port === 0) {
+        this.port = await findFreePort();
+      }
+      
+      this.baseUrl = `http://localhost:${this.port}`;
       const binaryPath = process.env.DISCO_BINARY || path.join(__dirname, '../../disco');
       
       // Check if binary exists
@@ -40,6 +63,7 @@ export class TestServer {
         'serve',
         this.databasePath,
         '--port', this.port.toString(),
+        '--dev',
       ];
 
       console.log(`Starting disco server: ${binaryPath} ${args.join(' ')}`);
@@ -65,16 +89,30 @@ export class TestServer {
         // Check for various startup messages
         if (output.includes('Starting server') || 
             output.includes('listening') || 
-            output.includes('addr=')) {
+            output.includes('addr=') ||
+            output.includes('Server starting')) {
           started = true;
           clearTimeout(timeout);
-          console.log('Disco server started successfully');
+          console.log('Disco server started successfully on', this.baseUrl);
           resolve();
         }
       });
 
       this.process.stderr?.on('data', (data) => {
-        console.error('[disco error]', data.toString().trim());
+        const output = data.toString();
+        if (process.env.DEBUG) {
+          console.error('[disco error]', output.trim());
+        }
+        // Also check stderr for startup messages (disco logs startup info to stderr)
+        if (output.includes('Starting server') || 
+            output.includes('listening') || 
+            output.includes('addr=') ||
+            output.includes('Server starting')) {
+          started = true;
+          clearTimeout(timeout);
+          console.log('Disco server started successfully on', this.baseUrl);
+          resolve();
+        }
       });
 
       this.process.on('error', (err) => {

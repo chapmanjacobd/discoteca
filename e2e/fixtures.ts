@@ -23,12 +23,14 @@ export const test = base.extend<{
 
   // Test server instance
   server: async ({ testDbPath }, use) => {
-    // Start server with pre-existing database
+    // Start server with pre-existing database (uses dynamic port)
     const server = new TestServer({
       databasePath: testDbPath,
-      port: 8080,
     });
     await server.start();
+    
+    // Set base URL for Playwright
+    process.env.DISCO_BASE_URL = server.getBaseUrl();
 
     await use(server);
 

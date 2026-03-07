@@ -5,9 +5,10 @@
 
 set -e
 
+# Get the repository root (parent of e2e directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-FIXTURES_DIR="$SCRIPT_DIR/fixtures"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+FIXTURES_DIR="$SCRIPT_DIR"
 MEDIA_DIR="$FIXTURES_DIR/media"
 DB_FILE="$FIXTURES_DIR/test.db"
 
@@ -104,20 +105,25 @@ cd "$REPO_ROOT"
 echo ""
 echo "=== Database Summary ==="
 sqlite3 "$DB_FILE" "SELECT 'Media count: ' || COUNT(*) FROM media;"
-sqlite3 "$DB_FILE" "SELECT 'Caption count: ' || COUNT(*) FROM captions;"
-sqlite3 "$DB_FILE" "SELECT 'Playlist count: ' || COUNT(DISTINCT playlist_title) FROM playlists;"
+sqlite3 "$DB_FILE" "SELECT 'Caption count: ' || COUNT(*) FROM captions;" 2>/dev/null || echo "Captions table not found"
 
 echo ""
-echo "=== Schema Version ==="
-# Store schema version for tracking
-SCHEMA_VERSION=$(sqlite3 "$DB_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='media';" | md5sum | cut -d' ' -f1)
-echo "$SCHEMA_VERSION" > "$FIXTURES_DIR/.schema-version"
-echo "Schema hash: $SCHEMA_VERSION"
+echo "=== Exporting Schema ==="
+# Export schema for tracking migrations
+sqlite3 "$DB_FILE" ".schema" > "$FIXTURES_DIR/schema.sql"
+echo "Schema exported to: $FIXTURES_DIR/schema.sql"
+
+# Show schema hash for quick comparison
+SCHEMA_HASH=$(md5sum "$FIXTURES_DIR/schema.sql" | cut -d' ' -f1)
+echo "Schema hash: $SCHEMA_HASH"
 
 echo ""
 echo "=== Database created successfully! ==="
 echo "Location: $DB_FILE"
-echo "Schema version stored in: $FIXTURES_DIR/.schema-version"
+echo "Schema exported to: $FIXTURES_DIR/schema.sql"
 echo ""
 echo "To regenerate (after schema changes):"
 echo "  make e2e-init"
+echo ""
+echo "To review schema changes:"
+echo "  git diff e2e/fixtures/schema.sql"

@@ -51,7 +51,7 @@ cd e2e && npm run test:report
 
 The test database is generated dynamically for each test run to ensure:
 - **Portability**: No absolute paths tied to specific machines
-- **Schema tracking**: Schema version is tracked in `e2e/fixtures/.schema-version`
+- **Schema tracking**: Full SQL schema committed to `e2e/fixtures/schema.sql`
 - **Reproducibility**: Same test data generated every time
 
 ### Test Data
@@ -75,13 +75,17 @@ When the database schema changes:
    make e2e
    ```
 
-3. **Commit the schema version:**
+3. **Review and commit schema changes:**
    ```bash
-   git add e2e/fixtures/.schema-version
-   git commit -m "Update E2E schema to vXYZ"
+   git diff e2e/fixtures/schema.sql
+   git add e2e/fixtures/schema.sql
+   git commit -m "Update E2E schema: added column XYZ"
    ```
 
-The `.schema-version` file contains an MD5 hash of the schema, allowing CI to detect when the schema has changed and the database needs regeneration.
+The `schema.sql` file contains the complete database schema, allowing you to:
+- Track schema evolution over time
+- Review changes in pull requests
+- Understand the database structure without running code
 
 ### Manual Database Inspection
 
@@ -92,8 +96,8 @@ sqlite3 e2e/fixtures/test.db ".schema"
 # View test data
 sqlite3 e2e/fixtures/test.db "SELECT path, type, size FROM media LIMIT 5;"
 
-# View schema version
-cat e2e/fixtures/.schema-version
+# Compare schema with committed version
+diff <(sqlite3 e2e/fixtures/test.db ".schema") e2e/fixtures/schema.sql
 ```
 
 ## Prerequisites

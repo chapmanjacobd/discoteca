@@ -11,6 +11,6 @@
 /*.db-shm
 /*.db-wal
 /*.db
-!/e2e/fixtures/.schema-version
+!/e2e/fixtures/schema.sql
 /disco
 /discotheque
