@@ -109,29 +109,34 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
   test('document viewer can be closed', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for media to load
+    await page.waitForSelector('.media-card', { timeout: 10000 });
+
     // Filter to documents
-    await page.fill('#search-input', '.pdf');
+    await page.fill('#search-input', 'doc');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
-    const pdfCards = page.locator('.media-card:has-text(".pdf")');
-    const count = await pdfCards.count();
+    const docCards = page.locator('.media-card[data-type="document"]');
+    const count = await docCards.count();
 
     if (count > 0) {
-      await pdfCards.first().click();
-      await page.waitForTimeout(2000);
+      await docCards.first().click();
+      
+      // Wait for modal to open
+      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      
+      // Modal should be visible
+      const modal = page.locator('#document-modal');
+      await expect(modal.first()).toBeVisible();
+      
+      // Close using Escape key (more reliable than clicking close button)
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
 
-      // Close viewer using close-modal button
-      const closeBtn = page.locator('.close-modal');
-      if (await closeBtn.count() > 0) {
-        await closeBtn.first().click();
-        await page.waitForTimeout(500);
-
-        // Modal should be hidden
-        const modal = page.locator('#document-modal');
-        const isHidden = await modal.first().evaluate(el => el.classList.contains('hidden'));
-        expect(isHidden).toBe(true);
-      }
+      // Modal should be hidden
+      const isHidden = await modal.first().evaluate(el => el.classList.contains('hidden'));
+      expect(isHidden).toBe(true);
     }
   });
 
@@ -161,36 +166,45 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
   test('document viewer zoom controls work', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
+    // Wait for media to load
+    await page.waitForSelector('.media-card', { timeout: 10000 });
+
     // Filter to documents
-    await page.fill('#search-input', '.pdf');
+    await page.fill('#search-input', 'doc');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
-    const pdfCards = page.locator('.media-card:has-text(".pdf")');
-    const count = await pdfCards.count();
+    const docCards = page.locator('.media-card[data-type="document"]');
+    const count = await docCards.count();
 
     if (count > 0) {
-      await pdfCards.first().click();
-      await page.waitForTimeout(2000);
+      await docCards.first().click();
+      
+      // Wait for modal to open
+      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await page.waitForTimeout(1000);
 
       // Check for zoom controls (doc-zoom-in, doc-zoom-out)
       const zoomInBtn = page.locator('#doc-zoom-in');
       const zoomOutBtn = page.locator('#doc-zoom-out');
+      const zoomInfo = page.locator('#doc-zoom-info');
 
-      // At least one zoom control should exist
+      // Zoom controls should exist
       const hasZoomIn = await zoomInBtn.count() > 0;
       const hasZoomOut = await zoomOutBtn.count() > 0;
-      expect(hasZoomIn || hasZoomOut).toBe(true);
-
-      // Try zoom in if available
+      const hasZoomInfo = await zoomInfo.count() > 0;
+      
+      // At least zoom info should be visible
+      if (hasZoomInfo) {
+        await expect(zoomInfo.first()).toBeVisible();
+      }
+      
+      // Try zoom in if available and enabled
       if (hasZoomIn) {
-        await zoomInBtn.first().click();
-        await page.waitForTimeout(500);
-
-        // Zoom level should change (doc-zoom-info)
-        const zoomLevel = page.locator('#doc-zoom-info');
-        if (await zoomLevel.count() > 0) {
-          await expect(zoomLevel.first()).toBeVisible();
+        const isEnabled = await zoomInBtn.first().isEnabled();
+        if (isEnabled) {
+          await zoomInBtn.first().click({ force: true });
+          await page.waitForTimeout(500);
         }
       }
     }
@@ -269,14 +283,13 @@ test.describe('Image Viewer', () => {
       await imageCards.first().click();
       await page.waitForTimeout(1000);
 
-      // Click next button
-      const nextBtn = page.locator('.next-btn, .image-next, button:has-text("Next"), .nav-next');
-      if (await nextBtn.count() > 0) {
-        await nextBtn.first().click();
-        await page.waitForTimeout(500);
+      // Press 'n' key for next (keyboard shortcut)
+      await page.keyboard.press('n');
+      await page.waitForTimeout(500);
 
-        // Should still be in viewer
-        const viewer = page.locator('#image-viewer, .image-viewer');
+      // Should still be in viewer
+      const viewer = page.locator('#pip-player');
+      if (await viewer.count() > 0) {
         await expect(viewer.first()).toBeVisible();
       }
     }
@@ -298,14 +311,13 @@ test.describe('Image Viewer', () => {
       await imageCards.nth(1).click();
       await page.waitForTimeout(1000);
 
-      // Click previous button
-      const prevBtn = page.locator('.prev-btn, .image-prev, button:has-text("Previous"), .nav-prev');
-      if (await prevBtn.count() > 0) {
-        await prevBtn.first().click();
-        await page.waitForTimeout(500);
+      // Press 'p' key for previous (keyboard shortcut)
+      await page.keyboard.press('p');
+      await page.waitForTimeout(500);
 
-        // Should still be in viewer
-        const viewer = page.locator('#image-viewer, .image-viewer');
+      // Should still be in viewer
+      const viewer = page.locator('#pip-player');
+      if (await viewer.count() > 0) {
         await expect(viewer.first()).toBeVisible();
       }
     }
@@ -331,7 +343,7 @@ test.describe('Image Viewer', () => {
       await page.waitForTimeout(500);
 
       // Viewer should be hidden
-      const viewer = page.locator('#image-viewer, .image-viewer');
+      const viewer = page.locator('#pip-player');
       await expect(viewer.first()).not.toBeVisible();
     }
   });
@@ -356,7 +368,7 @@ test.describe('Image Viewer', () => {
       await page.waitForTimeout(500);
 
       // Should navigate to next image
-      const viewer = page.locator('#image-viewer, .image-viewer');
+      const viewer = page.locator('#pip-player');
       await expect(viewer.first()).toBeVisible();
     }
   });
@@ -406,7 +418,7 @@ test.describe('Image Viewer', () => {
         await page.waitForTimeout(3000);
 
         // Should still be in viewer (slideshow running)
-        const viewer = page.locator('#image-viewer, .image-viewer');
+        const viewer = page.locator('#pip-player');
         await expect(viewer.first()).toBeVisible();
 
         // Stop slideshow

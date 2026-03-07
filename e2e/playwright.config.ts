@@ -44,24 +44,68 @@ export default defineConfig({
 
     /* Maximum time each test can take */
     timeout: 60000,
+
+    /* Mute audio for all browsers */
+    contextOptions: {
+      reducedMotion: 'reduce',
+    },
   },
 
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        // Mute audio and disable features that could interfere with tests
+        launchOptions: {
+          firefoxUserPrefs: {
+            'media.volume_scale': '0.0', // Mute all audio
+            'media.autoplay.default': 5, // Block autoplay
+            'media.autoplay.blocking_policy': 2, // Block autoplay
+            'dom.disable_open_during_load': false, // Allow popups
+            'privacy.trackingprotection.enabled': false, // Disable tracking protection
+            'browser.safebrowsing.malware.enabled': false, // Disable safe browsing
+            'browser.safebrowsing.phishing.enabled': false, // Disable phishing protection
+          },
+          headless: true, // Run in headless mode
+        },
+      },
     },
 
     /* Temporarily disabled: Mobile and Safari tests */
     // {
     //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
+    //   use: {
+    //     ...devices['Pixel 5'],
+    //     // Mute audio for Chrome
+    //     launchOptions: {
+    //       args: [
+    //         '--mute-audio',
+    //         '--autoplay-policy=user-gesture-required',
+    //         '--disable-background-media-suspend',
+    //       ],
+    //       headless: true,
+    //     },
+    //     contextOptions: {
+    //       permissions: [],
+    //     },
+    //   },
     // },
 
     // {
     //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
+    //   use: {
+    //     ...devices['Desktop Safari'],
+    //     // Mute audio for Safari/WebKit
+    //     launchOptions: {
+    //       headless: true,
+    //     },
+    //     contextOptions: {
+    //       // WebKit doesn't have a direct mute option, but we can reduce motion
+    //       reducedMotion: 'reduce',
+    //     },
+    //   },
     // },
 
     /* Test against branded browsers. */

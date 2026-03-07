@@ -53,6 +53,7 @@ export const state = {
     trashcan: false,
     readOnly: false,
     dev: false,
+    databases: [], // Array of database paths from server
     categories: [],
     genres: [],
     ratings: [],

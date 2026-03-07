@@ -242,4 +242,56 @@ test.describe('Pagination Limit and X-Total-Count', () => {
       }
     }
   });
+
+  test('database filtering updates total count correctly', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
+
+    await page.waitForSelector('.media-card', { timeout: 10000 });
+
+    // Get initial total count
+    const initialTotalText = await page.locator('#results-count').textContent();
+    const initialTotal = parseInt(initialTotalText?.replace(/[^0-9]/g, '') || '0');
+    
+    // Check if we have database filter available
+    const dbFilter = page.locator('#details-databases');
+    if (await dbFilter.isVisible()) {
+      if (!(await dbFilter.getAttribute('open'))) {
+        await dbFilter.locator('summary').click();
+        await page.waitForTimeout(500);
+      }
+      
+      // Check how many databases are configured
+      const dbBtns = page.locator('#databases-list .category-btn');
+      const dbCount = await dbBtns.count();
+      
+      // If multiple databases, test filtering
+      if (dbCount > 1) {
+        // Deselect one database
+        const firstDbBtn = dbBtns.first();
+        await firstDbBtn.click();
+        await page.waitForTimeout(1000);
+        
+        // Get new total count
+        const filteredTotalText = await page.locator('#results-count').textContent();
+        const filteredTotal = parseInt(filteredTotalText?.replace(/[^0-9]/g, '') || '0');
+        
+        // Total should be less than or equal to initial (could be equal if one DB is empty)
+        expect(filteredTotal).toBeLessThanOrEqual(initialTotal);
+        
+        // Results count should match displayed total
+        const cards = page.locator('.media-card');
+        const cardCount = await cards.count();
+        expect(cardCount).toBeLessThanOrEqual(filteredTotal);
+        
+        // Re-select the database
+        await firstDbBtn.click();
+        await page.waitForTimeout(1000);
+        
+        // Total should return to initial
+        const restoredTotalText = await page.locator('#results-count').textContent();
+        const restoredTotal = parseInt(restoredTotalText?.replace(/[^0-9]/g, '') || '0');
+        expect(restoredTotal).toBe(initialTotal);
+      }
+    }
+  });
 });

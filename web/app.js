@@ -689,6 +689,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.filters.types.forEach(t => params.append('type', t));
 
+        // Add database filter (send included DBs, not excluded)
+        if (state.databases && state.databases.length > 0) {
+            const includedDbs = state.databases.filter(db => !state.filters.excludedDbs.includes(db));
+            includedDbs.forEach(db => params.append('db', db));
+        }
+
         // Add sort parameters
         if (state.filters.sort && state.filters.sort !== 'default') {
             params.append('sort', state.filters.sort);
@@ -914,6 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!resp.ok) throw new Error('Offline');
             const data = await resp.json();
             allDatabases = data.databases;
+            state.databases = data.databases; // Store in state for filter params
             state.trashcan = data.trashcan;
             state.readOnly = data.read_only;
             state.dev = data.dev;
@@ -1882,41 +1889,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderEpisodes(data) {
         if (!data) data = [];
 
+        // Server already filters by type, search, and progress via appendFilterParams()
+        // Just use the data as-is - no need for redundant client-side filtering
         let filtered = data.map(group => {
             const files = group.files || [];
-            const filteredFiles = files.filter(f => {
-                // Filter by types
-                const selectedTypes = state.filters.types || [];
-                if (selectedTypes.length > 0) {
-                    const type = (f.type || '').split('/')[0];
-                    let match = selectedTypes.includes(type);
-                    if (!match && selectedTypes.includes('audio') && f.type === 'audiobook') match = true;
-                    if (!match) return false;
-                }
-
-                // Filter by search
-                if (state.filters.search) {
-                    const query = state.filters.search.toLowerCase();
-                    const path = (f.path || '').toLowerCase();
-                    const title = (f.title || '').toLowerCase();
-                    if (!path.includes(query) && !title.includes(query)) return false;
-                }
-
-                // Client-side progress filtering
-                if (state.filters.unplayed) {
-                    if (getPlayCount(f) > 0 || (f.playhead || 0) > 0) return false;
-                } else if (state.filters.unfinished) {
-                    if (getPlayCount(f) > 0 || (f.playhead || 0) === 0) return false;
-                } else if (state.filters.completed) {
-                    if (getPlayCount(f) === 0) return false;
-                } else if (state.page === 'history') {
-                    if ((f.time_last_played || 0) === 0) return false;
-                }
-
-                return true;
-            });
-
-            return { ...group, files: filteredFiles, count: filteredFiles.length };
+            return { ...group, files: files, count: files.length };
         }).filter(group => group.count > 0);
 
         resultsCount.textContent = `${filtered.length} folders found`;
@@ -2458,10 +2435,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Client-side DB filtering
-            currentMedia = data.filter(item => !state.filters.excludedDbs.includes(item.db));
+            // Set currentMedia from server data
+            // Note: DB filtering is now done server-side, progress filtering is also server-side
+            // Only client-side filtering remaining is for localStorage merge above
+            currentMedia = data;
 
-            // Client-side progress filtering (in case server is slightly behind or for local counts)
+            // Client-side progress filtering for localStorage items only
+            // Server already filters by progress, but localStorage items may not match
             if (state.filters.unplayed) {
                 currentMedia = currentMedia.filter(item => getPlayCount(item) === 0);
             } else if (state.filters.unfinished) {
@@ -3967,8 +3947,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const unit = currentMedia.length === 1 ? 'result' : 'results';
             resultsCount.textContent = `${currentMedia.length} ${unit} in ${state.filters.playlist || 'playlist'}`;
         } else {
-            // Show filtered count for client-side filters, otherwise show server total
-            const hasClientFilter = state.filters.unplayed || state.filters.unfinished || state.filters.completed || state.filters.excludedDbs.length > 0;
+            // Show filtered count for client-side filters (unplayed/unfinished/completed), otherwise show server total
+            // Database filtering is now done server-side, so excludedDbs doesn't count as client filter
+            const hasClientFilter = state.filters.unplayed || state.filters.unfinished || state.filters.completed;
             const displayCount = hasClientFilter ? currentMedia.length : state.totalCount;
             const unit = displayCount === 1 ? 'result' : 'results';
             resultsCount.textContent = `${displayCount} ${unit}`;
