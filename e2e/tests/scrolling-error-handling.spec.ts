@@ -308,7 +308,7 @@ test.describe('Broken Media Handling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Wait for potential error
@@ -352,7 +352,7 @@ test.describe('Broken Media Handling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Wait for video to load
@@ -370,7 +370,7 @@ test.describe('Broken Media Handling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Wait and check for retry button
@@ -389,7 +389,7 @@ test.describe('Broken Media Handling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Click subtitle button
@@ -490,7 +490,7 @@ test.describe('Broken Media Handling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Wait for potential error

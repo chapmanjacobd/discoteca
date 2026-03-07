@@ -15,6 +15,12 @@ test.describe('Range Sliders', () => {
       await page.goto(server.getBaseUrl() + '/#mode=du');
       await page.waitForSelector('#du-toolbar', { timeout: 10000 });
 
+      // Ensure size section is open
+      const sizeDetails = page.locator('#details-size');
+      if (await sizeDetails.count() > 0) {
+        await sizeDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+      }
+
       const sizeSliderContainer = page.locator('#size-slider-container, .size-filter');
       await expect(sizeSliderContainer.first()).toBeVisible();
     });
@@ -133,6 +139,12 @@ test.describe('Range Sliders', () => {
     test('duration slider is visible in filter panel', async ({ page, server }) => {
       await page.goto(server.getBaseUrl() + '/#mode=du');
       await page.waitForSelector('#du-toolbar', { timeout: 10000 });
+
+      // Ensure duration section is open
+      const durationDetails = page.locator('#details-duration');
+      if (await durationDetails.count() > 0) {
+        await durationDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+      }
 
       const durationSliderContainer = page.locator('#duration-slider-container, .duration-filter');
       await expect(durationSliderContainer.first()).toBeVisible();
@@ -268,6 +280,12 @@ test.describe('Range Sliders', () => {
     test('episodes slider is visible in filter panel', async ({ page, server }) => {
       await page.goto(server.getBaseUrl() + '/#mode=du');
       await page.waitForSelector('#du-toolbar', { timeout: 10000 });
+
+      // Ensure episodes section is open
+      const episodesDetails = page.locator('#details-episodes');
+      if (await episodesDetails.count() > 0) {
+        await episodesDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+      }
 
       const episodesSliderContainer = page.locator('#episodes-slider-container, .episodes-filter');
       await expect(episodesSliderContainer.first()).toBeVisible();

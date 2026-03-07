@@ -1,24 +1,33 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Media Playback', () => {
+  test.use({ readOnly: true });
+
+  test.beforeEach(async ({ page }) => {
+    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
+    page.on('pageerror', err => console.error('BROWSER ERROR:', err.message));
+  });
+
   test('opens media in PiP player when clicked', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    const firstCard = page.locator('.media-card').first();
-    await firstCard.click();
+    // Select a non-document card (documents have an 'rsvp' action button)
+    const mediaCard = page.locator('.media-card:not(:has(.rsvp))').first();
+    const cardHtml = await mediaCard.evaluate(el => el.outerHTML);
+    console.log(`Selected card HTML: ${cardHtml}`);
+    
+    await mediaCard.click();
+    console.log('Clicked media card');
 
     // Wait for player to open - check for player element or video element
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
 
     // Player should be visible
     const player = page.locator('#pip-player, #player-container');
-    if (await player.count() > 0) {
-      await expect(player.first()).toBeVisible();
-    }
+    await expect(player.first()).toBeVisible();
 
     // Media title should be shown
     const mediaTitle = page.locator('#media-title');
@@ -32,11 +41,15 @@ test.describe('Media Playback', () => {
 
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    await page.locator('.media-card').first().click();
+    // Click first non-document media card
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+
+    // Open Playlists section in sidebar to make Now Playing button visible
+    const playlistsSection = page.locator('#details-playlists');
+    await playlistsSection.evaluate((el: HTMLDetailsElement) => el.open = true);
 
     // Now Playing button should be visible in sidebar
     const nowPlayingBtn = page.locator('#now-playing-btn');
@@ -51,11 +64,14 @@ test.describe('Media Playback', () => {
 
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    await page.locator('.media-card').first().click();
+    // Click first non-document media card
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+
+    // Open Playlists section in sidebar to make Now Playing button visible
+    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
 
     // Now Playing button should show count if there are queued items
     const nowPlayingBtn = page.locator('#now-playing-btn');
@@ -72,11 +88,14 @@ test.describe('Media Playback', () => {
 
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    await page.locator('.media-card').first().click();
+    // Click first non-document media card
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+
+    // Open Playlists section in sidebar to make Now Playing button visible
+    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
 
     // Click Now Playing button
     const nowPlayingBtn = page.locator('#now-playing-btn');
@@ -84,7 +103,7 @@ test.describe('Media Playback', () => {
       await nowPlayingBtn.click();
 
       // Should navigate to playlist view
-      await expect(page.locator('.playlist-drop-zone.active, .media-card')).toBeVisible();
+      await expect(page.locator('.playlist-drop-zone.active, .media-card').first()).toBeVisible();
     }
   });
 
@@ -93,11 +112,11 @@ test.describe('Media Playback', () => {
 
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    await page.locator('.media-card').first().click();
+    // Click first non-document media card
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
 
     // Click close button
     const closeBtn = page.locator('.close-pip, .player-close, button:has-text("Close")');
@@ -116,11 +135,11 @@ test.describe('Media Playback', () => {
 
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    await page.locator('.media-card').first().click();
+    // Click first non-document media card
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
 
     // Click theatre mode button
     const theatreBtn = page.locator('#pip-theatre');
@@ -147,11 +166,11 @@ test.describe('Media Playback', () => {
 
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card
-    await page.locator('.media-card').first().click();
+    // Click first non-document media card
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player, #player-container, video, audio', { timeout: 10000 });
+    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
 
     // Click speed button
     const speedBtn = page.locator('#pip-speed');

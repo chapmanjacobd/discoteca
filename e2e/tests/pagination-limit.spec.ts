@@ -213,10 +213,8 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     // Check if we have database filter available
     const dbFilter = page.locator('#details-databases');
     if (await dbFilter.isVisible()) {
-      if (!(await dbFilter.getAttribute('open'))) {
-        await dbFilter.locator('summary').click();
-        await page.waitForTimeout(500);
-      }
+      await dbFilter.evaluate((el: HTMLDetailsElement) => el.open = true);
+      await page.waitForTimeout(500);
       
       // Check how many databases are configured
       const dbBtns = page.locator('#databases-list .category-btn');
@@ -255,10 +253,8 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     // Check if we have database filter available
     const dbFilter = page.locator('#details-databases');
     if (await dbFilter.isVisible()) {
-      if (!(await dbFilter.getAttribute('open'))) {
-        await dbFilter.locator('summary').click();
-        await page.waitForTimeout(500);
-      }
+      await dbFilter.evaluate((el: HTMLDetailsElement) => el.open = true);
+      await page.waitForTimeout(500);
       
       // Check how many databases are configured
       const dbBtns = page.locator('#databases-list .category-btn');

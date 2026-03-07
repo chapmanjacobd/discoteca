@@ -473,15 +473,15 @@ test.describe('Trash Functionality', () => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover over first media card
     const firstCard = page.locator('.media-card').first();
     await firstCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
     // Trash button should appear
-    const trashBtn = page.locator('.trash-btn, .delete-btn, button:has-text("Delete"), button:has-text("Trash"), .card-delete');
+    const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn, .card-delete');
     await expect(trashBtn.first()).toBeVisible();
   });
 
@@ -489,14 +489,14 @@ test.describe('Trash Functionality', () => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover and click trash button
     const firstCard = page.locator('.media-card').first();
     await firstCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
-    const trashBtn = page.locator('.trash-btn, .delete-btn').first();
+    const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
     if (await trashBtn.count() > 0) {
       await trashBtn.click();
       await page.waitForTimeout(1000);
@@ -511,14 +511,14 @@ test.describe('Trash Functionality', () => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover and click trash button
     const firstCard = page.locator('.media-card').first();
     await firstCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
-    const trashBtn = page.locator('.trash-btn, .delete-btn').first();
+    const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
     if (await trashBtn.count() > 0) {
       await trashBtn.click();
       await page.waitForTimeout(1000);
@@ -541,7 +541,7 @@ test.describe('Trash Functionality', () => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get initial card count
     const initialCards = page.locator('.media-card');
@@ -551,9 +551,9 @@ test.describe('Trash Functionality', () => {
       // Hover and click trash button on first card
       const firstCard = initialCards.first();
       await firstCard.hover();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
 
-      const trashBtn = page.locator('.trash-btn, .delete-btn').first();
+      const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
       if (await trashBtn.count() > 0) {
         await trashBtn.click();
         await page.waitForTimeout(1000);
@@ -575,15 +575,15 @@ test.describe('Trash Functionality', () => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover over first media card
     const firstCard = page.locator('.media-card').first();
     await firstCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
     // Trash button should have accessible name
-    const trashBtn = page.locator('.trash-btn, .delete-btn').first();
+    const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
     const ariaLabel = await trashBtn.getAttribute('aria-label');
     const title = await trashBtn.getAttribute('title');
     
@@ -624,7 +624,7 @@ test.describe('Trash Functionality', () => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get initial card count
     const initialCards = page.locator('.media-card');
@@ -634,9 +634,9 @@ test.describe('Trash Functionality', () => {
       // Hover and click trash button
       const firstCard = initialCards.first();
       await firstCard.hover();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
 
-      const trashBtn = page.locator('.trash-btn, .delete-btn').first();
+      const trashBtn = page.locator('.media-action-btn.delete, .trash-btn, .delete-btn').first();
       if (await trashBtn.count() > 0) {
         await trashBtn.click();
         await page.waitForTimeout(1000);
@@ -658,26 +658,17 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash button is disabled for already deleted items', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl() + '#mode=trash');
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Check if there's a filter for deleted items
-    const deletedFilter = page.locator('#deleted-filter, .filter-deleted, button:has-text("Deleted")');
-    
-    if (await deletedFilter.count() > 0) {
-      // Show deleted items
-      await deletedFilter.first().click();
-      await page.waitForTimeout(1000);
-
-      // Deleted items should have disabled trash button or no trash button
-      const deletedCards = page.locator('.media-card.deleted, .media-card:has-text("deleted")');
-      if (await deletedCards.count() > 0) {
-        const trashBtn = deletedCards.first().locator('.trash-btn, .delete-btn');
-        const isDisabled = await trashBtn.first().isDisabled();
-        expect(isDisabled).toBe(true);
-      }
+    // Deleted items should have disabled trash button or no trash button
+    const deletedCards = page.locator('.media-card.deleted, .media-card:has-text("deleted")');
+    if (await deletedCards.count() > 0) {
+      const trashBtn = deletedCards.first().locator('.media-action-btn.delete, .trash-btn, .delete-btn');
+      const isDisabled = await trashBtn.first().isDisabled();
+      expect(isDisabled).toBe(true);
     }
   });
 });

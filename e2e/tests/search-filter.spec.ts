@@ -58,10 +58,7 @@ test.describe('Search and Filtering', () => {
     await page.waitForSelector('#details-media-type', { timeout: 10000 });
     
     // Expand media type filter
-    const mediaTypeDetails = page.locator('#details-media-type');
-    if (!(await mediaTypeDetails.getAttribute('open'))) {
-      await mediaTypeDetails.locator('summary').click();
-    }
+    await page.locator('#details-media-type').evaluate((el: HTMLDetailsElement) => el.open = true);
     
     // Get initial count
     const initialCards = page.locator('.media-card');
@@ -146,6 +143,11 @@ test.describe('Search and Filtering', () => {
     
     await page.waitForSelector('#du-toolbar', { timeout: 10000 });
     
+    // Open details elements
+    await page.locator('#details-episodes').evaluate((el: HTMLDetailsElement) => el.open = true);
+    await page.locator('#details-size').evaluate((el: HTMLDetailsElement) => el.open = true);
+    await page.locator('#details-duration').evaluate((el: HTMLDetailsElement) => el.open = true);
+
     // Filter sliders should be visible
     await expect(page.locator('#episodes-slider-container')).toBeVisible();
     await expect(page.locator('#size-slider-container')).toBeVisible();

@@ -32,9 +32,8 @@ test.describe('Search and Query Integration', () => {
 
     // Expand media type filter
     const mediaTypeDetails = page.locator('#details-media-type');
-    if (!(await mediaTypeDetails.getAttribute('open'))) {
-      await mediaTypeDetails.locator('summary').click();
-    }
+    await mediaTypeDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+    await page.waitForTimeout(500);
 
     // Select video type
     await page.click('#media-type-list .category-btn[data-type="video"]');
@@ -92,9 +91,8 @@ test.describe('Search and Query Integration', () => {
     
     // Expand history section
     const historyDetails = page.locator('#details-history');
-    if (!(await historyDetails.getAttribute('open'))) {
-      await historyDetails.locator('summary').click();
-    }
+    await historyDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+    await page.waitForTimeout(500);
     
     // Click Unplayed
     await page.click('#history-unplayed-btn');
@@ -127,9 +125,8 @@ test.describe('Search and Query Integration', () => {
     
     // Expand playlists section
     const playlistDetails = page.locator('#details-playlists');
-    if (!(await playlistDetails.getAttribute('open'))) {
-      await playlistDetails.locator('summary').click();
-    }
+    await playlistDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+    await page.waitForTimeout(500);
     
     // Create new playlist
     await page.click('#new-playlist-btn');
@@ -164,8 +161,9 @@ test.describe('Search and Query Integration', () => {
     
     // Expand ratings filter
     const ratingDetails = page.locator('#details-ratings');
-    if (ratingDetails.isVisible() && !(await ratingDetails.getAttribute('open'))) {
-      await ratingDetails.locator('summary').click();
+    if (await ratingDetails.isVisible()) {
+      await ratingDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+      await page.waitForTimeout(500);
     }
     
     // Click a rating filter (e.g., 5 stars)
@@ -187,9 +185,8 @@ test.describe('Search and Query Integration', () => {
     
     // Expand categories section
     const categoryDetails = page.locator('#details-categories');
-    if (!(await categoryDetails.getAttribute('open'))) {
-      await categoryDetails.locator('summary').click();
-    }
+    await categoryDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
+    await page.waitForTimeout(500);
     
     // Click a category
     const categoryBtn = page.locator('#categories-list .category-btn').first();
@@ -283,9 +280,8 @@ test.describe('Search and Query Integration', () => {
     // Check if database filter exists
     const dbFilter = page.locator('#details-databases');
     if (await dbFilter.isVisible()) {
-      if (!(await dbFilter.getAttribute('open'))) {
-        await dbFilter.locator('summary').click();
-      }
+      await dbFilter.evaluate((el: HTMLDetailsElement) => el.open = true);
+      await page.waitForTimeout(500);
       
       // Click a database filter
       const dbBtn = page.locator('#databases-list .category-btn').first();

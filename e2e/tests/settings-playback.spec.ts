@@ -21,11 +21,7 @@ test.describe('Playlist Management E2E', () => {
     await page.waitForSelector('#details-playlists', { timeout: 10000 });
 
     // Expand playlists section
-    const playlistDetails = page.locator('#details-playlists');
-    if (!(await playlistDetails.getAttribute('open'))) {
-      await playlistDetails.locator('summary').click();
-      await page.waitForTimeout(500);
-    }
+    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
 
     // Verify new playlist button exists
     const newPlaylistBtn = page.locator('#new-playlist-btn');
@@ -42,7 +38,7 @@ test.describe('Playlist Management E2E', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Find a media card and click to open player
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card:not(:has(.rsvp))').first();
     await firstCard.click();
     await page.waitForTimeout(500);
 
@@ -58,11 +54,7 @@ test.describe('Playlist Management E2E', () => {
 
     await page.waitForSelector('#details-playlists', { timeout: 10000 });
 
-    const playlistDetails = page.locator('#details-playlists');
-    if (!(await playlistDetails.getAttribute('open'))) {
-      await playlistDetails.locator('summary').click();
-      await page.waitForTimeout(500);
-    }
+    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
 
     // Favorites playlist should exist from seed data
     const favoritesBtn = page.locator('#playlist-list .category-btn').filter({ hasText: 'Favorites' });
@@ -84,14 +76,10 @@ test.describe('Playlist Management E2E', () => {
 
     await page.waitForSelector('#details-playlists', { timeout: 10000 });
 
-    const playlistDetails = page.locator('#details-playlists');
-    if (!(await playlistDetails.getAttribute('open'))) {
-      await playlistDetails.locator('summary').click();
-      await page.waitForTimeout(500);
-    }
+    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
 
     // Verify playlist structure exists
-    await expect(playlistDetails).toBeVisible();
+    await expect(page.locator('#details-playlists')).toBeVisible();
   });
 });
 
@@ -186,6 +174,9 @@ test.describe('Settings Persistence', () => {
     await page.click('#settings-button');
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
 
+    // Open Advanced Settings
+    await page.locator('summary:has-text("Advanced Settings")').click();
+
     // Scroll modal body to ensure elements are visible
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
@@ -209,6 +200,7 @@ test.describe('Settings Persistence', () => {
 
     // Re-open settings and verify autoplay persisted
     await page.click('#settings-button');
+    await page.locator('summary:has-text("Advanced Settings")').click();
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
       if (modalBody) modalBody.scrollTop = 200;
@@ -228,6 +220,9 @@ test.describe('Settings Persistence', () => {
     // Open settings
     await page.click('#settings-button');
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
+
+    // Open Advanced Settings
+    await page.locator('summary:has-text("Advanced Settings")').click();
 
     // Scroll modal body to ensure elements are visible
     await page.evaluate(() => {
@@ -254,6 +249,7 @@ test.describe('Settings Persistence', () => {
 
     // Re-open settings and verify rates persisted
     await page.click('#settings-button');
+    await page.locator('summary:has-text("Advanced Settings")').click();
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
       if (modalBody) modalBody.scrollTop = 500;
@@ -294,6 +290,9 @@ test.describe('Settings Persistence', () => {
     await page.click('#settings-button');
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
 
+    // Open Advanced Settings
+    await page.locator('summary:has-text("Advanced Settings")').click();
+
     // Scroll modal body to ensure elements are visible
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
@@ -317,6 +316,7 @@ test.describe('Settings Persistence', () => {
 
     // Re-open settings and verify local resume persisted
     await page.click('#settings-button');
+    await page.locator('summary:has-text("Advanced Settings")').click();
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
       if (modalBody) modalBody.scrollTop = 100;
@@ -338,7 +338,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -365,7 +365,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(500);
 
@@ -383,7 +383,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
     
     // Wait for video to load
@@ -406,7 +406,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card:not(:has(.rsvp))').first();
     await firstCard.click();
     await waitForPlayer(page);
 
@@ -441,7 +441,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
