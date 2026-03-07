@@ -40,94 +40,137 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<string> {
         db.run('PRAGMA foreign_keys = ON');
         db.run('PRAGMA journal_mode = WAL');
         
-        // Create media table with full disco schema
-        db.run(`
-          CREATE TABLE IF NOT EXISTS media (
+        // Use the actual schema from internal/commands/schema.sql
+        // (Simplified for seeding purposes but keeping correct structure and triggers)
+        
+        db.run(`CREATE TABLE IF NOT EXISTS media (
             path TEXT PRIMARY KEY,
             title TEXT,
-            type TEXT,
-            size INTEGER,
             duration INTEGER,
+            size INTEGER,
             time_created INTEGER,
             time_modified INTEGER,
-            time_last_played INTEGER,
+            time_deleted INTEGER DEFAULT 0,
+            time_first_played INTEGER DEFAULT 0,
+            time_last_played INTEGER DEFAULT 0,
             play_count INTEGER DEFAULT 0,
-            playhead REAL DEFAULT 0,
-            rating INTEGER DEFAULT 0,
-            transcode BOOLEAN DEFAULT 0,
-            time_deleted INTEGER,
-            genre TEXT,
-            caption_count INTEGER DEFAULT 0,
-            caption_duration INTEGER DEFAULT 0,
-            artist TEXT,
-            album TEXT,
-            track_number INTEGER,
-            year INTEGER,
-            bitrate INTEGER,
-            fps REAL,
+            playhead INTEGER DEFAULT 0,
+            type TEXT,
             width INTEGER,
             height INTEGER,
-            codec TEXT,
-            container TEXT
-          )
-        `);
+            fps REAL,
+            video_codecs TEXT,
+            audio_codecs TEXT,
+            subtitle_codecs TEXT,
+            video_count INTEGER DEFAULT 0,
+            audio_count INTEGER DEFAULT 0,
+            subtitle_count INTEGER DEFAULT 0,
+            album TEXT,
+            artist TEXT,
+            genre TEXT,
+            mood TEXT,
+            bpm INTEGER,
+            key TEXT,
+            decade TEXT,
+            categories TEXT,
+            city TEXT,
+            country TEXT,
+            description TEXT,
+            language TEXT,
+            webpath TEXT,
+            uploader TEXT,
+            time_uploaded INTEGER,
+            time_downloaded INTEGER,
+            view_count INTEGER,
+            num_comments INTEGER,
+            favorite_count INTEGER,
+            score REAL,
+            upvote_ratio REAL,
+            latitude REAL,
+            longitude REAL
+        )`);
 
-        db.run(`
-          CREATE TABLE IF NOT EXISTS captions (
+        db.run(`CREATE TABLE IF NOT EXISTS captions (
             rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-            media_path TEXT,
+            media_path TEXT NOT NULL,
             time REAL,
-            text TEXT
-          )
-        `);
+            text TEXT,
+            FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+        )`);
 
-        db.run(`
-          CREATE TABLE IF NOT EXISTS captions_fts USING fts5 (
+        db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS captions_fts USING fts5(
+            media_path UNINDEXED,
             text,
             content='captions',
             content_rowid='rowid'
-          )
-        `);
+        )`);
 
-        db.run(`
-          CREATE TABLE IF NOT EXISTS playlists (
-            playlist_title TEXT,
-            media_path TEXT,
-            position INTEGER,
-            PRIMARY KEY (playlist_title, media_path)
-          )
-        `);
+        db.run(`CREATE TRIGGER IF NOT EXISTS captions_ai AFTER INSERT ON captions BEGIN
+            INSERT INTO captions_fts(rowid, media_path, text)
+            VALUES (new.rowid, new.media_path, new.text);
+        END;`);
 
-        db.run(`
-          CREATE TABLE IF NOT EXISTS categories (
-            category TEXT,
-            keyword TEXT,
+        db.run(`CREATE TABLE IF NOT EXISTS playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT UNIQUE,
+            title TEXT,
+            extractor_key TEXT,
+            extractor_config TEXT,
+            time_deleted INTEGER DEFAULT 0
+        )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS playlist_items (
+            playlist_id INTEGER NOT NULL,
+            media_path TEXT NOT NULL,
+            track_number INTEGER,
+            time_added INTEGER DEFAULT (strftime('%s', 'now')),
+            PRIMARY KEY (playlist_id, media_path),
+            FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+            FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+        )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            media_path TEXT NOT NULL,
+            time_played INTEGER DEFAULT (strftime('%s', 'now')),
+            playhead INTEGER,
+            done INTEGER,
+            FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+        )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS custom_keywords (
+            category TEXT NOT NULL,
+            keyword TEXT NOT NULL,
             PRIMARY KEY (category, keyword)
-          )
+        )`);
+
+        db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
+            path,
+            title,
+            content='media',
+            content_rowid='rowid'
+        )`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
+            INSERT INTO media_fts(rowid, path, title)
+            VALUES (new.rowid, new.path, new.title);
+        END;`);
+
+        // Insert test media
+        db.run(`INSERT OR REPLACE INTO media (path, title, type, size, duration, time_created, time_modified, score) VALUES
+          ('/videos/movie1.mp4', 'Movie 1', 'video', 1073741824, 7200, 1704067200, 1704067200, 5),
+          ('/videos/movie2.mp4', 'Movie 2', 'video', 536870912, 5400, 1704067200, 1704067200, 4),
+          ('/videos/clip1.mp4', 'Short Clip 1', 'video', 104857600, 120, 1704067200, 1704067200, 3),
+          ('/videos/clip2.mp4', 'Short Clip 2', 'video', 52428800, 60, 1704067200, 1704067200, 2),
+          ('/audio/album/song1.mp3', 'Song 1', 'audio', 10485760, 240, 1704067200, 1704067200, 5),
+          ('/audio/album/song2.mp3', 'Song 2', 'audio', 8388608, 180, 1704067200, 1704067200, 4),
+          ('/audio/podcast/ep1.mp3', 'Podcast Episode 1', 'audio', 52428800, 3600, 1704067200, 1704067200, 3),
+          ('/images/photo1.jpg', 'Photo 1', 'image', 5242880, 0, 1704067200, 1704067200, 0),
+          ('/images/photo2.jpg', 'Photo 2', 'image', 4194304, 0, 1704067200, 1704067200, 0),
+          ('/documents/doc1.pdf', 'Document 1', 'application/pdf', 2097152, 0, 1704067200, 1704067200, 0)
         `);
 
-        db.run(`
-          CREATE TABLE IF NOT EXISTS play_counts (
-            path TEXT PRIMARY KEY,
-            count INTEGER DEFAULT 0
-          )
-        `);
-
-        // Insert test media after tables are created
-        db.run(`INSERT OR REPLACE INTO media (path, title, type, size, duration, time_created, time_modified) VALUES
-          ('/videos/movie1.mp4', 'Movie 1', 'video/mp4', 1073741824, 7200, 1704067200, 1704067200),
-          ('/videos/movie2.mp4', 'Movie 2', 'video/mp4', 536870912, 5400, 1704067200, 1704067200),
-          ('/videos/clip1.mp4', 'Short Clip 1', 'video/mp4', 104857600, 120, 1704067200, 1704067200),
-          ('/videos/clip2.mp4', 'Short Clip 2', 'video/mp4', 52428800, 60, 1704067200, 1704067200),
-          ('/audio/album/song1.mp3', 'Song 1', 'audio/mpeg', 10485760, 240, 1704067200, 1704067200),
-          ('/audio/album/song2.mp3', 'Song 2', 'audio/mpeg', 8388608, 180, 1704067200, 1704067200),
-          ('/audio/podcast/ep1.mp3', 'Podcast Episode 1', 'audio/mpeg', 52428800, 3600, 1704067200, 1704067200),
-          ('/images/photo1.jpg', 'Photo 1', 'image/jpeg', 5242880, 0, 1704067200, 1704067200),
-          ('/images/photo2.jpg', 'Photo 2', 'image/jpeg', 4194304, 0, 1704067200, 1704067200),
-          ('/documents/doc1.pdf', 'Document 1', 'application/pdf', 2097152, 0, 1704067200, 1704067200)
-        `);
-
-        // Insert captions (all after 10 seconds to pass the filter)
+        // Insert captions
         db.run(`INSERT INTO captions (media_path, time, text) VALUES
           ('/videos/movie1.mp4', 15.5, 'Welcome to the movie'),
           ('/videos/movie1.mp4', 30.0, 'This is an exciting scene'),
@@ -138,21 +181,15 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<string> {
           ('/videos/clip2.mp4', 15.0, 'Another short clip')
         `);
 
-        // Insert categories
-        db.run(`INSERT OR REPLACE INTO categories (category, keyword) VALUES
-          ('Genre', 'Action'),
-          ('Genre', 'Comedy'),
-          ('Genre', 'Drama'),
-          ('Mood', 'Happy'),
-          ('Mood', 'Sad'),
-          ('Mood', 'Exciting')
+        // Insert a playlist
+        db.run(`INSERT OR REPLACE INTO playlists (id, path, title) VALUES
+          (1, 'fav-playlist', 'Favorites')
         `);
 
-        // Insert a playlist
-        db.run(`INSERT OR REPLACE INTO playlists (playlist_title, media_path, position) VALUES
-          ('Favorites', '/videos/movie1.mp4', 0),
-          ('Favorites', '/videos/movie2.mp4', 1),
-          ('Favorites', '/audio/album/song1.mp3', 2)
+        db.run(`INSERT OR REPLACE INTO playlist_items (playlist_id, media_path, track_number) VALUES
+          (1, '/videos/movie1.mp4', 0),
+          (1, '/videos/movie2.mp4', 1),
+          (1, '/audio/album/song1.mp3', 2)
         `);
 
         db.close((err) => {
@@ -198,7 +235,7 @@ export async function getDatabaseStats(dbPath: string): Promise<{
           }
           stats.captionCount = row.count;
 
-          db.get('SELECT COUNT(DISTINCT playlist_title) as count FROM playlists', (err, row: any) => {
+          db.get('SELECT COUNT(DISTINCT title) as count FROM playlists', (err, row: any) => {
             db.close();
             if (err) {
               reject(err);

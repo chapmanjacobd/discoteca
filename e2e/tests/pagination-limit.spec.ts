@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Pagination Limit and X-Total-Count', () => {
+  test.use({ readOnly: true });
   test('results count matches X-Total-Count header', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
@@ -8,7 +9,7 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get the total count from the UI (should show total results)
-    const totalCountText = await page.locator('#total-count, .total-count, [data-total-count]').textContent();
+    const totalCountText = await page.locator('#results-count, [data-total-count]').textContent();
     
     // Get current page and limit
     const pageInfo = await page.locator('#page-info').textContent();
@@ -22,9 +23,25 @@ test.describe('Pagination Limit and X-Total-Count', () => {
       const totalPages = parseInt(pageMatch[2]);
       
       // Get limit from input
+      // Open settings modal
+      await page.locator('#settings-button').click();
+      await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 10000 });
+      await page.waitForTimeout(500);
+
+      const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+      await advancedSettings.scrollIntoViewIfNeeded();
+      const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+      if (!isExpanded) {
+        await advancedSettings.click({ force: true });
+        await page.waitForTimeout(500);
+      }
       const limitInput = page.locator('#limit');
       const limitValue = await limitInput.inputValue();
       const limit = parseInt(limitValue) || 99;
+      
+      // Close settings
+      await page.locator('#settings-modal .close-modal').click();
+      await page.waitForSelector('#settings-modal', { state: 'hidden', timeout: 5000 });
       
       // Calculate expected total from page info
       const expectedTotalFromPages = totalPages * limit;
@@ -58,6 +75,17 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get initial limit
+    await page.locator('#settings-button').click();
+    await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 10000 });
+    await page.waitForTimeout(500);
+
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    await advancedSettings.scrollIntoViewIfNeeded();
+    const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpanded) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
     const limitInput = page.locator('#limit');
     const initialLimit = await limitInput.inputValue();
     
@@ -93,7 +121,7 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get total count from first page
-    const totalCountEl = page.locator('#total-count, .total-count');
+    const totalCountEl = page.locator('#results-count');
     let initialTotal = 0;
     if (await totalCountEl.count() > 0) {
       const totalText = await totalCountEl.textContent();
@@ -138,6 +166,17 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     const testLimits = [10, 25, 50];
     
     for (const limit of testLimits) {
+      await page.locator('#settings-button').click();
+      await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 10000 });
+      await page.waitForTimeout(500);
+
+      const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+      await advancedSettings.scrollIntoViewIfNeeded();
+      const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+      if (!isExpanded) {
+        await advancedSettings.click({ force: true });
+        await page.waitForTimeout(500);
+      }
       const limitInput = page.locator('#limit');
       await limitInput.fill(limit.toString());
       await page.waitForTimeout(800);
@@ -158,6 +197,10 @@ test.describe('Pagination Limit and X-Total-Count', () => {
           expect(count).toBe(limit);
         }
       }
+      
+      // Close settings modal to avoid intercepting clicks in the next iteration
+      await page.locator('#settings-modal .close-modal').click();
+      await page.waitForSelector('#settings-modal', { state: 'hidden', timeout: 5000 });
     }
   });
 
@@ -182,7 +225,7 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     }
     
     // Verify displayed count matches state
-    const displayedCountEl = page.locator('#total-count, .total-count');
+    const displayedCountEl = page.locator('#results-count');
     if (await displayedCountEl.count() > 0) {
       const displayedText = await displayedCountEl.textContent();
       const displayedCount = parseInt(displayedText?.replace(/[^0-9]/g, '') || '0');
@@ -199,6 +242,17 @@ test.describe('Pagination Limit and X-Total-Count', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Set a specific limit
+    await page.locator('#settings-button').click();
+    await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 10000 });
+    await page.waitForTimeout(500);
+
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    await advancedSettings.scrollIntoViewIfNeeded();
+    const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpanded) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
     const limitInput = page.locator('#limit');
     await limitInput.fill('50');
     await page.waitForTimeout(1000);

@@ -297,12 +297,12 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 	params.SubtitleCount = utils.ToNullInt64(sCount)
 
 	// Refine Type Detection
-	if vCount > 0 {
+	if vCount > 0 && mediaType != "image" {
 		mediaType = "video"
 		if vCount == 1 && aCount == 0 && duration == 0 {
 			mediaType = "image"
 		}
-	} else if aCount > 0 {
+	} else if aCount > 0 && mediaType != "image" {
 		mediaType = "audio"
 		lowerPath := strings.ToLower(path)
 		if duration > 3600 || strings.Contains(lowerPath, "audiobook") {

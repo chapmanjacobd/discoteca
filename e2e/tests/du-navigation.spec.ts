@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Disk Usage Navigation', () => {
+  test.use({ readOnly: true });
   test('auto-skips single folder at root level', async ({ page, server }) => {
     // This test verifies the auto-skip functionality
     // Note: The test database has a flat structure, so we test the UI behavior

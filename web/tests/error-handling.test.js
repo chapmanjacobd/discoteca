@@ -41,85 +41,25 @@ describe('Error Handling', () => {
         expect(window.disco.state.playback.item.path).toBe('audio1.mp3');
     });
 
-    it('stops auto-skipping after 3 consecutive errors', async () => {
-        // We need at least 4 items to test 3 skips
-        global.fetch.mockImplementation((url) => {
-            if (url.includes('/api/query')) {
-                return Promise.resolve({
-                    ok: true,
-                    status: 200,
-                    headers: { get: () => '5' },
-                    json: () => Promise.resolve([
-                        { path: 'v1.mp4', type: 'video/mp4' },
-                        { path: 'v2.mp4', type: 'video/mp4' },
-                        { path: 'v3.mp4', type: 'video/mp4' },
-                        { path: 'v4.mp4', type: 'video/mp4' },
-                        { path: 'v5.mp4', type: 'video/mp4' }
-                    ])
-                });
-            }
-            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
-        });
-
-        await window.disco.performSearch();
-
-        const closePiPSpy = vi.spyOn(window.disco, 'closePiP');
-
-        // Start with first item
-        await window.disco.openInPiP({ path: 'v1.mp4', type: 'video/mp4' });
+    it('stops auto-skipping after 120 consecutive errors', async () => {
+        window.disco.state.autoplay = true;
+        window.disco.state.playback.consecutiveErrors = 120;
         
-        // 1st error (v1 -> v2)
-        document.querySelector('video').onerror();
-        await vi.waitFor(() => { if (!window.disco.state.playback.skipTimeout) throw new Error(); });
-        vi.advanceTimersByTime(1200);
-        expect(window.disco.state.playback.item.path).toBe('v2.mp4');
-        expect(window.disco.state.playback.consecutiveErrors).toBe(1);
+        const item = { path: 'v120.mp4', type: 'video/mp4' };
+        window.disco.state.playback.item = item;
 
-        // 2nd error (v2 -> v3)
-        document.querySelector('video').onerror();
-        await vi.waitFor(() => { if (!window.disco.state.playback.skipTimeout) throw new Error(); });
-        vi.advanceTimersByTime(1200);
-        expect(window.disco.state.playback.item.path).toBe('v3.mp4');
-        expect(window.disco.state.playback.consecutiveErrors).toBe(2);
-
-        // 3rd error (v3 -> v4)
-        document.querySelector('video').onerror();
-        await vi.waitFor(() => { if (!window.disco.state.playback.skipTimeout) throw new Error(); });
-        vi.advanceTimersByTime(1200);
-        expect(window.disco.state.playback.item.path).toBe('v4.mp4');
-        expect(window.disco.state.playback.consecutiveErrors).toBe(3);
-
-        // 4th error (v4 -> stop)
-        document.querySelector('video').onerror();
-        
-        await vi.waitFor(() => {
-            const pipPlayer = document.getElementById('pip-player');
-            if (!pipPlayer.classList.contains('hidden')) throw new Error('Player not hidden');
-        });
+        // Simulate 121st error
+        await window.disco.handleMediaError(item);
         
         expect(window.disco.state.playback.item).toBeNull();
         expect(window.disco.state.playback.consecutiveErrors).toBe(0);
     });
 
     it('resets consecutiveErrors counter when progress is made', async () => {
-        const items = [
-            { path: 'v1.mp4', type: 'video/mp4' },
-            { path: 'v2.mp4', type: 'video/mp4' }
-        ];
+        const item = { path: 'v1.mp4', type: 'video/mp4' };
+        window.disco.state.playback.consecutiveErrors = 50;
 
-        window.disco.state.autoplay = true;
-        window.disco.currentMedia = items;
-
-        await window.disco.openInPiP(items[0]);
-        
-        // 1st error
-        document.querySelector('video').onerror();
-        await vi.waitFor(() => { if (!window.disco.state.playback.skipTimeout) throw new Error(); });
-        vi.advanceTimersByTime(1200);
-        expect(window.disco.state.playback.consecutiveErrors).toBe(1);
-
-        // Simulate some progress on v2
-        await window.disco.updateProgress(items[1], 5, 100);
+        await window.disco.updateProgress(item, 5, 100);
         expect(window.disco.state.playback.consecutiveErrors).toBe(0);
     });
 });

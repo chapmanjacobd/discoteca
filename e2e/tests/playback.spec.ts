@@ -1,3 +1,4 @@
+import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Media Playback', () => {
@@ -22,8 +23,8 @@ test.describe('Media Playback', () => {
     await mediaCard.click();
     console.log('Clicked media card');
 
-    // Wait for player to open - check for player element or video element
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    // Wait for player to open
+    await waitForPlayer(page);
 
     // Player should be visible
     const player = page.locator('#pip-player, #player-container');
@@ -45,7 +46,7 @@ test.describe('Media Playback', () => {
     await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    await waitForPlayer(page);
 
     // Open Playlists section in sidebar to make Now Playing button visible
     const playlistsSection = page.locator('#details-playlists');
@@ -68,7 +69,7 @@ test.describe('Media Playback', () => {
     await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    await waitForPlayer(page);
 
     // Open Playlists section in sidebar to make Now Playing button visible
     await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
@@ -92,7 +93,7 @@ test.describe('Media Playback', () => {
     await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    await waitForPlayer(page);
 
     // Open Playlists section in sidebar to make Now Playing button visible
     await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
@@ -116,7 +117,7 @@ test.describe('Media Playback', () => {
     await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    await waitForPlayer(page);
 
     // Click close button
     const closeBtn = page.locator('.close-pip, .player-close, button:has-text("Close")');
@@ -139,7 +140,7 @@ test.describe('Media Playback', () => {
     await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    await waitForPlayer(page);
 
     // Click theatre mode button
     const theatreBtn = page.locator('#pip-theatre');
@@ -170,7 +171,7 @@ test.describe('Media Playback', () => {
     await page.locator('.media-card:not(:has(.rsvp))').first().click();
 
     // Wait for player to open
-    await page.waitForSelector('#pip-player:not(.hidden), #player-container, video, audio', { timeout: 10000 });
+    await waitForPlayer(page);
 
     // Click speed button
     const speedBtn = page.locator('#pip-speed');

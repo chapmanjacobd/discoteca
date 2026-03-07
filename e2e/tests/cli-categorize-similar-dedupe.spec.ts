@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('CLI: Categorize Command', () => {
+  test.describe.configure({ mode: 'serial' });
   test('auto-groups media into categories', async ({ cli, tempDir, testDbPath, createDummyVideo, createDummyAudio }) => {
     // Create and add files
     createDummyVideo('movie.mp4');

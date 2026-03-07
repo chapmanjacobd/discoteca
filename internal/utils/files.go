@@ -214,6 +214,15 @@ func DetectMimeType(path string) string {
 	if ext == ".zim" {
 		return "application/x-zim"
 	}
+	if ext == ".epub" {
+		return "application/epub+zip"
+	}
+	if ext == ".pdf" {
+		return "application/pdf"
+	}
+	if ext == ".mobi" {
+		return "application/x-mobipocket-ebook"
+	}
 
 	mime, err := mimetype.DetectFile(path)
 	if err != nil {

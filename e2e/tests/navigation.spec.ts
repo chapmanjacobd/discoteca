@@ -1,6 +1,8 @@
 import { test, expect } from '../fixtures';
 
-test.describe('Basic Navigation', () => {
+test.describe('Page Navigation', () => {
+  test.use({ readOnly: true });
+
   test('loads the home page', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
     

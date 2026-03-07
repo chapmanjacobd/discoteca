@@ -18,7 +18,8 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: 1,
+  workers: process.env.CI ? 1 : undefined,
+  maxFailures: 10,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
     ['html', { open: 'never' }],
@@ -29,6 +30,7 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.DISCO_BASE_URL || 'http://localhost:8080',
+    viewport: { width: 1280, height: 720 },
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -94,20 +96,20 @@ export default defineConfig({
     //   },
     // },
 
-    // {
-    //   name: 'webkit',
-    //   use: {
-    //     ...devices['Desktop Safari'],
-    //     // Mute audio for Safari/WebKit
-    //     launchOptions: {
-    //       headless: true,
-    //     },
-    //     contextOptions: {
-    //       // WebKit doesn't have a direct mute option, but we can reduce motion
-    //       reducedMotion: 'reduce',
-    //     },
-    //   },
-    // },
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        // Mute audio for Safari/WebKit
+        launchOptions: {
+          headless: true,
+        },
+        contextOptions: {
+          // WebKit doesn't have a direct mute option, but we can reduce motion
+          reducedMotion: 'reduce',
+        },
+      },
+    },
 
     /* Test against branded browsers. */
     // {

@@ -1203,6 +1203,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             nowPlayingBtn.classList.add('hidden');
         }
+
+        // Update all media cards to show/hide playing indicator
+        const currentPath = state.playback.item ? state.playback.item.path : null;
+        document.querySelectorAll('.media-card').forEach(card => {
+            const path = card.dataset.path;
+            if (path && currentPath && path === currentPath) {
+                card.classList.add('playing');
+            } else {
+                card.classList.remove('playing');
+            }
+        });
     }
 
     async function handlePlaylistReorder(draggedItem, newIndex) {
@@ -1734,6 +1745,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             resultsContainer.appendChild(card);
         });
+
+        updateNowPlayingButton();
     }
 
     function showEpisodesLoading() {
@@ -1894,6 +1907,7 @@ document.addEventListener('DOMContentLoaded', () => {
             group.files.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'media-card';
+                card.dataset.path = item.path;
                 card.onclick = () => playMedia(item);
 
                 const title = item.title || item.path.split('/').pop();
@@ -1922,6 +1936,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         paginationContainer.classList.add('hidden');
         updateNavActiveStates();
+        updateNowPlayingButton();
     }
 
     async function fetchCuration() {
@@ -2465,6 +2480,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (err.name === 'AbortError') return;
             console.error('Search failed:', err);
             resultsContainer.innerHTML = `<div class="error">Search failed: ${err.message}</div>`;
+            if (err.message === 'Unauthorized') {
+                window.location.reload();
+            }
         }
     }
     async function fetchTrash() {
@@ -2589,6 +2607,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.playback.item = item;
         state.playback.startTime = Date.now();
         state.playback.hasMarkedComplete = false;
+        updateNowPlayingButton();
 
         if (prevItem && prevItem.path !== item.path && state.filters.unplayed && wasPlayed) {
             if (state.playback.pendingUpdate) await state.playback.pendingUpdate;
@@ -3087,7 +3106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Auto-skip to next (up to 3 consecutive errors)
         state.playback.consecutiveErrors = (state.playback.consecutiveErrors || 0) + 1;
 
-        if (state.autoplay && state.playback.consecutiveErrors <= 3) {
+        if (state.autoplay && state.playback.consecutiveErrors <= 120) {
             if (state.playback.skipTimeout) {
                 clearTimeout(state.playback.skipTimeout);
             }
@@ -3098,8 +3117,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }, 1200);
         } else {
-            if (state.playback.consecutiveErrors > 3) {
-                showToast('Stopped auto-skip after 3 errors', '🛑');
+            if (state.playback.consecutiveErrors > 120) {
+                showToast('Stopped auto-skip after 120 errors', '🛑');
                 state.playback.consecutiveErrors = 0;
             }
             closePiP();
@@ -3580,6 +3599,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const url = `/api/raw?path=${encodeURIComponent(item.path)}`;
         const type = item.type || '';
+        const pathLower = item.path.toLowerCase();
 
         // Helper to show/hide EPUB-only controls
         const toggleEpubControls = (show) => {
@@ -3608,7 +3628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        if (type.includes('epub')) {
+        if (type.includes('epub') || pathLower.endsWith('.epub')) {
             toggleEpubControls(true);
             epubViewer.classList.remove('hidden');
             const book = ePub(url);
@@ -3624,7 +3644,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('doc-next').onclick = () => rendition.next();
 
             let zoom = 100;
-            const zoomInfo = document.getElementById('doc-zoom-info');
             document.getElementById('doc-zoom-in').onclick = () => {
                 zoom += 10;
                 epubViewer.style.fontSize = `${zoom}%`;
@@ -3635,8 +3654,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 epubViewer.style.fontSize = `${zoom}%`;
                 zoomInfo.textContent = `${zoom}%`;
             };
-            pageInfo.textContent = "EPUB Mode";
-        } else if (type.includes('pdf')) {
+            pageInfo.textContent = "";
+        } else if (type.includes('pdf') || pathLower.endsWith('.pdf')) {
             toggleEpubControls(false);
             // Browsers have great built-in PDF viewers, let's use iframe but in the large modal
             const iframe = document.createElement('iframe');
@@ -3646,7 +3665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iframe.style.border = 'none';
             epubViewer.classList.remove('hidden');
             epubViewer.appendChild(iframe);
-            pageInfo.textContent = "PDF Mode";
+            pageInfo.textContent = "";
             document.getElementById('doc-prev').onclick = null;
             document.getElementById('doc-next').onclick = null;
         } else {
@@ -3659,14 +3678,8 @@ document.addEventListener('DOMContentLoaded', () => {
             iframe.style.border = 'none';
             epubViewer.classList.remove('hidden');
             epubViewer.appendChild(iframe);
-            pageInfo.textContent = "Text Mode";
+            pageInfo.textContent = "";
         }
-
-        epubViewer.ondblclick = (e) => {
-            e.stopPropagation();
-            toggleFullscreen(modalContent);
-        };
-        container.ondblclick = () => toggleFullscreen(modalContent);
 
         openModal('document-modal');
         epubViewer.focus();
@@ -4007,9 +4020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${!state.readOnly ? `<button class="media-action-btn remove-playlist" title="Remove from Playlist">&times;</button>` : ''}
                 `;
             } else {
-                const isText = item.type && (item.type.includes('text') || item.type.includes('epub') || item.type.includes('pdf'));
                 actionBtns = `
-                    ${isText ? `<button class="media-action-btn rsvp" title="Play as RSVP Video">👁️</button>` : ''}
                     ${!state.readOnly ? `<button class="media-action-btn add-playlist" title="Add to Playlist">+</button>` : ''}
                     ${plays > 0 ?
                         `<button class="media-action-btn mark-unplayed" title="Mark as Unplayed">⭕</button>` :
@@ -4165,6 +4176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.innerHTML = '';
         resultsContainer.appendChild(fragment);
         renderPagination();
+        updateNowPlayingButton();
 
         // Reset min-height after content is loaded
         resultsContainer.style.minHeight = '';
@@ -4213,6 +4225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultsContainer.appendChild(fragment);
         resultsContainer.className = state.view === 'details' ? 'details-view' : 'captions-list-view';
+        updateNowPlayingButton();
     }
 
     function renderCaptionsGrid(captionsByPath, fragment) {
@@ -6132,6 +6145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         openInDocumentViewer,
         performSearch,
         updateProgress,
+        handleMediaError,
         seekToProgress,
         closePiP,
         getPlayCount,

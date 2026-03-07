@@ -2,6 +2,7 @@ import { test, expect } from '../fixtures';
 import { waitForPlayer } from '../fixtures';
 
 test.describe('Subtitles', () => {
+  test.use({ readOnly: true });
   test('player opens when clicking caption segment', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
 

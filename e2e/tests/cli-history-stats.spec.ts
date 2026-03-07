@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('CLI: History Commands', () => {
+  test.describe.configure({ mode: 'serial' });
   test('adds file to history', async ({ cli, tempDir, testDbPath, createDummyVideo }) => {
     // Create and add a file
     const videoPath = createDummyVideo('history_test.mp4');

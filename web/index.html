@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>𝑑𝑖𝑠𝑐𝑜𝑡ℎ𝑒̀𝑞𝑢𝑒</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css">
@@ -511,29 +511,25 @@
 
     <!-- Document Viewer Modal -->
     <div id="document-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 90%; height: 90vh; display: flex; flex-direction: column;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2 id="document-title">Document</h2>
-                <div class="doc-controls"
-                    style="display: flex; gap: 1rem; align-items: center; margin-left: 2rem; margin-right: auto;">
+                <div class="doc-controls">
                     <button id="doc-prev" class="category-btn" title="Previous Page">←</button>
                     <span id="doc-page-info">Page 1 of 1</span>
                     <button id="doc-next" class="category-btn" title="Next Page">→</button>
                     <button id="doc-zoom-out" class="category-btn" title="Zoom Out">-</button>
                     <span id="doc-zoom-info">100%</span>
                     <button id="doc-zoom-in" class="category-btn" title="Zoom In">+</button>
-                    <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">👁️ RSVP</button>
+                    <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
                     <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen">⛶</button>
                 </div>
                 <button class="close-modal">&times;</button>
             </div>
-            <div id="document-container"
-                style="flex: 1; overflow: auto; background: #525659; display: flex; justify-content: center; padding: 1rem;">
+            <div id="document-container">
                 <!-- Canvas or epub container will be injected here -->
-                <div id="epub-viewer"
-                    style="width: 100%; height: 100%; background: white; padding: 1rem; color: black; font-family: sans-serif; box-sizing: border-box;">
-                </div>
-                <canvas id="pdf-canvas" class="hidden" style="box-shadow: 0 0 10px rgba(0,0,0,0.5);"></canvas>
+                <div id="epub-viewer"></div>
+                <canvas id="pdf-canvas" class="hidden"></canvas>
             </div>
         </div>
     </div>

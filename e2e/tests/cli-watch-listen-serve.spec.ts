@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('CLI: Watch Command', () => {
+  test.describe.configure({ mode: 'serial' });
   test('watches video file', async ({ cli, tempDir, testDbPath, createDummyVideo }) => {
     // Create and add a file
     const videoPath = createDummyVideo('watch_test.mp4');

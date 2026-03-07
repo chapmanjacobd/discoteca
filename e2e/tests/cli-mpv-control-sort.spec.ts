@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures-cli';
 
 test.describe('CLI: MPV Control Commands', () => {
+  test.describe.configure({ mode: 'serial' });
   test.describe('Now Command', () => {
     test('shows current mpv playback status', async ({ cli }) => {
       // Now command (will fail without mpv running)

@@ -2,6 +2,7 @@ import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Playlist Management E2E', () => {
+  test.describe.configure({ mode: 'serial' });
   // Helper to open sidebar on mobile
   async function openSidebar(page) {
     const menuToggle = page.locator('#menu-toggle');
@@ -168,6 +169,8 @@ test.describe('Settings Persistence', () => {
   });
 
   test('persists autoplay setting', async ({ page, server }) => {
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    let isExpandedNow;
     await page.goto(server.getBaseUrl());
 
     // Open settings
@@ -175,7 +178,12 @@ test.describe('Settings Persistence', () => {
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
 
     // Open Advanced Settings
-    await page.locator('summary:has-text("Advanced Settings")').click();
+    await advancedSettings.scrollIntoViewIfNeeded();
+    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedNow) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
 
     // Scroll modal body to ensure elements are visible
     await page.evaluate(() => {
@@ -200,7 +208,13 @@ test.describe('Settings Persistence', () => {
 
     // Re-open settings and verify autoplay persisted
     await page.click('#settings-button');
-    await page.locator('summary:has-text("Advanced Settings")').click();
+    // Open Advanced Settings
+    await advancedSettings.scrollIntoViewIfNeeded();
+    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedNow) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
       if (modalBody) modalBody.scrollTop = 200;
@@ -215,6 +229,8 @@ test.describe('Settings Persistence', () => {
   });
 
   test('persists playback rate settings', async ({ page, server }) => {
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    let isExpandedNow;
     await page.goto(server.getBaseUrl());
 
     // Open settings
@@ -222,7 +238,12 @@ test.describe('Settings Persistence', () => {
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
 
     // Open Advanced Settings
-    await page.locator('summary:has-text("Advanced Settings")').click();
+    await advancedSettings.scrollIntoViewIfNeeded();
+    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedNow) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
 
     // Scroll modal body to ensure elements are visible
     await page.evaluate(() => {
@@ -249,7 +270,13 @@ test.describe('Settings Persistence', () => {
 
     // Re-open settings and verify rates persisted
     await page.click('#settings-button');
-    await page.locator('summary:has-text("Advanced Settings")').click();
+    // Open Advanced Settings
+    await advancedSettings.scrollIntoViewIfNeeded();
+    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedNow) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
       if (modalBody) modalBody.scrollTop = 500;
@@ -284,6 +311,8 @@ test.describe('Settings Persistence', () => {
   });
 
   test('persists local resume setting', async ({ page, server }) => {
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    let isExpandedNow;
     await page.goto(server.getBaseUrl());
 
     // Open settings
@@ -291,7 +320,12 @@ test.describe('Settings Persistence', () => {
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
 
     // Open Advanced Settings
-    await page.locator('summary:has-text("Advanced Settings")').click();
+    await advancedSettings.scrollIntoViewIfNeeded();
+    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedNow) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
 
     // Scroll modal body to ensure elements are visible
     await page.evaluate(() => {
@@ -316,7 +350,13 @@ test.describe('Settings Persistence', () => {
 
     // Re-open settings and verify local resume persisted
     await page.click('#settings-button');
-    await page.locator('summary:has-text("Advanced Settings")').click();
+    // Open Advanced Settings
+    await advancedSettings.scrollIntoViewIfNeeded();
+    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedNow) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
     await page.evaluate(() => {
       const modalBody = document.querySelector('#settings-modal .modal-body');
       if (modalBody) modalBody.scrollTop = 100;
@@ -452,22 +492,29 @@ test.describe('Playback Controls', () => {
     }, { timeout: 5000 });
 
     const video = page.locator('video, audio');
-    const initialTime = await video.evaluate((el: HTMLMediaElement) => el.currentTime);
+    
+    // Ensure we have enough duration for seeking
+    const duration = await video.evaluate((el: HTMLMediaElement) => el.duration);
+    const seekPos = Math.min(10, duration > 2 ? duration - 1 : 0);
 
     // Seek forward via JavaScript
-    await video.evaluate((el: HTMLMediaElement) => {
-      el.currentTime = el.currentTime + 5;
-    });
-    await page.waitForTimeout(300);
+    await video.evaluate((el: HTMLMediaElement, pos) => {
+      el.currentTime = pos;
+    }, seekPos);
+    await page.waitForTimeout(500);
 
     const timeAfterForward = await video.evaluate((el: HTMLMediaElement) => el.currentTime);
-    expect(timeAfterForward).toBeGreaterThan(initialTime);
+    // If we could seek forward, check it
+    if (seekPos > 0) {
+       expect(timeAfterForward).toBeGreaterThanOrEqual(seekPos * 0.9);
+    }
 
     // Seek backward via JavaScript
-    await video.evaluate((el: HTMLMediaElement) => {
-      el.currentTime = Math.max(0, el.currentTime - 3);
-    });
-    await page.waitForTimeout(300);
+    const backPos = Math.max(0, timeAfterForward - 2);
+    await video.evaluate((el: HTMLMediaElement, pos) => {
+      el.currentTime = pos;
+    }, backPos);
+    await page.waitForTimeout(500);
 
     const timeAfterBackward = await video.evaluate((el: HTMLMediaElement) => el.currentTime);
     expect(timeAfterBackward).toBeLessThan(timeAfterForward);

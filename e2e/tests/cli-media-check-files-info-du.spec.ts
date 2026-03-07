@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('CLI: Media-Check Command', () => {
+  test.describe.configure({ mode: 'serial' });
   test('checks media file for corruption', async ({ cli, tempDir, testDbPath, createDummyVideo }) => {
     // Create and add a file
     const videoPath = createDummyVideo('check_corruption.mp4');

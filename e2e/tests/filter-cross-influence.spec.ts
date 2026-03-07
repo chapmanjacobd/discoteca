@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Cross-Filter Influence', () => {
+  test.use({ readOnly: true });
   test.describe('Episodes Filter Affects Size and Duration', () => {
     test('episodes filter should affect size range labels', async ({ page, server }) => {
       await page.goto(server.getBaseUrl());

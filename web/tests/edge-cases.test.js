@@ -49,9 +49,9 @@ describe('Broken Media Handling', () => {
         expect(video.error).toBeTruthy();
     });
 
-    it('stops auto-skip after 3 consecutive errors', async () => {
+    it('stops auto-skip after 120 consecutive errors', async () => {
         window.disco.state.autoplayNext = true;
-        window.disco.state.playback.consecutiveErrors = 2;
+        window.disco.state.playback.consecutiveErrors = 119;
 
         const card = document.querySelector('.media-card');
         card.click();
@@ -67,16 +67,16 @@ describe('Broken Media Handling', () => {
         const video = document.querySelector('video');
         video.dispatchEvent(new Event('error'));
 
-        // Should not fetch next media after 3 consecutive errors
+        // Should not fetch next media after 120 consecutive errors
         await new Promise(resolve => setTimeout(resolve, 500));
         const fetchCalls = global.fetch.mock.calls.filter(call =>
             call[0].includes('/api/random-clip')
         );
-        expect(fetchCalls.length).toBeLessThan(4);
+        expect(fetchCalls.length).toBeLessThan(121);
     });
 
     it('resets consecutive errors counter when progress is made', async () => {
-        window.disco.state.playback.consecutiveErrors = 3;
+        window.disco.state.playback.consecutiveErrors = 120;
 
         const item = {
             path: 'video1.mp4',

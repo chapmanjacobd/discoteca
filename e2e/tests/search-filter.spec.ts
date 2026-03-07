@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Search and Filtering', () => {
+  test.use({ readOnly: true });
   test('search filters media by title', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
     

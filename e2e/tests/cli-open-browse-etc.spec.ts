@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('CLI: Open Command', () => {
+  test.describe.configure({ mode: 'serial' });
   test('opens file with default application', async ({ cli, tempDir, createDummyVideo }) => {
     // Create a file
     const videoPath = createDummyVideo('open_test.mp4');

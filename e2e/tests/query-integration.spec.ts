@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Search and Query Integration', () => {
+  test.describe.configure({ mode: 'serial' });
   test('performs search when enter is pressed', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
     
@@ -32,8 +33,12 @@ test.describe('Search and Query Integration', () => {
 
     // Expand media type filter
     const mediaTypeDetails = page.locator('#details-media-type');
-    await mediaTypeDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
-    await page.waitForTimeout(500);
+    const mediaTypeSummary = mediaTypeDetails.locator('summary');
+    const isMediaTypeExpanded = await mediaTypeDetails.evaluate((el: HTMLDetailsElement) => el.open);
+    if (!isMediaTypeExpanded) {
+      await mediaTypeSummary.click();
+      await page.waitForTimeout(500);
+    }
 
     // Select video type
     await page.click('#media-type-list .category-btn[data-type="video"]');
@@ -48,11 +53,10 @@ test.describe('Search and Query Integration', () => {
     await page.waitForSelector('#du-toolbar', { timeout: 10000 });
 
     // Filter should persist (check localStorage since DU mode has different URL structure)
-    const filtersInStorage = await page.evaluate(() => {
-      const filters = localStorage.getItem('disco-filters');
-      return filters ? JSON.parse(filters) : null;
+    const typesInStorage = await page.evaluate(() => {
+      return JSON.parse(localStorage.getItem('disco-types') || '[]');
     });
-    expect(filtersInStorage?.types).toContain('video');
+    expect(typesInStorage).toContain('video');
   });
 
   test('handles view mode switching (Grid, Group, Details)', async ({ page, server }) => {
@@ -128,16 +132,16 @@ test.describe('Search and Query Integration', () => {
     await playlistDetails.evaluate((el: HTMLDetailsElement) => el.open = true);
     await page.waitForTimeout(500);
     
-    // Create new playlist
-    await page.click('#new-playlist-btn');
-    
-    // Handle prompt
+    // Handle prompt BEFORE clicking
     page.on('dialog', async dialog => {
       expect(dialog.message()).toContain('Playlist Title');
       await dialog.accept('Test Playlist');
     });
+
+    // Create new playlist
+    await page.click('#new-playlist-btn');
     
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     
     // Playlist should appear in list
     await expect(page.locator('#playlist-list')).toContainText('Test Playlist');
@@ -262,7 +266,19 @@ test.describe('Search and Query Integration', () => {
     
     await page.waitForSelector('.media-card', { timeout: 10000 });
     
+    // Open settings
+    await page.locator('#settings-button').click();
+    await page.waitForSelector('#settings-modal:not(.hidden)', { timeout: 10000 });
+    await page.waitForTimeout(500);
+
     // Change limit
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    await advancedSettings.scrollIntoViewIfNeeded();
+    const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpanded) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
     const limitInput = page.locator('#limit');
     await limitInput.fill('50');
     await page.waitForTimeout(1000);

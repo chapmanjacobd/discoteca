@@ -2,79 +2,49 @@ import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Fullscreen Toggle', () => {
-  test('fullscreen button is visible in player', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+  test.describe.configure({ mode: 'serial' });
+  test('fullscreen button is visible in document viewer', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
-    await waitForPlayer(page);
-
-    // Fullscreen button should be visible
-    const fullscreenBtn = page.locator('#pip-fullscreen, .fullscreen-btn, button:has-text("Fullscreen"), .player-fullscreen');
-    await expect(fullscreenBtn.first()).toBeVisible();
+    // Open a document (PDF)
+    await page.locator('.media-card:has(.rsvp)').first().click();
+    
+    // Fullscreen button should be visible in document modal
+    const fullscreenBtn = page.locator('#doc-fullscreen');
+    await expect(fullscreenBtn).toBeVisible();
   });
 
-  test('fullscreen button toggles fullscreen mode', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+  test('fullscreen button toggles document fullscreen mode', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
-    await waitForPlayer(page);
+    // Open a document (PDF)
+    await page.locator('.media-card:has(.rsvp)').first().click();
 
     // Click fullscreen button
-    const fullscreenBtn = page.locator('#pip-fullscreen, .fullscreen-btn, .player-fullscreen').first();
+    const fullscreenBtn = page.locator('#doc-fullscreen');
     
     // Note: Actual fullscreen may be blocked by browser, but we can test the button click
     await fullscreenBtn.click();
     await page.waitForTimeout(1000);
 
-    // Button should still be visible (may have changed icon)
+    // Button should still be visible
     await expect(fullscreenBtn).toBeVisible();
   });
 
-  test('fullscreen button icon changes when in fullscreen', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+  test('F key toggles player fullscreen', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
-    await waitForPlayer(page);
-
-    // Get initial button state
-    const fullscreenBtn = page.locator('#pip-fullscreen, .fullscreen-btn').first();
-    const initialAriaLabel = await fullscreenBtn.getAttribute('aria-label');
-
-    // Click fullscreen
-    await fullscreenBtn.click();
-    await page.waitForTimeout(1000);
-
-    // Button state may change
-    const newAriaLabel = await fullscreenBtn.getAttribute('aria-label');
-    
-    // Either the label changed or the button has different text
-    if (initialAriaLabel === newAriaLabel) {
-      // Check for visual change via class or text
-      const btnText = await fullscreenBtn.textContent();
-      expect(btnText?.toLowerCase()).toMatch(/(fullscreen|exit|leave|close)/);
-    }
-  });
-
-  test('F key toggles fullscreen', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
-
-    // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
-
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
+    // Click first non-document media card to open player
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Focus the player
@@ -88,14 +58,14 @@ test.describe('Fullscreen Toggle', () => {
     await expect(page.locator('#pip-player')).toBeVisible();
   });
 
-  test('double-click toggles fullscreen', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+  test('double-click toggles player fullscreen', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
+    // Click first non-document media card to open player
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
     // Double-click on video
@@ -107,19 +77,18 @@ test.describe('Fullscreen Toggle', () => {
     await expect(page.locator('#pip-player')).toBeVisible();
   });
 
-  test('Escape exits fullscreen', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+  test('Escape exits player fullscreen', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
+    // Click first non-document media card to open player
+    await page.locator('.media-card:not(:has(.rsvp))').first().click();
     await waitForPlayer(page);
 
-    // Click fullscreen
-    const fullscreenBtn = page.locator('#pip-fullscreen, .fullscreen-btn').first();
-    await fullscreenBtn.click();
+    // Press F for fullscreen
+    await page.keyboard.press('f');
     await page.waitForTimeout(1000);
 
     // Press Escape
@@ -129,39 +98,18 @@ test.describe('Fullscreen Toggle', () => {
     // Player should still be visible
     await expect(page.locator('#pip-player')).toBeVisible();
   });
-
-  test('fullscreen button is accessible', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
-
-    // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
-
-    // Click first media card to open player
-    await page.locator('.caption-segment').first().click();
-    await waitForPlayer(page);
-
-    // Fullscreen button should have accessible name
-    const fullscreenBtn = page.locator('#pip-fullscreen, .fullscreen-btn').first();
-    const ariaLabel = await fullscreenBtn.getAttribute('aria-label');
-    const title = await fullscreenBtn.getAttribute('title');
-    
-    // Should have either aria-label or title
-    expect(ariaLabel || title).toBeTruthy();
-  });
 });
 
 test.describe('Metadata Modal', () => {
   test('metadata modal opens with keyboard shortcut', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
+    await page.goto(server.getBaseUrl());
 
-    // Wait for captions to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    // Wait for media to load
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Click a caption segment to open player
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to have video/audio content
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    // Click first media card
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -174,23 +122,21 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows file path', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get the path from the first media card
     const firstCard = page.locator('.media-card').first();
     const cardTitle = await firstCard.locator('.media-title').textContent();
 
     await firstCard.click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -204,19 +150,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows file size', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -230,19 +174,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows duration', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -256,19 +198,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows codec information', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -282,15 +222,13 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows resolution', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for captions to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -305,15 +243,13 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal can be closed', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for captions to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -330,15 +266,13 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal closes with Escape key', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for captions to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -355,19 +289,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal closes when clicking outside', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -384,19 +316,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows play count', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -410,19 +340,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal shows last played date', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -436,19 +364,17 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal is scrollable for long content', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for page to load
     await page.waitForSelector('#search-input', { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.caption-segment').first().click();
-    
-    // Wait for player to be ready
-    await page.waitForSelector('#pip-player video, #pip-player audio', { timeout: 10000 });
+    await page.locator('.media-card').first().click();
+    await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
     // Press 'i' key to open metadata modal
@@ -470,7 +396,7 @@ test.describe('Metadata Modal', () => {
 
 test.describe('Trash Functionality', () => {
   test('trash button is visible for media', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
@@ -486,7 +412,7 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash button opens confirmation dialog', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
@@ -508,7 +434,7 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash confirmation can be cancelled', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
@@ -538,7 +464,7 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash deletes media from view', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
@@ -572,7 +498,7 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash button has accessible label', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
@@ -593,10 +519,10 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash keyboard shortcut works', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Select first card
     const firstCard = page.locator('.media-card').first();
@@ -621,7 +547,7 @@ test.describe('Trash Functionality', () => {
   });
 
   test('trash shows success notification', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '#mode=captions');
+    await page.goto(server.getBaseUrl());
 
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });

@@ -92,6 +92,17 @@ export const test = base.extend<{
     // Set base URL for Playwright
     process.env.DISCO_BASE_URL = server.getBaseUrl();
 
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        console.error(`BROWSER ERROR [${project}]:`, msg.text());
+      } else {
+        // console.log(`BROWSER LOG [${project}]:`, msg.text());
+      }
+    });
+    page.on('pageerror', err => {
+      console.error(`BROWSER PAGE ERROR [${project}]:`, err.message);
+    });
+
     await use(server);
 
     // Cleanup: only stop isolated servers, not shared ones

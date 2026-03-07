@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('CLI: Check Command', () => {
+  test.describe.configure({ mode: 'serial' });
   test('marks missing files as deleted', async ({ cli, tempDir, testDbPath, createDummyVideo }) => {
     // Create and add a file
     const videoPath = createDummyVideo('to_delete.mp4');

@@ -12,6 +12,9 @@ export async function fetchAPI(url, options = {}) {
     };
     const resp = await fetch(url, { ...options, headers });
     if (resp.status === 403) throw new Error('Access Denied');
-    if (resp.status === 401) throw new Error('Unauthorized');
+    if (resp.status === 401) {
+        window.location.reload();
+        throw new Error('Unauthorized');
+    }
     return resp;
 }

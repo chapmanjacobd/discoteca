@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Range Sliders', () => {
+  test.use({ readOnly: true });
   test.describe('Size Slider', () => {
     test('size slider is visible in filter panel', async ({ page, server }) => {
       await page.goto(server.getBaseUrl());

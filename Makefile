@@ -66,7 +66,7 @@ e2e-cli-debug: build e2e-install
 
 # Web UI E2E Tests - Test web interface (excludes CLI tests)
 e2e-web: build e2e-install
-	cd e2e && npx playwright test --project=firefox --grep-invert 'cli'
+	cd e2e && npx playwright test --grep-invert 'cli'
 
 e2e-web-ui: build e2e-install
 	cd e2e && npx playwright test --ui --grep-invert 'cli'

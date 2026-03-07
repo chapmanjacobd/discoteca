@@ -2,14 +2,15 @@ import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Captions', () => {
+  test.use({ readOnly: true });
   test('displays captions view with valid captions', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
 
     // Wait for captions to load
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
+    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
 
     // Should have caption cards
-    const captionCards = page.locator('.caption-media-card');
+    const captionCards = page.locator('.media-card.caption-media-card');
     const count = await captionCards.count();
     expect(count).toBeGreaterThanOrEqual(1);
   });
@@ -17,7 +18,7 @@ test.describe('Captions', () => {
   test('filters out empty caption text', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
     
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
+    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
     
     // Get all caption text elements
     const captionTexts = page.locator('.caption-text');
@@ -37,7 +38,7 @@ test.describe('Captions', () => {
   test('filters out captions under 10 seconds', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
     
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
+    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
     
     // Get all caption segments
     const segments = page.locator('.caption-segment');
@@ -93,10 +94,10 @@ test.describe('Captions', () => {
   test('search captions filters results', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
 
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
+    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
 
     // Get initial count
-    const initialCards = page.locator('.caption-media-card');
+    const initialCards = page.locator('.media-card.caption-media-card');
     const initialCount = await initialCards.count();
 
     // Search for specific text
@@ -107,7 +108,7 @@ test.describe('Captions', () => {
     await page.waitForTimeout(1000);
 
     // Should have filtered results
-    const filteredCards = page.locator('.caption-media-card');
+    const filteredCards = page.locator('.media-card.caption-media-card');
     const filteredCount = await filteredCards.count();
 
     // Count should be different (likely less)
@@ -118,10 +119,10 @@ test.describe('Captions', () => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
 
     // Wait for captions to load
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
+    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
 
-    // Find the movie1 card which has 3 captions
-    const movieCards = page.locator('.caption-media-card:has-text("movie1")');
+    // Find the movie1.mp4 card which has 3 captions
+    const movieCards = page.locator('.media-card.caption-media-card:has-text("movie1.mp4")');
     const movieCount = await movieCards.count();
     
     // Should find movie1
