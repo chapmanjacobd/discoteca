@@ -15,11 +15,17 @@ test.describe('Media Playback', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Select a non-document card (documents have an 'rsvp' action button)
-    const mediaCard = page.locator('.media-card:not(:has(.rsvp))').first();
+    // Debug: list card types
+    const types = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('.media-card')).map(el => (el as HTMLElement).dataset.type);
+    });
+    console.log(`Found card types: ${types.join(', ')}`);
+
+    // Select a non-document card
+    const mediaCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     const cardHtml = await mediaCard.evaluate(el => el.outerHTML);
     console.log(`Selected card HTML: ${cardHtml}`);
-    
+
     await mediaCard.click();
     console.log('Clicked media card');
 
@@ -43,7 +49,7 @@ test.describe('Media Playback', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
 
     // Wait for player to open
     await waitForPlayer(page);
@@ -66,7 +72,7 @@ test.describe('Media Playback', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
 
     // Wait for player to open
     await waitForPlayer(page);
@@ -90,7 +96,7 @@ test.describe('Media Playback', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
 
     // Wait for player to open
     await waitForPlayer(page);
@@ -114,7 +120,7 @@ test.describe('Media Playback', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
 
     // Wait for player to open
     await waitForPlayer(page);
@@ -137,7 +143,7 @@ test.describe('Media Playback', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
 
     // Wait for player to open
     await waitForPlayer(page);
@@ -168,7 +174,7 @@ test.describe('Media Playback', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
 
     // Wait for player to open
     await waitForPlayer(page);

@@ -39,7 +39,7 @@ test.describe('Playlist Management E2E', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Find a media card and click to open player
-    const firstCard = page.locator('.media-card:not(:has(.rsvp))').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.click();
     await page.waitForTimeout(500);
 
@@ -378,7 +378,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -405,7 +405,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(500);
 
@@ -423,7 +423,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     
     // Wait for video to load
@@ -446,7 +446,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    const firstCard = page.locator('.media-card:not(:has(.rsvp))').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.click();
     await waitForPlayer(page);
 
@@ -481,7 +481,7 @@ test.describe('Playback Controls', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play a media
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 

@@ -39,10 +39,10 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<string> {
         // Enable foreign keys and WAL mode
         db.run('PRAGMA foreign_keys = ON');
         db.run('PRAGMA journal_mode = WAL');
-        
+
         // Use the actual schema from internal/commands/schema.sql
         // (Simplified for seeding purposes but keeping correct structure and triggers)
-        
+
         db.run(`CREATE TABLE IF NOT EXISTS media (
             path TEXT PRIMARY KEY,
             title TEXT,
@@ -197,7 +197,6 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<string> {
             reject(new Error(`Failed to close database: ${err.message}`));
             return;
           }
-          console.log('Database seeded successfully');
           resolve(dbPath);
         });
       });

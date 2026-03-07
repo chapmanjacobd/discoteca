@@ -7,9 +7,9 @@
     <title>𝑑𝑖𝑠𝑐𝑜𝑡ℎ𝑒̀𝑞𝑢𝑒</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
-    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <script src="lib/hls.min.js"></script>
+    <script src="lib/pdf.min.mjs" type="module"></script>
+    <script src="lib/epub.min.js"></script>
 </head>
 
 <body>
@@ -395,7 +395,7 @@
     </div>
 
     <!-- Confirm Delete Modal -->
-    <div id="confirm-modal" class="modal hidden">
+    <div id="confirm-modal" class="modal confirm-dialog hidden" role="alertdialog">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
                 <h2>Delete Item?</h2>
@@ -523,8 +523,8 @@
                     <button id="doc-zoom-in" class="category-btn" title="Zoom In">+</button>
                     <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
                     <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen">⛶</button>
+                    <button class="close-modal">&times;</button>
                 </div>
-                <button class="close-modal">&times;</button>
             </div>
             <div id="document-container">
                 <!-- Canvas or epub container will be injected here -->

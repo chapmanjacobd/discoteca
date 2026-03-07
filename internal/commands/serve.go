@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,6 +27,11 @@ import (
 	"github.com/chapmanjacobd/discotheque/internal/utils"
 	"github.com/chapmanjacobd/discotheque/web"
 )
+
+func init() {
+	_ = mime.AddExtensionType(".js", "text/javascript")
+	_ = mime.AddExtensionType(".mjs", "text/javascript")
+}
 
 type LsEntry struct {
 	Name  string `json:"name"`
@@ -147,7 +153,29 @@ func (c *ServeCmd) Mux() http.Handler {
 		mux.HandleFunc("/api/empty-bin", c.authMiddleware(c.handleEmptyBin))
 	}
 
-	// Serve static files
+	mux.HandleFunc("/lib/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		var f http.File
+		var err error
+		if c.PublicDir != "" {
+			f, err = http.Dir(c.PublicDir).Open(path)
+		} else {
+			f, err = http.FS(web.FS).Open(path)
+		}
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+
+		if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") {
+			w.Header().Set("Content-Type", "text/javascript")
+		}
+		stat, _ := f.Stat()
+		http.ServeContent(w, r, path, stat.ModTime(), f)
+	})
+
+	// Serve other static files
 	fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set cookie on every load so the frontend has access to it
 		http.SetCookie(w, &http.Cookie{
@@ -157,10 +185,6 @@ func (c *ServeCmd) Mux() http.Handler {
 			HttpOnly: false, // Frontend needs to read it for CSRF/Auth headers
 			SameSite: http.SameSiteStrictMode,
 		})
-
-		if strings.HasSuffix(r.URL.Path, ".js") {
-			w.Header().Set("Content-Type", "application/javascript")
-		}
 
 		if c.PublicDir != "" {
 			http.FileServer(http.Dir(c.PublicDir)).ServeHTTP(w, r)

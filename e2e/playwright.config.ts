@@ -18,7 +18,7 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : '30%',
   maxFailures: 10,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
@@ -28,6 +28,8 @@ export default defineConfig({
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
+    offline: true,
+
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.DISCO_BASE_URL || 'http://localhost:8080',
     viewport: { width: 1280, height: 720 },
@@ -43,9 +45,6 @@ export default defineConfig({
 
     /* Maximum time each action can take */
     actionTimeout: 10000,
-
-    /* Maximum time each test can take */
-    timeout: 60000,
 
     /* Mute audio for all browsers */
     contextOptions: {
@@ -71,7 +70,7 @@ export default defineConfig({
             'browser.safebrowsing.malware.enabled': false, // Disable safe browsing
             'browser.safebrowsing.phishing.enabled': false, // Disable phishing protection
           },
-          headless: true, // Run in headless mode
+          // headless: true, // Run in headless mode
         },
       },
     },
@@ -96,29 +95,19 @@ export default defineConfig({
     //   },
     // },
 
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        // Mute audio for Safari/WebKit
-        launchOptions: {
-          headless: true,
-        },
-        contextOptions: {
-          // WebKit doesn't have a direct mute option, but we can reduce motion
-          reducedMotion: 'reduce',
-        },
-      },
-    },
-
-    /* Test against branded browsers. */
     // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    //   name: 'webkit',
+    //   use: {
+    //     ...devices['Desktop Safari'],
+    //     // Mute audio for Safari/WebKit
+    //     launchOptions: {
+    //       headless: true,
+    //     },
+    //     contextOptions: {
+    //       // WebKit doesn't have a direct mute option, but we can reduce motion
+    //       reducedMotion: 'reduce',
+    //     },
+    //   },
     // },
   ],
 

@@ -14,7 +14,7 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
     await page.waitForTimeout(1000);
 
     // Find and click a PDF media card
-    const pdfCards = page.locator('.media-card[data-type="document"], .media-card:has-text(".pdf")');
+    const pdfCards = page.locator('.media-card[data-type*="document"], .media-card:has-text(".pdf")');
     const count = await pdfCards.count();
 
     if (count > 0) {
@@ -43,7 +43,7 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
     await page.waitForTimeout(1000);
 
     // Find and click an EPUB media card
-    const epubCards = page.locator('.media-card[data-type="document"], .media-card:has-text(".epub")');
+    const epubCards = page.locator('.media-card[data-type*="document"], .media-card:has-text(".epub")');
     const count = await epubCards.count();
 
     if (count > 0) {
@@ -115,11 +115,11 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Filter to documents
-    await page.fill('#search-input', 'doc');
+    await page.fill('#search-input', '.epub');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
-    const docCards = page.locator('.media-card[data-type="document"]');
+    const docCards = page.locator('.media-card[data-type*="text"], .media-card:has-text(".epub")');
     const count = await docCards.count();
 
     if (count > 0) {
@@ -172,11 +172,11 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Filter to documents
-    await page.fill('#search-input', 'doc');
+    await page.fill('#search-input', '.epub');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
-    const docCards = page.locator('.media-card[data-type="document"]');
+    const docCards = page.locator('.media-card[data-type*="text"], .media-card:has-text(".epub")');
     const count = await docCards.count();
 
     if (count > 0) {

@@ -43,10 +43,10 @@ export class TestServer {
       if (this.port === 0) {
         this.port = await findFreePort();
       }
-      
+
       this.baseUrl = `http://localhost:${this.port}`;
       const binaryPath = process.env.DISCO_BINARY || path.join(__dirname, '../../disco');
-      
+
       // Check if binary exists
       if (!fs.existsSync(binaryPath)) {
         reject(new Error(`Disco binary not found at ${binaryPath}. Run 'make build' or 'go build -o disco ./cmd/disco' first.`));
@@ -65,8 +65,6 @@ export class TestServer {
         '--port', this.port.toString(),
         '--dev',
       ];
-
-      console.log(`Starting disco server: ${binaryPath} ${args.join(' ')}`);
 
       this.process = spawn(binaryPath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -87,13 +85,12 @@ export class TestServer {
           console.log('[disco]', output.trim());
         }
         // Check for various startup messages
-        if (output.includes('Starting server') || 
-            output.includes('listening') || 
+        if (output.includes('Starting server') ||
+            output.includes('listening') ||
             output.includes('addr=') ||
             output.includes('Server starting')) {
           started = true;
           clearTimeout(timeout);
-          console.log('Disco server started successfully on', this.baseUrl);
           resolve();
         }
       });
@@ -104,13 +101,12 @@ export class TestServer {
           console.error('[disco error]', output.trim());
         }
         // Also check stderr for startup messages (disco logs startup info to stderr)
-        if (output.includes('Starting server') || 
-            output.includes('listening') || 
+        if (output.includes('Starting server') ||
+            output.includes('listening') ||
             output.includes('addr=') ||
             output.includes('Server starting')) {
           started = true;
           clearTimeout(timeout);
-          console.log('Disco server started successfully on', this.baseUrl);
           resolve();
         }
       });
@@ -136,10 +132,7 @@ export class TestServer {
         return;
       }
 
-      console.log('Stopping disco server...');
-      
       this.process.on('exit', () => {
-        console.log('Disco server stopped');
         resolve();
       });
 

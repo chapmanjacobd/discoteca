@@ -96,7 +96,7 @@ export const test = base.extend<{
       if (msg.type() === 'error') {
         console.error(`BROWSER ERROR [${project}]:`, msg.text());
       } else {
-        // console.log(`BROWSER LOG [${project}]:`, msg.text());
+        console.log(`BROWSER LOG [${project}]:`, msg.text());
       }
     });
     page.on('pageerror', err => {

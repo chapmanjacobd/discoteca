@@ -1164,7 +1164,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const title = zone.dataset.title;
                 const path = e.dataTransfer.getData('text/plain');
-                console.log('Drop detected:', { title, path });
 
                 if (path && title) {
                     // Find the item if possible
@@ -1667,6 +1666,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mediaItem = item.files[0];
                 card.className = 'media-card';
                 card.dataset.path = mediaItem.path;
+                card.dataset.type = mediaItem.type || '';
+                if (mediaItem.is_dir) card.dataset.isDir = 'true';
                 card.onclick = () => playMedia(mediaItem);
 
                 const title = truncateString(mediaItem.title || mediaItem.path.split('/').pop());
@@ -1692,6 +1693,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const fileCard = document.createElement('div');
                     fileCard.className = 'media-card';
                     fileCard.dataset.path = mediaItem.path;
+                    fileCard.dataset.type = mediaItem.type || '';
+                    if (mediaItem.is_dir) fileCard.dataset.isDir = 'true';
                     fileCard.onclick = () => playMedia(mediaItem);
 
                     const title = truncateString(mediaItem.title || mediaItem.path.split('/').pop());
@@ -1908,6 +1911,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const card = document.createElement('div');
                 card.className = 'media-card';
                 card.dataset.path = item.path;
+                card.dataset.type = item.type || '';
+                if (item.is_dir) card.dataset.isDir = 'true';
                 card.onclick = () => playMedia(item);
 
                 const title = item.title || item.path.split('/').pop();
@@ -3069,10 +3074,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleMediaError(item) {
+        console.log('handleMediaError called for:', item.path);
         if (pipLoading) pipLoading.classList.add('hidden');
-        // Only handle error for the currently active item.
-        // If state.playback.item is null, the player was likely closed manually.
-        if (!state.playback.item || state.playback.item.path !== item.path) return;
+
+        if (!state.playback.item) {
+            console.log('handleMediaError returning early: state.playback.item is null');
+            return;
+        }
+        if (state.playback.item.path !== item.path) {
+            console.log('handleMediaError returning early: path mismatch', state.playback.item.path, item.path);
+            return;
+        }
 
         // Clear handlers to prevent other events (like onended) from firing after error
         const media = pipViewer.querySelector('video, audio, img');
@@ -3136,6 +3148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function openInPiP(item, isNewSession = false, isSurfing = false) {
+        console.log('openInPiP called for:', item.path, 'newSession:', isNewSession);
         state.playback.isSurfing = isSurfing;
         updatePipVisibility();
 
@@ -3775,6 +3788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function closePiP() {
+        console.log('closePiP called');
         stopSlideshow();
 
         if (state.playback.skipTimeout) {
@@ -3943,6 +3957,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'media-card';
             card.dataset.path = item.path;
+            card.dataset.type = item.type || '';
+            if (item.is_dir) card.dataset.isDir = 'true';
             card.draggable = true;
 
             card.addEventListener('dragstart', (e) => {
@@ -4111,7 +4127,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnDelete = card.querySelector('.media-action-btn.delete');
             if (btnDelete) btnDelete.onclick = (e) => {
                 e.stopPropagation();
-                deleteMedia(item.path, false);
+                openModal('confirm-modal');
+                document.getElementById('confirm-yes').onclick = () => {
+                    closeModal('confirm-modal');
+                    deleteMedia(item.path, false);
+                };
+                document.getElementById('confirm-no').onclick = () => {
+                    closeModal('confirm-modal');
+                };
             };
 
             const btnRSVP = card.querySelector('.media-action-btn.rsvp');
@@ -4538,7 +4561,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnDelete = tr.querySelector('.delete-btn');
             if (btnDelete) btnDelete.onclick = (e) => {
                 e.stopPropagation();
-                deleteMedia(item.path, false);
+                openModal('confirm-modal');
+                document.getElementById('confirm-yes').onclick = () => {
+                    closeModal('confirm-modal');
+                    deleteMedia(item.path, false);
+                };
+                document.getElementById('confirm-no').onclick = () => {
+                    closeModal('confirm-modal');
+                };
             };
 
             const btnRestore = tr.querySelector('.restore-btn');
@@ -4693,6 +4723,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Helpers ---
     function errorToast(err, fallbackMsg) {
+        console.error('errorToast:', fallbackMsg, err);
         if (err.message === 'Access Denied' || err.message === 'Unauthorized') {
             showToast(err.message);
             return true;
@@ -4704,6 +4735,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showToast(msg, customEmoji) {
+        console.log('showToast:', msg, customEmoji);
         if (state.playback.toastTimer) {
             clearTimeout(state.playback.toastTimer);
         }
@@ -4839,12 +4871,19 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'delete':
                 if (state.playback.item && !pipPlayer.classList.contains('hidden')) {
                     const itemToDelete = state.playback.item;
-                    if (e.shiftKey) {
-                        closePiP();
-                    } else {
-                        playSibling(1, true, true);
-                    }
-                    deleteMedia(itemToDelete.path);
+                    openModal('confirm-modal');
+                    document.getElementById('confirm-yes').onclick = () => {
+                        closeModal('confirm-modal');
+                        if (e.shiftKey) {
+                            closePiP();
+                        } else {
+                            playSibling(1, true, true);
+                        }
+                        deleteMedia(itemToDelete.path);
+                    };
+                    document.getElementById('confirm-no').onclick = () => {
+                        closeModal('confirm-modal');
+                    };
                     return;
                 }
                 break;

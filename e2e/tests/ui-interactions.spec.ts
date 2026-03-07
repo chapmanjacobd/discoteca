@@ -6,11 +6,16 @@ test.describe('Fullscreen Toggle', () => {
   test('fullscreen button is visible in document viewer', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
-    // Wait for media to load
+    // Filter to documents
+    await page.fill('#search-input', '.pdf');
+    await page.press('#search-input', 'Enter');
     await page.waitForSelector('.media-card', { timeout: 10000 });
+    await page.waitForTimeout(1000);
 
     // Open a document (PDF)
-    await page.locator('.media-card:has(.rsvp)').first().click();
+    const docCard = page.locator('.media-card[data-type*="text"], .media-card:has(.rsvp)').first();
+    await docCard.click();
+    await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
     
     // Fullscreen button should be visible in document modal
     const fullscreenBtn = page.locator('#doc-fullscreen');
@@ -20,11 +25,16 @@ test.describe('Fullscreen Toggle', () => {
   test('fullscreen button toggles document fullscreen mode', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
-    // Wait for media to load
+    // Filter to documents
+    await page.fill('#search-input', '.pdf');
+    await page.press('#search-input', 'Enter');
     await page.waitForSelector('.media-card', { timeout: 10000 });
+    await page.waitForTimeout(1000);
 
     // Open a document (PDF)
-    await page.locator('.media-card:has(.rsvp)').first().click();
+    const docCard = page.locator('.media-card[data-type*="text"], .media-card:has(.rsvp)').first();
+    await docCard.click();
+    await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
     // Click fullscreen button
     const fullscreenBtn = page.locator('#doc-fullscreen');
@@ -44,7 +54,7 @@ test.describe('Fullscreen Toggle', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card to open player
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
 
     // Focus the player
@@ -65,7 +75,7 @@ test.describe('Fullscreen Toggle', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card to open player
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
 
     // Double-click on video
@@ -84,7 +94,7 @@ test.describe('Fullscreen Toggle', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first non-document media card to open player
-    await page.locator('.media-card:not(:has(.rsvp))').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
 
     // Press F for fullscreen
@@ -108,7 +118,7 @@ test.describe('Metadata Modal', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Click first media card
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -132,7 +142,7 @@ test.describe('Metadata Modal', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Get the path from the first media card
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     const cardTitle = await firstCard.locator('.media-title').textContent();
 
     await firstCard.click();
@@ -159,7 +169,7 @@ test.describe('Metadata Modal', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -183,7 +193,7 @@ test.describe('Metadata Modal', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -200,14 +210,11 @@ test.describe('Metadata Modal', () => {
   test('metadata modal shows codec information', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
 
-    // Wait for page to load
-    await page.waitForSelector('#search-input', { timeout: 10000 });
-    await page.waitForTimeout(1000);
-
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    // Click first VIDEO media card
+    await page.locator('.media-card[data-type*="video"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -227,7 +234,7 @@ test.describe('Metadata Modal', () => {
     // Wait for captions to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -248,7 +255,7 @@ test.describe('Metadata Modal', () => {
     // Wait for captions to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -271,7 +278,7 @@ test.describe('Metadata Modal', () => {
     // Wait for captions to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -298,7 +305,7 @@ test.describe('Metadata Modal', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -325,7 +332,7 @@ test.describe('Metadata Modal', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -349,7 +356,7 @@ test.describe('Metadata Modal', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -373,7 +380,7 @@ test.describe('Metadata Modal', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    await page.locator('.media-card').first().click();
+    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
@@ -402,7 +409,7 @@ test.describe('Trash Functionality', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover over first media card
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.hover();
     await page.waitForTimeout(500);
 
@@ -418,7 +425,7 @@ test.describe('Trash Functionality', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover and click trash button
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.hover();
     await page.waitForTimeout(500);
 
@@ -428,7 +435,7 @@ test.describe('Trash Functionality', () => {
       await page.waitForTimeout(1000);
 
       // Confirmation dialog should appear
-      const confirmDialog = page.locator('[role="alertdialog"], .confirm-dialog, .modal:has-text("delete"), .modal:has-text("trash")');
+      const confirmDialog = page.locator('#confirm-modal');
       await expect(confirmDialog.first()).toBeVisible();
     }
   });
@@ -440,7 +447,7 @@ test.describe('Trash Functionality', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover and click trash button
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.hover();
     await page.waitForTimeout(500);
 
@@ -455,7 +462,7 @@ test.describe('Trash Functionality', () => {
       await page.waitForTimeout(1000);
 
       // Dialog should be hidden
-      const confirmDialog = page.locator('[role="alertdialog"], .confirm-dialog');
+      const confirmDialog = page.locator('#confirm-modal');
       await expect(confirmDialog.first()).not.toBeVisible();
 
       // Card should still exist
@@ -504,7 +511,7 @@ test.describe('Trash Functionality', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Hover over first media card
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.hover();
     await page.waitForTimeout(500);
 
@@ -525,7 +532,7 @@ test.describe('Trash Functionality', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Select first card
-    const firstCard = page.locator('.media-card').first();
+    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
     await firstCard.click();
     await page.waitForTimeout(300);
 
@@ -534,7 +541,7 @@ test.describe('Trash Functionality', () => {
     await page.waitForTimeout(1000);
 
     // Confirmation dialog should appear
-    const confirmDialog = page.locator('[role="alertdialog"], .confirm-dialog');
+    const confirmDialog = page.locator('#confirm-modal');
     await expect(confirmDialog.first()).toBeVisible();
 
     // Cancel the deletion
