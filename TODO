@@ -1,0 +1,39 @@
+calculate e2e coverage by feature rather than lines
+
+e2e tests for all shortcuts
+
+move shortcuts to seperate js file
+
+For epubs, lets serve them by streaming or ebook-convert in ~/.cache
+
+
+
+    2. `GlobalFlags` is Overly Complex ⚠️ High Priority
+    The GlobalFlags struct embeds 16 different flag structs with 100+ fields. Most commands only use a fraction of these.
+
+Yes lets get rid of the command embedding and duplicate the flags across the commands that actually use them.
+
+    3. Duplicate Query/Filter Logic
+     - query.MediaQuery() and query.MediaQueryCount() have significant overlap
+     - Filter logic exists in both query.BuildSelect() and filter.Apply()
+     - Multiple places build similar SQL WHERE clauses
+
+    4. Inconsistent Error Handling Patterns
+    Some commands return errors, some call os.Exit(), some log and continue.
+
+    5. Large Command Files
+     - serve.go: Likely very large (web server)
+     - query.go: 1723 lines - could be split by concern
+     - commands/ has 50+ files with overlapping responsibilities
+
+    6. TODO Items from File
+     - "calculate e2e coverage by feature rather than lines"
+     - "e2e tests for all shortcuts"
+     - "move shortcuts to seperate js file"
+     - "For epubs, lets serve them by streaming or ebook-convert in ~/.cache"
+
+    7. Schema and Queries Duplication
+     - schema.sql embedded in commands
+     - queries.sql for sqlc
+     - Manual SQL in query.go
+    These should be better synchronized.

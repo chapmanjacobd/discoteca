@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -28,11 +27,7 @@ func (c *NowCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	socketPath := c.MpvSocket
-	if socketPath == "" {
-		socketPath = utils.GetMpvWatchSocket()
-	}
-
+	socketPath := utils.GetMpvSocketPath(c.MpvSocket)
 	pathResp, err := utils.MpvCall(socketPath, "get_property", "path")
 	if err != nil {
 		if !utils.FileExists(cattFile) {
@@ -74,20 +69,11 @@ type StopCmd struct {
 func (c *StopCmd) Run(ctx *kong.Context) error {
 	cattFile := utils.GetCattNowPlayingFile()
 	if utils.FileExists(cattFile) {
-		args := []string{"catt"}
-		if c.CastDevice != "" {
-			args = append(args, "-d", c.CastDevice)
-		}
-		args = append(args, "stop")
-		exec.Command(args[0], args[1:]...).Run()
+		utils.CastCommand(c.CastDevice, "stop")
 		os.Remove(cattFile)
 	}
 
-	socketPath := c.MpvSocket
-	if socketPath == "" {
-		socketPath = utils.GetMpvWatchSocket()
-	}
-
+	socketPath := utils.GetMpvSocketPath(c.MpvSocket)
 	if !utils.FileExists(socketPath) {
 		return nil
 	}
@@ -106,18 +92,10 @@ type PauseCmd struct {
 func (c *PauseCmd) Run(ctx *kong.Context) error {
 	cattFile := utils.GetCattNowPlayingFile()
 	if utils.FileExists(cattFile) {
-		args := []string{"catt"}
-		if c.CastDevice != "" {
-			args = append(args, "-d", c.CastDevice)
-		}
-		args = append(args, "play_toggle")
-		exec.Command(args[0], args[1:]...).Run()
+		utils.CastCommand(c.CastDevice, "play_toggle")
 	}
 
-	socketPath := c.MpvSocket
-	if socketPath == "" {
-		socketPath = utils.GetMpvWatchSocket()
-	}
+	socketPath := utils.GetMpvSocketPath(c.MpvSocket)
 	if utils.FileExists(socketPath) {
 		utils.MpvCall(socketPath, "cycle", "pause")
 	}
@@ -131,19 +109,11 @@ type NextCmd struct {
 func (c *NextCmd) Run(ctx *kong.Context) error {
 	cattFile := utils.GetCattNowPlayingFile()
 	if utils.FileExists(cattFile) {
-		args := []string{"catt"}
-		if c.CastDevice != "" {
-			args = append(args, "-d", c.CastDevice)
-		}
-		args = append(args, "stop")
-		exec.Command(args[0], args[1:]...).Run()
+		utils.CastCommand(c.CastDevice, "stop")
 		// We don't remove cattFile here because CastPlay loop will handle it or update it
 	}
 
-	socketPath := c.MpvSocket
-	if socketPath == "" {
-		socketPath = utils.GetMpvWatchSocket()
-	}
+	socketPath := utils.GetMpvSocketPath(c.MpvSocket)
 	if utils.FileExists(socketPath) {
 		utils.MpvCall(socketPath, "playlist_next", "force")
 	}
@@ -156,11 +126,6 @@ type SeekCmd struct {
 }
 
 func (c *SeekCmd) Run(ctx *kong.Context) error {
-	socketPath := c.MpvSocket
-	if socketPath == "" {
-		socketPath = utils.GetMpvWatchSocket()
-	}
-
 	s := c.Time
 	isRelative := false
 	isNegative := false
@@ -191,33 +156,27 @@ func (c *SeekCmd) Run(ctx *kong.Context) error {
 
 	cattFile := utils.GetCattNowPlayingFile()
 	if utils.FileExists(cattFile) {
-		args := []string{"catt"}
-		if c.CastDevice != "" {
-			args = append(args, "-d", c.CastDevice)
-		}
-
+		var cmd string
 		if isRelative && isNegative {
-			args = append(args, "rewind", fmt.Sprintf("%d", int64(-seconds)))
+			cmd = "rewind"
+			seconds = -seconds
 		} else if isRelative {
-			args = append(args, "ffwd", fmt.Sprintf("%d", int64(seconds)))
+			cmd = "ffwd"
 		} else {
-			args = append(args, "seek", fmt.Sprintf("%d", int64(seconds)))
+			cmd = "seek"
 		}
-		exec.Command(args[0], args[1:]...).Run()
+		utils.CastCommand(c.CastDevice, cmd, fmt.Sprintf("%d", int64(seconds)))
 	}
 
 	mode := "absolute"
 	if isRelative {
 		mode = "relative"
 	} else if !strings.Contains(c.Time, ":") {
-		// If it's just a number without +/- or :, Python logic implies it might be relative too?
-		// Python: if ":" not in s: is_relative = True
+		// If it's just a number without +/- or :, Python logic implies it might be relative too
 		mode = "relative"
 	}
 
-	if socketPath == "" {
-		socketPath = utils.GetMpvWatchSocket()
-	}
+	socketPath := utils.GetMpvSocketPath(c.MpvSocket)
 	if utils.FileExists(socketPath) {
 		utils.MpvCall(socketPath, "seek", seconds, mode)
 	}

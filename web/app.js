@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (channelSurfBtn) channelSurfBtn.classList.add('active');
 
             // Open in PiP
-            await openInPiP(data, true, true);
+            await openActivePlayer(data, true, true);
 
             // Seek to the random start time
             const media = pipViewer.querySelector('video, audio');
@@ -604,12 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         localStorage.setItem('disco-sidebar-state', JSON.stringify(state.sidebarState));
-        localStorage.setItem('disco-filter-categories', '[]');
-        localStorage.setItem('disco-filter-ratings', '[]');
-        localStorage.setItem('disco-filter-sizes', '[]');
-        localStorage.setItem('disco-filter-durations', '[]');
-        localStorage.setItem('disco-filter-episodes', '[]');
-        localStorage.setItem('disco-types', '[]');
+        clearAllFilters();
         updateNavActiveStates();
     }
 
@@ -641,12 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSliderLabels();
 
         // Save to localStorage
-        localStorage.setItem('disco-filter-categories', '[]');
-        localStorage.setItem('disco-filter-ratings', '[]');
-        localStorage.setItem('disco-filter-sizes', '[]');
-        localStorage.setItem('disco-filter-durations', '[]');
-        localStorage.setItem('disco-filter-episodes', '[]');
-        localStorage.setItem('disco-types', '[]');
+        clearAllFilters();
 
         updateNavActiveStates();
         performSearch();
@@ -659,6 +649,129 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeModal(id) {
         document.getElementById(id).classList.add('hidden');
+    }
+
+    // --- LocalStorage Helpers ---
+    function getLocalStorageItem(key, defaultValue = null) {
+        const item = localStorage.getItem(key);
+        if (item === null || item === undefined) return defaultValue;
+        try {
+            return JSON.parse(item);
+        } catch {
+            return defaultValue;
+        }
+    }
+
+    function setLocalStorageItem(key, value) {
+        localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function clearAllFilters() {
+        const filterKeys = [
+            'disco-filter-categories',
+            'disco-filter-ratings',
+            'disco-filter-sizes',
+            'disco-filter-durations',
+            'disco-filter-episodes',
+            'disco-types'
+        ];
+        filterKeys.forEach(key => localStorage.setItem(key, '[]'));
+    }
+
+    /**
+     * Get the element for the currently active viewer (PiP or document container).
+     * @returns {HTMLElement|null} The active viewer element or null if none is visible
+     */
+    function getActiveViewerElement() {
+        const docModal = document.getElementById('document-modal');
+        if (!docModal.classList.contains('hidden')) {
+            return document.getElementById('document-container');
+        }
+        if (!pipPlayer.classList.contains('hidden')) {
+            return pipViewer;
+        }
+        return null;
+    }
+
+    /**
+     * Close whichever player is currently active (PiP or Document Modal).
+     * This is the unified interface for closing the active player.
+     * @returns {boolean} true if a player was closed, false if none was open
+     */
+    async function closeActivePlayer() {
+        let closed = false;
+
+        // Close PiP if open
+        if (!pipPlayer.classList.contains('hidden')) {
+            stopSlideshow();
+
+            if (state.playback.skipTimeout) {
+                clearTimeout(state.playback.skipTimeout);
+                state.playback.skipTimeout = null;
+            }
+
+            if (state.playback.hlsInstance) {
+                state.playback.hlsInstance.destroy();
+                state.playback.hlsInstance = null;
+            }
+            const media = pipViewer.querySelector('video, audio');
+            if (media) {
+                media.pause();
+                media.src = "";
+            }
+            pipViewer.innerHTML = '';
+            pipPlayer.classList.add('hidden');
+            document.body.classList.remove('has-pip');
+
+            // Exit fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(err => {
+                    console.error('Failed to exit fullscreen:', err);
+                });
+            }
+
+            // Reset mode to default preference
+            state.playerMode = state.defaultView;
+            state.playQueue = [];
+            closed = true;
+        }
+
+        // Close Document Modal if open
+        const docModal = document.getElementById('document-modal');
+        if (!docModal.classList.contains('hidden')) {
+            closeModal('document-modal');
+            closed = true;
+        }
+
+        // Clear playback state
+        state.playback.item = null;
+
+        // Update Now Playing button visibility
+        updateNowPlayingButton();
+
+        return closed;
+    }
+
+    /**
+     * Open the appropriate player for the given media item.
+     * Documents open in the document modal, all other media opens in PiP.
+     * @param {Object} item - The media item to play
+     * @param {boolean} isNewSession - Whether this is a new explicit user request
+     * @param {boolean} isSurfing - Whether this is a channel surfing action
+     */
+    function openActivePlayer(item, isNewSession = false, isSurfing = false) {
+        const type = item.type || "";
+        const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi');
+
+        // Close any existing player before opening new one
+        closeActivePlayer();
+
+        // Open in appropriate viewer
+        if (isDocument) {
+            openInDocumentViewer(item);
+        } else {
+            openInPiP(item, isNewSession, isSurfing);
+        }
     }
 
     // --- Navigation & URL ---
@@ -1023,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const item = state.lastSuggestions.find(s => s.path === path);
                     if (item) {
                         if (state.player === 'browser') {
-                            openInPiP(item, true);
+                            openActivePlayer(item, true);
                         } else {
                             playMedia(item);
                         }
@@ -2602,7 +2715,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (state.player === 'browser') {
-            openInPiP(item, true); // True means this was an explicit user request / new session
+            openActivePlayer(item, true);
             return;
         }
 
@@ -2683,7 +2796,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.localResume) {
             // Throttling: only update localStorage once per second
             if (isComplete || (now - state.playback.lastLocalUpdate) >= 1000) {
-                const progress = JSON.parse(localStorage.getItem('disco-progress') || '{}');
+                const progress = getLocalStorageItem('disco-progress', {});
                 if (isComplete) {
                     if (!!state.readOnly) {
                         progress[item.path] = {
@@ -2696,9 +2809,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Increment play count locally if global progress is disabled
                     if (!!state.readOnly) {
-                        const counts = JSON.parse(localStorage.getItem('disco-play-counts') || '{}');
+                        const counts = getLocalStorageItem('disco-play-counts', {});
                         counts[item.path] = (counts[item.path] || 0) + 1;
-                        localStorage.setItem('disco-play-counts', JSON.stringify(counts));
+                        setLocalStorageItem('disco-play-counts', counts);
                     }
                 } else {
                     progress[item.path] = {
@@ -2706,7 +2819,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         last: now
                     };
                 }
-                localStorage.setItem('disco-progress', JSON.stringify(progress));
+                setLocalStorageItem('disco-progress', progress);
                 state.playback.lastLocalUpdate = now;
             }
         }
@@ -2842,39 +2955,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isNewSession = pipPlayer.classList.contains('hidden');
 
-        if (nextIndex >= 0 && nextIndex < currentMedia.length) {
-            if (state.player === 'browser') {
-                openInPiP(currentMedia[nextIndex], isNewSession);
-            } else {
-                playMedia(currentMedia[nextIndex]);
+        // Helper to play a media item
+        const playItem = (index) => {
+            if (index >= 0 && index < currentMedia.length) {
+                if (state.player === 'browser') {
+                    openActivePlayer(currentMedia[index], isNewSession);
+                } else {
+                    playMedia(currentMedia[index]);
+                }
+                return true;
             }
-        } else if (nextIndex >= currentMedia.length && !state.filters.all && state.page === 'search') {
+            return false;
+        };
+
+        // Try to play the requested index
+        if (nextIndex >= 0 && nextIndex < currentMedia.length) {
+            playItem(nextIndex);
+            return;
+        }
+
+        // Handle pagination for both delete and non-delete operations
+        if (nextIndex >= currentMedia.length && !state.filters.all && state.page === 'search') {
             const totalPages = Math.ceil(state.totalCount / state.filters.limit);
             if (state.currentPage < totalPages) {
                 // End of current page, fetch next
                 state.currentPage++;
                 performSearch().then(() => {
                     if (currentMedia.length > 0) {
-                        if (state.player === 'browser') {
-                            openInPiP(currentMedia[0], isNewSession);
-                        } else {
-                            playMedia(currentMedia[0]);
-                        }
+                        playItem(0);
                     }
                 });
+                return;
             }
         } else if (nextIndex < 0 && state.currentPage > 1 && !state.filters.all && state.page === 'search') {
             // Beginning of current page, fetch previous
             state.currentPage--;
             performSearch().then(() => {
                 if (currentMedia.length > 0) {
-                    if (state.player === 'browser') {
-                        openInPiP(currentMedia[currentMedia.length - 1], isNewSession);
-                    } else {
-                        playMedia(currentMedia[currentMedia.length - 1]);
-                    }
+                    playItem(currentMedia.length - 1);
                 }
             });
+            return;
+        }
+
+        // For delete operation: if pagination didn't apply (e.g., last page), try sibling (and vice versa)
+        if (isDelete) {
+            if (offset > 0 && nextIndex >= currentMedia.length) {
+                // Tried to go next but hit end, try previous
+                if (playItem(currentIndex - 1)) return;
+            } else if (offset < 0 && nextIndex < 0) {
+                // Tried to go previous but hit start, try next
+                if (playItem(currentIndex + 1)) return;
+            }
         }
     }
 
@@ -2899,13 +3031,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function markMediaPlayed(item) {
         if (state.readOnly) {
             // Local update for read-only mode
-            const progress = JSON.parse(localStorage.getItem('disco-progress') || '{}');
+            const progress = getLocalStorageItem('disco-progress', {});
             progress[item.path] = { pos: 0, last: Date.now() };
-            localStorage.setItem('disco-progress', JSON.stringify(progress));
+            setLocalStorageItem('disco-progress', progress);
 
-            const counts = JSON.parse(localStorage.getItem('disco-play-counts') || '{}');
+            const counts = getLocalStorageItem('disco-play-counts', {});
             counts[item.path] = (counts[item.path] || 0) + 1;
-            localStorage.setItem('disco-play-counts', JSON.stringify(counts));
+            setLocalStorageItem('disco-play-counts', counts);
 
             showToast('Marked as seen (Local)', '✅');
         } else {
@@ -2948,13 +3080,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function markMediaUnplayed(item) {
         if (state.readOnly) {
             // Local update for read-only mode
-            const counts = JSON.parse(localStorage.getItem('disco-play-counts') || '{}');
+            const counts = getLocalStorageItem('disco-play-counts', {});
             counts[item.path] = 0;
-            localStorage.setItem('disco-play-counts', JSON.stringify(counts));
+            setLocalStorageItem('disco-play-counts', counts);
 
-            const progress = JSON.parse(localStorage.getItem('disco-progress') || '{}');
+            const progress = getLocalStorageItem('disco-progress', {});
             delete progress[item.path];
-            localStorage.setItem('disco-progress', JSON.stringify(progress));
+            setLocalStorageItem('disco-progress', progress);
 
             showToast('Marked as unplayed (Local)', '⭕');
         } else {
@@ -3069,7 +3201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalPlayer = state.player;
         state.player = 'browser';
         const rsvpItem = { ...item, rsvp: true, type: 'video/webm' };
-        await openInPiP(rsvpItem, true);
+        await openActivePlayer(rsvpItem, true);
         state.player = originalPlayer;
     }
 
@@ -3133,7 +3265,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Stopped auto-skip after 120 errors', '🛑');
                 state.playback.consecutiveErrors = 0;
             }
-            closePiP();
+            closeActivePlayer();
         }
     }
 
@@ -3148,7 +3280,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function openInPiP(item, isNewSession = false, isSurfing = false) {
-        console.log('openInPiP called for:', item.path, 'newSession:', isNewSession);
         state.playback.isSurfing = isSurfing;
         updatePipVisibility();
 
@@ -3167,22 +3298,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const type = item.type || "";
-        
-        // Handle Documents - close PiP if open and open document modal
-        if (type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi')) {
-            // Close PiP if it's open
-            if (!pipPlayer.classList.contains('hidden')) {
-                closePiP();
-            }
-            openInDocumentViewer(item);
-            return;
-        }
-
-        // Close document modal if switching from document to media
-        const docModal = document.getElementById('document-modal');
-        if (docModal && !docModal.classList.contains('hidden')) {
-            closeModal('document-modal');
-        }
 
         // Reset playback rate to default for new media if not currently playing something
         if (!state.playback.item) {
@@ -3615,6 +3730,10 @@ document.addEventListener('DOMContentLoaded', () => {
         title.textContent = truncateString(item.path.split('/').pop());
         title.title = item.path;
 
+        // Set playback state for keyboard shortcuts (delete, etc.)
+        state.playback.item = item;
+        state.playback.lastPlayedIndex = currentMedia.findIndex(m => m.path === item.path);
+
         // Clear previous viewer content
         container.innerHTML = '';
 
@@ -3631,7 +3750,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const rsvpBtn = document.getElementById('doc-rsvp');
         if (rsvpBtn) {
             rsvpBtn.onclick = () => {
-                closeModal('document-modal');
+                closeActivePlayer();
                 playRSVP(item);
             };
         }
@@ -4776,7 +4895,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2. Seek shortcuts (Shift+0-9) - seek to 0%, 10%, 20%, ... 90%, 100%
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && 
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey &&
             ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
             if (isPipVisible) {
                 const media = pipViewer.querySelector('video, audio');
@@ -4851,15 +4970,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 case 'f':
                     // 'f' toggles fullscreen for active viewer, or exits fullscreen if no viewer
-                    if (document.fullscreenElement && !isDocModalVisible && !isPipVisible) {
+                    if (document.fullscreenElement && !hasActiveViewer) {
                         // If in fullscreen but no viewer is visible, exit fullscreen
                         document.exitFullscreen().catch(err => {
                             console.error('Failed to exit fullscreen:', err);
                         });
-                    } else if (isDocModalVisible) {
-                        toggleFullscreen(document.getElementById('document-container'));
-                    } else if (isPipVisible) {
-                        toggleFullscreen(pipViewer);
+                    } else {
+                        toggleFullscreen(getActiveViewerElement());
                     }
                     return;
             }
@@ -4875,11 +4992,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'q':
             case 'w':
             case 's':
-                if (isDocModalVisible) {
-                    closeModal('document-modal');
-                } else if (isPipVisible) {
-                    closePiP();
-                }
+                closeActivePlayer();
                 e.preventDefault();
                 return;
             case 'escape':
@@ -4891,41 +5004,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     return;
                 }
-                if (isDocModalVisible) {
-                    closeModal('document-modal');
-                } else if (isPipVisible) {
-                    closePiP();
-                }
+                closeActivePlayer();
                 e.preventDefault();
                 return;
             case 'delete':
                 if (state.playback.item) {
                     const itemToDelete = state.playback.item;
-                    if (isDocModalVisible) {
-                        closeModal('document-modal');
-                    } else if (isPipVisible && e.shiftKey) {
-                        closePiP();
-                    } else if (isPipVisible) {
+
+                    if (e.shiftKey) {
+                        closeActivePlayer();
+                    } else {
                         playSibling(1, true, true);
                     }
+
                     deleteMedia(itemToDelete.path);
                 }
                 e.preventDefault();
                 return;
         }
 
-        // Navigation shortcuts (seamlessly switch between PiP and document modal)
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-                playSibling(e.key === 'ArrowLeft' ? -1 : 1, true);
-                e.preventDefault();
+        // Only process media-specific shortcuts if PiP is visible
+        if (!isPipVisible) {
+            // Navigation shortcuts (seamlessly switch between PiP and document modal)
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                    playSibling(e.key === 'ArrowLeft' ? -1 : 1, true);
+                    e.preventDefault();
+                }
+                return;
             }
             return;
         }
 
-        // Only process media-specific shortcuts if PiP is visible
-        if (!isPipVisible) {
-            return;
+        // Navigation shortcuts when PiP is visible (seek within media)
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                // Let it fall through to the switch statement for seeking
+            } else {
+                playSibling(e.key === 'ArrowLeft' ? -1 : 1, true);
+                e.preventDefault();
+                return;
+            }
         }
 
         const media = pipViewer.querySelector('video, audio, img');
@@ -5294,7 +5413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state.playback.item) return;
         state.playback.item.transcode = !state.playback.item.transcode;
         const currentPos = pipViewer.querySelector('video, audio')?.currentTime || 0;
-        openInPiP(state.playback.item);
+        openActivePlayer(state.playback.item);
 
         const media = pipViewer.querySelector('video, audio');
         if (media) {
@@ -5481,7 +5600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (diffY > 80 && Math.abs(diffX) < 60) {
                     // Swipe Down -> Close
-                    closePiP();
+                    closeActivePlayer();
                 }
             }
             touchStartTime = 0;
@@ -5727,41 +5846,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset ALL filters when entering trash mode for safety
             // This prevents dangerous situations where filters could show untrashed files in trash view
-            state.filters.categories = [];
-            state.filters.ratings = [];
-            state.filters.types = [];
-            state.filters.sizes = [];
-            state.filters.durations = [];
-            state.filters.episodes = [];
-            state.filters.genre = '';
-            state.filters.playlist = null;
-            state.filters.unplayed = false;
-            state.filters.unfinished = false;
-            state.filters.completed = false;
-            state.filters.search = '';
-            if (searchInput) searchInput.value = '';
-
-            // Reset sidebar UI
-            document.querySelectorAll('.sidebar .category-btn.active').forEach(btn => {
-                if (btn.id !== 'trash-btn') btn.classList.remove('active');
-            });
-
-            // Reset sliders
-            if (episodesMinSlider) episodesMinSlider.value = 0;
-            if (episodesMaxSlider) episodesMaxSlider.value = 100;
-            if (sizeMinSlider) sizeMinSlider.value = 0;
-            if (sizeMaxSlider) sizeMaxSlider.value = 100;
-            if (durationMinSlider) durationMinSlider.value = 0;
-            if (durationMaxSlider) durationMaxSlider.value = 100;
-            updateSliderLabels();
+            resetFilters();
 
             // Save to localStorage
-            localStorage.setItem('disco-filter-categories', '[]');
-            localStorage.setItem('disco-filter-ratings', '[]');
-            localStorage.setItem('disco-filter-sizes', '[]');
-            localStorage.setItem('disco-filter-durations', '[]');
-            localStorage.setItem('disco-filter-episodes', '[]');
-            localStorage.setItem('disco-types', '[]');
+            clearAllFilters();
 
             state.page = 'trash';
             updateNavActiveStates();

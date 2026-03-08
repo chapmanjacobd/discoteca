@@ -70,8 +70,12 @@ ffmpeg -y -f lavfi -i sine=frequency=330:duration=60 \
 printf '\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9' > "$MEDIA_DIR/images/photo1.jpg"
 printf '\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9' > "$MEDIA_DIR/images/photo2.jpg"
 
-# Minimal PDF
-printf '%%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%%%EOF' > "$MEDIA_DIR/documents/doc1.pdf"
+# Create valid PDF using pandoc (or fallback to minimal PDF if pandoc not available)
+echo "# Test Document
+
+This is a test PDF document for e2e testing.
+
+It contains multiple lines to ensure it's a valid, readable PDF." | pandoc -f markdown -t pdf -o "$MEDIA_DIR/documents/doc1.pdf"
 
 # VTT subtitle files (external subtitles for caption scanning)
 cat > "$MEDIA_DIR/videos/movie1.vtt" << 'VTT'

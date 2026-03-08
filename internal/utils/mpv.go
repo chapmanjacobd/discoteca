@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,6 +25,25 @@ type MpvResponse struct {
 
 type MpvCommand struct {
 	Command []any `json:"command"`
+}
+
+// GetMpvSocketPath returns the socket path to use, either from provided value or default
+func GetMpvSocketPath(provided string) string {
+	if provided != "" {
+		return provided
+	}
+	return GetMpvWatchSocket()
+}
+
+// CastCommand builds and executes a catt command with optional device specification
+func CastCommand(castDevice string, args ...string) error {
+	cmdArgs := []string{"catt"}
+	if castDevice != "" {
+		cmdArgs = append(cmdArgs, "-d", castDevice)
+	}
+	cmdArgs = append(cmdArgs, args...)
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	return cmd.Run()
 }
 
 // MpvCall sends a command to mpv via IPC socket and returns the response
