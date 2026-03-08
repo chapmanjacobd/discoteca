@@ -610,11 +610,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Modal Management ---
     function openModal(id) {
+        state.activeModal = id;
         document.getElementById(id).classList.remove('hidden');
+        syncUrl();
     }
 
     function closeModal(id) {
+        if (state.activeModal === id) {
+            state.activeModal = null;
+        }
         document.getElementById(id).classList.add('hidden');
+        syncUrl();
     }
 
     // --- LocalStorage Helpers ---
@@ -662,9 +668,10 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Close whichever player is currently active (PiP or Document Modal).
      * This is the unified interface for closing the active player.
+     * @param {boolean} skipSync - Whether to skip syncUrl (e.g. if called from readUrl)
      * @returns {boolean} true if a player was closed, false if none was open
      */
-    async function closeActivePlayer() {
+    async function closeActivePlayer(skipSync = false) {
         let closed = false;
 
         // Close PiP if open
@@ -705,7 +712,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close Document Modal if open
         const docModal = document.getElementById('document-modal');
         if (!docModal.classList.contains('hidden')) {
-            closeModal('document-modal');
+            docModal.classList.add('hidden');
+            if (state.activeModal === 'document-modal') {
+                state.activeModal = null;
+            }
             closed = true;
         }
 
@@ -714,6 +724,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update Now Playing button visibility
         updateNowPlayingButton();
+
+        if (closed && !skipSync) {
+            syncUrl();
+        }
 
         return closed;
     }
@@ -724,19 +738,27 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {Object} item - The media item to play
      * @param {boolean} isNewSession - Whether this is a new explicit user request
      * @param {boolean} isSurfing - Whether this is a channel surfing action
+     * @param {boolean} skipSync - Whether to skip syncUrl
      */
-    function openActivePlayer(item, isNewSession = false, isSurfing = false) {
+    function openActivePlayer(item, isNewSession = false, isSurfing = false, skipSync = false) {
         const type = item.type || "";
         const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi');
 
         // Close any existing player before opening new one
-        closeActivePlayer();
+        closeActivePlayer(true);
+
+        state.playback.item = item;
 
         // Open in appropriate viewer
         if (isDocument) {
+            state.activeModal = 'document-modal';
             openInDocumentViewer(item);
         } else {
             openInPiP(item, isNewSession, isSurfing);
+        }
+
+        if (!skipSync) {
+            syncUrl();
         }
     }
 
@@ -782,6 +804,8 @@ document.addEventListener('DOMContentLoaded', () => {
             params.append('reverse', 'true');
         }
     }
+
+    const isMobileOrFullscreen = () => window.innerWidth <= 768 || !!document.fullscreenElement;
 
     function syncUrl() {
         const params = new URLSearchParams();
@@ -834,20 +858,33 @@ document.addEventListener('DOMContentLoaded', () => {
             params.set('p', state.currentPage);
         }
 
+        // Modal and playback states in URL (primarily for mobile back button)
+        if (isMobileOrFullscreen()) {
+            if (state.activeModal) {
+                params.set('modal', state.activeModal);
+            }
+            if (state.playback.item) {
+                params.set('playing', state.playback.item.path);
+            }
+        }
+
         const paramString = params.toString();
         const newHash = paramString ? `#${paramString}` : '';
 
         if (window.location.hash !== newHash) {
-            // Use pushState for DU navigation and page changes to support back button
+            // Use pushState for DU navigation, page changes, modals, and playback to support back button
             // Use replaceState for filter changes to avoid history spam
-            const isDUPathChange = state.page === 'du' && !window.location.hash.includes('mode=du');
+            const isDUPathChange = state.page === 'du' && !window.location.hash.includes('path=');
             const isPageChange = !window.location.hash.includes(`mode=${state.page}`);
+            const isModalChange = params.has('modal') !== window.location.hash.includes('modal=');
+            const isPlayingChange = params.has('playing') !== window.location.hash.includes('playing=');
 
-            if (isPageChange || state.page === 'du') {
+            if (isPageChange || isDUPathChange || isModalChange || isPlayingChange) {
                 window.history.pushState(state.filters, '', window.location.pathname + newHash);
             } else {
                 window.history.replaceState(state.filters, '', window.location.pathname + newHash);
             }
+            lastHandledHash = window.location.hash;
         }
     }
 
@@ -865,6 +902,44 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.unfinished = historyFilter === 'in-progress';
         state.filters.unplayed = historyFilter === 'unplayed';
         state.filters.completed = historyFilter === 'completed';
+
+        // Modals and Playback
+        const modalParam = params.get('modal');
+        const playingParam = params.get('playing');
+
+        // Close sidebar if it's open but not in URL
+        if (state.activeModal === 'mobile-sidebar' && modalParam !== 'mobile-sidebar') {
+            sidebar.classList.remove('mobile-open');
+            sidebarOverlay.classList.add('hidden');
+            state.activeModal = null;
+        }
+
+        if (modalParam) {
+            if (state.activeModal !== modalParam) {
+                state.activeModal = modalParam;
+                if (modalParam === 'mobile-sidebar') {
+                    sidebar.classList.add('mobile-open');
+                    sidebarOverlay.classList.remove('hidden');
+                } else {
+                    const el = document.getElementById(modalParam);
+                    if (el) el.classList.remove('hidden');
+                }
+            }
+        } else if (state.activeModal) {
+            const el = document.getElementById(state.activeModal);
+            if (el) el.classList.add('hidden');
+            state.activeModal = null;
+        }
+
+        if (playingParam) {
+            if (!state.playback.item || state.playback.item.path !== playingParam) {
+                // If we're already playing something, close it first
+                const mediaItem = currentMedia.find(m => m.path === playingParam) || { path: playingParam };
+                openActivePlayer(mediaItem, true, false, true);
+            }
+        } else if (state.playback.item) {
+            closeActivePlayer(true);
+        }
 
         if (mode === 'trash') {
             state.page = 'trash';
@@ -966,7 +1041,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return { label: val, value: Number(val) };
     }
 
+    let lastHandledHash = window.location.hash;
+
     const onUrlChange = () => {
+        const currentHash = window.location.hash;
+        lastHandledHash = currentHash;
+
         readUrl();
         updateNavActiveStates();
         if (state.page === 'trash') {
@@ -989,8 +1069,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPlaylistList();
     };
 
-    window.onpopstate = onUrlChange;
-    window.onhashchange = onUrlChange;
+    window.onpopstate = () => {
+        onUrlChange();
+    };
+
+    window.onhashchange = () => {
+        if (window.location.hash !== lastHandledHash) {
+            onUrlChange();
+        }
+    };
 
     // --- API Calls ---
     async function fetchDatabases() {
@@ -3866,41 +3953,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function closePiP() {
-        console.log('closePiP called');
-        stopSlideshow();
-
-        if (state.playback.skipTimeout) {
-            clearTimeout(state.playback.skipTimeout);
-            state.playback.skipTimeout = null;
-        }
-
-        if (state.playback.hlsInstance) {
-            state.playback.hlsInstance.destroy();
-            state.playback.hlsInstance = null;
-        }
-        const media = pipViewer.querySelector('video, audio');
-        if (media) {
-            media.pause();
-            media.src = "";
-        }
-        pipViewer.innerHTML = '';
-        pipPlayer.classList.add('hidden');
-        document.body.classList.remove('has-pip');
-
-        // Exit fullscreen if active
-        if (document.fullscreenElement) {
-            document.exitFullscreen().catch(err => {
-                console.error('Failed to exit fullscreen:', err);
-            });
-        }
-
-        // Reset mode to default preference
-        state.playerMode = state.defaultView;
-        state.playback.item = null;
-        state.playQueue = [];
-
-        // Update Now Playing button visibility
-        updateNowPlayingButton();
+        await closeActivePlayer();
     }
 
     function renderPagination() {
@@ -4931,7 +4984,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (allModals.length > 0) {
                     const topmostModal = allModals[allModals.length - 1];
                     if (topmostModal.id !== 'document-modal') {
-                        topmostModal.classList.add('hidden');
+                        closeModal(topmostModal.id);
                         e.preventDefault();
                         return;
                     }
@@ -5424,7 +5477,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.onclick = (e) => {
             const modal = e.target.closest('.modal');
-            modal.classList.add('hidden');
+            if (modal) {
+                if (modal.id === 'document-modal') {
+                    closeActivePlayer();
+                } else {
+                    closeModal(modal.id);
+                }
+            }
         };
     });
 
@@ -6271,13 +6330,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Mobile Sidebar Controls ---
     function toggleMobileSidebar() {
+        const isOpen = sidebar.classList.contains('mobile-open');
+        if (!isOpen) {
+            state.activeModal = 'mobile-sidebar';
+        } else if (state.activeModal === 'mobile-sidebar') {
+            state.activeModal = null;
+        }
         sidebar.classList.toggle('mobile-open');
         sidebarOverlay.classList.toggle('hidden');
+        syncUrl();
     }
 
     function closeMobileSidebar() {
-        sidebar.classList.remove('mobile-open');
-        sidebarOverlay.classList.add('hidden');
+        if (sidebar.classList.contains('mobile-open')) {
+            sidebar.classList.remove('mobile-open');
+            sidebarOverlay.classList.add('hidden');
+            if (state.activeModal === 'mobile-sidebar') {
+                state.activeModal = null;
+            }
+            syncUrl();
+        }
     }
 
     if (menuToggle) menuToggle.onclick = toggleMobileSidebar;
@@ -6338,6 +6410,12 @@ document.addEventListener('DOMContentLoaded', () => {
         formatParents,
         openInPiP,
         openInDocumentViewer,
+        openActivePlayer,
+        closeActivePlayer,
+        openModal,
+        closeModal,
+        toggleMobileSidebar,
+        closeMobileSidebar,
         performSearch,
         updateProgress,
         handleMediaError,

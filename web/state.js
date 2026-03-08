@@ -27,6 +27,7 @@ export const state = {
         browseCol: '',
         browseVal: ''
     },
+    activeModal: null,
     duPath: '',
     draggedItem: null,
     applicationStartTime: null,
