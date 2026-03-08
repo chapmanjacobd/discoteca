@@ -10,12 +10,6 @@ move shortcuts to separate js file
 
 For epubs, lets serve them by streaming or ebook-convert in ~/.cache
 
-
-    2. `GlobalFlags` is Overly Complex ⚠️ High Priority
-    The GlobalFlags struct embeds 16 different flag structs with 100+ fields. Most commands only use a fraction of these.
-
-Yes lets get rid of the command embedding and duplicate the flags across the commands that actually use them.
-
     3. Duplicate Query/Filter Logic
      - query.MediaQuery() and query.MediaQueryCount() have significant overlap
      - Filter logic exists in both query.BuildSelect() and filter.Apply()

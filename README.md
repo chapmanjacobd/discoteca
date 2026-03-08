@@ -3724,10 +3724,6 @@ Flags:
         Columns to skip during merge
   --databases
         Specific database paths to query (must be in server's allowed list). Can be specified multiple times.
-  --threads
-        Use N threads for parallel processing
-  -i, --ignore-errors
-        Ignore errors and continue to next file
 ```
 
 </details>

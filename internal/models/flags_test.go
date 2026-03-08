@@ -5,36 +5,48 @@ import (
 	"testing"
 )
 
-func TestGlobalFlags_AfterApply(t *testing.T) {
-	flags := GlobalFlags{
-		CoreFlags: CoreFlags{
-			Simulate:  true,
-			NoConfirm: true,
-		},
-		MediaFilterFlags: MediaFilterFlags{
-			Ext: []string{"mp4", ".mkv"},
-		},
-		MergeFlags: MergeFlags{
-			Ignore: true,
-		},
+func TestCoreFlags_AfterApply(t *testing.T) {
+	flags := CoreFlags{
+		Simulate:  true,
+		NoConfirm: true,
 	}
 	err := flags.AfterApply()
 	if err != nil {
 		t.Fatalf("AfterApply failed: %v", err)
 	}
-	if flags.MediaFilterFlags.Ext[0] != ".mp4" {
-		t.Errorf("Expected .mp4, got %s", flags.MediaFilterFlags.Ext[0])
-	}
-	if flags.MediaFilterFlags.Ext[1] != ".mkv" {
-		t.Errorf("Expected .mkv, got %s", flags.MediaFilterFlags.Ext[1])
-	}
-	if !flags.CoreFlags.DryRun {
+	if !flags.DryRun {
 		t.Error("Expected DryRun to be true when Simulate is true")
 	}
-	if !flags.CoreFlags.Yes {
+	if !flags.Yes {
 		t.Error("Expected Yes to be true when NoConfirm is true")
 	}
-	if !flags.MergeFlags.OnlyNewRows {
+}
+
+func TestMediaFilterFlags_AfterApply(t *testing.T) {
+	flags := MediaFilterFlags{
+		Ext: []string{"mp4", ".mkv"},
+	}
+	err := flags.AfterApply()
+	if err != nil {
+		t.Fatalf("AfterApply failed: %v", err)
+	}
+	if flags.Ext[0] != ".mp4" {
+		t.Errorf("Expected .mp4, got %s", flags.Ext[0])
+	}
+	if flags.Ext[1] != ".mkv" {
+		t.Errorf("Expected .mkv, got %s", flags.Ext[1])
+	}
+}
+
+func TestMergeFlags_AfterApply(t *testing.T) {
+	flags := MergeFlags{
+		Ignore: true,
+	}
+	err := flags.AfterApply()
+	if err != nil {
+		t.Fatalf("AfterApply failed: %v", err)
+	}
+	if !flags.OnlyNewRows {
 		t.Error("Expected OnlyNewRows to be true when Ignore is true")
 	}
 }

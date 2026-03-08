@@ -34,16 +34,12 @@ type PrintCmd struct {
 }
 
 func (c *PrintCmd) AfterApply() error {
-	flags := models.GlobalFlags{
-		CoreFlags:        c.CoreFlags,
-		MediaFilterFlags: c.MediaFilterFlags,
-	}
-	if err := flags.AfterApply(); err != nil {
+	if err := c.CoreFlags.AfterApply(); err != nil {
 		return err
 	}
-	// Copy back modified flags if any (like extensions normalization)
-	c.MediaFilterFlags = flags.MediaFilterFlags
-
+	if err := c.MediaFilterFlags.AfterApply(); err != nil {
+		return err
+	}
 	for _, arg := range c.Args {
 		if strings.HasSuffix(arg, ".db") && utils.IsSQLite(arg) {
 			c.Databases = append(c.Databases, arg)

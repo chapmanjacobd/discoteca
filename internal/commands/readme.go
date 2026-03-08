@@ -9,7 +9,26 @@ import (
 )
 
 type ReadmeCmd struct {
-	models.GlobalFlags
+	models.CoreFlags        `embed:""`
+	models.QueryFlags       `embed:""`
+	models.PathFilterFlags  `embed:""`
+	models.FilterFlags      `embed:""`
+	models.MediaFilterFlags `embed:""`
+	models.TimeFilterFlags  `embed:""`
+	models.DeletedFlags     `embed:""`
+	models.SortFlags        `embed:""`
+	models.DisplayFlags     `embed:""`
+	models.AggregateFlags   `embed:""`
+	models.TextFlags        `embed:""`
+	models.SimilarityFlags  `embed:""`
+	models.DedupeFlags      `embed:""`
+	models.FTSFlags         `embed:""`
+	models.PlaybackFlags    `embed:""`
+	models.MpvActionFlags   `embed:""`
+	models.PostActionFlags  `embed:""`
+	models.HashingFlags     `embed:""`
+	models.MergeFlags       `embed:""`
+	models.DatabaseFlags    `embed:""`
 }
 
 func (c *ReadmeCmd) Run(ctx *kong.Context) error {

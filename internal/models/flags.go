@@ -250,6 +250,8 @@ type MergeFlags struct {
 }
 
 // GlobalFlags are flags available to disco data commands (print, search, du, etc)
+// This struct is used for passing flags to query and utility functions.
+// Command structs should embed only the flag structs they need.
 type GlobalFlags struct {
 	CoreFlags        `embed:""`
 	QueryFlags       `embed:""`
@@ -307,19 +309,6 @@ func (m *MediaFilterFlags) AfterApply() error {
 func (m *MergeFlags) AfterApply() error {
 	if m.Ignore {
 		m.OnlyNewRows = true
-	}
-	return nil
-}
-
-func (g *GlobalFlags) AfterApply() error {
-	if err := g.CoreFlags.AfterApply(); err != nil {
-		return err
-	}
-	if err := g.MediaFilterFlags.AfterApply(); err != nil {
-		return err
-	}
-	if err := g.MergeFlags.AfterApply(); err != nil {
-		return err
 	}
 	return nil
 }
