@@ -38,7 +38,12 @@ export const state = {
     defaultView: localStorage.getItem('disco-default-view') || 'pip',
     autoplay: localStorage.getItem('disco-autoplay') !== 'false',
     imageAutoplay: localStorage.getItem('disco-image-autoplay') === 'true',
-    localResume: localStorage.getItem('disco-local-resume') !== 'false',
+    get localResume() {
+        return localStorage.getItem('disco-local-resume') !== 'false';
+    },
+    set localResume(value) {
+        localStorage.setItem('disco-local-resume', value);
+    },
     showPipSpeed: localStorage.getItem('disco-show-pip-speed') === 'true',
     showPipSurf: localStorage.getItem('disco-show-pip-surf') === 'true',
     showPipStream: localStorage.getItem('disco-show-pip-stream') === 'true',

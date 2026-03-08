@@ -38,34 +38,35 @@ mkdir -p "$MEDIA_DIR"/{videos,audio,images,documents}
 echo "Generating test media files with ffmpeg..."
 
 # Video files with audio tracks (playable in browser)
+# Using common prefixes so keyword suggestions can find common words
 ffmpeg -y -f lavfi -i testsrc=duration=10:size=320x240:rate=30 \
     -f lavfi -i sine=frequency=440:duration=10 \
     -c:v libx264 -c:a aac -movflags +faststart \
-    "$MEDIA_DIR/videos/movie1.mp4" 2>/dev/null
+    "$MEDIA_DIR/videos/test_video1.mp4" 2>/dev/null
 
 ffmpeg -y -f lavfi -i testsrc=duration=8:size=320x240:rate=30 \
     -f lavfi -i sine=frequency=523:duration=8 \
     -c:v libx264 -c:a aac -movflags +faststart \
-    "$MEDIA_DIR/videos/movie2.mp4" 2>/dev/null
+    "$MEDIA_DIR/videos/test_video2.mp4" 2>/dev/null
 
 ffmpeg -y -f lavfi -i testsrc=duration=5:size=320x240:rate=30 \
     -f lavfi -i sine=frequency=659:duration=5 \
     -c:v libx264 -c:a aac -movflags +faststart \
-    "$MEDIA_DIR/videos/clip1.mp4" 2>/dev/null
+    "$MEDIA_DIR/videos/test_clip1.mp4" 2>/dev/null
 
 ffmpeg -y -f lavfi -i testsrc=duration=3:size=320x240:rate=30 \
     -f lavfi -i sine=frequency=784:duration=3 \
     -c:v libx264 -c:a aac -movflags +faststart \
-    "$MEDIA_DIR/videos/clip2.mp4" 2>/dev/null
+    "$MEDIA_DIR/videos/test_clip2.mp4" 2>/dev/null
 
 # Audio files (playable in browser)
 ffmpeg -y -f lavfi -i sine=frequency=440:duration=30 \
     -c:a libmp3lame -b:a 128k \
-    "$MEDIA_DIR/audio/song1.mp3" 2>/dev/null
+    "$MEDIA_DIR/audio/test_audio1.mp3" 2>/dev/null
 
 ffmpeg -y -f lavfi -i sine=frequency=523:duration=25 \
     -c:a libmp3lame -b:a 128k \
-    "$MEDIA_DIR/audio/song2.mp3" 2>/dev/null
+    "$MEDIA_DIR/audio/test_audio2.mp3" 2>/dev/null
 
 ffmpeg -y -f lavfi -i sine=frequency=330:duration=60 \
     -c:a libmp3lame -b:a 128k \
@@ -74,15 +75,15 @@ ffmpeg -y -f lavfi -i sine=frequency=330:duration=60 \
 # Valid PNG images for slideshow testing
 ffmpeg -y -f lavfi -i color=c=red:s=640x480:d=1 \
     -vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='Image 1'" \
-    -frames:v 1 "$MEDIA_DIR/images/photo1.png" 2>/dev/null
+    -frames:v 1 "$MEDIA_DIR/images/test_image1.png" 2>/dev/null
 
 ffmpeg -y -f lavfi -i color=c=green:s=640x480:d=1 \
     -vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='Image 2'" \
-    -frames:v 1 "$MEDIA_DIR/images/photo2.png" 2>/dev/null
+    -frames:v 1 "$MEDIA_DIR/images/test_image2.png" 2>/dev/null
 
 ffmpeg -y -f lavfi -i color=c=blue:s=640x480:d=1 \
     -vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='Image 3'" \
-    -frames:v 1 "$MEDIA_DIR/images/photo3.png" 2>/dev/null
+    -frames:v 1 "$MEDIA_DIR/images/test_image3.png" 2>/dev/null
 
 # Create valid PDF using pandoc (or fallback to minimal PDF if pandoc not available)
 echo "# Test Document
@@ -92,7 +93,7 @@ This is a test PDF document for e2e testing.
 It contains multiple lines to ensure it's a valid, readable PDF." | pandoc -f markdown -t pdf -o "$MEDIA_DIR/documents/test-document.pdf"
 
 # VTT subtitle files (external subtitles for caption scanning)
-cat > "$MEDIA_DIR/videos/movie1.vtt" << 'VTT'
+cat > "$MEDIA_DIR/videos/test_video1.vtt" << 'VTT'
 WEBVTT
 
 00:00:15.500 --> 00:00:20.000
@@ -105,7 +106,7 @@ This is an exciting scene
 The plot thickens
 VTT
 
-cat > "$MEDIA_DIR/videos/movie2.vtt" << 'VTT'
+cat > "$MEDIA_DIR/videos/test_video2.vtt" << 'VTT'
 WEBVTT
 
 00:00:20.000 --> 00:00:25.000
@@ -115,14 +116,14 @@ Opening scene
 Main character appears
 VTT
 
-cat > "$MEDIA_DIR/videos/clip1.vtt" << 'VTT'
+cat > "$MEDIA_DIR/videos/test_clip1.vtt" << 'VTT'
 WEBVTT
 
 00:00:12.000 --> 00:00:15.000
 Short clip caption
 VTT
 
-cat > "$MEDIA_DIR/videos/clip2.vtt" << 'VTT'
+cat > "$MEDIA_DIR/videos/test_clip2.vtt" << 'VTT'
 WEBVTT
 
 00:00:15.000 --> 00:00:18.000

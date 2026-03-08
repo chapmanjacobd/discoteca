@@ -91,7 +91,7 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
 
   test('progress sync does not block UI interactions', async ({ page, server }) => {
     console.log('=== Testing progress sync non-blocking ===');
-    
+
     await page.goto(server.getBaseUrl());
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
@@ -100,6 +100,12 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
     await mediaCard.click();
     await waitForPlayer(page);
     await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(5000); // Let it play to trigger sync
     
     // While video is playing, try to interact with UI
@@ -154,10 +160,16 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
     const mediaCard = page.locator('.media-card[data-type*="video"]').first();
     const mediaPath = await mediaCard.getAttribute('data-path');
     console.log(`Testing with media: ${mediaPath}`);
-    
+
     await mediaCard.click();
     await waitForPlayer(page);
     await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(3000);
     
     // Get local progress
@@ -347,16 +359,23 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
 
   test('concurrent progress updates from multiple tabs (simulated)', async ({ page, server }) => {
     console.log('=== Testing concurrent progress updates ===');
-    
+
     await page.goto(server.getBaseUrl());
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Play video in "tab 1" (simulated by rapid state changes)
     const mediaCard = page.locator('.media-card[data-type*="video"]').first();
     const mediaPath = await mediaCard.getAttribute('data-path');
-    
+
     await mediaCard.click();
     await waitForPlayer(page);
+    await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(2000);
     await page.click('.close-pip');
     await page.waitForTimeout(500);
@@ -379,6 +398,13 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
     // Play again in "tab 1"
     await mediaCard.click();
     await waitForPlayer(page);
+    await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(2000);
     await page.click('.close-pip');
     await page.waitForTimeout(500);

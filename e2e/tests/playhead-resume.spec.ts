@@ -51,13 +51,25 @@ test.describe('Playhead Resume', () => {
     await mediaCard.click();
     await waitForPlayer(page);
 
-    // Wait for video to load and play briefly
+    // Wait for video to load and start playing
     await page.waitForSelector('video', { timeout: 5000 });
-    const video = page.locator('video');
-    await page.waitForTimeout(3000); // Let it play for 3 seconds
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    
+    // Click to ensure video is playing
+    await page.click('video');
+    await page.waitForTimeout(500);
+    
+    // Let it play for 3 seconds
+    await page.waitForTimeout(3000);
 
     // Get current playback position
-    const playheadBefore = await video.evaluate((el: HTMLVideoElement) => el.currentTime);
+    const playheadBefore = await page.evaluate(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video ? video.currentTime : 0;
+    });
     console.log(`Playhead before close: ${playheadBefore}s`);
 
     // Close player
@@ -78,7 +90,10 @@ test.describe('Playhead Resume', () => {
     await page.waitForTimeout(1000);
 
     // Should resume from saved position (with some tolerance)
-    const playheadAfter = await video.evaluate((el: HTMLVideoElement) => el.currentTime);
+    const playheadAfter = await page.evaluate(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video ? video.currentTime : 0;
+    });
     console.log(`Playhead after resume: ${playheadAfter}s`);
     
     // Should have resumed from approximately the same position
@@ -129,12 +144,22 @@ test.describe('Playhead Resume', () => {
     await mediaCard.click();
     await waitForPlayer(page);
 
-    // Wait for video to load and play briefly
+    // Wait for video to load and start playing
     await page.waitForSelector('video', { timeout: 5000 });
-    const video = page.locator('video');
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    
+    // Click to ensure video is playing
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(3000);
 
-    const playheadBefore = await video.evaluate((el: HTMLVideoElement) => el.currentTime);
+    const playheadBefore = await page.evaluate(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video ? video.currentTime : 0;
+    });
     console.log(`Playhead before close: ${playheadBefore}s`);
 
     // Close player
@@ -147,7 +172,10 @@ test.describe('Playhead Resume', () => {
     await page.waitForTimeout(1000);
 
     // Should start from beginning (or very close to it)
-    const playheadAfter = await video.evaluate((el: HTMLVideoElement) => el.currentTime);
+    const playheadAfter = await page.evaluate(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video ? video.currentTime : 0;
+    });
     console.log(`Playhead after resume: ${playheadAfter}s`);
     
     // Should have started from beginning (allow small tolerance for loading)
@@ -174,8 +202,16 @@ test.describe('Playhead Resume', () => {
     await mediaCard.click();
     await waitForPlayer(page);
 
-    // Wait for video to load and play
+    // Wait for video to load and start playing
     await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    
+    // Click to ensure video is playing
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(5000);
 
     // Close player
@@ -192,10 +228,12 @@ test.describe('Playhead Resume', () => {
     await waitForPlayer(page);
     await page.waitForTimeout(1000);
 
-    const video = page.locator('video');
-    const playhead = await video.evaluate((el: HTMLVideoElement) => el.currentTime);
+    const playhead = await page.evaluate(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video ? video.currentTime : 0;
+    });
     console.log(`Playhead after reload: ${playhead}s`);
-    
+
     // Should have some progress (not starting from 0)
     expect(playhead).toBeGreaterThan(0);
   });
@@ -228,6 +266,13 @@ test.describe('Playhead Resume', () => {
     const video1 = page.locator('.media-card[data-type*="video"]').nth(0);
     await video1.click();
     await waitForPlayer(page);
+    await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(2000);
     await page.click('.close-pip');
     await page.waitForTimeout(500);
@@ -236,6 +281,13 @@ test.describe('Playhead Resume', () => {
     const video2 = page.locator('.media-card[data-type*="video"]').nth(1);
     await video2.click();
     await waitForPlayer(page);
+    await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(2000);
     await page.click('.close-pip');
     await page.waitForTimeout(500);
@@ -244,6 +296,13 @@ test.describe('Playhead Resume', () => {
     const video3 = page.locator('.media-card[data-type*="video"]').nth(2);
     await video3.click();
     await waitForPlayer(page);
+    await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(2000);
     await page.click('.close-pip');
     await page.waitForTimeout(500);
@@ -295,18 +354,27 @@ test.describe('Playhead Resume', () => {
     await mediaCard.click();
     await waitForPlayer(page);
 
-    // Wait for video to load
+    // Wait for video to load and start playing
     await page.waitForSelector('video', { timeout: 5000 });
-    const video = page.locator('video');
-    
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('video');
+    await page.waitForTimeout(500);
+
     // Get duration
-    const duration = await video.evaluate((el: HTMLVideoElement) => el.duration);
+    const duration = await page.evaluate(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video ? video.duration : 0;
+    });
     console.log(`Video duration: ${duration}s`);
     
     // Seek to near the end (95%)
     if (duration > 10) {
-      await video.evaluate((el: HTMLVideoElement, pos) => {
-        el.currentTime = pos;
+      await page.evaluate((pos) => {
+        const video = document.querySelector('video') as HTMLVideoElement;
+        if (video) video.currentTime = pos;
       }, duration * 0.95);
       await page.waitForTimeout(2000);
     } else {

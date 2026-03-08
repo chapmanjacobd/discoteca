@@ -21,6 +21,13 @@ test.describe('Delete Shortcut - Sibling Navigation', () => {
     // Click first audio to open player
     await firstCard.click();
     await page.waitForSelector('#pip-player:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('audio', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const audio = document.querySelector('audio');
+      return audio && audio.readyState >= 3;
+    }, { timeout: 10000 });
+    await page.click('audio');
+    await page.waitForTimeout(500);
     await page.waitForTimeout(500);
 
     // Press Delete (without shift) - should delete and play next

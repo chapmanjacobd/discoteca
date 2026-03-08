@@ -13,21 +13,21 @@ test.describe('Search and Query Integration', () => {
     expect(initialCount).toBeGreaterThan(0);
     
     // Search for a specific movie
-    await page.fill('#search-input', 'movie1');
+    await page.fill('#search-input', 'test_video');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
-    
+
     // Count should decrease or change
     const searchResults = page.locator('.media-card');
     const searchCount = await searchResults.count();
-    
-    // At least movie1 should be there
+
+    // At least test_video should be there
     expect(searchCount).toBeGreaterThan(0);
     expect(searchCount).toBeLessThanOrEqual(initialCount);
-    
+
     // Check first result title
     const firstTitle = await searchResults.first().locator('.media-title').textContent();
-    expect(firstTitle?.toLowerCase()).toContain('movie1');
+    expect(firstTitle?.toLowerCase()).toContain('test_video');
   });
 
   test('filters by media type', async ({ page, server }) => {

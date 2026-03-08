@@ -121,11 +121,11 @@ test.describe('Captions', () => {
     // Wait for captions to load
     await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
 
-    // Find the movie1.mp4 card which has 3 captions
-    const movieCards = page.locator('.media-card.caption-media-card:has-text("movie1.mp4")');
+    // Find the test_video1.mp4 card which has 3 captions
+    const movieCards = page.locator('.media-card.caption-media-card:has-text("test_video1.mp4")');
     const movieCount = await movieCards.count();
-    
-    // Should find movie1
+
+    // Should find test_video1
     expect(movieCount).toBeGreaterThan(0);
     
     // Get the first movie card

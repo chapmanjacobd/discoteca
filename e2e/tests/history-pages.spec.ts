@@ -7,16 +7,15 @@ import { test, expect } from '../fixtures';
 test.describe('History Pages - In Progress / Unplayed / Completed', () => {
   test.use({ readOnly: false });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, server }) => {
     page.on('console', msg => {
       if (msg.type() === 'error') {
         console.error('BROWSER ERROR:', msg.text());
       }
     });
-    
-    // Enable local resume for all tests
-    await page.goto(page.context().pages()[0].url() || 'about:blank');
-    await page.evaluate(() => {
+
+    // Enable local resume by setting localStorage before page load
+    await page.context().addInitScript(() => {
       localStorage.setItem('disco-local-resume', 'true');
     });
   });
@@ -29,14 +28,31 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     const mediaCard = page.locator('.media-card[data-type*="video"]').first();
     const mediaPath = await mediaCard.getAttribute('data-path');
     console.log(`Testing In Progress with: ${mediaPath}`);
-    
+
     await mediaCard.click();
     await page.waitForSelector('#pip-player', { timeout: 10000 });
     await page.waitForSelector('video', { timeout: 5000 });
-    
+
+    // Wait for video to be ready and start playing
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video');
+      return video && video.readyState >= 3; // HAVE_FUTURE_DATA
+    }, { timeout: 10000 });
+
+    // Click play to ensure video is playing
+    await page.click('video');
+    await page.waitForTimeout(500);
+
     // Let it play briefly
     await page.waitForTimeout(3000);
-    
+
+    // Check video position before closing
+    const videoPosBeforeClose = await page.evaluate(() => {
+      const video = document.querySelector('video');
+      return video ? video.currentTime : 0;
+    });
+    console.log(`Video position before close: ${videoPosBeforeClose}`);
+
     // Close player
     await page.click('.close-pip');
     await page.waitForTimeout(1000);
@@ -47,6 +63,7 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
       return p ? JSON.parse(p) : {};
     });
     console.log('Saved progress:', Object.keys(progress).length, 'items');
+    console.log('Progress details:', progress);
     expect(Object.keys(progress).length).toBeGreaterThan(0);
 
     // Navigate to In Progress page
@@ -62,13 +79,14 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     expect(count).toBeGreaterThan(0);
 
     // Our test media should be in the results
-    const paths = await results.evaluateAll((els: Element[]) => 
+    const paths = await results.evaluateAll((els: Element[]) =>
       els.map(el => el.getAttribute('data-path'))
     );
     console.log('Result paths:', paths.slice(0, 5));
-    
-    // Should contain our test media (or similar items with progress)
-    expect(paths.some(p => p && p.includes(progress))).toBe(true);
+
+    // Should contain our test media
+    const progressPaths = Object.keys(progress);
+    expect(paths.some(p => p && progressPaths.some(pp => p.includes(pp)))).toBe(true);
   });
 
   test('In Progress page respects type filters', async ({ page, server }) => {
