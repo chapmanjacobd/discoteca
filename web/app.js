@@ -5112,6 +5112,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTime(Math.min(duration, currentTime + 5));
                 }
                 break;
+            case '.':
+                // Step forward one frame (~1/30s)
+                if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                    e.preventDefault();
+                    if (isPlaying) {
+                        media.pause();
+                    }
+                    setTime(Math.min(duration, currentTime + 1 / 30));
+                }
+                break;
+            case ',':
+                // Step backward one frame (~1/30s)
+                if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                    e.preventDefault();
+                    if (isPlaying) {
+                        media.pause();
+                    }
+                    setTime(Math.max(0, currentTime - 1 / 30));
+                }
+                break;
         }
     });
     // --- Dev Mode Auto-Reload ---

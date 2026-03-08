@@ -1,18 +1,5 @@
 shortcuts:
 
-v toggle subtitle visibility
-
-. Step forward one frame. Pressing once will pause, every consecutive press will play one frame and then go into pause mode again.
-
-, Step backward one frame. Pressing once will pause, every consecutive press will play one frame in reverse and then go into pause mode again.
-
-
-
-    ┌──────────────────────────┬─────────────┬───────────────────────────────────────┐
-    │ Feature                  │ Priority    │ Notes                                 │
-    ├──────────────────────────┼─────────────┼───────────────────────────────────────┤
-    │ Mobile Touch Gestures    │ High        │ Swipe seeking, double-tap, long-press │
-    │ Audio-specific Features  │ Medium      │ Lyrics display, audio-only player     │
     │ Image Slideshow          │ Medium      │ Auto-play, timing, navigation         │
     │ Theatre Mode Persistence │ Low         │ Setting persistence across reloads    │
     │ Subtitle File Loading    │ Medium      │ External .srt/.vtt files              │
