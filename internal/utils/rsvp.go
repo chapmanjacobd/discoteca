@@ -47,9 +47,9 @@ func ExtractText(path string) (string, error) {
 	}
 }
 
-// ConvertEpubToOEB converts EPUB/text documents to OEB/HTML format using calibre's ebook-convert.
+// ConvertEpubToOEB converts EPUB/text documents to HTML format using calibre's ebook-convert.
 // The converted files are stored in ~/.cache/disco with automatic cleanup of files older than 3 days.
-// Returns the path to the converted OEB directory.
+// Returns the path to the converted HTML directory.
 func ConvertEpubToOEB(inputPath string) (string, error) {
 	// Check for ebook-convert
 	ebookConvertBin := "ebook-convert"
@@ -67,8 +67,21 @@ func ConvertEpubToOEB(inputPath string) (string, error) {
 	cleanupOldCacheFiles(cacheDir, 3*24*time.Hour)
 
 	// Generate output path based on input file name
+	// Output to a directory (no extension) - calibre creates OEB/HTML structure
+	// Sanitize the base name to avoid calibre misinterpreting it as a format
 	baseName := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
-	outputDir := filepath.Join(cacheDir, baseName+".OEB")
+	// Replace spaces and special chars with underscores for calibre compatibility
+	safeBaseName := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, baseName)
+	// Limit length to avoid filesystem issues
+	if len(safeBaseName) > 100 {
+		safeBaseName = safeBaseName[:100]
+	}
+	outputDir := filepath.Join(cacheDir, safeBaseName)
 
 	// Check if conversion already exists and is recent (less than 1 day old)
 	if info, err := os.Stat(outputDir); err == nil && info.ModTime().After(time.Now().Add(-24*time.Hour)) {
@@ -80,14 +93,14 @@ func ConvertEpubToOEB(inputPath string) (string, error) {
 		return "", fmt.Errorf("failed to remove existing output: %w", err)
 	}
 
-	// Run ebook-convert
-	// Output to OEB format (directory structure with HTML files)
-	outputPath := outputDir // ebook-convert will create this as a directory for OEB format
+	// Run ebook-convert with HTML output
+	// Output to a directory (no extension) creates an exploded HTML directory
 	cmd := exec.Command(
 		ebookConvertBin,
 		inputPath,
-		outputPath,
-		"--output-format", "oeb",
+		outputDir,
+		"--output-profile", "tablet",
+		"--pretty-print",
 		"--minimum-line-height=105",
 		"--unsmarten-punctuation",
 	)
@@ -103,6 +116,20 @@ func ConvertEpubToOEB(inputPath string) (string, error) {
 	}
 
 	return outputDir, nil
+}
+
+// SanitizeFilename replaces special characters with underscores for calibre compatibility
+func SanitizeFilename(name string) string {
+	result := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, name)
+	if len(result) > 100 {
+		result = result[:100]
+	}
+	return result
 }
 
 // cleanupOldCacheFiles removes files and directories older than the specified duration

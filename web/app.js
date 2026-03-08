@@ -3722,8 +3722,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear previous viewer content
         container.innerHTML = '';
 
-        const url = `/api/raw?path=${encodeURIComponent(item.path)}`;
-
         // Setup fullscreen button
         const fsBtn = document.getElementById('doc-fullscreen');
         if (fsBtn) {
@@ -3740,14 +3738,45 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        // Use iframe for all document types - modern browsers have built-in PDF viewers
-        // and browser extensions handle EPUB files better than any JS library
-        const iframe = document.createElement('iframe');
-        iframe.src = url;
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-        iframe.style.border = 'none';
-        container.appendChild(iframe);
+        // Check if this is a calibre-supported format that should be converted
+        // PDFs are served directly from /api/raw for better browser rendering
+        const ext = item.path.split('.').pop().toLowerCase();
+        const calibreFormats = ['epub', 'mobi', 'azw', 'azw3', 'fb2', 'djvu', 'cbz', 'cbr', 'docx', 'odt', 'rtf', 'txt', 'md', 'html', 'htm'];
+        
+        if (calibreFormats.includes(ext)) {
+            // Use calibre conversion endpoint - serves index.html from extracted HTML
+            // Remove leading slash for URL encoding to avoid double-slash issues
+            const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
+            const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
+            const htmlUrl = `/api/epub/${encodedPath}`;
+            
+            // Create iframe to load converted HTML content
+            const iframe = document.createElement('iframe');
+            iframe.src = htmlUrl;
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.border = 'none';
+            
+            // Handle loading errors
+            iframe.onerror = () => {
+                console.error('Failed to load converted document, falling back to raw');
+                iframe.src = `/api/raw?path=${encodeURIComponent(item.path)}`;
+            };
+            
+            container.appendChild(iframe);
+        } else {
+            // Use raw endpoint for PDFs and other formats
+            const url = `/api/raw?path=${encodeURIComponent(item.path)}`;
+            
+            // Use iframe for all document types - modern browsers have built-in PDF viewers
+            // and browser extensions handle EPUB files better than any JS library
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.border = 'none';
+            container.appendChild(iframe);
+        }
     }
 
     function showMetadata(item) {

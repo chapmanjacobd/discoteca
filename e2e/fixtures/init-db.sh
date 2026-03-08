@@ -85,12 +85,51 @@ ffmpeg -y -f lavfi -i color=c=blue:s=640x480:d=1 \
     -vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='Image 3'" \
     -frames:v 1 "$MEDIA_DIR/images/test_image3.png" 2>/dev/null
 
-# Create valid PDF using pandoc (or fallback to minimal PDF if pandoc not available)
+# Create valid PDF using pandoc
 echo "# Test Document
 
 This is a test PDF document for e2e testing.
 
 It contains multiple lines to ensure it's a valid, readable PDF." | pandoc -f markdown -t pdf -o "$MEDIA_DIR/documents/test-document.pdf"
+
+# Create EPUB using pandoc for testing calibre conversion
+cat > "$MEDIA_DIR/documents/test-book.md" << 'MD'
+---
+title: Test Book
+author: Test Author
+language: en
+---
+
+# Chapter 1: Introduction
+
+This is the first chapter of our test book. It contains some sample text to verify that EPUB conversion works correctly.
+
+## Section 1.1
+
+This is a subsection with more content. We need enough text to make sure the conversion produces multiple HTML files.
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+
+# Chapter 2: Main Content
+
+This is the second chapter with the main content of the book. It should be converted to a separate HTML file by calibre.
+
+## Section 2.1
+
+More subsections to test the navigation. The calibre conversion should preserve the document structure.
+
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+# Chapter 3: Conclusion
+
+This is the final chapter. It wraps up the test book content.
+
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+MD
+
+# Convert markdown to EPUB using pandoc
+pandoc -f markdown -t epub -o "$MEDIA_DIR/documents/test-book.epub" "$MEDIA_DIR/documents/test-book.md"
+echo "Created EPUB: $MEDIA_DIR/documents/test-book.epub"
 
 # VTT subtitle files (external subtitles for caption scanning)
 cat > "$MEDIA_DIR/videos/test_video1.vtt" << 'VTT'
