@@ -4850,7 +4850,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return;
                 case 'f':
-                    if (isDocModalVisible) {
+                    // 'f' toggles fullscreen for active viewer, or exits fullscreen if no viewer
+                    if (document.fullscreenElement && !isDocModalVisible && !isPipVisible) {
+                        // If in fullscreen but no viewer is visible, exit fullscreen
+                        document.exitFullscreen().catch(err => {
+                            console.error('Failed to exit fullscreen:', err);
+                        });
+                    } else if (isDocModalVisible) {
                         toggleFullscreen(document.getElementById('document-container'));
                     } else if (isPipVisible) {
                         toggleFullscreen(pipViewer);
