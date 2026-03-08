@@ -3826,33 +3826,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Check if this is a calibre-supported format that should be converted
-        // PDFs are served directly from /api/raw for better browser rendering
         const ext = item.path.split('.').pop().toLowerCase();
-        const calibreFormats = ['epub', 'mobi', 'azw', 'azw3', 'fb2', 'djvu', 'cbz', 'cbr', 'docx', 'odt', 'rtf', 'txt', 'md', 'html', 'htm'];
-        
+        const calibreFormats = ['epub', 'mobi', 'azw', 'azw3', 'fb2', 'djvu', 'cbz', 'cbr', 'docx', 'odt', 'rtf', 'txt', 'md', 'html', 'htm', 'pdf'];
+
         if (calibreFormats.includes(ext)) {
-            // Use calibre conversion endpoint - serves index.html from extracted HTML
-            // Remove leading slash for URL encoding to avoid double-slash issues
-            const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
-            const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
-            const htmlUrl = `/api/epub/${encodedPath}`;
-            
-            // Create iframe to load converted HTML content
-            const iframe = document.createElement('iframe');
-            iframe.src = htmlUrl;
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.border = 'none';
-            
-            // Handle loading errors
-            iframe.onerror = () => {
-                console.error('Failed to load converted document, falling back to raw');
-                iframe.src = `/api/raw?path=${encodeURIComponent(item.path)}`;
-            };
-            
-            container.appendChild(iframe);
+            // Set default transcode state for text files if not set
+            // PDF defaults to Direct (transcode: false)
+            // Other formats default to HTML (transcode: true)
+            if (item.transcode === undefined) {
+                item.transcode = ext !== 'pdf';
+            }
+
+            const streamBtn = document.getElementById('doc-stream-type');
+            if (streamBtn) {
+                streamBtn.classList.toggle('hidden', !state.showPipStream);
+                streamBtn.textContent = item.transcode ? '🔄 HTML' : '⚡ Direct';
+                streamBtn.title = `Currently using ${item.transcode ? 'Calibre (HTML)' : 'Direct (Raw)'}. Click to switch.`;
+                streamBtn.onclick = () => {
+                    item.transcode = !item.transcode;
+                    openInDocumentViewer(item);
+                };
+            }
+
+            if (item.transcode) {
+                // Use calibre conversion endpoint - serves index.html from extracted HTML
+                const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
+                const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
+                const htmlUrl = `/api/epub/${encodedPath}`;
+
+                const iframe = document.createElement('iframe');
+                iframe.src = htmlUrl;
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+
+                iframe.onerror = () => {
+                    console.error('Failed to load converted document, falling back to raw');
+                    iframe.src = `/api/raw?path=${encodeURIComponent(item.path)}`;
+                };
+
+                container.appendChild(iframe);
+            } else {
+                // Serve raw file directly (e.g. PDF or raw text/markdown)
+                const rawUrl = `/api/raw?path=${encodeURIComponent(item.path)}`;
+                const iframe = document.createElement('iframe');
+                iframe.src = rawUrl;
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                container.appendChild(iframe);
+            }
         } else {
-            // Use raw endpoint for PDFs and other formats
+            const streamBtn = document.getElementById('doc-stream-type');
+            if (streamBtn) streamBtn.classList.add('hidden');
+
+            // Use raw endpoint for unknown formats
             const url = `/api/raw?path=${encodeURIComponent(item.path)}`;
             
             // Use iframe for all document types - modern browsers have built-in PDF viewers

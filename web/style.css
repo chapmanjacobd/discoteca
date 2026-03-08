@@ -1244,7 +1244,7 @@ main {
     background: var(--hover-color) !important;
 }
 
-#pip-stream-type {
+#pip-stream-type, #doc-stream-type {
     font-size: 0.7rem !important;
     font-weight: 600;
     text-transform: uppercase;
@@ -1255,7 +1255,7 @@ main {
     white-space: nowrap;
 }
 
-#pip-stream-type:hover {
+#pip-stream-type:hover, #doc-stream-type:hover {
     border-color: var(--accent-color) !important;
     color: var(--accent-color) !important;
 }
