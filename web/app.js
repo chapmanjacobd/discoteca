@@ -2050,6 +2050,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return { ...group, files: files, count: files.length };
         }).filter(group => group.count > 0);
 
+        // Update currentMedia so playSibling works in group view
+        currentMedia = [];
+        filtered.forEach(group => {
+            currentMedia.push(...group.files);
+        });
+
         resultsCount.textContent = `${filtered.length} folders found`;
         resultsContainer.className = 'similarity-view';
         resultsContainer.innerHTML = '';
@@ -3307,15 +3313,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleMediaError(item) {
-        console.log('handleMediaError called for:', item.path);
         if (pipLoading) pipLoading.classList.add('hidden');
 
         if (!state.playback.item) {
-            console.log('handleMediaError returning early: state.playback.item is null');
             return;
         }
         if (state.playback.item.path !== item.path) {
-            console.log('handleMediaError returning early: path mismatch', state.playback.item.path, item.path);
             return;
         }
 
@@ -3345,7 +3348,20 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(msg, emoji);
             // Remove from current view if applicable
             currentMedia = currentMedia.filter(m => m.path !== item.path);
-            renderResults();
+
+            if (state.view === 'group' && state.similarityData) {
+                // Also remove from similarityData groups
+                state.similarityData.forEach(group => {
+                    if (group.files) {
+                        group.files = group.files.filter(m => m.path !== item.path);
+                        group.count = group.files.length;
+                    }
+                });
+                state.similarityData = state.similarityData.filter(group => group.count > 0);
+                renderEpisodes(state.similarityData);
+            } else {
+                renderResults();
+            }
         }
 
         // Auto-skip to next (up to 3 consecutive errors)
@@ -4461,10 +4477,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.path = path;
 
             const basename = path.split('/').pop();
-            const type = captions[0].type || '';
-            const thumbUrl = type.includes('image') ?
-                `/api/thumbnail?path=${encodeURIComponent(path)}` :
-                `/api/raw?path=${encodeURIComponent(path)}`;
+            const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(path)}`;
 
             // Get caption count from aggregated data or count manually
             const captionCount = captions[0].caption_count || captions.length;
@@ -4485,15 +4498,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.innerHTML = `
                 <div class="caption-media-header">
-                    <div class="caption-media-thumb">
-                        ${type.includes('image') ?
-                    `<img src="${thumbUrl}" loading="lazy">` :
-                    `<div class="caption-media-icon">🎬</div>`
-                }
+                    <div class="media-thumb">
+                        <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')">
+                        <span class="caption-count-badge">${captionCount}</span>
                     </div>
-                    <div class="caption-media-info">
+                    <div class="media-info">
                         <div class="media-title" title="${path}">${basename}</div>
-                        <div class="caption-count">${captionCount} caption${captionCount !== 1 ? 's' : ''}</div>
                     </div>
                 </div>
                 <div class="caption-segments-container">
@@ -4501,14 +4511,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // Click on card header plays media
-            const header = card.querySelector('.caption-media-header');
-            header.onclick = (e) => {
+            // Click on thumb plays media
+            const thumb = card.querySelector('.media-thumb');
+            thumb.onclick = (e) => {
                 e.stopPropagation();
-                playMedia(captions[0]).then(() => {
-                    const media = pipViewer.querySelector('video, audio');
-                    if (media) media.currentTime = captions[0].caption_time;
-                });
+                playMedia(captions[0]);
             };
 
             // Click on caption segment jumps to that time

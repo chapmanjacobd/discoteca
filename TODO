@@ -1,5 +1,7 @@
 Adding a keyword to a category (either drag or button) shouldn't refresh the page--just delete the keyword from Suggestions if it existed
 
+[desktop] › tests/race-conditions.spec.ts:360:7 › Race Conditions - Progress Updates & Pagination › concurrent progress updates from multiple tabs (simulated)
+
 e2e tests combining all the filters to each mode to make sure they don't exit the specific mode
 
   Group View across all modes

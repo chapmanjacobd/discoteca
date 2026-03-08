@@ -84,11 +84,11 @@ test.describe('Captions', () => {
   test('caption count is displayed', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '/#mode=captions');
     
-    await page.waitForSelector('.caption-count', { timeout: 10000 });
+    await page.waitForSelector('.caption-count-badge', { timeout: 10000 });
     
     // Caption count should be visible and positive
-    const countText = await page.locator('.caption-count').first().textContent();
-    expect(countText).toMatch(/\d+ captions?/);
+    const countText = await page.locator('.caption-count-badge').first().textContent();
+    expect(countText).toMatch(/\d+/);
   });
 
   test('search captions filters results', async ({ page, server }) => {
@@ -132,8 +132,8 @@ test.describe('Captions', () => {
     const movieCard = movieCards.first();
     
     // Card should show it has multiple captions (caption count badge)
-    const captionCount = await movieCard.locator('.caption-count').textContent();
-    expect(captionCount).toMatch(/3 captions?/);
+    const captionCount = await movieCard.locator('.caption-count-badge').textContent();
+    expect(captionCount).toBe('3');
     
     // All 3 caption segments should be visible within the card
     const captionSegments = movieCard.locator('.caption-segment');
