@@ -34,6 +34,7 @@ type History struct {
 
 type Media struct {
 	Path            string          `json:"path"`
+	FtsPath         sql.NullString  `json:"fts_path"`
 	Title           sql.NullString  `json:"title"`
 	Duration        sql.NullInt64   `json:"duration"`
 	Size            sql.NullInt64   `json:"size"`
@@ -80,8 +81,9 @@ type Media struct {
 }
 
 type MediaFts struct {
-	Path  string `json:"path"`
-	Title string `json:"title"`
+	Path    string `json:"path"`
+	FtsPath string `json:"fts_path"`
+	Title   string `json:"title"`
 }
 
 type PlaylistItems struct {

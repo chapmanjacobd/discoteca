@@ -10,6 +10,7 @@ import (
 
 type Media struct {
 	Path            string   `json:"path"`
+	FtsPath         *string  `json:"fts_path,omitempty"`
 	Title           *string  `json:"title,omitempty"`
 	Duration        *int64   `json:"duration,omitempty"`
 	Size            *int64   `json:"size,omitempty"`
@@ -153,6 +154,7 @@ type FolderStats struct {
 func FromDB(m db.Media) Media {
 	return Media{
 		Path:            m.Path,
+		FtsPath:         NullStringPtr(m.FtsPath),
 		Title:           NullStringPtr(m.Title),
 		Duration:        NullInt64Ptr(m.Duration),
 		Size:            NullInt64Ptr(m.Size),
@@ -209,6 +211,7 @@ func FromDBWithDB(m db.Media, dbPath string) MediaWithDB {
 func ToDBUpsert(m Media) db.UpsertMediaParams {
 	return db.UpsertMediaParams{
 		Path:           m.Path,
+		FtsPath:        ToNullString(m.FtsPath),
 		Title:          ToNullString(m.Title),
 		Duration:       ToNullInt64(m.Duration),
 		Size:           ToNullInt64(m.Size),

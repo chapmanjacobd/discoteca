@@ -2533,7 +2533,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (state.view === 'group') {
+        if (state.view === 'group' && state.page !== 'captions') {
             fetchEpisodes();
             return;
         }

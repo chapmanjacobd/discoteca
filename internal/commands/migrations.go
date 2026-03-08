@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/chapmanjacobd/discotheque/internal/utils"
 )
 
 func runMigrations(db *sql.DB) error {
@@ -33,6 +35,7 @@ func migrateColumns(db *sql.DB) error {
 	}{
 		{"playlists", "title", "TEXT"},
 		{"playlist_items", "time_added", "INTEGER DEFAULT 0"},
+		{"media", "fts_path", "TEXT"},
 	}
 
 	for _, c := range cols {
@@ -67,9 +70,64 @@ func migrateColumns(db *sql.DB) error {
 					return fmt.Errorf("failed to add column %s to table %s: %w", c.column, c.table, err)
 				}
 			}
+
+			if c.table == "media" && c.column == "fts_path" {
+				// New column added, populate it for existing rows
+				if err := populateFtsPath(db); err != nil {
+					return fmt.Errorf("failed to populate fts_path: %w", err)
+				}
+			}
 		}
 	}
 	return nil
+}
+
+func populateFtsPath(db *sql.DB) error {
+	rows, err := db.Query("SELECT path FROM media WHERE fts_path IS NULL")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var updates []struct {
+		path    string
+		ftsPath string
+	}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return err
+		}
+		updates = append(updates, struct {
+			path    string
+			ftsPath string
+		}{path, utils.PathToSentenceFull(path)})
+	}
+	rows.Close()
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare("UPDATE media SET fts_path = ? WHERE path = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, u := range updates {
+		if _, err := stmt.Exec(u.ftsPath, u.path); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func migrateTables(db *sql.DB) error {
@@ -81,6 +139,86 @@ func migrateTables(db *sql.DB) error {
 	)`); err != nil {
 		return fmt.Errorf("failed to create custom_keywords table: %w", err)
 	}
+
+	// Check if FTS tables need upgrade to trigram or new columns
+	upgradeFTS := func(tableName string, expectedSqlPart string) error {
+		var existingSql string
+		err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&existingSql)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil // Table doesn't exist
+			}
+			return err
+		}
+
+		if !strings.Contains(existingSql, "trigram") || (expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
+			// Needs upgrade - drop it
+			if _, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
+				return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)
+			}
+
+			// Recreate immediately
+			var createSql string
+			if tableName == "media_fts" {
+				createSql = `CREATE VIRTUAL TABLE media_fts USING fts5(
+					path,
+					fts_path,
+					title,
+					content='media',
+					content_rowid='rowid',
+					tokenize = 'trigram'
+				);`
+			} else if tableName == "captions_fts" {
+				createSql = `CREATE VIRTUAL TABLE captions_fts USING fts5(
+					media_path UNINDEXED,
+					text,
+					content='captions',
+					tokenize = 'trigram'
+				);`
+			}
+
+			if _, err := db.Exec(createSql); err != nil {
+				return fmt.Errorf("failed to recreate %s: %w", tableName, err)
+			}
+
+			// Recreate triggers if it's media_fts
+			if tableName == "media_fts" {
+				triggerSqls := []string{
+					`CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
+						INSERT INTO media_fts(rowid, path, fts_path, title)
+						VALUES (new.rowid, new.path, new.fts_path, new.title);
+					END;`,
+					`CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
+						DELETE FROM media_fts WHERE rowid = old.rowid;
+					END;`,
+					`CREATE TRIGGER IF NOT EXISTS media_au AFTER UPDATE ON media BEGIN
+						INSERT INTO media_fts(media_fts, rowid, path, fts_path, title) VALUES('delete', old.rowid, old.path, old.fts_path, old.title);
+						INSERT INTO media_fts(rowid, path, fts_path, title) VALUES (new.rowid, new.path, new.fts_path, new.title);
+					END;`,
+				}
+				for _, tsql := range triggerSqls {
+					if _, err := db.Exec(tsql); err != nil {
+						return fmt.Errorf("failed to recreate trigger: %w", err)
+					}
+				}
+			}
+
+			// Rebuild data
+			if _, err := db.Exec(fmt.Sprintf("INSERT INTO %s(%s) VALUES('rebuild')", tableName, tableName)); err != nil {
+				// Non-fatal, might be empty
+				return nil
+			}
+		}
+		return nil
+	}
+
+	if err := upgradeFTS("media_fts", "fts_path"); err != nil {
+		return err
+	}
+	if err := upgradeFTS("captions_fts", ""); err != nil {
+		return err
+	}
+
 	return nil
 }
 

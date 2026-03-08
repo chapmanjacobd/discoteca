@@ -100,7 +100,7 @@ LIMIT ?;
 -- name: SearchMediaFTS :many
 SELECT * FROM media
 WHERE rowid IN (
-    SELECT rowid FROM media_fts f WHERE f.title MATCH sqlc.arg('query')
+    SELECT rowid FROM media_fts f WHERE f.fts_path MATCH sqlc.arg('query') OR f.title MATCH sqlc.arg('query')
 )
 AND time_deleted = 0
 LIMIT sqlc.arg('limit');
@@ -174,10 +174,9 @@ FROM media
 WHERE time_deleted = 0 AND genre IS NOT NULL AND genre != ''
 GROUP BY genre
 ORDER BY count DESC;
-
 -- name: UpsertMedia :exec
 INSERT INTO media (
-    path, title, duration, size, time_created, time_modified,
+    path, fts_path, title, duration, size, time_created, time_modified,
     type, width, height, fps,
     video_codecs, audio_codecs, subtitle_codecs,
     video_count, audio_count, subtitle_count,
@@ -188,7 +187,7 @@ INSERT INTO media (
     view_count, num_comments, favorite_count, score, upvote_ratio,
     latitude, longitude
 ) VALUES (
-    ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?,
     ?, ?, ?,
@@ -200,6 +199,7 @@ INSERT INTO media (
     ?, ?
 )
 ON CONFLICT(path) DO UPDATE SET
+    fts_path = excluded.fts_path,
     title = excluded.title,
     duration = excluded.duration,
     size = excluded.size,

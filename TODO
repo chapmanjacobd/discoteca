@@ -4,10 +4,12 @@ Adding a keyword to a category (either drag or button) shouldn't refresh the pag
 
 e2e tests combining all the filters to each mode to make sure they don't exit the specific mode
 
-  Group View across all modes
-  Details View across all modes
-  pagination
-  search filtering
+    Group View across all modes
+    Details View across all modes
+    pagination
+    search filtering
+
+
 
 lets falsify all the tests by looking at both the code and the tests and seeing if there are any gaps in coverage by returning early or giving up.
 

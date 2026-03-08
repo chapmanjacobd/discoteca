@@ -80,6 +80,7 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 
 	params := db.UpsertMediaParams{
 		Path:         path,
+		FtsPath:      utils.ToNullString(utils.PathToSentenceFull(path)),
 		Size:         utils.ToNullInt64(stat.Size()),
 		TimeCreated:  utils.ToNullInt64(stat.ModTime().Unix()),
 		TimeModified: utils.ToNullInt64(stat.ModTime().Unix()),

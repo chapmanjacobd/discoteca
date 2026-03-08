@@ -93,7 +93,7 @@ export const test = base.extend<{
       }
       tempDbPath = path.join(tmpDir, `test-${process.pid}-${Date.now()}.db`);
       fs.copyFileSync(testDbPath, tempDbPath);
-      
+
       server = new TestServer({
         databasePath: tempDbPath,
       });
@@ -104,10 +104,14 @@ export const test = base.extend<{
     process.env.DISCO_BASE_URL = server.getBaseUrl();
 
     page.on('console', msg => {
+      const msgText = msg.text();
+
       if (msg.type() === 'error') {
-        console.error(`console.error:`, msg.text());
+        if (!['Failed to load resource: net::ERR_INCOMPLETE_CHUNKED_ENCODING'].includes(msgText)) {
+          console.error(`console.error:`, msgText);
+        }
       } else {
-        console.log(`console.log:`, msg.text());
+        console.log(`console.log:`, msgText);
       }
     });
     page.on('pageerror', err => {
