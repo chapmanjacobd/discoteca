@@ -6,10 +6,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ExtractText extracts plain text from a given file path.
-// Supports .txt, .pdf, .epub.
+// Supports .txt, .pdf, .epub and other text formats.
 func ExtractText(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
@@ -43,6 +44,87 @@ func ExtractText(path string) (string, error) {
 			return string(content), nil
 		}
 		return "", fmt.Errorf("unsupported format: %s", ext)
+	}
+}
+
+// ConvertEpubToOEB converts EPUB/text documents to OEB/HTML format using calibre's ebook-convert.
+// The converted files are stored in ~/.cache/disco with automatic cleanup of files older than 3 days.
+// Returns the path to the converted OEB directory.
+func ConvertEpubToOEB(inputPath string) (string, error) {
+	// Check for ebook-convert
+	ebookConvertBin := "ebook-convert"
+	if _, err := exec.LookPath(ebookConvertBin); err != nil {
+		return "", fmt.Errorf("ebook-convert not found (install calibre): %w", err)
+	}
+
+	// Create cache directory
+	cacheDir := filepath.Join(os.Getenv("HOME"), ".cache", "disco")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %w", err)
+	}
+
+	// Clean up old files (older than 3 days)
+	cleanupOldCacheFiles(cacheDir, 3*24*time.Hour)
+
+	// Generate output path based on input file name
+	baseName := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
+	outputDir := filepath.Join(cacheDir, baseName+".OEB")
+
+	// Check if conversion already exists and is recent (less than 1 day old)
+	if info, err := os.Stat(outputDir); err == nil && info.ModTime().After(time.Now().Add(-24*time.Hour)) {
+		return outputDir, nil
+	}
+
+	// Remove existing output if it exists
+	if err := os.RemoveAll(outputDir); err != nil {
+		return "", fmt.Errorf("failed to remove existing output: %w", err)
+	}
+
+	// Run ebook-convert
+	// Output to OEB format (directory structure with HTML files)
+	outputPath := outputDir // ebook-convert will create this as a directory for OEB format
+	cmd := exec.Command(
+		ebookConvertBin,
+		inputPath,
+		outputPath,
+		"--output-format", "oeb",
+		"--minimum-line-height=105",
+		"--unsmarten-punctuation",
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("ebook-convert failed: %w\n%s", err, string(output))
+	}
+
+	// Verify output was created
+	if _, err := os.Stat(outputDir); err != nil {
+		return "", fmt.Errorf("output directory not created: %w", err)
+	}
+
+	return outputDir, nil
+}
+
+// cleanupOldCacheFiles removes files and directories older than the specified duration
+func cleanupOldCacheFiles(cacheDir string, maxAge time.Duration) {
+	now := time.Now()
+	cutoff := now.Add(-maxAge)
+
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if info.ModTime().Before(cutoff) {
+			fullPath := filepath.Join(cacheDir, entry.Name())
+			os.RemoveAll(fullPath)
+		}
 	}
 }
 

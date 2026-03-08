@@ -6,9 +6,6 @@ e2e tests combining all the filters to each mode to make sure they don't exit th
   pagination
   search filtering
 
-move shortcuts to separate js file
-
-For epubs, lets serve them by streaming or ebook-convert in ~/.cache
 
     3. Duplicate Query/Filter Logic
      - query.MediaQuery() and query.MediaQueryCount() have significant overlap

@@ -155,6 +155,7 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/zim/proxy/{port}/{rest...}", c.authMiddleware(c.handleZimProxy))
 
 	mux.HandleFunc("/api/rsvp", c.authMiddleware(c.handleRSVP))
+	mux.HandleFunc("/api/epub/{path...}", c.authMiddleware(c.handleEpubConvert))
 
 	mux.HandleFunc("/api/hls/playlist", c.authMiddleware(c.handleHLSPlaylist))
 	mux.HandleFunc("/api/hls/segment", c.authMiddleware(c.handleHLSSegment))
@@ -3795,4 +3796,110 @@ func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
 			slog.Error("FFmpeg RSVP streaming failed", "error", err)
 		}
 	}
+}
+
+// handleEpubConvert serves converted EPUB/text documents as OEB/HTML format
+// URL format: /api/epub/{base64_encoded_path}/{file_within_oeb}
+func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract path from URL
+	pathParts := strings.Split(r.URL.Path, "/api/epub/")[1]
+	if pathParts == "" {
+		http.Error(w, "Path required", http.StatusBadRequest)
+		return
+	}
+
+	// Split into original file path and internal file
+	parts := strings.SplitN(pathParts, "/", 2)
+	if len(parts) < 1 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+
+	// Decode the base64-encoded original path
+	originalPath, err := decodePath(parts[0])
+	if err != nil {
+		slog.Error("Failed to decode path", "error", err)
+		http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+		return
+	}
+
+	// Verify file access (check if it's not a blacklisted path)
+	if c.isPathBlacklisted(originalPath) {
+		http.Error(w, "Access denied: sensitive path", http.StatusForbidden)
+		return
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(originalPath); err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	// Convert EPUB to OEB
+	oebDir, err := utils.ConvertEpubToOEB(originalPath)
+	if err != nil {
+		slog.Error("EPUB conversion failed", "path", originalPath, "error", err)
+		http.Error(w, fmt.Sprintf("Conversion failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// If no internal file specified, serve index.html or main file
+	internalFile := "index.html"
+	if len(parts) > 1 && parts[1] != "" {
+		internalFile = parts[1]
+	}
+
+	// Build full path to file within OEB directory
+	fullPath := filepath.Join(oebDir, internalFile)
+
+	// Security check: ensure the requested file is within the OEB directory
+	if !strings.HasPrefix(fullPath, oebDir) {
+		http.Error(w, "Invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(fullPath); err != nil {
+		// Try to find the file case-insensitively
+		foundFile := findFileCaseInsensitive(oebDir, internalFile)
+		if foundFile == "" {
+			http.Error(w, "File not found in converted output", http.StatusNotFound)
+			return
+		}
+		fullPath = foundFile
+	}
+
+	// Serve the file
+	http.ServeFile(w, r, fullPath)
+}
+
+// findFileCaseInsensitive searches for a file in a directory case-insensitively
+func findFileCaseInsensitive(dir, filename string) string {
+	var found string
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() && strings.EqualFold(filepath.Base(path), filename) {
+			found = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+// decodePath decodes a base64-encoded path (URL-safe encoding)
+func decodePath(encoded string) (string, error) {
+	// For now, just URL decode
+	decoded, err := url.PathUnescape(encoded)
+	if err != nil {
+		return "", err
+	}
+	return decoded, nil
 }
