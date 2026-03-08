@@ -15,7 +15,7 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Scroll down
     await page.evaluate(() => {
-      const content = document.querySelector('.content');
+      const content = document.querySelector('#content');
       if (content) content.scrollTo(0, content.scrollHeight);
     });
     await page.waitForTimeout(1000);
@@ -41,7 +41,7 @@ test.describe('Large Result Sets Scrolling', () => {
     // Scroll to bottom multiple times
     for (let i = 0; i < 3; i++) {
       await page.evaluate(() => {
-        const content = document.querySelector('.content');
+        const content = document.querySelector('#content');
         if (content) content.scrollTo(0, content.scrollHeight);
       });
       await page.waitForTimeout(1000);
@@ -137,8 +137,8 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Identify scrollable element
     const scrollSelector = await page.evaluate(() => {
-      const content = document.querySelector('.content');
-      if (content && content.scrollHeight > content.clientHeight) return '.content';
+      const content = document.querySelector('#content');
+      if (content && content.scrollHeight > content.clientHeight) return '#content';
       if (document.documentElement.scrollHeight > document.documentElement.clientHeight) return 'html';
       return 'body';
     });
@@ -179,7 +179,7 @@ test.describe('Large Result Sets Scrolling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Scroll smoothly
-    await page.locator('.content').evaluate((el) => {
+    await page.locator('#content').evaluate((el) => {
       el.scrollTo({
         top: 500,
         behavior: 'smooth'
@@ -188,7 +188,7 @@ test.describe('Large Result Sets Scrolling', () => {
     await page.waitForTimeout(2000);
 
     // Should have scrolled
-    const scrollPosition = await page.locator('.content').evaluate((el) => el.scrollTop);
+    const scrollPosition = await page.locator('#content').evaluate((el) => el.scrollTop);
     expect(scrollPosition).toBeGreaterThan(100);
   });
 
@@ -200,7 +200,7 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Scroll down
     await page.evaluate(() => {
-      const content = document.querySelector('.content');
+      const content = document.querySelector('#content');
       if (content) content.scrollTo(0, 1000);
     });
     await page.waitForTimeout(500);
@@ -220,7 +220,7 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Scroll down
     await page.evaluate(() => {
-      const content = document.querySelector('.content');
+      const content = document.querySelector('#content');
       if (content) content.scrollTo(0, 1000);
     });
     await page.waitForTimeout(500);
@@ -232,7 +232,7 @@ test.describe('Large Result Sets Scrolling', () => {
       await page.waitForTimeout(500);
 
       // Should be at top
-      const scrollPosition = await page.locator('.content').evaluate(el => el.scrollTop);
+      const scrollPosition = await page.locator('#content').evaluate(el => el.scrollTop);
       expect(scrollPosition).toBeLessThan(100);
     }
   });
@@ -245,8 +245,8 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Identify scrollable element
     const scrollSelector = await page.evaluate(() => {
-      const content = document.querySelector('.content');
-      if (content && content.scrollHeight > content.clientHeight) return '.content';
+      const content = document.querySelector('#content');
+      if (content && content.scrollHeight > content.clientHeight) return '#content';
       if (document.documentElement.scrollHeight > document.documentElement.clientHeight) return 'html';
       return 'body';
     });
@@ -276,17 +276,17 @@ test.describe('Large Result Sets Scrolling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Focus the content container
-    await page.locator('.content').click();
+    await page.locator('#content').click();
 
     // Get initial position
-    const initialPosition = await page.locator('.content').evaluate(el => el.scrollTop);
+    const initialPosition = await page.locator('#content').evaluate(el => el.scrollTop);
 
     // Press down arrow
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(300);
 
     // Should have scrolled down
-    const newPosition = await page.locator('.content').evaluate(el => el.scrollTop);
+    const newPosition = await page.locator('#content').evaluate(el => el.scrollTop);
     expect(newPosition).toBeGreaterThanOrEqual(initialPosition);
   });
 
@@ -298,8 +298,8 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Identify scrollable element
     const scrollSelector = await page.evaluate(() => {
-      const content = document.querySelector('.content');
-      if (content && content.scrollHeight > content.clientHeight) return '.content';
+      const content = document.querySelector('#content');
+      if (content && content.scrollHeight > content.clientHeight) return '#content';
       if (document.documentElement.scrollHeight > document.documentElement.clientHeight) return 'html';
       return 'body';
     });
@@ -329,8 +329,8 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Identify scrollable element
     const scrollSelector = await page.evaluate(() => {
-      const content = document.querySelector('.content');
-      if (content && content.scrollHeight > content.clientHeight) return '.content';
+      const content = document.querySelector('#content');
+      if (content && content.scrollHeight > content.clientHeight) return '#content';
       if (document.documentElement.scrollHeight > document.documentElement.clientHeight) return 'html';
       return 'body';
     });
@@ -366,7 +366,7 @@ test.describe('Large Result Sets Scrolling', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Scroll down
-    await page.locator('.content').evaluate((el) => el.scrollTop = 1000);
+    await page.locator('#content').evaluate((el) => el.scrollTop = 1000);
     await page.waitForTimeout(500);
 
 

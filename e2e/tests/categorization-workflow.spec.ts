@@ -35,7 +35,7 @@ test.describe('Categorization Workflow - Full Process', () => {
 
     // Wait for curation view to load
     await page.waitForSelector('.curation-view', { timeout: 10000 });
-    await page.waitForSelector('.curation-cat-list', { timeout: 5000 });
+    await page.waitForSelector('#curation-cat-list', { timeout: 5000 });
     console.log('Curation Tool loaded successfully');
 
     // Step 3: Find potential keywords FIRST (before creating any categories)
@@ -419,7 +419,7 @@ test.describe('Categorization Workflow - Full Process', () => {
     await page.waitForSelector('.curation-view', { timeout: 10000 });
 
     // Verify UI structure
-    const curationHeader = page.locator('.curation-header');
+    const curationHeader = page.locator('#curation-header');
     await expect(curationHeader).toBeVisible();
 
     const categoriesCol = page.locator('.curation-col').first();

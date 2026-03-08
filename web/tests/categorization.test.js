@@ -31,7 +31,7 @@ describe('Categorization / Curation', () => {
         });
 
         const toolbar = document.getElementById('toolbar');
-        const searchContainer = document.querySelector('.search-container');
+        const searchContainer = document.getElementById('search-container');
         expect(toolbar.classList.contains('hidden')).toBe(true);
         expect(searchContainer.classList.contains('hidden')).toBe(true);
     });
@@ -69,11 +69,11 @@ describe('Categorization / Curation', () => {
         catLink.click();
 
         await vi.waitFor(() => {
-            const header = document.querySelector('.curation-header');
+            const header = document.getElementById('curation-header');
             return header !== null;
         }, 3000);
 
-        const header = document.querySelector('.curation-header');
+        const header = document.getElementById('curation-header');
         if (header) {
             expect(header.querySelector('#curation-back-btn')).toBeTruthy();
             expect(header.querySelector('#run-auto-categorize')).toBeTruthy();

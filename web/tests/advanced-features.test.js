@@ -251,7 +251,7 @@ describe('Responsive Design', () => {
 
     it('toggles mobile sidebar', async () => {
         const menuToggle = document.getElementById('menu-toggle');
-        const sidebar = document.querySelector('.sidebar');
+        const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
 
         menuToggle.click();

@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const menuToggle = document.getElementById('menu-toggle');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const sidebar = document.querySelector('.sidebar');
+    const sidebar = document.getElementById('sidebar');
 
     const duBtn = document.getElementById('du-btn');
     const captionsBtn = document.getElementById('captions-btn');
@@ -421,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Sidebar Persistence ---
     function initSidebarPersistence() {
-        const details = document.querySelectorAll('.sidebar details');
+        const details = document.querySelectorAll('#sidebar details');
         details.forEach(det => {
             const id = det.id;
             if (!id) return;
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.ctrlKey || e.metaKey) {
                         e.preventDefault();
                         const newState = !det.open;
-                        document.querySelectorAll('.sidebar details').forEach(d => {
+                        document.querySelectorAll('#sidebar details').forEach(d => {
                             d.open = newState;
                             if (d.id) {
                                 state.sidebarState[d.id] = newState;
@@ -546,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetSidebar() {
-        const details = document.querySelectorAll('.sidebar details');
+        const details = document.querySelectorAll('#sidebar details');
         state.sidebarState = {};
         state.filters.categories = [];
         state.filters.genre = '';
@@ -588,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.completed = false;
 
         // Clear sidebar filter UI
-        document.querySelectorAll('.sidebar .category-btn.active').forEach(btn => {
+        document.querySelectorAll('#sidebar .category-btn.active').forEach(btn => {
             btn.classList.remove('active');
         });
 
@@ -2115,7 +2115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncUrl();
 
         document.getElementById('toolbar').classList.add('hidden');
-        document.querySelector('.search-container').classList.add('hidden');
+        document.getElementById('search-container').classList.add('hidden');
 
         // Show loading initially
         resultsContainer.innerHTML = '<div class="loading-container" style="text-align: center; padding: 3rem;"><div class="spinner"></div><h3>Loading Categorization...</h3></div>';
@@ -2158,12 +2158,11 @@ document.addEventListener('DOMContentLoaded', () => {
             keywordsData = [...newOnes, ...oldOnes];
         }
 
-        resultsCount.textContent = ``;
         resultsContainer.className = 'curation-view';
         resultsContainer.innerHTML = '';
 
         const headerEl = document.createElement('div');
-        headerEl.className = 'curation-header';
+        headerEl.id = 'curation-header';
         headerEl.innerHTML = `
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                 <button id="curation-back-btn" class="category-btn">← Back</button>
@@ -2180,7 +2179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         resultsContainer.appendChild(headerEl);
 
-        const fullPathCheck = headerEl.querySelector('#categorize-full-path');
+        const fullPathCheck = document.getElementById('categorize-full-path');
         if (fullPathCheck) {
             fullPathCheck.onchange = (e) => {
                 localStorage.setItem('disco-categorize-full-path', e.target.checked);
@@ -2188,7 +2187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const container = document.createElement('div');
-        container.className = 'curation-container';
+        container.id = 'curation-container';
         container.style.display = 'flex';
         container.style.gap = '2rem';
         container.style.height = '100%';
@@ -2220,7 +2219,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Scrollable categories list
         const categoriesList = document.createElement('div');
-        categoriesList.className = 'curation-cat-list';
+        categoriesList.id = 'curation-cat-list';
         categoriesList.style.display = 'flex';
         categoriesList.style.flexDirection = 'column';
         categoriesList.style.gap = '1rem';
@@ -2766,7 +2765,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function deleteMedia(path, restore = false) {
         const itemEl = document.querySelector(`[data-path="${CSS.escape(path)}"]`);
-        const content = document.querySelector('.content');
+        const content = document.getElementById('content');
         const main = document.querySelector('main');
 
         if (itemEl && !restore) {
@@ -3880,24 +3879,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (calibreFormats.includes(ext)) {
             // Set default transcode state for text files if not set
-            // PDF defaults to Direct (transcode: false)
-            // Other formats default to HTML (transcode: true)
-            if (item.transcode === undefined) {
-                item.transcode = ext !== 'pdf';
+            // PDF defaults to Direct (doc_transcode: false)
+            // Other formats default to HTML (doc_transcode: true)
+            if (item.doc_transcode === undefined) {
+                item.doc_transcode = ext !== 'pdf';
             }
 
             const streamBtn = document.getElementById('doc-stream-type');
             if (streamBtn) {
                 streamBtn.classList.toggle('hidden', !state.showPipStream);
-                streamBtn.textContent = item.transcode ? '🔄 HTML' : '⚡ Direct';
-                streamBtn.title = `Currently using ${item.transcode ? 'Calibre (HTML)' : 'Direct (Raw)'}. Click to switch.`;
+                streamBtn.textContent = item.doc_transcode ? '🔄 HTML' : '⚡ Direct';
+                streamBtn.title = `Currently using ${item.doc_transcode ? 'Calibre (HTML)' : 'Direct (Raw)'}. Click to switch.`;
                 streamBtn.onclick = () => {
-                    item.transcode = !item.transcode;
+                    item.doc_transcode = !item.doc_transcode;
                     openInDocumentViewer(item);
                 };
             }
 
-            if (item.transcode) {
+            if (item.doc_transcode) {
                 // Use calibre conversion endpoint - serves index.html from extracted HTML
                 const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
                 const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
@@ -3925,7 +3924,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 iframe.style.border = 'none';
                 container.appendChild(iframe);
             }
-        } else {
+        }
+ else {
             const streamBtn = document.getElementById('doc-stream-type');
             if (streamBtn) streamBtn.classList.add('hidden');
 
@@ -4691,11 +4691,13 @@ document.addEventListener('DOMContentLoaded', () => {
             let actions = '';
             if (isTrash) {
                 actions = `
-                    <button class="table-action-btn restore-btn" title="Restore">↺</button>
-                    <button class="table-action-btn delete-permanent-btn" title="Permanently Delete">🔥</button>
+                    <div class="playlist-item-actions">
+                        <button class="table-action-btn restore-btn" title="Restore">↺</button>
+                        <button class="table-action-btn delete-permanent-btn" title="Permanently Delete">🔥</button>
+                    </div>
                 `;
             } else if (isPlaylist) {
-                actions = !state.readOnly ? `<button class="table-action-btn remove-btn" title="Remove from Playlist">&times;</button>` : '';
+                actions = !state.readOnly ? `<div class="playlist-item-actions"><button class="table-action-btn remove-btn" title="Remove from Playlist">&times;</button></div>` : '';
             } else {
                 const plays = getPlayCount(item);
                 actions = `
@@ -5720,7 +5722,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         pipPlayer.addEventListener('touchstart', (e) => {
-            if (e.target.closest('.pip-controls') || e.target.closest('button') || e.target.closest('select')) return;
+            if (e.target.closest('#pip-controls') || e.target.closest('button') || e.target.closest('select')) return;
 
             const touch = e.changedTouches[0];
             touchStartX = touch.screenX;
@@ -5787,7 +5789,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pipPlayer.addEventListener('touchend', (e) => {
             if (touchStartTime === 0) return;
 
-            if (e.target.closest('.pip-controls') || e.target.closest('button') || e.target.closest('select')) {
+            if (e.target.closest('#pip-controls') || e.target.closest('button') || e.target.closest('select')) {
                 touchStartTime = 0;
                 return;
             }
@@ -5927,7 +5929,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateNavActiveStates() {
         const toolbar = document.getElementById('toolbar');
-        const searchContainer = document.querySelector('.search-container');
+        const searchContainer = document.getElementById('search-container');
         if (state.page === 'curation') {
             if (toolbar) toolbar.classList.add('hidden');
             if (searchContainer) searchContainer.classList.add('hidden');
@@ -6006,7 +6008,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewDetails) viewDetails.classList.toggle('active', state.view === 'details');
 
         // Handle playlists and categories in the sidebar lists
-        document.querySelectorAll('.sidebar .category-btn').forEach(btn => {
+        document.querySelectorAll('#sidebar .category-btn').forEach(btn => {
             if (btn === allMediaBtn || btn === trashBtn || btn === duBtn || btn === captionsBtn || btn === historyInProgressBtn || btn === historyUnplayedBtn || btn === historyCompletedBtn) return;
             if (btn.closest('#media-type-list')) return;
             if (btn.closest('#episodes-list') || btn.closest('#size-list') || btn.closest('#duration-list')) return;
@@ -6375,7 +6377,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Inactivity Tracking ---
-    const logoText = document.querySelector('.logo-text');
+    const logoText = document.getElementById('logo-text');
     const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
 
     activityEvents.forEach(name => {
@@ -6400,7 +6402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: true });
     });
 
-    const logoReset = document.querySelector('.logo');
+    const logoReset = document.getElementById('logo');
     if (logoReset) {
         logoReset.style.cursor = 'pointer';
         logoReset.onclick = () => {

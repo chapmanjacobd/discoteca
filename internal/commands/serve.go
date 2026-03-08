@@ -3810,15 +3810,6 @@ func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// decodePath decodes a URL-encoded path
-func decodePath(encoded string) (string, error) {
-	decoded, err := url.PathUnescape(encoded)
-	if err != nil {
-		return "", err
-	}
-	return decoded, nil
-}
-
 // handleEpubConvert serves converted EPUB/text documents as HTML format
 // URL format: /api/epub/{path} serves index.html with custom TOC header
 // URL format: /api/epub/{path}/{asset} serves CSS/images from the HTML directory
@@ -3835,7 +3826,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 		pathParts = unescaped
 	}
 	slog.Debug("handleEpubConvert request", "pathParts", pathParts)
-	
+
 	if pathParts == "" || pathParts == "/" {
 		http.Error(w, "Path required", http.StatusBadRequest)
 		return
@@ -3845,9 +3836,9 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	// Find the part of the path that ends with a known ebook extension
 	docPath := pathParts
 	assetPath := ""
-	
+
 	ebookExts := []string{".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".docx", ".odt", ".rtf", ".txt", ".md", ".html", ".htm", ".pdf"}
-	
+
 	for _, ext := range ebookExts {
 		extIdx := strings.Index(strings.ToLower(pathParts), ext)
 		if extIdx != -1 {
@@ -3863,7 +3854,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	
+
 	slog.Debug("Parsed paths", "docPath", docPath, "assetPath", assetPath)
 
 	// Ensure docPath starts with / for absolute paths
@@ -3902,7 +3893,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Conversion failed: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	slog.Debug("Conversion successful", "htmlDir", htmlDir)
 
 	// If asset path specified, serve that file from HTML directory
@@ -3958,11 +3949,11 @@ func getHTMLFiles(dir string) []string {
 			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
 				base := strings.ToLower(filepath.Base(path))
 				// Skip cover, titlepage, nav, and metadata files
-				if !strings.Contains(base, "cover") && 
-				   !strings.Contains(base, "titlepage") && 
-				   !strings.Contains(base, "title_page") && 
-				   !strings.Contains(base, "nav.xhtml") && 
-				   !strings.Contains(base, "content.opf") {
+				if !strings.Contains(base, "cover") &&
+					!strings.Contains(base, "titlepage") &&
+					!strings.Contains(base, "title_page") &&
+					!strings.Contains(base, "nav.xhtml") &&
+					!strings.Contains(base, "content.opf") {
 					relPath, _ := filepath.Rel(dir, path)
 					files = append(files, relPath)
 				}
@@ -3977,9 +3968,9 @@ func getHTMLFiles(dir string) []string {
 func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir string, originalPath string) string {
 	// Extract title from originalPath or use filename
 	title := filepath.Base(originalPath)
-	
+
 	// Build TOC options
-	var tocOptions string
+	var tocOptions strings.Builder
 	for i, file := range htmlFiles {
 		baseName := filepath.Base(file)
 		baseName = strings.TrimSuffix(baseName, filepath.Ext(baseName))
@@ -3989,17 +3980,17 @@ func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir string, or
 		if baseName == "index" {
 			baseName = "Start"
 		}
-		
-		val := fmt.Sprintf("/api/epub/%s/%s", 
-			strings.TrimPrefix(originalPath, "/"), 
+
+		val := fmt.Sprintf("/api/epub/%s/%s",
+			strings.TrimPrefix(originalPath, "/"),
 			file)
-			
-		tocOptions += fmt.Sprintf(`<option value="%s">%s</option>`, val, baseName)
+
+		tocOptions.WriteString(fmt.Sprintf(`<option value="%s">%s</option>`, val, baseName))
 		if i == 0 {
-			tocOptions += "\n"
+			tocOptions.WriteString("\n")
 		}
 	}
-	
+
 	wrapper := fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -4073,35 +4064,35 @@ html, body { height: 100%%; overflow: hidden; }
 </div>
 <iframe id="content-frame" name="content-frame" class="content-frame" src="%s"></iframe>
 </body>
-</html>`, title, title, tocOptions, initialSrc)
-	
+</html>`, title, title, tocOptions.String(), initialSrc)
+
 	return wrapper
 }
 
 // serveFileWithMimeType serves a file with the correct MIME type based on extension
 func serveFileWithMimeType(w http.ResponseWriter, r *http.Request, filePath string) {
 	ext := strings.ToLower(filepath.Ext(filePath))
-	
+
 	// Set proper MIME types for common ebook formats
 	mimeTypes := map[string]string{
-		".css":  "text/css",
-		".html": "text/html",
-		".htm":  "text/html",
+		".css":   "text/css",
+		".html":  "text/html",
+		".htm":   "text/html",
 		".xhtml": "application/xhtml+xml",
-		".xml":  "application/xml",
-		".ncx":  "application/xml",
-		".opf":  "application/xml",
-		".jpeg": "image/jpeg",
-		".jpg":  "image/jpeg",
-		".png":  "image/png",
-		".gif":  "image/gif",
-		".svg":  "image/svg+xml",
+		".xml":   "application/xml",
+		".ncx":   "application/xml",
+		".opf":   "application/xml",
+		".jpeg":  "image/jpeg",
+		".jpg":   "image/jpeg",
+		".png":   "image/png",
+		".gif":   "image/gif",
+		".svg":   "image/svg+xml",
 	}
-	
+
 	if mimeType, ok := mimeTypes[ext]; ok {
 		w.Header().Set("Content-Type", mimeType)
 	}
-	
+
 	http.ServeFile(w, r, filePath)
 }
 
@@ -4119,10 +4110,10 @@ func findMainContentFile(oebDir string) string {
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			lowerLine := strings.ToLower(line)
-			if strings.Contains(line, "<itemref") && 
-			   !strings.Contains(lowerLine, "cover") && 
-			   !strings.Contains(lowerLine, "title") &&
-			   !strings.Contains(lowerLine, "nav") {
+			if strings.Contains(line, "<itemref") &&
+				!strings.Contains(lowerLine, "cover") &&
+				!strings.Contains(lowerLine, "title") &&
+				!strings.Contains(lowerLine, "nav") {
 				// Extract idref value
 				idrefMatch := strings.Index(line, `idref="`)
 				if idrefMatch >= 0 {
@@ -4161,10 +4152,10 @@ func findMainContentFile(oebDir string) string {
 			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
 				base := strings.ToLower(filepath.Base(path))
 				// Skip cover, titlepage, and metadata files
-				if strings.Contains(base, "cover") || 
-				   strings.Contains(base, "titlepage") || 
-				   strings.Contains(base, "title_page") || 
-				   strings.Contains(base, "nav.xhtml") {
+				if strings.Contains(base, "cover") ||
+					strings.Contains(base, "titlepage") ||
+					strings.Contains(base, "title_page") ||
+					strings.Contains(base, "nav.xhtml") {
 					return nil
 				}
 				if firstContentHTML == "" {
@@ -4191,20 +4182,4 @@ func findMainContentFile(oebDir string) string {
 	}
 
 	return ""
-}
-
-// findFileCaseInsensitive searches for a file in a directory case-insensitively
-func findFileCaseInsensitive(dir, filename string) string {
-	var found string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() && strings.EqualFold(filepath.Base(path), filename) {
-			found = path
-			return filepath.SkipAll
-		}
-		return nil
-	})
-	return found
 }

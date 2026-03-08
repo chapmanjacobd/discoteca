@@ -1,4 +1,4 @@
-lets have the back button act like Escape on Mobile, closing modals on one click before changing the URL
+Adding a keyword to a category (either drag or button) shouldn't refresh the page--just delete the keyword from Suggestions if it existed
 
 e2e tests combining all the filters to each mode to make sure they don't exit the specific mode
 

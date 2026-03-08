@@ -13,26 +13,26 @@
 <body>
     <header>
         <button id="menu-toggle" title="Menu">☰</button>
-        <div class="logo">
-            <span class="disco-ball">🪩</span>
-            <span class="logo-text">Disco<span class="logo-suffix">thèque</span></span>
+        <div id="logo">
+            <span id="disco-ball">🪩</span>
+            <span id="logo-text">Disco<span id="logo-suffix">thèque</span></span>
         </div>
-        <div class="search-container">
-            <span class="search-icon">🔍</span>
+        <div id="search-container">
+            <span id="search-icon">🔍</span>
             <input type="text" id="search-input" placeholder="Search..." autocomplete="off">
             <div id="search-suggestions" class="hidden"></div>
             <div id="results-info">
                 <span id="results-count"></span>
             </div>
         </div>
-        <div class="header-actions">
+        <div id="header-actions">
             <button id="settings-button" title="Settings">⚙️</button>
         </div>
     </header>
 
     <main>
         <div id="sidebar-overlay" class="hidden"></div>
-        <aside id="sidebar" class="sidebar">
+        <aside id="sidebar">
             <div id="nav-list">
                 <button id="all-media-btn" class="category-btn active" style="width: 100%; margin-bottom: 0.2rem;">🗂️
                     All Media</button>
@@ -153,21 +153,21 @@
                 Trash</button>
         </aside>
 
-        <section class="content">
+        <section id="content">
             <div id="theatre-anchor"></div>
             <div id="toolbar">
-                <div id="du-toolbar" class="du-toolbar hidden">
+                <div id="du-toolbar" class="hidden">
                     <button id="du-back-btn" class="category-btn" title="Go to parent directory">⤴️</button>
-                    <input type="text" id="du-path-input" class="du-path-input" />
+                    <input type="text" id="du-path-input" />
                 </div>
 
-                <div class="view-toggle">
+                <div id="view-toggle">
                     <button id="view-grid" class="active">Grid</button>
                     <button id="view-group">Group</button>
                     <button id="view-details">Details</button>
                 </div>
 
-                <div class="sort-group">
+                <div id="sort-group">
                     <select id="sort-by">
                         <option value="default" selected>Default</option>
                         <option value="path">Path</option>
@@ -418,9 +418,9 @@
             <div class="spinner"></div>
             <p style="margin-top: 1rem; font-weight: 500;">Generating RSVP Video...</p>
         </div>
-        <div class="pip-header">
+        <div id="pip-header">
             <span id="media-title"></span>
-            <div class="pip-controls">
+            <div id="pip-controls">
                 <button id="pip-slideshow" title="Toggle Slideshow" class="hidden">▶️</button>
                 <button id="pip-speed" title="Playback Speed" class="hidden"
                     style="font-size: 0.75rem; font-weight: 600; padding: 2px 6px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px;">1.0x</button>
@@ -441,7 +441,7 @@
                 <button class="close-pip" title="Close">&times;</button>
             </div>
         </div>
-        <div class="pip-body">
+        <div id="pip-body">
             <div id="media-viewer">
                 <!-- Media tag (img, video, audio) will be injected here -->
             </div>
@@ -457,7 +457,7 @@
                 <button class="close-modal" title="Close">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="metadata-content" class="metadata-grid">
+                <div id="metadata-content" id="metadata-grid">
                     <!-- Metadata will be injected here -->
                 </div>
             </div>
@@ -472,7 +472,7 @@
                 <button class="close-modal" title="Close">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="shortcut-list">
+                <div id="shortcut-list">
                     <section>
                         <h3>Navigation</h3>
                         <div class="shortcut-item"><span>n</span> <span>Next Media</span></div>
@@ -513,7 +513,7 @@
     <div id="document-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; background: var(--bg-color); z-index: 3000;">
         <div class="modal-header">
             <h2 id="document-title">Document</h2>
-            <div class="doc-controls">
+            <div id="doc-controls">
                 <button id="doc-stream-type" class="category-btn hidden" title="Switch Stream Type">🔄</button>
                 <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
                 <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen (F)">⛶</button>

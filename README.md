@@ -1621,6 +1621,8 @@ Flags:
         Track playback history
   --other
         Analyze 'other' category to find potential new categories
+  --full-path
+        Use full path for categorization suggestions instead of just filename
 ```
 
 </details>
