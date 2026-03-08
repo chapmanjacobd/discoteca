@@ -2942,20 +2942,45 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	var args []string
 	if strings.HasPrefix(mime, "video/") {
 		args = []string{"-ss", "25", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
-	} else if strings.HasPrefix(mime, "image/") {
-		args = []string{"-i", path, "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
 	} else if strings.HasPrefix(mime, "audio/") {
+		// For audio files, try to extract embedded album art first
+		// If no album art exists, ffmpeg will fail, so we return a placeholder
 		args = []string{"-i", path, "-an", "-vcodec", "copy", "-f", "image2", "pipe:1"}
 	} else {
-		http.Error(w, "Unsupported type", http.StatusUnsupportedMediaType)
+		// For documents and other unsupported types, return a simple placeholder SVG
+		// This is more user-friendly than returning an error
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+		label := strings.ToUpper(ext)
+		if label == "" {
+			label = "FILE"
+		}
+		placeholder := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+  <rect fill="#3b82f6" width="320" height="240"/>
+  <text fill="white" font-family="system-ui,sans-serif" font-size="48" font-weight="bold" text-anchor="middle" x="160" y="140">%s</text>
+</svg>`, label)
+		w.Write([]byte(placeholder))
 		return
 	}
 
 	cmd := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
 	thumb, err := cmd.Output()
 	if err != nil {
-		// slog.Debug("Thumbnail generation failed", "path", path, "error", err)
-		http.Error(w, "Failed to generate thumbnail", http.StatusInternalServerError)
+		// For audio files without embedded art, or video files that fail, return a placeholder
+		// This is more user-friendly than returning an error
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+		label := strings.ToUpper(ext)
+		if label == "" {
+			label = "MEDIA"
+		}
+		placeholder := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+  <rect fill="#6b7280" width="320" height="240"/>
+  <text fill="white" font-family="system-ui,sans-serif" font-size="48" font-weight="bold" text-anchor="middle" x="160" y="140">%s</text>
+</svg>`, label)
+		w.Write([]byte(placeholder))
 		return
 	}
 
