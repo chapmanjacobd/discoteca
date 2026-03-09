@@ -672,9 +672,10 @@ document.addEventListener('DOMContentLoaded', () => {
      * Close whichever player is currently active (PiP or Document Modal).
      * This is the unified interface for closing the active player.
      * @param {boolean} skipSync - Whether to skip syncUrl (e.g. if called from readUrl)
+     * @param {boolean} keepFullscreen - Whether to stay in fullscreen if active
      * @returns {boolean} true if a player was closed, false if none was open
      */
-    async function closeActivePlayer(skipSync = false) {
+    async function closeActivePlayer(skipSync = false, keepFullscreen = false) {
         let closed = false;
 
         // Close PiP if open
@@ -700,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.remove('has-pip');
 
             // Exit fullscreen if active
-            if (document.fullscreenElement) {
+            if (document.fullscreenElement && !keepFullscreen) {
                 document.exitFullscreen().catch(err => {
                     console.error('Failed to exit fullscreen:', err);
                 });
@@ -708,7 +709,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset mode to default preference
             state.playerMode = state.defaultView;
-            state.playback.queue = [];
             closed = true;
         }
 
@@ -743,14 +743,15 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {boolean} isSurfing - Whether this is a channel surfing action
      * @param {boolean} skipSync - Whether to skip syncUrl
      */
-    function openActivePlayer(item, isNewSession = false, isSurfing = false, skipSync = false) {
+    function openActivePlayer(item, isNewSession = false, isSurfing = false, skipSync = false, queueIndex = -1, keepFullscreen = false) {
         const type = item.type || "";
         const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi');
 
         // Close any existing player before opening new one
-        closeActivePlayer(true);
+        closeActivePlayer(true, keepFullscreen);
 
         state.playback.item = item;
+        state.playback.queueIndex = queueIndex;
 
         // Open in appropriate viewer
         if (isDocument) {
@@ -1374,9 +1375,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (state.enableQueue) {
-            renderQueue();
-        }
+        renderQueue();
     }
 
     async function handlePlaylistReorder(draggedItem, newIndex) {
@@ -2872,7 +2871,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function playMedia(item, bypassQueue = false) {
+    async function playMedia(item, bypassQueue = false, queueIndex = -1) {
         if (state.enableQueue && !bypassQueue) {
             const itemBasename = item.path.split('/').pop();
             if (state.queueAddMode === 'end') {
@@ -2880,8 +2879,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`Added to queue: ${itemBasename}`, '➕');
             } else {
                 // Add to next (after current item if it's in the queue, otherwise at start)
-                const currentPath = state.playback.item ? state.playback.item.path : null;
-                const currentIndex = currentPath ? state.playback.queue.findIndex(m => m.path === currentPath) : -1;
+                const currentIndex = state.playback.queueIndex;
                 state.playback.queue.splice(currentIndex + 1, 0, item);
                 showToast(`Added to next: ${itemBasename}`, '⏭️');
             }
@@ -2895,7 +2893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (state.player === 'browser') {
-            openActivePlayer(item, true);
+            openActivePlayer(item, true, false, false, queueIndex);
             return;
         }
 
@@ -3089,39 +3087,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function playSibling(offset, isUser = false, isDelete = false) {
+        const keepFullscreen = !!document.fullscreenElement;
+
         if (state.enableQueue) {
             const queue = state.playback.queue || [];
-            if (queue.length === 0) return;
+            if (queue.length > 0) {
+                let currentIndex = state.playback.queueIndex;
+                if (currentIndex === -1 && state.playback.item) {
+                    currentIndex = queue.findIndex(m => m.path === state.playback.item.path);
+                }
 
-            let currentIndex = -1;
-            if (state.playback.item) {
-                currentIndex = queue.findIndex(m => m.path === state.playback.item.path);
-            }
-
-            let nextIndex;
-            if (currentIndex === -1) {
-                nextIndex = offset > 0 ? 0 : queue.length - 1;
-            } else {
-                if (state.playback.repeatMode === 'one' && !isUser) {
-                    nextIndex = currentIndex;
+                let nextIndex;
+                if (currentIndex === -1) {
+                    nextIndex = offset > 0 ? 0 : queue.length - 1;
                 } else {
-                    nextIndex = currentIndex + offset;
-                    if (state.playback.repeatMode === 'all') {
-                        nextIndex = (nextIndex + queue.length) % queue.length;
+                    if (state.playback.repeatMode === 'one' && !isUser) {
+                        nextIndex = currentIndex;
+                    } else {
+                        nextIndex = currentIndex + offset;
+                        if (state.playback.repeatMode === 'all') {
+                            nextIndex = (nextIndex + queue.length) % queue.length;
+                        }
                     }
                 }
-            }
 
-            if (nextIndex >= 0 && nextIndex < queue.length) {
-                openActivePlayer(queue[nextIndex], false);
-                renderQueue();
-            } else {
-                // End of queue reached
-                if (!isUser) {
-                    closeActivePlayer();
+                if (nextIndex >= 0 && nextIndex < queue.length) {
+                    openActivePlayer(queue[nextIndex], false, false, false, nextIndex, keepFullscreen);
+                    renderQueue();
+                    return;
+                } else {
+                    // End of queue reached
+                    if (!isUser) {
+                        closeActivePlayer();
+                        return;
+                    }
+                    return;
                 }
             }
-            return;
+            // Fallback to currentMedia if queue is empty
         }
 
         if (currentMedia.length === 0) return;
@@ -3174,7 +3177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playItem = (index) => {
             if (index >= 0 && index < currentMedia.length) {
                 if (state.player === 'browser') {
-                    openActivePlayer(currentMedia[index], isNewSession);
+                    openActivePlayer(currentMedia[index], isNewSession, false, false, -1, keepFullscreen);
                 } else {
                     playMedia(currentMedia[index]);
                 }
@@ -3528,6 +3531,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function saveQueue() {
+        localStorage.setItem('disco-queue', JSON.stringify(state.playback.queue || []));
+    }
+
     function renderQueue() {
         const queueList = document.getElementById('queue-list');
         const queueCountBadge = document.getElementById('queue-count-badge');
@@ -3540,7 +3547,7 @@ document.addEventListener('DOMContentLoaded', () => {
         queue.forEach((item, index) => {
             const queueItem = document.createElement('div');
             queueItem.className = 'queue-item';
-            if (state.playback.item && state.playback.item.path === item.path) {
+            if (state.playback.queueIndex === index) {
                 queueItem.classList.add('playing');
             }
 
@@ -3560,24 +3567,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="queue-item-meta">${formatDuration(item.duration)}</div>
                 </div>
                 <div class="queue-item-actions">
-                    <button class="queue-action-btn play-now" title="Play Now">▶️</button>
                     <button class="queue-action-btn remove" title="Remove from Queue">❌</button>
                 </div>
             `;
 
-            queueItem.querySelector('.play-now').onclick = () => {
-                playMedia(item, true);
+            queueItem.onclick = (e) => {
+                if (e.target.closest('.queue-item-title') || 
+                    e.target.closest('.queue-item-handle') || 
+                    e.target.closest('.queue-item-actions')) {
+                    return;
+                }
+                playMedia(item, true, index);
             };
 
-            queueItem.querySelector('.remove').onclick = () => {
+            queueItem.querySelector('.remove').onclick = (e) => {
+                e.stopPropagation();
                 state.playback.queue.splice(index, 1);
+                // Adjust queueIndex if needed
+                if (state.playback.queueIndex === index) {
+                    state.playback.queueIndex = -1;
+                } else if (state.playback.queueIndex > index) {
+                    state.playback.queueIndex--;
+                }
                 renderQueue();
             };
 
-            // Drag and drop for reordering
+            // Drag and drop for reordering and adding new items
             const handle = queueItem.querySelector('.queue-item-handle');
             handle.ondragstart = (e) => {
-                e.dataTransfer.setData('text/plain', index);
+                e.dataTransfer.setData('application/x-disco-queue-index', index);
                 queueItem.style.opacity = '0.5';
             };
             handle.ondragend = () => {
@@ -3586,19 +3604,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
             queueItem.ondragover = (e) => {
                 e.preventDefault();
-                queueItem.style.borderTop = '2px solid var(--primary-color)';
+                const rect = queueItem.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY < midY) {
+                    queueItem.classList.add('drop-before');
+                    queueItem.classList.remove('drop-after');
+                } else {
+                    queueItem.classList.add('drop-after');
+                    queueItem.classList.remove('drop-before');
+                }
             };
             queueItem.ondragleave = () => {
-                queueItem.style.borderTop = '';
+                queueItem.classList.remove('drop-before', 'drop-after');
             };
             queueItem.ondrop = (e) => {
                 e.preventDefault();
-                queueItem.style.borderTop = '';
-                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                const toIndex = index;
-                if (fromIndex !== toIndex) {
-                    const movedItem = state.playback.queue.splice(fromIndex, 1)[0];
-                    state.playback.queue.splice(toIndex, 0, movedItem);
+                e.stopPropagation();
+                const rect = queueItem.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                const isBefore = e.clientY < midY;
+                queueItem.classList.remove('drop-before', 'drop-after');
+
+                const fromIndexStr = e.dataTransfer.getData('application/x-disco-queue-index');
+                const targetIndex = isBefore ? index : index + 1;
+
+                if (fromIndexStr !== '') {
+                    // Reordering existing item
+                    const fromIndex = parseInt(fromIndexStr);
+                    if (fromIndex !== index) {
+                        const movedItem = state.playback.queue.splice(fromIndex, 1)[0];
+                        // If we moved from before target, index shifted
+                        const adjustedTarget = (fromIndex < targetIndex) ? targetIndex - 1 : targetIndex;
+                        state.playback.queue.splice(adjustedTarget, 0, movedItem);
+                        renderQueue();
+                    }
+                } else if (state.draggedItem) {
+                    // Adding new item from outside
+                    const item = state.draggedItem;
+                    state.playback.queue.splice(targetIndex, 0, item);
+                    showToast(`Added to queue: ${item.path.split('/').pop()}`, '➕');
                     renderQueue();
                 }
             };
@@ -3607,37 +3651,90 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Update control button states
+        const playPauseBtn = document.getElementById('queue-play-pause-btn');
         const shuffleBtn = document.getElementById('queue-shuffle-btn');
         const repeatBtn = document.getElementById('queue-repeat-btn');
         const addModeBtn = document.getElementById('queue-add-mode-btn');
 
+        if (playPauseBtn) {
+            const media = pipViewer.querySelector('video, audio');
+            if (media && !media.paused) {
+                playPauseBtn.textContent = '⏸️';
+            } else {
+                playPauseBtn.textContent = '▶️';
+            }
+            playPauseBtn.classList.toggle('hidden', !state.playback.item);
+        }
+
         if (shuffleBtn) {
             shuffleBtn.classList.toggle('active', state.playback.shuffle);
-            shuffleBtn.style.color = state.playback.shuffle ? 'var(--primary-color)' : '';
         }
 
         if (repeatBtn) {
             repeatBtn.textContent = `🔁 ${state.playback.repeatMode.charAt(0).toUpperCase() + state.playback.repeatMode.slice(1)}`;
-            repeatBtn.style.color = state.playback.repeatMode !== 'off' ? 'var(--primary-color)' : '';
+            repeatBtn.classList.toggle('active', state.playback.repeatMode !== 'off');
         }
 
         if (addModeBtn) {
             addModeBtn.textContent = `➕ ${state.queueAddMode.charAt(0).toUpperCase() + state.queueAddMode.slice(1)}`;
+            addModeBtn.classList.toggle('active', state.queueAddMode === 'next');
         }
 
         const expandBtn = document.getElementById('queue-expand-btn');
         if (expandBtn) {
             expandBtn.classList.toggle('active', state.queueExpanded);
-            expandBtn.style.color = state.queueExpanded ? 'var(--primary-color)' : '';
         }
+
+        saveQueue();
     }
 
     function initQueueControls() {
+        const queueContainer = document.getElementById('queue-container');
+        const playPauseBtn = document.getElementById('queue-play-pause-btn');
         const expandBtn = document.getElementById('queue-expand-btn');
         const shuffleBtn = document.getElementById('queue-shuffle-btn');
         const repeatBtn = document.getElementById('queue-repeat-btn');
         const addModeBtn = document.getElementById('queue-add-mode-btn');
         const clearBtn = document.getElementById('queue-clear-btn');
+
+        if (playPauseBtn) {
+            playPauseBtn.onclick = () => {
+                const media = pipViewer.querySelector('video, audio');
+                if (media) {
+                    if (media.paused) media.play();
+                    else media.pause();
+                    renderQueue();
+                }
+            };
+        }
+
+        if (queueContainer) {
+            queueContainer.addEventListener('dragover', (e) => {
+                if (state.draggedItem) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                }
+            });
+
+            queueContainer.addEventListener('drop', (e) => {
+                if (!state.draggedItem) return;
+                
+                e.preventDefault();
+                const item = state.draggedItem;
+                const filename = item.path.split('/').pop();
+
+                if (state.queueAddMode === 'end') {
+                    state.playback.queue.push(item);
+                    showToast(`Added to queue: ${filename}`, '➕');
+                } else {
+                    const currentPath = state.playback.item ? state.playback.item.path : null;
+                    const currentIndex = currentPath ? state.playback.queue.findIndex(m => m.path === currentPath) : -1;
+                    state.playback.queue.splice(currentIndex + 1, 0, item);
+                    showToast(`Added to next: ${filename}`, '⏭️');
+                }
+                renderQueue();
+            });
+        }
 
         if (expandBtn) {
             expandBtn.onclick = () => {

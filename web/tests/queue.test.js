@@ -74,6 +74,31 @@ describe('Queue Management', () => {
         expect(localStorage.getItem('disco-queue-expanded')).toBe('false');
     });
 
+    it('should add item to queue via drag and drop', async () => {
+        state.enableQueue = true;
+        window.disco.updateQueueVisibility();
+
+        const queueContainer = document.getElementById('queue-container');
+        const mediaCard = document.querySelector('.media-card');
+        const item = mediaCard._item;
+
+        // Simulate dragstart
+        const dragStartEvent = new DragEvent('dragstart');
+        mediaCard.dispatchEvent(dragStartEvent);
+        state.draggedItem = item;
+
+        // Simulate drop on queue container
+        const dropEvent = new DragEvent('drop', {
+            dataTransfer: {
+                getData: () => item.path
+            }
+        });
+        queueContainer.dispatchEvent(dropEvent);
+
+        expect(state.playback.queue.length).toBe(1);
+        expect(state.playback.queue[0].path).toBe(item.path);
+    });
+
     it('should clear queue when clear button clicked', async () => {
         // Mock confirm
         global.confirm = vi.fn(() => true);
@@ -90,5 +115,39 @@ describe('Queue Management', () => {
         expect(global.confirm).toHaveBeenCalled();
         expect(state.playback.queue.length).toBe(0);
         expect(document.querySelectorAll('.queue-item').length).toBe(0);
+    });
+
+    it('should persist queue to localStorage', async () => {
+        state.enableQueue = true;
+        state.playback.queue = [{ path: 'persist.mp4', duration: 10 }];
+        
+        // Trigger save
+        window.disco.renderQueue();
+        
+        const saved = JSON.parse(localStorage.getItem('disco-queue'));
+        expect(saved).toBeTruthy();
+        expect(saved.length).toBe(1);
+        expect(saved[0].path).toBe('persist.mp4');
+    });
+
+    it('should advance correctly through duplicate items in queue', async () => {
+        state.enableQueue = true;
+        const item = { path: 'duplicate.mp4', duration: 10, type: 'video/mp4' };
+        state.playback.queue = [item, item, { path: 'third.mp4', duration: 10, type: 'video/mp4' }];
+        
+        // Play first item (explicitly passing index 0)
+        window.disco.openActivePlayer(state.playback.queue[0], true, false, false, 0);
+        expect(state.playback.item.path).toBe('duplicate.mp4');
+        expect(state.playback.queueIndex).toBe(0);
+        
+        // Advance to next (should be the second 'duplicate.mp4' at index 1)
+        window.disco.playSibling(1);
+        expect(state.playback.item.path).toBe('duplicate.mp4');
+        expect(state.playback.queueIndex).toBe(1);
+
+        // Advance again
+        window.disco.playSibling(1);
+        expect(state.playback.item.path).toBe('third.mp4');
+        expect(state.playback.queueIndex).toBe(2);
     });
 });

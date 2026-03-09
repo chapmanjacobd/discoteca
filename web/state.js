@@ -81,7 +81,8 @@ export const state = {
     lastSuggestions: [],
     playback: {
         item: null,
-        queue: [], // Queue of upcoming media items
+        queueIndex: -1,
+        queue: JSON.parse(localStorage.getItem('disco-queue') || '[]'), // Queue of upcoming media items
         repeatMode: localStorage.getItem('disco-repeat-mode') || 'off', // 'off' | 'one' | 'all'
         shuffle: localStorage.getItem('disco-shuffle') === 'true',
         timer: null,
