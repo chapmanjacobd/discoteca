@@ -693,6 +693,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const media = pipViewer.querySelector('video, audio');
             if (media) {
+                media.onerror = null;
+                media.onended = null;
+                media.onpause = null;
+                media.ontimeupdate = null;
+                media.onvolumechange = null;
+                media.oncanplay = null;
                 media.pause();
                 media.src = "";
             }
@@ -1949,6 +1955,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('trash', 'true');
             } else if (state.page === 'history') {
                 params.append('watched', 'true');
+            } else if (state.page === 'captions') {
+                params.append('captions', 'true');
             }
 
             const resp = await fetchAPI(`/api/episodes?${params.toString()}`, {
@@ -2637,6 +2645,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('trash', 'true');
             } else if (state.page === 'history') {
                 params.append('watched', 'true');
+            } else if (state.page === 'captions') {
+                params.append('captions', 'true');
             }
 
             // Request filter counts for sidebar bins (eliminates separate /api/filter-bins call)
@@ -3572,8 +3582,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             queueItem.onclick = (e) => {
-                if (e.target.closest('.queue-item-title') || 
-                    e.target.closest('.queue-item-handle') || 
+                if (e.target.closest('.queue-item-title') ||
+                    e.target.closest('.queue-item-handle') ||
                     e.target.closest('.queue-item-actions')) {
                     return;
                 }
@@ -3718,7 +3728,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             queueContainer.addEventListener('drop', (e) => {
                 if (!state.draggedItem) return;
-                
+
                 e.preventDefault();
                 const item = state.draggedItem;
                 const filename = item.path.split('/').pop();
@@ -3987,6 +3997,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             el.onerror = () => {
+                // If this element is no longer the active one, ignore the error
+                if (el !== pipViewer.querySelector('video, audio')) return;
+
                 const currentSrc = el.src || '';
                 if (needsTranscode && (currentSrc.includes('/api/hls/playlist') || (state.playback.hlsInstance && state.playback.hlsInstance.url === currentSrc))) {
                     console.warn("HLS failed, trying direct stream fallback...");
@@ -4334,7 +4347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.appendChild(iframe);
             }
         }
- else {
+        else {
             const streamBtn = document.getElementById('doc-stream-type');
             if (streamBtn) streamBtn.classList.add('hidden');
 

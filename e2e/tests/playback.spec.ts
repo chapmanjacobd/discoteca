@@ -172,4 +172,27 @@ test.describe('Media Playback', () => {
       }
     }
   });
+
+  test('handles rapid clicks on the same item', async ({ page, server }) => {
+    await page.goto(server.getBaseUrl());
+
+    await page.waitForSelector('.media-card', { timeout: 10000 });
+
+    const mediaCard = page.locator('.media-card[data-type*="video"]').first();
+    
+    // Rapidly click the same card
+    await mediaCard.click();
+    await mediaCard.click();
+    await mediaCard.click();
+
+    // Wait for playback to stabilize
+    await page.waitForTimeout(1000);
+
+    // Verify no "Unplayable" error toast is shown
+    const toast = page.locator('#toast');
+    const toastText = await toast.textContent();
+    if (await toast.isVisible()) {
+      expect(toastText).not.toContain('Unplayable');
+    }
+  });
 });
