@@ -3434,7 +3434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!media || !state.playback.item) return null;
 
         const path = state.playback.item.path;
-        
+
         // Return cached cues if same media
         if (subtitleCuesCache && subtitleCachesPath === path) {
             return subtitleCuesCache;
@@ -3444,10 +3444,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fetch subtitle track from API
             const resp = await fetchAPI(`/api/subtitles?path=${encodeURIComponent(path)}`);
             if (!resp.ok) return null;
-            
+
             const text = await resp.text();
             const cues = parseWebVTT(text);
-            
+
             subtitleCuesCache = cues;
             subtitleCachesPath = path;
             return cues;
@@ -3464,7 +3464,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const line of lines) {
             const trimmed = line.trim();
-            
+
             // Skip WEBVTT header and empty lines
             if (trimmed.startsWith('WEBVTT') || trimmed === '' || trimmed.startsWith('NOTE')) {
                 continue;
@@ -3557,6 +3557,77 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`Subtitle: ${targetCue.text.substring(0, 50)}${targetCue.text.length > 50 ? '...' : ''}`, '💬');
             }
         });
+    }
+
+    function takeScreenshot(video, withoutSubs = false) {
+        try {
+            // Create canvas and draw video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 1920;
+            canvas.height = video.videoHeight || 1080;
+            const ctx = canvas.getContext('2d');
+
+            if (withoutSubs && video.textTracks) {
+                // Temporarily disable all subtitle tracks
+                const tracks = Array.from(video.textTracks);
+                const showingTracks = tracks.filter(t => t.mode === 'showing');
+                tracks.forEach(t => t.mode = 'disabled');
+
+                // Draw video without subtitles
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Restore subtitle tracks
+                showingTracks.forEach(t => t.mode = 'showing');
+            } else {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
+
+            // Download the screenshot
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                a.download = `screenshot-${timestamp}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Screenshot saved', '📸');
+            }, 'image/png');
+        } catch (err) {
+            console.error('Screenshot failed:', err);
+            errorToast(err, 'Screenshot failed');
+        }
+    }
+
+    // Aspect ratio modes for video
+    const aspectRatioModes = [
+        { name: 'Default', value: '' },
+        { name: '16:9', value: '16/9' },
+        { name: '4:3', value: '4/3' },
+        { name: '21:9', value: '21/9' },
+        { name: '1:1', value: '1/1' },
+        { name: 'Stretch', value: 'stretch' }
+    ];
+    let currentAspectRatioIndex = 0;
+
+    function cycleAspectRatio(video) {
+        currentAspectRatioIndex = (currentAspectRatioIndex + 1) % aspectRatioModes.length;
+        const mode = aspectRatioModes[currentAspectRatioIndex];
+
+        if (mode.value === 'stretch') {
+            video.style.objectFit = 'fill';
+            video.style.aspectRatio = '';
+        } else if (mode.value) {
+            video.style.objectFit = 'contain';
+            video.style.aspectRatio = mode.value;
+        } else {
+            video.style.objectFit = '';
+            video.style.aspectRatio = '';
+        }
+
+        showToast(`Aspect Ratio: ${mode.name}`, '📐');
     }
 
     async function playRSVP(item) {
@@ -5646,7 +5717,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 0: Unrate (set rating to 0)
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '0') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '`') {
             if (state.playback.item) {
                 rateMedia(state.playback.item, 0);
             } else {
@@ -5761,7 +5832,6 @@ document.addEventListener('DOMContentLoaded', () => {
         switch (e.key.toLowerCase()) {
             case 'q':
             case 'w':
-            case 's':
                 closeActivePlayer();
                 e.preventDefault();
                 return;
@@ -6041,6 +6111,84 @@ document.addEventListener('DOMContentLoaded', () => {
             case '>':
                 // Next in playlist
                 playSibling(1, true);
+                break;
+            // Home key - seek to start
+            case 'home':
+                setTime(0);
+                showToast('Seek to start', '⏮️');
+                break;
+            case 'pageup':
+                state.playback.seekHistory.push(currentTime);
+                if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                setTime(Math.max(0, currentTime - 600));
+                showToast('Seek -10 min', '⏪');
+                break;
+            case 'pagedown':
+                state.playback.seekHistory.push(currentTime);
+                if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                setTime(Math.min(duration, currentTime + 600));
+                showToast('Seek +10 min', '⏩');
+                break;
+            // Volume control shortcuts (numpad)
+            case '/':
+                if (e.code === 'NumpadDivide' || e.key === 'NumpadDivide') {
+                    media.volume = Math.max(0, media.volume - 0.1);
+                    showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                }
+                break;
+            case '*':
+                if (e.code === 'NumpadMultiply' || e.key === 'NumpadMultiply') {
+                    media.volume = Math.min(1, media.volume + 0.1);
+                    showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                }
+                break;
+            case '9':
+                // Numpad 9 for volume down (when not seeking)
+                media.volume = Math.max(0, media.volume - 0.1);
+                showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                break;
+            case '0':
+                // Numpad 0 for volume up (when not seeking)
+                media.volume = Math.min(1, media.volume + 0.1);
+                showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                break;
+            // Screenshot shortcuts
+            case 's':
+                if (media.tagName === 'VIDEO') {
+                    e.preventDefault();
+                    takeScreenshot(media, e.shiftKey);
+                }
+                break;
+            // Aspect ratio toggle
+            case 'a':
+                if (media.tagName === 'VIDEO') {
+                    cycleAspectRatio(media);
+                }
+                break;
+            // Media keys (Previous/Next) - same behavior as arrow keys for seeking
+            case 'mediaprev':
+            case 'medianext':
+            case 'MediaTrackPrevious':
+            case 'MediaTrackNext':
+                if (e.key === 'MediaTrackNext' || e.key === 'MediaPlayNext') {
+                    // Next: seek forward 1 min or go to next media at end
+                    if (!isNaN(duration) && duration - currentTime < 1) {
+                        playSibling(1, true);
+                    } else if (!isNaN(duration)) {
+                        state.playback.seekHistory.push(currentTime);
+                        if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                        setTime(Math.min(duration, currentTime + 60));
+                    }
+                } else if (e.key === 'MediaTrackPrevious' || e.key === 'MediaPlayPrevious') {
+                    // Previous: seek backward 1 min or go to prev media at start
+                    if (currentTime < 1) {
+                        playSibling(-1, true);
+                    } else {
+                        state.playback.seekHistory.push(currentTime);
+                        if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                        setTime(Math.max(0, currentTime - 60));
+                    }
+                }
                 break;
             case '.':
                 // Step forward one frame
