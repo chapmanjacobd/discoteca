@@ -3758,48 +3758,57 @@ document.addEventListener('DOMContentLoaded', () => {
         const basename = item.path.split('/').pop();
         let msg = `Playback failed: ${basename}`;
         let emoji = '⚠️';
-        let removeFile = true;
+        let removeFile = false;
+        let shouldVerify = true;
 
         // Try to get more detailed error info from the media element
         if (el && el.error) {
             const code = el.error.code;
-            if (code === 1) msg = `Playback aborted: ${basename}`;
-            else if (code === 2) msg = `Network error: ${basename}`;
-            else if (code === 3) msg = `Decoding failed: ${basename}`;
-            else if (code === 4) msg = `Format not supported: ${basename}`;
+            if (code === 1) {
+                msg = `Playback aborted: ${basename}`;
+                shouldVerify = false;
+            } else if (code === 2) {
+                msg = `Network error: ${basename}`;
+                emoji = '🌐';
+                shouldVerify = false;
+            } else if (code === 3) {
+                msg = `Decoding failed: ${basename}`;
+                emoji = '🚫';
+                shouldVerify = false;
+            } else if (code === 4) {
+                msg = `Format not supported: ${basename}`;
+                shouldVerify = true; // Ambiguous: could be 404, 403, or actual codec issue
+            }
         }
 
-        try {
-            // Verify status on server
-            const resp = await fetchAPI(`/api/raw?path=${encodeURIComponent(item.path)}`, { method: 'HEAD' });
-            if (resp.status === 404) {
-                msg = `File not found (removed from view): ${basename}`;
-                emoji = '🗑️';
-                removeFile = true;
-            } else if (resp.status === 403) {
-                msg = `Access denied: ${basename}`;
-                emoji = '🚫';
-                removeFile = false;
-            } else if (resp.status === 415) {
-                msg = `Codec/Transcode failed: ${basename}`;
-                emoji = '🚫';
-                removeFile = false;
-            } else if (resp.status >= 500) {
-                msg = `Server error (${resp.status}): ${basename}`;
-                emoji = '❌';
-                removeFile = false;
-            } else if (resp.status === 200) {
-                // File exists but browser failed to play it
-                if (!msg.includes('Decoding') && !msg.includes('Format') && !msg.includes('Network')) {
-                    msg = `Playback failed (browser/codec error): ${basename}`;
+        if (shouldVerify) {
+            try {
+                // Verify status on server
+                const resp = await fetchAPI(`/api/raw?path=${encodeURIComponent(item.path)}`, { method: 'HEAD' });
+                if (resp.status === 404) {
+                    msg = `File not found (removed from view): ${basename}`;
+                    emoji = '🗑️';
+                    removeFile = true;
+                } else if (resp.status === 403) {
+                    msg = `Access denied: ${basename}`;
+                    emoji = '🚫';
+                } else if (resp.status === 415) {
+                    msg = `Codec/Transcode failed: ${basename}`;
+                    emoji = '🚫';
+                } else if (resp.status >= 500) {
+                    msg = `Server error (${resp.status}): ${basename}`;
+                    emoji = '❌';
+                } else if (resp.status === 200) {
+                    // File exists but browser failed to play it
+                    if (!msg.includes('Decoding') && !msg.includes('Format') && !msg.includes('Network')) {
+                        msg = `Playback failed (browser/codec error): ${basename}`;
+                    }
                 }
-                removeFile = false;
+            } catch (e) {
+                console.error('Failed to verify media status:', e);
+                msg = `Connection lost: ${basename}`;
+                emoji = '🌐';
             }
-        } catch (e) {
-            console.error('Failed to verify media status:', e);
-            msg = `Connection lost: ${basename}`;
-            emoji = '🌐';
-            removeFile = false;
         }
 
         if (state.page === 'trash') {
