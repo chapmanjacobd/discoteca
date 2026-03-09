@@ -52,34 +52,76 @@ test.describe('Read-Only Mode', () => {
     await page.goto(server.getBaseUrl());
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
+    // Enable local resume first
+    await page.click('#settings-button');
+    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+
+    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
+    await advancedSettings.scrollIntoViewIfNeeded();
+    const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpanded) {
+      await advancedSettings.click({ force: true });
+      await page.waitForTimeout(500);
+    }
+
+    const localResumeToggle = page.locator('#setting-local-resume').locator('xpath=..').locator('.slider');
+    const localResumeCheckbox = page.locator('#setting-local-resume');
+    const initialState = await localResumeCheckbox.isChecked();
+
+    if (!initialState) {
+      await localResumeToggle.click();
+      await page.waitForTimeout(300);
+    }
+
+    await page.click('#settings-modal .close-modal');
+    await page.waitForTimeout(500);
+
     // Play a video
     const mediaCard = page.locator('.media-card[data-type*="video"]').first();
     const mediaPath = await mediaCard.getAttribute('data-path');
     console.log(`Testing playback with: ${mediaPath}`);
-    
+
     await mediaCard.click();
     await waitForPlayer(page);
     await page.waitForSelector('video', { timeout: 5000 });
-    
+
+    // Wait for video to be ready and playing
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+
+    // Click to ensure video is playing
+    await page.click('video');
+    await page.waitForTimeout(500);
+
     // Let it play briefly
     const video = page.locator('video');
     await page.waitForTimeout(3000);
-    
+
     const playhead = await video.evaluate((el: HTMLVideoElement) => el.currentTime);
     console.log(`Played to: ${playhead}s`);
-    
+
     // Close player
     await page.click('.close-pip');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500); // Wait for progress to be saved (throttled to 1s)
 
     // In read-only mode, progress should only be stored locally
     const localProgress = await page.evaluate(() => {
       const progress = localStorage.getItem('disco-progress');
       return progress ? JSON.parse(progress) : {};
     });
-    
+
     console.log('Local progress saved:', Object.keys(localProgress).length > 0);
     expect(Object.keys(localProgress).length).toBeGreaterThan(0);
+
+    // Restore original state
+    if (!initialState) {
+      await page.click('#settings-button');
+      await advancedSettings.scrollIntoViewIfNeeded();
+      await localResumeToggle.click();
+      await page.click('#settings-modal .close-modal');
+    }
 
     // Reload page
     await page.reload();
@@ -265,7 +307,7 @@ test.describe('Read-Only Mode', () => {
     // Enable local resume
     await page.click('#settings-button');
     await page.waitForSelector('#settings-modal', { timeout: 5000 });
-    
+
     const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
     await advancedSettings.scrollIntoViewIfNeeded();
     const isExpanded = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
@@ -273,16 +315,16 @@ test.describe('Read-Only Mode', () => {
       await advancedSettings.click({ force: true });
       await page.waitForTimeout(500);
     }
-    
+
     const localResumeToggle = page.locator('#setting-local-resume').locator('xpath=..').locator('.slider');
     const localResumeCheckbox = page.locator('#setting-local-resume');
     const initialState = await localResumeCheckbox.isChecked();
-    
+
     if (!initialState) {
       await localResumeToggle.click();
       await page.waitForTimeout(300);
     }
-    
+
     await page.click('#settings-modal .close-modal');
     await page.waitForTimeout(500);
 
@@ -291,21 +333,32 @@ test.describe('Read-Only Mode', () => {
     await mediaCard.click();
     await waitForPlayer(page);
     await page.waitForSelector('video', { timeout: 5000 });
+
+    // Wait for video to be ready and playing
+    await page.waitForFunction(() => {
+      const video = document.querySelector('video') as HTMLVideoElement;
+      return video && video.readyState >= 3;
+    }, { timeout: 10000 });
+
+    // Click to ensure video is playing
+    await page.click('video');
+    await page.waitForTimeout(500);
+
     await page.waitForTimeout(2000);
-    
+
     const playhead = await page.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime);
     console.log(`Playhead: ${playhead}s`);
-    
+
     // Close player
     await page.click('.close-pip');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500); // Wait for progress to be saved (throttled to 1s)
 
     // Local progress should be saved
     const localProgress = await page.evaluate(() => {
       const progress = localStorage.getItem('disco-progress');
       return progress ? JSON.parse(progress) : {};
     });
-    
+
     console.log('Local progress entries:', Object.keys(localProgress).length);
     expect(Object.keys(localProgress).length).toBeGreaterThan(0);
 

@@ -3425,6 +3425,140 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Cache for subtitle cues (loaded on demand)
+    let subtitleCuesCache = null;
+    let subtitleCachesPath = null;
+
+    async function fetchSubtitleCues() {
+        const media = pipViewer.querySelector('video');
+        if (!media || !state.playback.item) return null;
+
+        const path = state.playback.item.path;
+        
+        // Return cached cues if same media
+        if (subtitleCuesCache && subtitleCachesPath === path) {
+            return subtitleCuesCache;
+        }
+
+        try {
+            // Fetch subtitle track from API
+            const resp = await fetchAPI(`/api/subtitles?path=${encodeURIComponent(path)}`);
+            if (!resp.ok) return null;
+            
+            const text = await resp.text();
+            const cues = parseWebVTT(text);
+            
+            subtitleCuesCache = cues;
+            subtitleCachesPath = path;
+            return cues;
+        } catch (err) {
+            console.error('Failed to fetch subtitle cues:', err);
+            return null;
+        }
+    }
+
+    function parseWebVTT(vttText) {
+        const cues = [];
+        const lines = vttText.split(/\r?\n/);
+        let currentTimeRange = null;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            
+            // Skip WEBVTT header and empty lines
+            if (trimmed.startsWith('WEBVTT') || trimmed === '' || trimmed.startsWith('NOTE')) {
+                continue;
+            }
+
+            // Parse timestamp line (e.g., "00:00:01.000 --> 00:00:04.000")
+            const timestampMatch = trimmed.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/);
+            if (timestampMatch) {
+                currentTimeRange = {
+                    start: parseVTTTime(timestampMatch[1]),
+                    end: parseVTTTime(timestampMatch[2]),
+                    text: ''
+                };
+                continue;
+            }
+
+            // Collect text for current cue
+            if (currentTimeRange && trimmed) {
+                if (currentTimeRange.text) {
+                    currentTimeRange.text += ' ' + trimmed;
+                } else {
+                    currentTimeRange.text = trimmed;
+                }
+            }
+
+            // Empty line marks end of cue
+            if (trimmed === '' && currentTimeRange) {
+                cues.push(currentTimeRange);
+                currentTimeRange = null;
+            }
+        }
+
+        // Don't forget the last cue if file doesn't end with empty line
+        if (currentTimeRange) {
+            cues.push(currentTimeRange);
+        }
+
+        return cues;
+    }
+
+    function parseVTTTime(timeStr) {
+        const parts = timeStr.split(':');
+        const seconds = parseFloat(parts[2]);
+        const minutes = parseInt(parts[1], 10);
+        const hours = parseInt(parts[0], 10);
+        return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    function seekToSubtitleCue(reverse = false) {
+        const media = pipViewer.querySelector('video, audio');
+        if (!media || !state.playback.item) return;
+
+        fetchSubtitleCues().then(cues => {
+            if (!cues || cues.length === 0) {
+                showToast('No subtitles available', '💬');
+                return;
+            }
+
+            const current = media.currentTime || 0;
+            let targetCue = null;
+
+            if (reverse) {
+                // Find the previous cue (last cue that ends before current time)
+                for (let i = cues.length - 1; i >= 0; i--) {
+                    if (cues[i].end <= current) {
+                        targetCue = cues[i];
+                        break;
+                    }
+                }
+                // If no previous cue, go to first cue
+                if (!targetCue && cues.length > 0) {
+                    targetCue = cues[0];
+                }
+            } else {
+                // Find the next cue (first cue that starts after current time)
+                for (const cue of cues) {
+                    if (cue.start > current) {
+                        targetCue = cue;
+                        break;
+                    }
+                }
+                // If no next cue, go to last cue
+                if (!targetCue && cues.length > 0) {
+                    targetCue = cues[cues.length - 1];
+                }
+            }
+
+            if (targetCue) {
+                media.currentTime = targetCue.start;
+                showToast(`Subtitle: ${targetCue.text.substring(0, 50)}${targetCue.text.length > 50 ? '...' : ''}`, '💬');
+            }
+        });
+    }
+
     async function playRSVP(item) {
         const originalPlayer = state.player;
         state.player = 'browser';
@@ -5765,19 +5899,148 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(media.loop ? 'Loop: ON' : 'Loop: OFF', '🔁');
                 }
                 break;
-            case 'arrowleft':
-                if (currentTime < 1) {
-                    playSibling(-1, true);
+            // Seek shortcuts - arrow keys with modifiers
+            case 'arrowup':
+                if (e.shiftKey) {
+                    // Shift+Up: Seek forward 5s (exact)
+                    state.playback.seekHistory.push(currentTime);
+                    if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                    setTime(Math.min(duration, currentTime + 5));
                 } else {
+                    // Up: Seek forward 1 minute
+                    state.playback.seekHistory.push(currentTime);
+                    if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                    setTime(Math.min(duration, currentTime + 60));
+                }
+                break;
+            case 'arrowdown':
+                if (e.shiftKey) {
+                    // Shift+Down: Seek backward 5s (exact)
+                    state.playback.seekHistory.push(currentTime);
+                    if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
                     setTime(Math.max(0, currentTime - 5));
+                } else {
+                    // Down: Seek backward 1 minute
+                    state.playback.seekHistory.push(currentTime);
+                    if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                    setTime(Math.max(0, currentTime - 60));
+                }
+                break;
+            case 'arrowleft':
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+Left: Seek to previous subtitle
+                    if (media.tagName === 'VIDEO') {
+                        seekToSubtitleCue(true);
+                    }
+                } else if (e.shiftKey) {
+                    // Shift+Left: Seek backward 1s (exact)
+                    state.playback.seekHistory.push(currentTime);
+                    if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                    setTime(Math.max(0, currentTime - 1));
+                } else {
+                    // Left: Seek backward 5s
+                    if (currentTime < 1) {
+                        playSibling(-1, true);
+                    } else {
+                        state.playback.seekHistory.push(currentTime);
+                        if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                        setTime(Math.max(0, currentTime - 5));
+                    }
                 }
                 break;
             case 'arrowright':
-                if (!isNaN(duration) && duration - currentTime < 1) {
-                    playSibling(1, true);
-                } else if (!isNaN(duration)) {
-                    setTime(Math.min(duration, currentTime + 5));
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+Right: Seek to next subtitle
+                    if (media.tagName === 'VIDEO') {
+                        seekToSubtitleCue(false);
+                    }
+                } else if (e.shiftKey) {
+                    // Shift+Right: Seek forward 1s (exact)
+                    state.playback.seekHistory.push(currentTime);
+                    if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                    setTime(Math.min(duration, currentTime + 1));
+                } else {
+                    // Right: Seek forward 5s
+                    if (!isNaN(duration) && duration - currentTime < 1) {
+                        playSibling(1, true);
+                    } else if (!isNaN(duration)) {
+                        state.playback.seekHistory.push(currentTime);
+                        if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
+                        setTime(Math.min(duration, currentTime + 5));
+                    }
                 }
+                break;
+            // Playback speed shortcuts
+            case '[':
+                // Decrease speed by 10%
+                if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                    const newRate = Math.max(0.25, Math.round(state.playbackRate * 0.9 * 100) / 100);
+                    setPlaybackRate(newRate);
+                    showToast(`Speed: ${newRate}x`, '⚡');
+                }
+                break;
+            case ']':
+                // Increase speed by 10%
+                if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                    const newRate = Math.min(16, Math.round(state.playbackRate * 1.1 * 100) / 100);
+                    setPlaybackRate(newRate);
+                    showToast(`Speed: ${newRate}x`, '⚡');
+                }
+                break;
+            case '{':
+                // Halve speed
+                if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                    const newRate = Math.max(0.25, state.playbackRate / 2);
+                    setPlaybackRate(newRate);
+                    showToast(`Speed: ${newRate}x`, '⚡');
+                }
+                break;
+            case '}':
+                // Double speed
+                if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                    const newRate = Math.min(16, state.playbackRate * 2);
+                    setPlaybackRate(newRate);
+                    showToast(`Speed: ${newRate}x`, '⚡');
+                }
+                break;
+            // Seek undo/redo shortcuts
+            case 'backspace':
+                if (e.shiftKey && e.ctrlKey) {
+                    // Shift+Ctrl+Backspace: Mark current position
+                    state.playback.markedPosition = currentTime;
+                    showToast(`Position marked: ${formatDuration(currentTime)}`, '📍');
+                    e.preventDefault();
+                } else if (e.shiftKey) {
+                    // Shift+Backspace: Undo last seek
+                    if (state.playback.seekHistory.length > 0) {
+                        const prevTime = state.playback.seekHistory.pop();
+                        setTime(prevTime);
+                        showToast('Seek undone', '↩️');
+                    } else if (state.playback.markedPosition !== null) {
+                        // If no seek history, use marked position
+                        setTime(state.playback.markedPosition);
+                        state.playback.markedPosition = null;
+                        showToast('Returned to marked position', '📍');
+                    } else {
+                        showToast('No seek to undo', 'ℹ️');
+                    }
+                    e.preventDefault();
+                } else {
+                    // Backspace: Reset speed to normal
+                    if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
+                        setPlaybackRate(1.0);
+                        showToast('Speed: Normal', '⚡');
+                    }
+                }
+                break;
+            // Playlist navigation shortcuts
+            case '<':
+                // Previous in playlist
+                playSibling(-1, true);
+                break;
+            case '>':
+                // Next in playlist
+                playSibling(1, true);
                 break;
             case '.':
                 // Step forward one frame

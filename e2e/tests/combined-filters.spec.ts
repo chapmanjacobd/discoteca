@@ -53,8 +53,16 @@ test.describe('Combined Filters and Views', () => {
       if (mode.name === 'Captions') {
         await page.waitForTimeout(1000);
         const resultsContainer = page.locator('#results-container');
-        // Captions should still render as caption-media-cards even in "group" view
-        const isCaptionCard = await page.locator('.caption-media-card').first().isVisible();
+        // Captions render differently based on view mode:
+        // - Grid/Details: .caption-media-card
+        // - Group: .caption-group
+        const isGroupView = await page.evaluate(() => window.disco.state.view === 'group');
+        let isCaptionCard;
+        if (isGroupView) {
+          isCaptionCard = await page.locator('.caption-group').first().isVisible();
+        } else {
+          isCaptionCard = await page.locator('.caption-media-card').first().isVisible();
+        }
         expect(isCaptionCard).toBe(true);
       }
 
@@ -104,30 +112,28 @@ test.describe('Combined Filters and Views', () => {
 
   test('Captions mode + Group view specific failure detection', async ({ page, server }) => {
     await page.goto(server.getBaseUrl() + '#mode=captions');
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
+    await page.waitForSelector('.caption-media-card, .caption-group', { timeout: 10000 });
 
     // Switch to Group view
     await page.click('#view-group');
-    
-    // In current implementation, Group view triggers fetchEpisodes() which doesn't know about captions
-    // It will likely show regular episodic groups instead of captions, or just be empty
+
+    // In Captions mode, Group view renders .caption-group elements
     await page.waitForTimeout(2000);
-    
+
     const resultsContainer = page.locator('#results-container');
     const hasSimilarityView = await resultsContainer.evaluate(el => el.classList.contains('similarity-view'));
+
+    // In Captions mode + Group view, we should see .caption-group elements
+    // If it has similarity-view, it means it's showing episode groups, NOT captions
+    const captionGroups = page.locator('.caption-group');
+    const captionCards = page.locator('.caption-media-card');
     
-    // If it has similarity-view, it means it's showing episode groups, NOT captions.
-    // Captions mode should probably not even allow Group view if it's not implemented,
-    // or Group view should group captions by something.
-    
-    const mediaCards = page.locator('.media-card');
-    const firstCard = mediaCards.first();
-    const isCaptionCard = await firstCard.evaluate(el => el.classList.contains('caption-media-card'));
-    
-    console.log(`In Captions+Group: hasSimilarityView=${hasSimilarityView}, isCaptionCard=${isCaptionCard}`);
-    
-    // If we are in Captions mode, every card should be a caption card
-    // If it's broken, they might be regular media cards
-    expect(isCaptionCard).toBe(true);
+    const groupCount = await captionGroups.count();
+    const cardCount = await captionCards.count();
+
+    console.log(`In Captions+Group: hasSimilarityView=${hasSimilarityView}, captionGroups=${groupCount}, captionCards=${cardCount}`);
+
+    // Either caption groups or caption cards should be visible
+    expect(groupCount > 0 || cardCount > 0).toBe(true);
   });
 });

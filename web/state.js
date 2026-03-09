@@ -99,6 +99,8 @@ export const state = {
         hlsInstance: null,
         toastTimer: null,
         muted: localStorage.getItem('disco-muted') === 'true',
-        consecutiveErrors: 0
+        consecutiveErrors: 0,
+        seekHistory: [], // Stack of previous positions for undo seek
+        markedPosition: null // Position marked by Shift+Ctrl+Backspace
     }
 };
