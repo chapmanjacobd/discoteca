@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -194,6 +195,9 @@ func (c *WatchCmd) Run(ctx *kong.Context) error {
 		// Interactive decision
 		if c.Interactive {
 			if err := InteractiveDecision(flags, m); err != nil {
+				if errors.Is(err, ErrUserQuit) {
+					return nil
+				}
 				slog.Error("Interactive decision failed", "error", err)
 			}
 		}
@@ -347,13 +351,22 @@ func (c *ListenCmd) Run(ctx *kong.Context) error {
 			return nil
 		}
 
-		RunExitCommand(flags, exitCode, m.Path)
-
-		if c.Interactive {
-			InteractiveDecision(flags, m)
+		if err := RunExitCommand(flags, exitCode, m.Path); err != nil {
+			slog.Error("Exit command failed", "code", exitCode, "error", err)
 		}
 
-		ExecutePostAction(flags, []models.MediaWithDB{m})
+		if c.Interactive {
+			if err := InteractiveDecision(flags, m); err != nil {
+				if errors.Is(err, ErrUserQuit) {
+					return nil
+				}
+				slog.Error("Interactive decision failed", "error", err)
+			}
+		}
+
+		if err := ExecutePostAction(flags, []models.MediaWithDB{m}); err != nil {
+			slog.Error("Post action failed", "path", m.Path, "error", err)
+		}
 	}
 
 	return nil

@@ -20,13 +20,14 @@ import (
 )
 
 // MaybeUpdate will check for an update and install it immediately.
-func MaybeUpdate() {
+// Returns true if an update was successfully installed and the process should restart.
+func MaybeUpdate() bool {
 	url := checkUpdate()
 	if url == "" {
-		return
+		return false
 	}
 
-	doUpdate(url)
+	return doUpdate(url)
 }
 
 // AutoUpdate will periodically check for an update and install it.
@@ -46,7 +47,9 @@ func AutoUpdate() {
 
 		for {
 			if shouldCheckProbabilistically() {
-				MaybeUpdate()
+				if MaybeUpdate() {
+					os.Exit(0)
+				}
 			}
 			// Only attempt to check once every 24 hours.
 			time.Sleep(24 * time.Hour)
@@ -101,16 +104,17 @@ func whichFilename() string {
 	}
 }
 
-func doUpdate(url string) {
+func doUpdate(url string) bool {
 	curp, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "couldn't get os.Executable:", err)
-		return
+		return false
 	}
 	if doUpdateAt(curp, url) {
 		fmt.Fprintln(os.Stderr, "new version downloaded, exiting to get restarted")
-		os.Exit(0)
+		return true
 	}
+	return false
 }
 
 func verifyChecksum(ctx context.Context, url string, data []byte) error {

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,9 @@ import (
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/utils"
 )
+
+// ErrUserQuit is returned when the user chooses to quit during interactive decision.
+var ErrUserQuit = errors.New("user requested quit")
 
 func HideRedundantFirstPlayed(media []models.MediaWithDB) {
 	for i := range media {
@@ -128,7 +132,7 @@ func InteractiveDecision(flags models.GlobalFlags, m models.MediaWithDB) error {
 	case "m":
 		return MarkDeletedItem(m)
 	case "q":
-		os.Exit(0)
+		return ErrUserQuit
 	}
 
 	return nil
