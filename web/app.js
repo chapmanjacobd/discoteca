@@ -3740,7 +3740,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.player = originalPlayer;
     }
 
-    function handleMediaError(item) {
+    async function handleMediaError(item, el) {
         if (pipLoading) pipLoading.classList.add('hidden');
 
         if (!state.playback.item || state.playback.item.path !== item.path) {
@@ -3756,47 +3756,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const basename = item.path.split('/').pop();
-        const msg = `Playback failed: ${basename}`;
-        const emoji = '⚠️';
+        let msg = `Playback failed: ${basename}`;
+        let emoji = '⚠️';
+        let removeFile = true;
+
+        // Try to get more detailed error info from the media element
+        if (el && el.error) {
+            const code = el.error.code;
+            if (code === 1) msg = `Playback aborted: ${basename}`;
+            else if (code === 2) msg = `Network error: ${basename}`;
+            else if (code === 3) msg = `Decoding failed: ${basename}`;
+            else if (code === 4) msg = `Format not supported: ${basename}`;
+        }
+
+        try {
+            // Verify status on server
+            const resp = await fetchAPI(`/api/raw?path=${encodeURIComponent(item.path)}`, { method: 'HEAD' });
+            if (resp.status === 404) {
+                msg = `File not found (removed from view): ${basename}`;
+                emoji = '🗑️';
+                removeFile = true;
+            } else if (resp.status === 403) {
+                msg = `Access denied: ${basename}`;
+                emoji = '🚫';
+                removeFile = false;
+            } else if (resp.status === 415) {
+                msg = `Codec/Transcode failed: ${basename}`;
+                emoji = '🚫';
+                removeFile = false;
+            } else if (resp.status >= 500) {
+                msg = `Server error (${resp.status}): ${basename}`;
+                emoji = '❌';
+                removeFile = false;
+            } else if (resp.status === 200) {
+                // File exists but browser failed to play it
+                if (!msg.includes('Decoding') && !msg.includes('Format') && !msg.includes('Network')) {
+                    msg = `Playback failed (browser/codec error): ${basename}`;
+                }
+                removeFile = false;
+            }
+        } catch (e) {
+            console.error('Failed to verify media status:', e);
+            msg = `Connection lost: ${basename}`;
+            emoji = '🌐';
+            removeFile = false;
+        }
 
         if (state.page === 'trash') {
             showToast(msg, '⚠️');
         } else {
             showToast(msg, emoji);
-            // Remove from current view if applicable
-            currentMedia = currentMedia.filter(m => m.path !== item.path);
+            if (removeFile) {
+                // Remove from current view if applicable
+                currentMedia = currentMedia.filter(m => m.path !== item.path);
 
-            if (state.view === 'group' && state.similarityData) {
-                // Also remove from similarityData groups
-                state.similarityData.forEach(group => {
-                    if (group.files) {
-                        group.files = group.files.filter(m => m.path !== item.path);
-                        group.count = group.files.length;
-                    }
-                });
-                state.similarityData = state.similarityData.filter(group => group.count > 0);
-                renderEpisodes(state.similarityData);
-            } else {
-                renderResults();
+                if (state.view === 'group' && state.similarityData) {
+                    // Also remove from similarityData groups
+                    state.similarityData.forEach(group => {
+                        if (group.files) {
+                            group.files = group.files.filter(m => m.path !== item.path);
+                            group.count = group.files.length;
+                        }
+                    });
+                    state.similarityData = state.similarityData.filter(group => group.count > 0);
+                    renderEpisodes(state.similarityData);
+                } else {
+                    renderResults();
+                }
             }
         }
 
-        // Auto-skip to next (up to 3 consecutive errors)
+        // Auto-skip to next (up to 30 consecutive errors)
         state.playback.consecutiveErrors = (state.playback.consecutiveErrors || 0) + 1;
 
-        if (state.autoplay && state.playback.consecutiveErrors <= 120) {
+        if (state.autoplay && state.playback.consecutiveErrors <= 30) {
             if (state.playback.skipTimeout) {
                 clearTimeout(state.playback.skipTimeout);
             }
             state.playback.skipTimeout = setTimeout(() => {
-                if (state.playback.skipTimeout) { // Check if it was cleared in the meantime
+                if (state.playback.skipTimeout) {
                     state.playback.skipTimeout = null;
                     playSibling(1);
                 }
             }, 1200);
         } else {
-            if (state.playback.consecutiveErrors > 120) {
-                showToast('Stopped auto-skip after 120 errors', '🛑');
+            if (state.playback.consecutiveErrors > 30) {
+                showToast('Stopped auto-skip after 30 errors', '🛑');
                 state.playback.consecutiveErrors = 0;
             }
             closeActivePlayer();
@@ -4307,7 +4352,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     el.playbackRate = state.playbackRate;
                     seekToProgress(el, localPos);
                 } else {
-                    handleMediaError(item);
+                    handleMediaError(item, el);
                 }
             };
 
@@ -4443,7 +4488,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('disco-muted', el.muted);
             };
 
-            el.onerror = () => handleMediaError(item);
+            el.onerror = () => handleMediaError(item, el);
 
             // Auto-Loop short media
             if (state.autoLoopMaxDuration > 0 && item.duration > 0 && item.duration <= state.autoLoopMaxDuration) {
@@ -4484,7 +4529,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     startSlideshow();
                 }
             };
-            el.onerror = () => handleMediaError(item);
+            el.onerror = () => handleMediaError(item, el);
             el.src = url;
             // Handle cached images where load fires synchronously before handler is attached
             if (el.complete) {

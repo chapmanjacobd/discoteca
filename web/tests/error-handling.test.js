@@ -41,14 +41,14 @@ describe('Error Handling', () => {
         expect(window.disco.state.playback.item.path).toBe('audio1.mp3');
     });
 
-    it('stops auto-skipping after 120 consecutive errors', async () => {
+    it('stops auto-skipping after 30 consecutive errors', async () => {
         window.disco.state.autoplay = true;
-        window.disco.state.playback.consecutiveErrors = 120;
+        window.disco.state.playback.consecutiveErrors = 30;
         
-        const item = { path: 'v120.mp4', type: 'video/mp4' };
+        const item = { path: 'v30.mp4', type: 'video/mp4' };
         window.disco.state.playback.item = item;
 
-        // Simulate 121st error
+        // Simulate 31st error
         await window.disco.handleMediaError(item);
         
         expect(window.disco.state.playback.item).toBeNull();
