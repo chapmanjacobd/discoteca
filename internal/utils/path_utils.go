@@ -7,7 +7,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/chapmanjacobd/discotheque/internal/models"
 )
 
 // RandomString returns a random hexadecimal string of the given length
@@ -252,4 +255,57 @@ func CleanPath(path string, opts CleanPathOptions) string {
 	}
 
 	return pre + res
+}
+
+// FilterPath checks if a path matches PathFilterFlags
+func FilterPath(path string, flags models.PathFilterFlags) bool {
+	if len(flags.Paths) > 0 {
+		matched := false
+		for _, p := range flags.Paths {
+			if path == p {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if len(flags.Include) > 0 {
+		matched := false
+		for _, pattern := range flags.Include {
+			if strings.Contains(path, pattern) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if len(flags.Exclude) > 0 {
+		for _, pattern := range flags.Exclude {
+			if strings.Contains(path, pattern) {
+				return false
+			}
+		}
+	}
+
+	if flags.Regex != "" {
+		if matched, _ := regexp.MatchString(flags.Regex, path); !matched {
+			return false
+		}
+	}
+
+	if len(flags.PathContains) > 0 {
+		for _, s := range flags.PathContains {
+			if !strings.Contains(path, s) {
+				return false
+			}
+		}
+	}
+
+	return true
 }

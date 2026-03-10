@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -50,6 +51,7 @@ func (c *OptimizeCmd) Run(ctx *kong.Context) error {
 type SampleHashCmd struct {
 	models.CoreFlags    `embed:""`
 	models.HashingFlags `embed:""`
+	models.DisplayFlags `embed:""`
 	Paths               []string `arg:"" required:"" help:"Files to hash" type:"existingfile"`
 }
 
@@ -58,14 +60,30 @@ func (c *SampleHashCmd) Run(ctx *kong.Context) error {
 	flags := models.GlobalFlags{
 		CoreFlags:    c.CoreFlags,
 		HashingFlags: c.HashingFlags,
+		DisplayFlags: c.DisplayFlags,
 	}
+
+	type result struct {
+		Path string `json:"path"`
+		Hash string `json:"hash"`
+	}
+	var results []result
+
 	for _, path := range c.Paths {
 		h, err := utils.SampleHashFile(path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error hashing %s: %v\n", path, err)
 			continue
 		}
-		fmt.Printf("%s\t%s\n", h, path)
+		if c.JSON {
+			results = append(results, result{Path: path, Hash: h})
+		} else {
+			fmt.Printf("%s\t%s\n", h, path)
+		}
+	}
+
+	if c.JSON {
+		return json.NewEncoder(os.Stdout).Encode(results)
 	}
 	return nil
 }

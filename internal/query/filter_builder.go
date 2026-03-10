@@ -126,7 +126,10 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			var searchParts []string
 			for _, term := range allInclude {
 				searchParts = append(searchParts, "(path LIKE ? OR title LIKE ?)")
-				pattern := "%" + strings.ReplaceAll(term, " ", "%") + "%"
+				pattern := term
+				if !fb.flags.Exact {
+					pattern = "%" + strings.ReplaceAll(term, " ", "%") + "%"
+				}
 				args = append(args, pattern, pattern)
 			}
 			whereClauses = append(whereClauses, "("+strings.Join(searchParts, joinOp)+")")

@@ -239,12 +239,12 @@ test.describe('Image Viewer', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Filter to show only images
-    await page.fill('#search-input', '.jpg');
+    await page.fill('#search-input', '.png');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
     // Find and click an image media card
-    const imageCards = page.locator('.media-card:has-text(".jpg")');
+    const imageCards = page.locator('.media-card:has-text(".png")');
     if (await imageCards.count() > 0) {
       await imageCards.first().click();
 
@@ -262,11 +262,11 @@ test.describe('Image Viewer', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Filter to images
-    await page.fill('#search-input', '.jpg');
+    await page.fill('#search-input', '.png');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
-    const imageCards = page.locator('.media-card:has-text(".jpg")');
+    const imageCards = page.locator('.media-card:has-text(".png")');
     if (await imageCards.count() > 0) {
       await imageCards.first().click();
       await page.waitForTimeout(1000);
@@ -286,11 +286,11 @@ test.describe('Image Viewer', () => {
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
     // Filter to images
-    await page.fill('#search-input', '.jpg');
+    await page.fill('#search-input', '.png');
     await page.press('#search-input', 'Enter');
     await page.waitForTimeout(1000);
 
-    const imageCards = page.locator('.media-card:has-text(".jpg")');
+    const imageCards = page.locator('.media-card:has-text(".png")');
     if (await imageCards.count() > 1) {
       await imageCards.first().click();
       await page.waitForTimeout(1000);

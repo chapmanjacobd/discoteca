@@ -103,6 +103,7 @@ func (c *HistoryCmd) Run(ctx *kong.Context) error {
 
 type HistoryAddCmd struct {
 	models.CoreFlags `embed:""`
+	Done             bool     `help:"Mark as done"`
 	Args             []string `arg:"" name:"args" required:"" help:"Database file followed by paths to mark as played"`
 
 	Paths    []string `kong:"-"`
@@ -134,7 +135,7 @@ func (c *HistoryAddCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	err := history.UpdateHistorySimple(c.Database, absPaths, 0, true)
+	err := history.UpdateHistorySimple(c.Database, absPaths, 0, c.Done)
 	if err == nil {
 		slog.Info("History added", "count", len(absPaths), "database", c.Database)
 	}

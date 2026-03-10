@@ -87,6 +87,9 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 		Type:         utils.ToNullString(mediaType),
 	}
 
+	// Fallback title to filename (without extension)
+	params.Title = utils.ToNullString(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
+
 	result := &MediaMetadata{
 		Media: params,
 	}
@@ -145,10 +148,18 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 			}
 
 			if data.Format.Tags != nil {
-				params.Title = utils.ToNullString(data.Format.Tags["title"])
-				params.Artist = utils.ToNullString(data.Format.Tags["artist"])
-				params.Album = utils.ToNullString(data.Format.Tags["album"])
-				params.Genre = utils.ToNullString(data.Format.Tags["genre"])
+				if t := data.Format.Tags["title"]; t != "" {
+					params.Title = utils.ToNullString(t)
+				}
+				if a := data.Format.Tags["artist"]; a != "" {
+					params.Artist = utils.ToNullString(a)
+				}
+				if al := data.Format.Tags["album"]; al != "" {
+					params.Album = utils.ToNullString(al)
+				}
+				if g := data.Format.Tags["genre"]; g != "" {
+					params.Genre = utils.ToNullString(g)
+				}
 				params.Mood = utils.ToNullString(data.Format.Tags["mood"])
 				if bpm, err := strconv.ParseInt(data.Format.Tags["bpm"], 10, 64); err == nil {
 					params.Bpm = utils.ToNullInt64(bpm)

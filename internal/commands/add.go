@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -22,6 +23,7 @@ import (
 type AddCmd struct {
 	models.CoreFlags        `embed:""`
 	models.PathFilterFlags  `embed:""`
+	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
 
 	Args     []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
@@ -62,6 +64,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
+		FilterFlags:      c.FilterFlags,
 		MediaFilterFlags: c.MediaFilterFlags,
 	}
 	dbPath := c.Database
@@ -149,6 +152,62 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			return err
 		}
 
+		// Apply PathFilterFlags
+		filteredFiles := make(map[string]os.FileInfo)
+		for path, stat := range foundFiles {
+			if !utils.FilterPath(path, flags.PathFilterFlags) {
+				continue
+			}
+
+			// Apply Size filter
+			if len(c.Size) > 0 {
+				matched := false
+				for _, s := range c.Size {
+					if r, err := utils.ParseRange(s, utils.HumanToBytes); err == nil {
+						if r.Matches(stat.Size()) {
+							matched = true
+							break
+						}
+					}
+				}
+				if !matched {
+					continue
+				}
+			}
+
+			// Apply MimeType filter
+			if len(c.MimeType) > 0 || len(c.NoMimeType) > 0 {
+				mime := utils.DetectMimeType(path)
+				if len(c.MimeType) > 0 {
+					matched := false
+					for _, m := range c.MimeType {
+						if strings.Contains(mime, m) {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						continue
+					}
+				}
+				if len(c.NoMimeType) > 0 {
+					excluded := false
+					for _, m := range c.NoMimeType {
+						if strings.Contains(mime, m) {
+							excluded = true
+							break
+						}
+					}
+					if excluded {
+						continue
+					}
+				}
+			}
+
+			filteredFiles[path] = stat
+		}
+		foundFiles = filteredFiles
+
 		if dbExists {
 			slog.Info("Checking for updates", "count", len(foundFiles))
 		}
@@ -185,6 +244,12 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		if len(toProbe) == 0 {
+			fmt.Printf("Processed %d/%d files\n", skipped, skipped)
+			continue
+		}
+
+		if c.Simulate {
+			fmt.Printf("Simulated: would process %d new files\n", len(toProbe))
 			continue
 		}
 
@@ -259,7 +324,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			count++
 			if count%10 == 0 || count == len(toProbe) {
-				fmt.Printf("\rProcessed %d/%d", count, len(toProbe))
+				fmt.Printf("\rProcessed %d/%d files", count, len(toProbe))
 			}
 		}
 		// Final flush

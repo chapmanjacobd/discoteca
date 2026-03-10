@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -250,15 +251,16 @@ func (c *SearchDBCmd) printRows(sqlDB *sql.DB, table string, where []string, arg
 				entry[col] = val
 			}
 		}
-		if c.JSON {
-			b, _ := json.Marshal(entry)
-			fmt.Println(string(b))
-		} else {
-			allResults = append(allResults, entry)
-		}
+		allResults = append(allResults, entry)
 	}
 
-	if !c.JSON && len(allResults) > 0 {
+	if c.JSON {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(allResults)
+	}
+
+	if len(allResults) > 0 {
 		// Basic table print
 		for _, res := range allResults {
 			for k, v := range res {

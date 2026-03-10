@@ -13,6 +13,7 @@ type BigDirsCmd struct {
 	models.TimeFilterFlags  `embed:""`
 	models.DeletedFlags     `embed:""`
 	models.AggregateFlags   `embed:""`
+	models.SortFlags        `embed:""`
 	models.DisplayFlags     `embed:""`
 
 	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
@@ -29,6 +30,7 @@ func (c *BigDirsCmd) Run(ctx *kong.Context) error {
 		TimeFilterFlags:  c.TimeFilterFlags,
 		DeletedFlags:     c.DeletedFlags,
 		AggregateFlags:   c.AggregateFlags,
+		SortFlags:        c.SortFlags,
 		DisplayFlags:     c.DisplayFlags,
 		Databases:        c.Databases,
 	}

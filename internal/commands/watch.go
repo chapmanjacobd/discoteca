@@ -71,72 +71,78 @@ func (c *WatchCmd) Run(ctx *kong.Context) error {
 			continue
 		}
 
-		// Build mpv command for this specific item (to handle Cable and SubMix)
-		args := []string{"mpv"}
-
-		if c.Volume > 0 {
-			args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
+		// Build player command
+		player := c.OverridePlayer
+		if player == "" {
+			player = "mpv"
 		}
-		if c.Fullscreen {
-			args = append(args, "--fullscreen")
-		}
+		args := []string{player}
 
-		// Subtitle Mix logic
-		useSubs := !c.NoSubtitles
-		if useSubs && c.SubtitleMix > 0 {
-			if utils.RandomFloat() < c.SubtitleMix {
-				useSubs = false
+		if player == "mpv" {
+			if c.Volume > 0 {
+				args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
 			}
-		}
-
-		if !useSubs {
-			args = append(args, "--no-sub")
-			args = append(args, c.PlayerArgsNoSub...)
-		} else {
-			args = append(args, c.PlayerArgsSub...)
-		}
-
-		if c.Speed != 1.0 {
-			args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
-		}
-
-		// Start/End and Interdimensional Cable
-		start := c.Start
-		end := c.End
-		if c.InterdimensionalCable > 0 {
-			duration := 0
-			if m.Duration != nil {
-				duration = int(*m.Duration)
+			if c.Fullscreen {
+				args = append(args, "--fullscreen")
 			}
-			if duration > c.InterdimensionalCable {
-				s := utils.RandomInt(0, duration-c.InterdimensionalCable)
-				start = fmt.Sprintf("%d", s)
-				end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+
+			// Subtitle Mix logic
+			useSubs := !c.NoSubtitles
+			if useSubs && c.SubtitleMix > 0 {
+				if utils.RandomFloat() < c.SubtitleMix {
+					useSubs = false
+				}
 			}
-		}
 
-		if start != "" {
-			args = append(args, fmt.Sprintf("--start=%s", start))
-		}
-		if end != "" {
-			args = append(args, fmt.Sprintf("--end=%s", end))
-		}
+			if !useSubs {
+				args = append(args, "--no-sub")
+				args = append(args, c.PlayerArgsNoSub...)
+			} else {
+				args = append(args, c.PlayerArgsSub...)
+			}
 
-		if c.SavePlayhead {
-			args = append(args, "--save-position-on-quit")
-		}
-		if c.Mute {
-			args = append(args, "--mute=yes")
-		}
-		if c.Loop {
-			args = append(args, "--loop-file=inf")
-		}
+			if c.Speed != 1.0 {
+				args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
+			}
 
-		ipcSocket := c.MpvSocket
-		if ipcSocket == "" {
-			ipcSocket = utils.GetMpvWatchSocket()
+			// Start/End and Interdimensional Cable
+			start := c.Start
+			end := c.End
+			if c.InterdimensionalCable > 0 {
+				duration := 0
+				if m.Duration != nil {
+					duration = int(*m.Duration)
+				}
+				if duration > c.InterdimensionalCable {
+					s := utils.RandomInt(0, duration-c.InterdimensionalCable)
+					start = fmt.Sprintf("%d", s)
+					end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+				}
+			}
+
+			if start != "" {
+				args = append(args, fmt.Sprintf("--start=%s", start))
+			}
+			if end != "" {
+				args = append(args, fmt.Sprintf("--end=%s", end))
+			}
+
+			if c.SavePlayhead {
+				args = append(args, "--save-position-on-quit")
+			}
+			if c.Mute {
+				args = append(args, "--mute=yes")
+			}
+			if c.Loop {
+				args = append(args, "--loop-file=inf")
+			}
+
+			ipcSocket := c.MpvSocket
+			if ipcSocket == "" {
+				ipcSocket = utils.GetMpvWatchSocket()
+			}
+			args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
 		}
-		args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
 		args = append(args, m.Path)
 
 		if c.Cast {
@@ -270,47 +276,54 @@ func (c *ListenCmd) Run(ctx *kong.Context) error {
 			continue
 		}
 
-		args := []string{"mpv", "--video=no"}
+		player := c.OverridePlayer
+		if player == "" {
+			player = "mpv"
+		}
+		args := []string{player}
 
-		if c.Volume > 0 {
-			args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
-		}
-		if c.Speed != 1.0 {
-			args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
-		}
-		if c.Mute {
-			args = append(args, "--mute=yes")
-		}
-		if c.Loop {
-			args = append(args, "--loop-file=inf")
-		}
-
-		// Interdimensional Cable for audio too? why not.
-		start := c.Start
-		end := c.End
-		if c.InterdimensionalCable > 0 {
-			duration := 0
-			if m.Duration != nil {
-				duration = int(*m.Duration)
+		if player == "mpv" {
+			args = append(args, "--video=no")
+			if c.Volume > 0 {
+				args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
 			}
-			if duration > c.InterdimensionalCable {
-				s := utils.RandomInt(0, duration-c.InterdimensionalCable)
-				start = fmt.Sprintf("%d", s)
-				end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+			if c.Speed != 1.0 {
+				args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
 			}
-		}
-		if start != "" {
-			args = append(args, fmt.Sprintf("--start=%s", start))
-		}
-		if end != "" {
-			args = append(args, fmt.Sprintf("--end=%s", end))
-		}
+			if c.Mute {
+				args = append(args, "--mute=yes")
+			}
+			if c.Loop {
+				args = append(args, "--loop-file=inf")
+			}
 
-		ipcSocket := c.MpvSocket
-		if ipcSocket == "" {
-			ipcSocket = utils.GetMpvWatchSocket()
+			// Interdimensional Cable for audio too? why not.
+			start := c.Start
+			end := c.End
+			if c.InterdimensionalCable > 0 {
+				duration := 0
+				if m.Duration != nil {
+					duration = int(*m.Duration)
+				}
+				if duration > c.InterdimensionalCable {
+					s := utils.RandomInt(0, duration-c.InterdimensionalCable)
+					start = fmt.Sprintf("%d", s)
+					end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+				}
+			}
+			if start != "" {
+				args = append(args, fmt.Sprintf("--start=%s", start))
+			}
+			if end != "" {
+				args = append(args, fmt.Sprintf("--end=%s", end))
+			}
+
+			ipcSocket := c.MpvSocket
+			if ipcSocket == "" {
+				ipcSocket = utils.GetMpvWatchSocket()
+			}
+			args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
 		}
-		args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
 		args = append(args, m.Path)
 
 		if c.Cast {

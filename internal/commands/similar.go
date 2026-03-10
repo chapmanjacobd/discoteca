@@ -2,6 +2,9 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discotheque/internal/aggregate"
@@ -59,7 +62,20 @@ func (c *SimilarFilesCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	return PrintFolders(c.DisplayFlags, c.Columns, groups)
+	if c.JSON {
+		return json.NewEncoder(os.Stdout).Encode(groups)
+	}
+
+	for _, g := range groups {
+		fmt.Printf("Group: %s (%d files)\n", g.Path, len(g.Files))
+		for _, m := range g.Files {
+			fmt.Printf("  %s\n", m.Path)
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("%d groups\n", len(groups))
+	return nil
 }
 
 type SimilarFoldersCmd struct {
