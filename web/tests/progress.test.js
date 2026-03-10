@@ -39,7 +39,7 @@ describe('Progress Resuming', () => {
         await window.disco.openInPiP(item);
 
         const video = document.querySelector('video');
-        // BUG: In read-only mode, it currently doesn't use item.playhead
+        // Should use item.playhead when local storage is empty (works in both read-only and normal mode)
         expect(video.currentTime).toBe(42);
     });
 
