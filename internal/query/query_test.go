@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/testutils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -398,36 +399,8 @@ func TestQueryDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create schema
-	schema := `
-	CREATE TABLE media (
-		path TEXT PRIMARY KEY,
-		title TEXT,
-		duration INTEGER,
-		size INTEGER,
-		time_created INTEGER,
-		time_modified INTEGER,
-		time_deleted INTEGER DEFAULT 0,
-		time_first_played INTEGER DEFAULT 0,
-		time_last_played INTEGER DEFAULT 0,
-		play_count INTEGER DEFAULT 0,
-		playhead INTEGER DEFAULT 0,
-		type TEXT
-	);
-	CREATE TABLE history (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		media_path TEXT NOT NULL,
-		time_played INTEGER,
-		playhead INTEGER,
-		done INTEGER
-	);
-	CREATE TABLE captions (
-		media_path TEXT NOT NULL,
-		time REAL,
-		text TEXT
-	);
-	`
-	if _, err := dbConn.Exec(schema); err != nil {
+	// Create schema using central schema (without FTS for unit tests)
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
 		dbConn.Close()
 		t.Fatal(err)
 	}

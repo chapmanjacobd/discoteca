@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
 
 func TestFileCountsFiltering(t *testing.T) {
@@ -16,8 +17,9 @@ func TestFileCountsFiltering(t *testing.T) {
 	defer os.Remove(dbPath)
 
 	dbConn, _ := sql.Open("sqlite3", dbPath)
-	schema := `CREATE TABLE media (path TEXT PRIMARY KEY, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER, title TEXT, type TEXT, time_created INTEGER, time_modified INTEGER, time_first_played INTEGER, time_last_played INTEGER, play_count INTEGER, playhead INTEGER, album TEXT, artist TEXT, genre TEXT, mood TEXT, bpm INTEGER, key TEXT, decade TEXT, categories TEXT, city TEXT, country TEXT, description TEXT, language TEXT, video_codecs TEXT, audio_codecs TEXT, subtitle_codecs TEXT, width INTEGER, height INTEGER);`
-	dbConn.Exec(schema)
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
+		t.Fatalf("Failed to init test DB: %v", err)
+	}
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/show/s1e1.mp4')")
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/show/s1e2.mp4')")
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/movie/m1.mp4')")
@@ -55,8 +57,9 @@ func TestFileCountsMediaQueryCount(t *testing.T) {
 	defer os.Remove(dbPath)
 
 	dbConn, _ := sql.Open("sqlite3", dbPath)
-	schema := `CREATE TABLE media (path TEXT PRIMARY KEY, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER, title TEXT, type TEXT, time_created INTEGER, time_modified INTEGER, time_first_played INTEGER, time_last_played INTEGER, play_count INTEGER, playhead INTEGER, album TEXT, artist TEXT, genre TEXT, mood TEXT, bpm INTEGER, key TEXT, decade TEXT, categories TEXT, city TEXT, country TEXT, description TEXT, language TEXT, video_codecs TEXT, audio_codecs TEXT, subtitle_codecs TEXT, width INTEGER, height INTEGER);`
-	dbConn.Exec(schema)
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
+		t.Fatalf("Failed to init test DB: %v", err)
+	}
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/show/s1e1.mp4')")
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/show/s1e2.mp4')")
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/show/s1e3.mp4')")
@@ -96,8 +99,9 @@ func TestFetchSiblings(t *testing.T) {
 	defer os.Remove(dbPath)
 
 	dbConn, _ := sql.Open("sqlite3", dbPath)
-	schema := `CREATE TABLE media (path TEXT PRIMARY KEY, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER, title TEXT, type TEXT, time_created INTEGER, time_modified INTEGER, time_first_played INTEGER, time_last_played INTEGER, play_count INTEGER, playhead INTEGER, album TEXT, artist TEXT, genre TEXT, mood TEXT, bpm INTEGER, key TEXT, decade TEXT, categories TEXT, city TEXT, country TEXT, description TEXT, language TEXT, video_codecs TEXT, audio_codecs TEXT, subtitle_codecs TEXT, width INTEGER, height INTEGER);`
-	dbConn.Exec(schema)
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
+		t.Fatalf("Failed to init test DB: %v", err)
+	}
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/dir/file1.mp4')")
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/dir/file2.mp4')")
 	dbConn.Exec("INSERT INTO media (path) VALUES ('/other/file3.mp4')")
