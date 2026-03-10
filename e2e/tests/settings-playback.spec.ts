@@ -1,545 +1,469 @@
-import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Playlist Management E2E', () => {
   test.describe.configure({ mode: 'serial' });
-  // Helper to open sidebar on mobile
-  async function openSidebar(page) {
-    const menuToggle = page.locator('#menu-toggle');
-    if (await menuToggle.isVisible()) {
-      await menuToggle.click();
-      await page.waitForTimeout(300);
-    }
-  }
 
-  test('playlist UI elements are present', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('playlist UI elements are present', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open sidebar on mobile
-    await openSidebar(page);
+    // Expand playlists section using POM
+    await sidebarPage.expandPlaylistsSection();
 
-    // Wait for playlists section
-    await page.waitForSelector('#details-playlists', { timeout: 10000 });
+    // Verify new playlist button exists using POM
+    await expect(sidebarPage.getNewPlaylistButton()).toBeVisible();
 
-    // Expand playlists section
-    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
-
-    // Verify new playlist button exists
-    const newPlaylistBtn = page.locator('#new-playlist-btn');
-    await expect(newPlaylistBtn).toBeVisible();
-
-    // Verify playlist list container exists (may be empty/hidden if no playlists)
-    const playlistList = page.locator('#playlist-list');
-    await expect(playlistList).toBeAttached();
+    // Verify playlist list container exists using POM
+    await expect(mediaPage.playlistList).toBeAttached();
   });
 
-  test('can interact with media cards', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('can interact with media cards', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Find a media card and click to open player
-    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first();
+    // Find a media card and click to open player using POM
+    const firstCard = mediaPage.getFirstMediaCardByType('video');
     await firstCard.click();
-    await page.waitForTimeout(500);
+    await mediaPage.page.waitForTimeout(500);
 
-    // Player should open
-    await expect(page.locator('#pip-player')).not.toHaveClass(/hidden/);
+    // Player should open using POM
+    await expect(viewerPage.playerContainer).not.toHaveClass(/hidden/);
   });
 
-  test('navigates to playlist view', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('navigates to playlist view', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open sidebar on mobile
-    await openSidebar(page);
+    // Expand playlists section using POM
+    await sidebarPage.expandPlaylistsSection();
 
-    await page.waitForSelector('#details-playlists', { timeout: 10000 });
-
-    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
-
-    // Favorites playlist should exist from seed data
-    const favoritesBtn = page.locator('#playlist-list .category-btn').filter({ hasText: 'Favorites' });
+    // Favorites playlist should exist from seed data using POM
+    const favoritesBtn = sidebarPage.getPlaylistButtonByName('Favorites');
     if (await favoritesBtn.isVisible()) {
       await favoritesBtn.click();
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Should be in playlist view
-      const hash = await page.evaluate(() => window.location.hash);
+      // Should be in playlist view using POM
+      const hash = await mediaPage.getCurrentHash();
       expect(hash).toContain('mode=playlist');
     }
   });
 
-  test('playlist structure exists', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('playlist structure exists', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open sidebar on mobile
-    await openSidebar(page);
+    // Expand playlists section using POM
+    await sidebarPage.expandPlaylistsSection();
 
-    await page.waitForSelector('#details-playlists', { timeout: 10000 });
-
-    await page.locator('#details-playlists').evaluate((el: HTMLDetailsElement) => el.open = true);
-
-    // Verify playlist structure exists
-    await expect(page.locator('#details-playlists')).toBeVisible();
+    // Verify playlists section exists and is visible using POM
+    await expect(sidebarPage.detailsPlaylists).toBeVisible();
   });
 });
 
 test.describe('Settings Persistence', () => {
-  test('persists theme setting across reloads', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('persists theme setting across reloads', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+    // Open settings using POM
+    await sidebarPage.openSettings();
 
-    // Change theme
-    const themeSelect = page.locator('#setting-theme');
+    // Change theme using POM
+    const themeSelect = mediaPage.getSetting('setting-theme');
     await themeSelect.selectOption('dark');
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
 
     // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
-    // Re-open settings and verify theme persisted
-    await page.click('#settings-button');
+    // Re-open settings and verify theme persisted using POM
+    await sidebarPage.openSettings();
     await expect(themeSelect).toHaveValue('dark');
 
     // Close settings
-    await page.click('#settings-modal .close-modal');
+    await sidebarPage.closeSettings();
   });
 
-  test('persists default view setting', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('persists default view setting', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+    // Open settings using POM
+    await sidebarPage.openSettings();
 
-    // Scroll modal body to ensure elements are visible
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 0;
-    });
-    await page.waitForTimeout(300);
+    // Scroll modal body to ensure elements are visible using POM
+    await mediaPage.scrollSettingsModal(0);
+    await mediaPage.page.waitForTimeout(300);
 
-    // Change default view to theatre mode
-    const viewSelect = page.locator('#setting-default-view');
+    // Change default view to theatre mode using POM
+    const viewSelect = mediaPage.getSetting('setting-default-view');
     await viewSelect.selectOption('theatre');
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
 
     // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
-    // Re-open settings and verify the setting persisted
-    await page.click('#settings-button');
-    await page.waitForTimeout(300);
+    // Re-open settings and verify the setting persisted using POM
+    await sidebarPage.openSettings();
+    await mediaPage.page.waitForTimeout(300);
     await expect(viewSelect).toHaveValue('theatre');
+
+    // Close settings
+    await sidebarPage.closeSettings();
   });
 
-  test('persists language preference', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('persists language preference', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+    // Open settings using POM
+    await sidebarPage.openSettings();
 
-    // Set language
-    const langInput = page.locator('#setting-language');
+    // Set language using POM
+    const langInput = mediaPage.getSetting('setting-language');
     await langInput.fill('eng,spa');
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
 
     // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
-    // Re-open settings and verify language persisted
-    await page.click('#settings-button');
+    // Re-open settings and verify language persisted using POM
+    await sidebarPage.openSettings();
     await expect(langInput).toHaveValue('eng,spa');
+
+    // Close settings
+    await sidebarPage.closeSettings();
   });
 
-  test('persists autoplay setting', async ({ page, server }) => {
-    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
-    let isExpandedNow;
-    await page.goto(server.getBaseUrl());
+  test('persists autoplay setting', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+    // Open settings using POM
+    await sidebarPage.openSettings();
 
-    // Open Advanced Settings
+    // Open Advanced Settings using POM
+    const advancedSettings = mediaPage.getAdvancedSettingsSummary();
     await advancedSettings.scrollIntoViewIfNeeded();
-    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    const isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
     if (!isExpandedNow) {
       await advancedSettings.click({ force: true });
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
     }
 
-    // Scroll modal body to ensure elements are visible
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 200;
-    });
-    await page.waitForTimeout(300);
+    // Scroll modal body using POM
+    await mediaPage.scrollSettingsModal(200);
+    await mediaPage.page.waitForTimeout(300);
 
-    // Toggle autoplay - click on the slider element, not the hidden input
-    const autoplayToggle = page.locator('#setting-autoplay').locator('xpath=..').locator('.slider');
-    const autoplayCheckbox = page.locator('#setting-autoplay');
+    // Toggle autoplay using POM
+    const autoplayToggle = mediaPage.getSettingToggleSlider('setting-autoplay');
+    const autoplayCheckbox = mediaPage.getSetting('setting-autoplay');
     const initialState = await autoplayCheckbox.isChecked();
     await autoplayToggle.click();
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
 
     // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
-    // Re-open settings and verify autoplay persisted
-    await page.click('#settings-button');
-    // Open Advanced Settings
+    // Re-open settings and verify autoplay persisted using POM
+    await sidebarPage.openSettings();
     await advancedSettings.scrollIntoViewIfNeeded();
-    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
-    if (!isExpandedNow) {
+    const isExpandedAfter = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedAfter) {
       await advancedSettings.click({ force: true });
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
     }
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 200;
-    });
-    await page.waitForTimeout(300);
+    await mediaPage.scrollSettingsModal(200);
+    await mediaPage.page.waitForTimeout(300);
     await expect(autoplayCheckbox).not.toBeChecked();
 
     // Restore original state
     if (initialState) {
       await autoplayToggle.click();
     }
+
+    // Close settings
+    await sidebarPage.closeSettings();
   });
 
-  test('persists playback rate settings', async ({ page, server }) => {
-    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
-    let isExpandedNow;
-    await page.goto(server.getBaseUrl());
+  test('persists playback rate settings', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+    // Open settings using POM
+    await sidebarPage.openSettings();
 
-    // Open Advanced Settings
+    // Open Advanced Settings using POM
+    const advancedSettings = mediaPage.getAdvancedSettingsSummary();
     await advancedSettings.scrollIntoViewIfNeeded();
-    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    const isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
     if (!isExpandedNow) {
       await advancedSettings.click({ force: true });
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
     }
 
-    // Scroll modal body to ensure elements are visible
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 500;
-    });
-    await page.waitForTimeout(300);
+    // Scroll modal body using POM
+    await mediaPage.scrollSettingsModal(500);
+    await mediaPage.page.waitForTimeout(300);
 
-    // Set video rate
-    const videoRate = page.locator('#setting-default-video-rate');
+    // Set video rate using POM
+    const videoRate = mediaPage.getSetting('setting-default-video-rate');
     await videoRate.selectOption('1.5');
 
-    // Set audio rate
-    const audioRate = page.locator('#setting-default-audio-rate');
+    // Set audio rate using POM
+    const audioRate = mediaPage.getSetting('setting-default-audio-rate');
     await audioRate.selectOption('2');
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
 
     // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
-    // Re-open settings and verify rates persisted
-    await page.click('#settings-button');
-    // Open Advanced Settings
+    // Re-open settings and verify rates persisted using POM
+    await sidebarPage.openSettings();
     await advancedSettings.scrollIntoViewIfNeeded();
-    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
-    if (!isExpandedNow) {
+    const isExpandedAfter = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedAfter) {
       await advancedSettings.click({ force: true });
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
     }
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 500;
-    });
-    await page.waitForTimeout(300);
+    await mediaPage.scrollSettingsModal(500);
+    await mediaPage.page.waitForTimeout(300);
     await expect(videoRate).toHaveValue('1.5');
     await expect(audioRate).toHaveValue('2');
-  });
-
-  test('persists slideshow delay', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
-
-    // Set slideshow delay
-    const delayInput = page.locator('#setting-slideshow-delay');
-    await delayInput.fill('10');
 
     // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
-
-    // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Re-open settings and verify delay persisted
-    await page.click('#settings-button');
-    await expect(delayInput).toHaveValue('10');
+    await sidebarPage.closeSettings();
   });
 
-  test('persists local resume setting', async ({ page, server }) => {
-    const advancedSettings = page.locator('summary:has-text("Advanced Settings")');
-    let isExpandedNow;
-    await page.goto(server.getBaseUrl());
+  test('persists slideshow delay', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
-    await page.waitForSelector('#settings-modal', { timeout: 5000 });
+    // Open settings using POM
+    await sidebarPage.openSettings();
 
-    // Open Advanced Settings
+    // Set slideshow delay using POM
+    const delayInput = mediaPage.getSetting('setting-slideshow-delay');
+    await delayInput.fill('10');
+
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
+
+    // Reload page
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
+
+    // Re-open settings and verify delay persisted using POM
+    await sidebarPage.openSettings();
+    await expect(delayInput).toHaveValue('10');
+
+    // Close settings
+    await sidebarPage.closeSettings();
+  });
+
+  test('persists local resume setting', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
+
+    // Open settings using POM
+    await sidebarPage.openSettings();
+
+    // Open Advanced Settings using POM
+    const advancedSettings = mediaPage.getAdvancedSettingsSummary();
     await advancedSettings.scrollIntoViewIfNeeded();
-    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    const isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
     if (!isExpandedNow) {
       await advancedSettings.click({ force: true });
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
     }
 
-    // Scroll modal body to ensure elements are visible
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 100;
-    });
-    await page.waitForTimeout(300);
+    // Scroll modal body using POM
+    await mediaPage.scrollSettingsModal(100);
+    await mediaPage.page.waitForTimeout(300);
 
-    // Toggle local resume - click on the slider element, not the hidden input
-    const localResumeToggle = page.locator('#setting-local-resume').locator('xpath=..').locator('.slider');
-    const localResume = page.locator('#setting-local-resume');
+    // Toggle local resume using POM
+    const localResumeToggle = mediaPage.getSettingToggleSlider('setting-local-resume');
+    const localResume = mediaPage.getSetting('setting-local-resume');
     const initialState = await localResume.isChecked();
     await localResumeToggle.click();
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
-    await page.waitForTimeout(500);
+    // Close settings using POM
+    await sidebarPage.closeSettings();
+    await mediaPage.page.waitForTimeout(500);
 
     // Reload page
-    await page.reload();
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
-    // Re-open settings and verify local resume persisted
-    await page.click('#settings-button');
-    // Open Advanced Settings
+    // Re-open settings and verify local resume persisted using POM
+    await sidebarPage.openSettings();
     await advancedSettings.scrollIntoViewIfNeeded();
-    isExpandedNow = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
-    if (!isExpandedNow) {
+    const isExpandedAfter = await advancedSettings.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+    if (!isExpandedAfter) {
       await advancedSettings.click({ force: true });
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
     }
-    await page.evaluate(() => {
-      const modalBody = document.querySelector('#settings-modal .modal-body');
-      if (modalBody) modalBody.scrollTop = 100;
-    });
-    await page.waitForTimeout(300);
+    await mediaPage.scrollSettingsModal(100);
+    await mediaPage.page.waitForTimeout(300);
     await expect(localResume).not.toBeChecked();
 
     // Restore original state
     if (initialState) {
       await localResumeToggle.click();
     }
+
+    // Close settings
+    await sidebarPage.closeSettings();
   });
 });
 
 test.describe('Playback Controls', () => {
-  test('theatre mode toggle works', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('theatre mode toggle works', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    // Play a media using POM
+    await mediaPage.openFirstMediaByType('video');
+    await viewerPage.waitForPlayer();
+    await mediaPage.page.waitForTimeout(1000);
 
-    // Play a media
-    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
-    await waitForPlayer(page);
-    await page.waitForTimeout(1000);
+    // Click theatre mode button using POM
+    await viewerPage.toggleTheatreMode();
+    await mediaPage.page.waitForTimeout(500);
 
-    // Click theatre mode button
-    await page.click('#pip-theatre');
-    await page.waitForTimeout(500);
+    // Check if theatre mode is active using POM
+    expect(await viewerPage.isInTheatreMode()).toBe(true);
 
-    // Check if theatre mode is active
-    const pipPlayer = page.locator('#pip-player');
-    const hasTheatreClass = await pipPlayer.evaluate((el) => el.classList.contains('theatre'));
-    expect(hasTheatreClass).toBe(true);
+    // Click again to disable using POM
+    await viewerPage.toggleTheatreMode();
+    await mediaPage.page.waitForTimeout(500);
 
-    // Click again to disable
-    await page.click('#pip-theatre');
-    await page.waitForTimeout(500);
-
-    const hasTheatreClass2 = await pipPlayer.evaluate((el) => el.classList.contains('theatre'));
-    expect(hasTheatreClass2).toBe(false);
+    expect(await viewerPage.isInTheatreMode()).toBe(false);
   });
 
-  test('close button closes player', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('close button closes player', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    // Play a media using POM
+    await mediaPage.openFirstMediaByType('video');
+    await viewerPage.waitForPlayer();
+    await mediaPage.page.waitForTimeout(500);
 
-    // Play a media
-    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
-    await waitForPlayer(page);
-    await page.waitForTimeout(500);
+    // Click close button using POM
+    await viewerPage.close();
+    await mediaPage.page.waitForTimeout(1000);
 
-    // Click close button
-    await page.click('.close-pip');
-    await page.waitForTimeout(1000);
-
-    // Player should be hidden
-    await expect(page.locator('#pip-player')).toHaveClass(/hidden/);
+    // Player should be hidden using POM
+    await expect(viewerPage.playerContainer).toHaveClass(/hidden/);
   });
 
-  test('playback speed can be changed', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('playback speed can be changed', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Play a media
-    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
-    await waitForPlayer(page);
+    // Play a media using POM
+    await mediaPage.openFirstMediaByType('video');
+    await viewerPage.waitForPlayer();
 
     // Wait for video to load
-    await page.waitForTimeout(1000);
+    await mediaPage.page.waitForTimeout(1000);
 
-    // Use JavaScript to set playback rate directly (tests the underlying functionality)
-    const video = page.locator('video, audio');
-    await video.evaluate((el: HTMLMediaElement) => {
+    // Use JavaScript to set playback rate directly using POM
+    await viewerPage.videoElement.evaluate((el: HTMLMediaElement) => {
       el.playbackRate = 2.0;
     });
-    await page.waitForTimeout(300);
+    await mediaPage.page.waitForTimeout(300);
 
-    const rate = await video.evaluate((el: HTMLMediaElement) => el.playbackRate);
+    const rate = await viewerPage.videoElement.evaluate((el: HTMLMediaElement) => el.playbackRate);
     expect(rate).toBe(2);
   });
 
-  test('play/pause via JavaScript', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('play/pause via JavaScript', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Play a media
-    const firstCard = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+    // Play a media using POM
+    const firstCard = mediaPage.getFirstMediaCardByType('video');
     await firstCard.click();
-    await waitForPlayer(page);
+    await viewerPage.waitForPlayer();
 
     // Wait for media element to be available
-    await page.waitForSelector('video, audio', { timeout: 5000 });
+    await viewerPage.videoElement.waitFor({ state: 'visible', timeout: 5000 });
 
-    const video = page.locator('video, audio');
+    // Wait for media to be ready using POM
+    await viewerPage.waitForMediaData();
 
-    // Wait for media to be ready (have a valid duration)
-    await page.waitForFunction(() => {
-      const v = document.querySelector('video, audio') as HTMLMediaElement;
-      return v && v.duration > 0 && !isNaN(v.duration);
-    }, { timeout: 10000 });
+    // Explicitly play the media using POM
+    await viewerPage.play();
+    await mediaPage.page.waitForTimeout(500);
 
-    // Explicitly play the media
-    await video.evaluate((el: HTMLMediaElement) => el.play());
-    await page.waitForTimeout(500);
-
-    // Wait until video is actually playing
-    await page.waitForFunction(() => {
+    // Wait until video is actually playing using POM
+    await mediaPage.page.waitForFunction(() => {
       const v = document.querySelector('video, audio') as HTMLMediaElement;
       return v && !v.paused;
     }, { timeout: 5000 });
 
-    // Pause via JavaScript
-    await video.evaluate((el: HTMLMediaElement) => el.pause());
-    await page.waitForTimeout(300);
+    // Pause via JavaScript using POM
+    await viewerPage.pause();
+    await mediaPage.page.waitForTimeout(300);
 
-    const isPaused = await video.evaluate((el: HTMLMediaElement) => el.paused);
-    expect(isPaused).toBe(true);
+    expect(await viewerPage.isPlaying()).toBe(true);
 
-    // Play via JavaScript
-    await video.evaluate((el: HTMLMediaElement) => el.play());
-    await page.waitForTimeout(300);
+    // Play via JavaScript using POM
+    await viewerPage.play();
+    await mediaPage.page.waitForTimeout(300);
 
-    const isPaused2 = await video.evaluate((el: HTMLMediaElement) => el.paused);
-    expect(isPaused2).toBe(false);
+    expect(await viewerPage.isPlaying()).toBe(false);
   });
 
-  test('seek functionality works', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('seek functionality works', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    // Play a media using POM
+    await mediaPage.openFirstMediaByType('video');
+    await viewerPage.waitForPlayer();
 
-    // Play a media
-    await page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"], .media-card[data-type*="image"]').first().click();
-    await waitForPlayer(page);
+    // Wait for media to be ready using POM
+    await viewerPage.waitForMediaData();
 
-    // Wait for media element to be available
-    await page.waitForSelector('video, audio', { timeout: 5000 });
+    // Explicitly play the media using POM
+    await viewerPage.play();
+    await mediaPage.page.waitForTimeout(500);
 
-    const video = page.locator('video, audio');
-
-    // Wait for media to be ready (have a valid duration)
-    await page.waitForFunction(() => {
-      const v = document.querySelector('video, audio') as HTMLMediaElement;
-      return v && v.duration > 0 && !isNaN(v.duration);
-    }, { timeout: 10000 });
-
-    // Explicitly play the media
-    await video.evaluate((el: HTMLMediaElement) => el.play());
-    await page.waitForTimeout(500);
-
-    // Wait until video is actually playing
-    await page.waitForFunction(() => {
+    // Wait until video is actually playing using POM
+    await mediaPage.page.waitForFunction(() => {
       const v = document.querySelector('video, audio') as HTMLMediaElement;
       return v && !v.paused;
     }, { timeout: 5000 });
 
-    // Ensure we have enough duration for seeking
-    const duration = await video.evaluate((el: HTMLMediaElement) => el.duration);
+    // Ensure we have enough duration for seeking using POM
+    const duration = await viewerPage.getDuration();
     const seekPos = Math.min(10, duration > 2 ? duration - 1 : 0);
 
-    // Seek forward via JavaScript
-    await video.evaluate((el: HTMLMediaElement, pos) => {
-      el.currentTime = pos;
-    }, seekPos);
-    await page.waitForTimeout(500);
+    // Seek forward via JavaScript using POM
+    await viewerPage.seekTo(seekPos);
+    await mediaPage.page.waitForTimeout(500);
 
-    const timeAfterForward = await video.evaluate((el: HTMLMediaElement) => el.currentTime);
+    const timeAfterForward = await viewerPage.getCurrentTime();
     // If we could seek forward, check it
     if (seekPos > 0) {
        expect(timeAfterForward).toBeGreaterThanOrEqual(seekPos * 0.9);
     }
 
-    // Seek backward via JavaScript
+    // Seek backward via JavaScript using POM
     const backPos = Math.max(0, timeAfterForward - 2);
-    await video.evaluate((el: HTMLMediaElement, pos) => {
-      el.currentTime = pos;
-    }, backPos);
-    await page.waitForTimeout(500);
+    await viewerPage.seekTo(backPos);
+    await mediaPage.page.waitForTimeout(500);
 
-    const timeAfterBackward = await video.evaluate((el: HTMLMediaElement) => el.currentTime);
+    const timeAfterBackward = await viewerPage.getCurrentTime();
     expect(timeAfterBackward).toBeLessThan(timeAfterForward);
   });
 });

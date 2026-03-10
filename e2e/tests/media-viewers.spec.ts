@@ -3,55 +3,49 @@ import { test, expect } from '../fixtures';
 test.describe('Document Viewer (PDF/EPUB)', () => {
   test.use({ readOnly: true });
 
-  test('opens PDF in fullscreen modal', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('opens PDF in fullscreen modal', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
       // Modal header should be at top of page
-      const header = page.locator('#document-modal .modal-header');
+      const header = viewerPage.documentModal.locator('.modal-header');
       await expect(header.first()).toBeVisible();
 
       // Check that header is at the top (y position should be 0 or very close)
       const headerBox = await header.first().boundingBox();
       expect(headerBox).toBeTruthy();
       if (headerBox) {
-        expect(headerBox.y).toBeLessThanOrEqual(5); // Allow small margin for rounding
+        expect(headerBox.y).toBeLessThanOrEqual(5);
       }
     }
   });
 
-  test('iframe area is at least 70% of display area', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('iframe area is at least 70% of display area', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
-      // Get viewport dimensions
-      const viewport = page.viewportSize();
+      // Get viewport dimensions using POM
+      const viewport = await mediaPage.getViewportSize();
       expect(viewport).toBeTruthy();
       if (viewport) {
         const viewportArea = viewport.width * viewport.height;
 
-        // Get iframe dimensions
-        const iframe = page.locator('#document-container iframe');
+        // Get iframe dimensions using POM
+        const iframe = viewerPage.getDocumentIframe();
         await expect(iframe.first()).toBeVisible();
 
         const iframeBox = await iframe.first().boundingBox();
@@ -61,345 +55,288 @@ test.describe('Document Viewer (PDF/EPUB)', () => {
           const areaRatio = iframeArea / viewportArea;
 
           // Iframe should take at least 70% of viewport area
-          // (accounting for header which takes some space)
-          expect(areaRatio).toBeGreaterThanOrEqual(0.65); // Using 65% to account for header
+          expect(areaRatio).toBeGreaterThanOrEqual(0.65);
         }
       }
     }
   });
 
-  test('document viewer has fullscreen button', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('document viewer has fullscreen button', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
-      // Fullscreen button should exist
-      const fsBtn = page.locator('#doc-fullscreen');
-      await expect(fsBtn.first()).toBeVisible();
+      // Fullscreen button should exist using POM
+      await expect(viewerPage.documentFullscreenBtn.first()).toBeVisible();
     }
   });
 
-  test('fullscreen button toggles fullscreen mode', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('fullscreen button toggles fullscreen mode', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(500);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
-      // Click fullscreen button (use force: true to bypass iframe overlay)
-      const fsBtn = page.locator('#doc-fullscreen');
-      await fsBtn.first().click({ force: true });
+      // Click fullscreen button using POM
+      await viewerPage.documentFullscreenBtn.first().click({ force: true });
 
-      // Wait for fullscreen change with retry polling
-      await page.waitForFunction(() => !!document.fullscreenElement, { timeout: 5000 });
+      // Wait for fullscreen change using POM
+      await viewerPage.waitForFullscreenChange();
 
       // Should enter fullscreen
-      const isFullscreen = await page.evaluate(() => !!document.fullscreenElement);
-      expect(isFullscreen).toBe(true);
+      expect(await viewerPage.isFullscreenActive()).toBe(true);
 
-      // Use Escape key to exit fullscreen (more reliable than button click in fullscreen mode)
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
+      // Use Escape key to exit fullscreen
+      await mediaPage.page.keyboard.press('Escape');
+      await mediaPage.page.waitForTimeout(300);
 
-      // Wait for fullscreen to exit
-      await page.waitForFunction(() => !document.fullscreenElement, { timeout: 5000 });
+      // Wait for fullscreen to exit using POM
+      await viewerPage.waitForFullscreenExit();
 
       // Should exit fullscreen
-      const isFullscreenAfter = await page.evaluate(() => !!document.fullscreenElement);
-      expect(isFullscreenAfter).toBe(false);
+      expect(await viewerPage.isFullscreenActive()).toBe(false);
     }
   });
 
-  test('f key toggles fullscreen', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('f key toggles fullscreen', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
       // Press 'f' key
-      await page.keyboard.press('f');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('f');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Should enter fullscreen
-      const isFullscreen = await page.evaluate(() => !!document.fullscreenElement);
-      expect(isFullscreen).toBe(true);
+      // Should enter fullscreen using POM
+      expect(await viewerPage.isFullscreenActive()).toBe(true);
 
       // Press 'f' again
-      await page.keyboard.press('f');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('f');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Should exit fullscreen
-      const isFullscreenAfter = await page.evaluate(() => !!document.fullscreenElement);
-      expect(isFullscreenAfter).toBe(false);
+      // Should exit fullscreen using POM
+      expect(await viewerPage.isFullscreenActive()).toBe(false);
     }
   });
 
-  test('document viewer can be closed with Escape', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('document viewer can be closed with Escape', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
       // Press Escape
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('Escape');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Modal should be hidden
-      const modal = page.locator('#document-modal');
-      const isHidden = await modal.first().evaluate(el => el.classList.contains('hidden'));
-      expect(isHidden).toBe(true);
+      // Modal should be hidden using POM
+      expect(await viewerPage.isDocumentModalHidden()).toBe(true);
     }
   });
 
-  test('document viewer has close button', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('document viewer has close button', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
-      // Close button should exist
-      const closeBtn = page.locator('#document-modal .close-modal');
+      // Close button should exist using POM
+      const closeBtn = viewerPage.documentModal.locator('.close-modal');
       await expect(closeBtn.first()).toBeVisible();
 
-      // Click to close
+      // Click to close using POM
       await closeBtn.first().click();
-      await page.waitForTimeout(500);
+      await mediaPage.page.waitForTimeout(500);
 
-      // Modal should be hidden
-      const modal = page.locator('#document-modal');
-      const isHidden = await modal.first().evaluate(el => el.classList.contains('hidden'));
-      expect(isHidden).toBe(true);
+      // Modal should be hidden using POM
+      expect(await viewerPage.isDocumentModalHidden()).toBe(true);
     }
   });
 
-  test('document viewer shows document title', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('document viewer shows document title', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Search for test PDF using POM
+    await mediaPage.search('test-document.pdf');
 
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
+    const pdfCard = mediaPage.getMediaCardByPath('test-document.pdf');
     if (await pdfCard.count() > 0) {
       await pdfCard.first().click();
-      await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
+      await viewerPage.waitForDocumentModal();
 
-      // Title should show filename
-      const title = page.locator('#document-title');
-      await expect(title.first()).toContainText('test-document.pdf');
+      // Title should show filename using POM
+      await expect(viewerPage.documentTitle.first()).toContainText('test-document.pdf');
     }
   });
 });
 
 test.describe('Image Viewer', () => {
-  test('opens image in viewer', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('opens image in viewer', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to show only images
-    await page.fill('#search-input', '.png');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to show only images using POM
+    await mediaPage.search('.png');
 
-    // Find and click an image media card
-    const imageCards = page.locator('.media-card:has-text(".png")');
+    // Find and clicking an image media card using POM
+    const imageCards = mediaPage.page.locator('.media-card:has-text(".png")');
     if (await imageCards.count() > 0) {
       await imageCards.first().click();
 
-      // Image viewer (PiP player with img) should open
-      await page.waitForSelector('#pip-player img', { timeout: 10000 });
+      // Image viewer (PiP player with img) should open using POM
+      await viewerPage.waitForImageLoad();
 
-      // Image should be visible
-      const img = page.locator('#pip-player img').first();
-      await expect(img).toBeVisible();
+      // Image should be visible using POM
+      await expect(viewerPage.getImageElement()).toBeVisible();
     }
   });
 
-  test('image viewer can be closed with Escape key', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('image viewer can be closed with Escape key', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to images
-    await page.fill('#search-input', '.png');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to images using POM
+    await mediaPage.search('.png');
 
-    const imageCards = page.locator('.media-card:has-text(".png")');
+    const imageCards = mediaPage.page.locator('.media-card:has-text(".png")');
     if (await imageCards.count() > 0) {
       await imageCards.first().click();
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
       // Press Escape
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('Escape');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Viewer should be hidden
-      const viewer = page.locator('#pip-player');
-      await expect(viewer.first()).not.toBeVisible();
+      // Viewer should be hidden using POM
+      await expect(viewerPage.playerContainer.first()).not.toBeVisible();
     }
   });
 
-  test('image viewer supports keyboard navigation', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('image viewer supports keyboard navigation', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to images
-    await page.fill('#search-input', '.png');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to images using POM
+    await mediaPage.search('.png');
 
-    const imageCards = page.locator('.media-card:has-text(".png")');
+    const imageCards = mediaPage.page.locator('.media-card:has-text(".png")');
     if (await imageCards.count() > 1) {
       await imageCards.first().click();
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
       // Press right arrow for next
-      await page.keyboard.press('ArrowRight');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('ArrowRight');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Should navigate to next image
-      const viewer = page.locator('#pip-player');
-      await expect(viewer.first()).toBeVisible();
+      // Should navigate to next image - viewer should still be visible using POM
+      await expect(viewerPage.playerContainer.first()).toBeVisible();
     }
   });
 });
 
 test.describe('Audio Playback', () => {
-  test('opens audio file in player', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('opens audio file in player', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to show only audio files
-    await page.fill('#search-input', '.mp3');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to show only audio files using POM
+    await mediaPage.search('.mp3');
 
-    // Find and click an audio media card
-    const audioCards = page.locator('.media-card:has-text(".mp3")');
+    // Find and clicking an audio media card using POM
+    const audioCards = mediaPage.page.locator('.media-card:has-text(".mp3")');
     if (await audioCards.count() > 0) {
       await audioCards.first().click();
 
-      // Audio player should open
-      await page.waitForSelector('#pip-player:not(.hidden), audio[src]', { timeout: 10000 });
+      // Audio player should open using POM
+      await viewerPage.playerContainer.first().waitFor({ state: 'visible', timeout: 10000 });
 
-      // Player should be visible
-      const player = page.locator('#pip-player');
-      await expect(player.first()).toBeVisible();
+      // Player should be visible using POM
+      await expect(viewerPage.playerContainer.first()).toBeVisible();
     }
   });
 
-  test('audio player shows duration', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('audio player shows duration', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to audio
-    await page.fill('#search-input', '.mp3');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to audio using POM
+    await mediaPage.search('.mp3');
 
-    const audioCards = page.locator('.media-card:has-text(".mp3")');
+    const audioCards = mediaPage.page.locator('.media-card:has-text(".mp3")');
     if (await audioCards.count() > 0) {
       await audioCards.first().click();
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Duration should be available on the audio element
-      const audio = page.locator('#pip-player audio').first();
+      // Duration should be available on the audio element using POM
+      const audio = viewerPage.audioElement.first();
       await expect(audio).toBeVisible();
-      
-      // Check that the audio element has a valid duration
-      const duration = await audio.evaluate(el => el.duration);
+
+      // Check that the audio element has a valid duration using POM
+      const duration = await viewerPage.getDuration();
       expect(duration).toBeGreaterThan(0);
-      expect(duration).toBeLessThan(1000); // Reasonable upper bound (in seconds)
+      expect(duration).toBeLessThan(1000);
     }
   });
 
-  test('audio player can be closed', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('audio player can be closed', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to audio
-    await page.fill('#search-input', '.mp3');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to audio using POM
+    await mediaPage.search('.mp3');
 
-    const audioCards = page.locator('.media-card:has-text(".mp3")');
+    const audioCards = mediaPage.page.locator('.media-card:has-text(".mp3")');
     if (await audioCards.count() > 0) {
       await audioCards.first().click();
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Close player using Escape
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
+      // Close player using Escape using POM
+      await mediaPage.page.keyboard.press('Escape');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Player should be hidden
-      const player = page.locator('#pip-player');
-      await expect(player).toHaveClass(/hidden/);
+      // Player should be hidden using POM
+      await expect(viewerPage.playerContainer).toHaveClass(/hidden/);
     }
   });
 
-  test('audio player supports keyboard shortcuts', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+  test('audio player supports keyboard shortcuts', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Filter to audio
-    await page.fill('#search-input', '.mp3');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+    // Filter to audio using POM
+    await mediaPage.search('.mp3');
 
-    const audioCards = page.locator('.media-card:has-text(".mp3")');
+    const audioCards = mediaPage.page.locator('.media-card:has-text(".mp3")');
     if (await audioCards.count() > 0) {
       await audioCards.first().click();
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Press space for play/pause
-      await page.keyboard.press(' ');
-      await page.waitForTimeout(500);
+      // Press space for play/pause using POM
+      await mediaPage.page.keyboard.press(' ');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Player should still be visible
-      const player = page.locator('#pip-player');
-      await expect(player.first()).toBeVisible();
+      // Player should still be visible using POM
+      await expect(viewerPage.playerContainer.first()).toBeVisible();
     }
   });
 });

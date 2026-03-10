@@ -1,159 +1,144 @@
-import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Captions', () => {
   test.use({ readOnly: true });
-  test('displays captions view with valid captions', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
 
-    // Wait for captions to load
-    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
+  test('displays captions view with valid captions', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
 
-    // Should have caption cards
-    const captionCards = page.locator('.media-card.caption-media-card');
-    const count = await captionCards.count();
+    // Wait for captions to load using POM
+    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
+
+    // Should have caption cards using POM
+    const count = await mediaPage.getCaptionCards().count();
     expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('filters out empty caption text', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
-    
-    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
-    
-    // Get all caption text elements
-    const captionTexts = page.locator('.caption-text');
-    const count = await captionTexts.count();
-    
-    // Check each caption has non-empty text
+  test('filters out empty caption text', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
+
+    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
+
+    // Get all caption text elements using POM
+    const count = await mediaPage.getCaptionSegments().count();
+
+    // Check each caption has non-empty text using POM
     for (let i = 0; i < count; i++) {
-      const text = await captionTexts.nth(i).textContent();
+      const text = await mediaPage.getCaptionText(i);
       const trimmedText = text?.trim() || '';
-      
+
       // Should not be empty or contain malformed HTML attributes
       expect(trimmedText).not.toBe('');
-      expect(trimmedText).not.toMatch(/=""\s+\d+=""/); // Pattern like chapter="" 1=""
+      expect(trimmedText).not.toMatch(/=""\s+\d+=""/);
     }
   });
 
-  test('filters out captions under 10 seconds', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
-    
-    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
-    
-    // Get all caption segments
-    const segments = page.locator('.caption-segment');
-    const count = await segments.count();
-    
-    // Check each caption is at least 10 seconds in
+  test('filters out captions under 10 seconds', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
+
+    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
+
+    // Get all caption segments using POM
+    const count = await mediaPage.getCaptionSegments().count();
+
+    // Check each caption is at least 10 seconds in using POM
     for (let i = 0; i < count; i++) {
-      const timeAttr = await segments.nth(i).getAttribute('data-time');
-      const time = parseFloat(timeAttr || '0');
+      const time = await mediaPage.getCaptionTime(i);
       expect(time).toBeGreaterThanOrEqual(10);
     }
   });
 
-  test('clicking caption jumps to timestamp', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
+  test('clicking caption jumps to timestamp', async ({ mediaPage, viewerPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
 
-    await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    await mediaPage.getCaptionSegments().first().waitFor({ state: 'visible', timeout: 10000 });
 
-    // Get first caption segment time
-    const firstSegment = page.locator('.caption-segment').first();
-    const expectedTime = await firstSegment.getAttribute('data-time');
+    // Get first caption segment time using POM
+    const expectedTime = await mediaPage.getCaptionTime(0);
 
-    // Click the caption segment
-    await firstSegment.click();
+    // Click the caption segment using POM
+    await mediaPage.getCaptionSegments().first().click();
 
-    // Wait for player to open
-    await waitForPlayer(page);
+    // Wait for player to open using POM
+    await viewerPage.waitForPlayer();
 
-    // Verify media is playing at the correct timestamp (with some tolerance)
-    const video = page.locator('video, audio');
-    await expect(video).toBeVisible();
+    // Verify media is playing at the correct timestamp using POM
+    await expect(viewerPage.getMediaElement()).toBeVisible();
 
     // Give it a moment to seek
-    await page.waitForTimeout(1500);
+    await mediaPage.page.waitForTimeout(1500);
 
-    const currentTime = await video.evaluate((el: HTMLMediaElement) => el.currentTime);
-    const expected = parseFloat(expectedTime || '0');
-
-    // Allow 15 second tolerance for seeking (depends on media length and browser)
-    expect(Math.abs(currentTime - expected)).toBeLessThan(15);
+    const currentTime = await viewerPage.getCurrentTime();
+    expect(Math.abs(currentTime - expectedTime)).toBeLessThan(15);
   });
 
-  test('caption count is displayed', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
-    
-    await page.waitForSelector('.caption-count-badge', { timeout: 10000 });
-    
-    // Caption count should be visible and positive
-    const countText = await page.locator('.caption-count-badge').first().textContent();
+  test('caption count is displayed', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
+
+    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
+
+    // Caption count should be visible and positive using POM
+    const countText = await mediaPage.getCaptionCountBadge(0);
     expect(countText).toMatch(/\d+/);
   });
 
-  test('search captions filters results', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
+  test('search captions filters results', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
 
-    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
+    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
 
-    // Get initial count
-    const initialCards = page.locator('.media-card.caption-media-card');
-    const initialCount = await initialCards.count();
+    // Get initial count using POM
+    const initialCount = await mediaPage.getCaptionCards().count();
 
-    // Search for specific text
-    await page.fill('#search-input', 'movie');
-    await page.press('#search-input', 'Enter');
+    // Search for specific text using POM
+    await mediaPage.search('movie');
 
-    // Wait for search results
-    await page.waitForTimeout(1000);
-
-    // Should have filtered results
-    const filteredCards = page.locator('.media-card.caption-media-card');
-    const filteredCount = await filteredCards.count();
+    // Should have filtered results using POM
+    const filteredCount = await mediaPage.getCaptionCards().count();
 
     // Count should be different (likely less)
     expect(filteredCount).toBeLessThanOrEqual(initialCount);
   });
 
-  test('displays multiple captions for a single file', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=captions');
+  test('displays multiple captions for a single file', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
 
-    // Wait for captions to load
-    await page.waitForSelector('.media-card.caption-media-card', { timeout: 10000 });
+    // Wait for captions to load using POM
+    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
 
-    // Find the test_video1.mp4 card which has 3 captions
-    const movieCards = page.locator('.media-card.caption-media-card:has-text("test_video1.mp4")');
+    // Find the test_video1.mp4 card which has 3 captions using POM
+    const movieCards = mediaPage.page.locator('.media-card.caption-media-card:has-text("test_video1.mp4")');
     const movieCount = await movieCards.count();
 
     // Should find test_video1
     expect(movieCount).toBeGreaterThan(0);
-    
-    // Get the first movie card
+
+    // Get the first movie card using POM
     const movieCard = movieCards.first();
-    
-    // Card should show it has multiple captions (caption count badge)
+
+    // Card should show it has multiple captions (caption count badge) using POM
     const captionCount = await movieCard.locator('.caption-count-badge').textContent();
     expect(captionCount).toBe('3');
-    
-    // All 3 caption segments should be visible within the card
+
+    // All 3 caption segments should be visible within the card using POM
     const captionSegments = movieCard.locator('.caption-segment');
     const segmentCount = await captionSegments.count();
-    
+
     // Should display all 3 caption segments
     expect(segmentCount).toBe(3);
-    
-    // Verify each caption has correct time and text
+
+    // Verify each caption has correct time and text using POM
     const expectedCaptions = [
       { time: 15.5, text: 'Welcome to the movie' },
       { time: 30.0, text: 'This is an exciting scene' },
       { time: 60.0, text: 'The plot thickens' }
     ];
-    
+
     for (let i = 0; i < expectedCaptions.length; i++) {
       const segment = captionSegments.nth(i);
       const timeAttr = await segment.getAttribute('data-time');
       const textContent = await segment.locator('.caption-text').textContent();
-      
+
       expect(parseFloat(timeAttr || '0')).toBeCloseTo(expectedCaptions[i].time, 1);
       expect(textContent?.trim()).toBe(expectedCaptions[i].text);
     }

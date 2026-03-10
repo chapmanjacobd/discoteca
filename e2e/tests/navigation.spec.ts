@@ -3,86 +3,61 @@ import { test, expect } from '../fixtures';
 test.describe('Page Navigation', () => {
   test.use({ readOnly: true });
 
-  // Helper to open sidebar on mobile
-  async function openSidebar(page) {
-    const menuToggle = page.locator('#menu-toggle');
-    if (await menuToggle.isVisible()) {
-      await menuToggle.click();
-      await page.waitForTimeout(300);
-    }
-  }
+  test('loads the home page', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-  test('loads the home page', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-
-    // Wait for page to load
-    await page.waitForSelector('#search-input', { timeout: 10000 });
-
-    // Verify key elements are present
-    await expect(page.locator('#search-input')).toBeVisible();
-    await expect(page.locator('#results-container')).toBeVisible();
+    // Verify key elements are present using POM
+    await expect(mediaPage.searchInput).toBeVisible();
+    await expect(mediaPage.resultsContainer).toBeVisible();
   });
 
-  test('navigates to Disk Usage view', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('navigates to Disk Usage view', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open sidebar on mobile
-    await openSidebar(page);
-
-    // Click DU button
-    await page.click('#du-btn');
+    // Use sidebar POM to navigate to DU view
+    await sidebarPage.openDiskUsage();
 
     // Should show DU toolbar
-    await expect(page.locator('#du-toolbar')).toBeVisible();
-    await expect(page.locator('#du-path-input')).toBeVisible();
+    await expect(mediaPage.getDUTToolbar()).toBeVisible();
+    await expect(mediaPage.getDUPathInput()).toBeVisible();
   });
 
-  test('navigates to Captions view', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('navigates to Captions view', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open sidebar on mobile
-    await openSidebar(page);
+    // Use sidebar POM to navigate to Captions view
+    await sidebarPage.openCaptions();
 
-    // Click Captions button
-    await page.click('#captions-btn');
-
-    // Wait for captions to load
-    await page.waitForSelector('.caption-media-card', { timeout: 10000 });
-
-    // Should show captions
-    const captionCards = page.locator('.caption-media-card');
-    await expect(captionCards.first()).toBeVisible();
+    // Should show captions - using POM locator
+    await expect(mediaPage.getCaptionCards().first()).toBeVisible();
   });
 
-  test('opens and closes settings modal', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('opens and closes settings modal', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Open settings
-    await page.click('#settings-button');
+    // Use sidebar POM to open settings
+    await sidebarPage.openSettings();
 
-    const modal = page.locator('#settings-modal');
+    const modal = mediaPage.getSettingsModal();
     await expect(modal).toBeVisible();
 
-    // Close settings
-    await page.click('#settings-modal .close-modal');
+    // Use sidebar POM to close settings
+    await sidebarPage.closeSettings();
     await expect(modal).not.toBeVisible();
   });
 
-  test('toggles view modes (grid/details)', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-
-    // Open sidebar on mobile
-    await openSidebar(page);
+  test('toggles view modes (grid/details)', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
     // Should start in grid view
-    await expect(page.locator('#view-grid')).toHaveClass(/active/);
+    await expect(mediaPage.viewGridButton).toHaveClass(/active/);
 
-    // Switch to details view
-    await page.click('#view-details');
-    await expect(page.locator('#view-details')).toHaveClass(/active/);
+    // Switch to details view using POM
+    await mediaPage.switchToDetailsView();
+    await expect(mediaPage.viewDetailsButton).toHaveClass(/active/);
 
-    // Switch back to grid
-    await page.click('#view-grid');
-    await expect(page.locator('#view-grid')).toHaveClass(/active/);
+    // Switch back to grid using POM
+    await mediaPage.switchToGridView();
+    await expect(mediaPage.viewGridButton).toHaveClass(/active/);
   });
 });

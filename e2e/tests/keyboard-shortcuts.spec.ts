@@ -1,17 +1,14 @@
 import { test, expect } from '../fixtures';
-import { waitForPlayer } from '../fixtures';
 
 test.describe('Keyboard Shortcuts', () => {
   test.use({ readOnly: true });
 
   test.describe('Navigation Shortcuts', () => {
-    test('n key plays next sibling without player open', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('n key plays next sibling without player open', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Get initial media count
-      const initialCards = page.locator('.media-card');
-      const initialCount = await initialCards.count();
+      // Get initial media count using POM
+      const initialCount = await mediaPage.getMediaCount();
 
       // Need at least 2 items for next sibling to work
       if (initialCount < 2) {
@@ -20,532 +17,440 @@ test.describe('Keyboard Shortcuts', () => {
       }
 
       // Press 'n' to play next (no player needs to be open)
-      await page.keyboard.press('n');
-      await page.waitForTimeout(1000);
+      await mediaPage.page.keyboard.press('n');
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Player should open with next media
-      const player = page.locator('#pip-player');
-      await expect(player.first()).toBeVisible();
+      // Player should open with next media using POM
+      await expect(viewerPage.playerContainer).toBeVisible();
     });
 
-    test('p key plays previous sibling without player open', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('p key plays previous sibling without player open', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click second card to have a previous item, then close player
-      const secondCard = page.locator('.media-card').nth(1);
+      // Click second card to have a previous item, then close player using POM
+      const secondCard = mediaPage.getMediaCard(1);
       await secondCard.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
-      // Close player
-      await page.keyboard.press('w');
-      await page.waitForTimeout(500);
+      // Close player using keyboard shortcut
+      await mediaPage.page.keyboard.press('w');
+      await mediaPage.page.waitForTimeout(500);
 
       // Press 'p' to play previous (no player needs to be open)
-      await page.keyboard.press('p');
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('p');
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
       // Player should be visible with some media
-      const player = page.locator('#pip-player');
-      await expect(player.first()).toBeVisible();
+      await expect(viewerPage.playerContainer).toBeVisible();
     });
 
-    test('ArrowRight seeks forward 5 seconds', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('ArrowRight seeks forward 5 seconds', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card
-      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      // Click first video/audio card using POM
+      const card = mediaPage.getFirstMediaCardByType('video');
       await card.click();
-      await waitForPlayer(page);
+      await viewerPage.waitForPlayer();
 
       // Wait for media to be ready
-      await page.waitForTimeout(1000);
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial time
-      const initialTime = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.currentTime : 0;
-      });
+      // Get initial time using POM
+      const initialTime = await viewerPage.getCurrentTime();
 
       // Press ArrowRight
-      await page.keyboard.press('ArrowRight');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('ArrowRight');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Time should have increased by ~5 seconds
-      const newTime = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.currentTime : 0;
-      });
+      // Time should have increased by ~5 seconds using POM
+      const newTime = await viewerPage.getCurrentTime();
 
       expect(newTime).toBeGreaterThan(initialTime);
     });
 
-    test('ArrowLeft seeks backward 5 seconds', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('ArrowLeft seeks backward 5 seconds', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card
-      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      // Click first video/audio card using POM
+      const card = mediaPage.getFirstMediaCardByType('video');
       await card.click();
-      await waitForPlayer(page);
+      await viewerPage.waitForPlayer();
 
-      // Wait for media and seek forward first
-      await page.waitForTimeout(1000);
-      await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        if (video) video.currentTime = 15;
-      });
-      await page.waitForTimeout(500);
+      // Wait for media and seek forward first using POM
+      await mediaPage.page.waitForTimeout(1000);
+      await viewerPage.seekTo(15);
+      await mediaPage.page.waitForTimeout(500);
 
-      // Get initial time
-      const initialTime = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.currentTime : 0;
-      });
+      // Get initial time using POM
+      const initialTime = await viewerPage.getCurrentTime();
 
       // Press ArrowLeft
-      await page.keyboard.press('ArrowLeft');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('ArrowLeft');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Time should have decreased by ~5 seconds
-      const newTime = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.currentTime : 0;
-      });
+      // Time should have decreased by ~5 seconds using POM
+      const newTime = await viewerPage.getCurrentTime();
 
       expect(newTime).toBeLessThan(initialTime);
     });
   });
 
   test.describe('Random Media', () => {
-    test('r key plays random media', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('r key plays random media', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
       // Press 'r' to play random media
-      await page.keyboard.press('r');
-      await page.waitForTimeout(3000);
+      await mediaPage.page.keyboard.press('r');
+      await mediaPage.page.waitForTimeout(3000);
 
       // Should have either:
       // 1. PiP player open (video/audio)
       // 2. Document modal open (PDF/EPUB)
       // 3. Error toast (if media is unplayable or not found)
-      const pipPlayer = page.locator('#pip-player');
-      const docModal = page.locator('#document-modal');
-      const toast = page.locator('#toast');
-      
-      const pipVisible = await pipPlayer.first().isVisible();
-      const docVisible = await docModal.first().isVisible();
-      const toastVisible = await toast.isVisible();
-      
+      const pipVisible = await viewerPage.playerContainer.first().isVisible();
+      const docVisible = await viewerPage.isDocumentModalVisible();
+      const toastVisible = await mediaPage.toast.isVisible();
+
       // At least one should happen
       expect(pipVisible || docVisible || toastVisible).toBe(true);
     });
 
-    test('r key plays random media of same type', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('r key plays random media of same type', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // First open a video to set the type filter
-      const videoCard = page.locator('.media-card[data-type*="video"]').first();
+      // First open a video to set the type filter using POM
+      const videoCard = mediaPage.getFirstMediaCardByType('video');
       if (await videoCard.count() > 0) {
         await videoCard.click();
-        await waitForPlayer(page);
-        await page.waitForTimeout(500);
+        await viewerPage.waitForPlayer();
+        await mediaPage.page.waitForTimeout(500);
 
         // Press 'r' to play random video
-        await page.keyboard.press('r');
-        await page.waitForTimeout(1000);
+        await mediaPage.page.keyboard.press('r');
+        await mediaPage.page.waitForTimeout(1000);
 
         // Player should still be visible with video
-        const player = page.locator('#pip-player');
-        await expect(player.first()).toBeVisible();
+        await expect(viewerPage.playerContainer).toBeVisible();
       }
     });
   });
 
   test.describe('Playback Controls', () => {
-    test('m key toggles mute', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('m key toggles mute', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card
-      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      // Click first video/audio card using POM
+      const card = mediaPage.getFirstMediaCardByType('video');
       await card.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
-      // Get initial muted state
-      const initialMuted = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.muted : false;
-      });
+      // Get initial muted state using POM
+      const initialMuted = await viewerPage.isMuted();
 
       // Press 'm' to toggle mute
-      await page.keyboard.press('m');
-      await page.waitForTimeout(300);
+      await mediaPage.page.keyboard.press('m');
+      await mediaPage.page.waitForTimeout(300);
 
-      // Muted state should have changed
-      const newMuted = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.muted : false;
-      });
+      // Muted state should have changed using POM
+      const newMuted = await viewerPage.isMuted();
 
       expect(newMuted).not.toBe(initialMuted);
     });
 
-    test('l key toggles loop', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('l key toggles loop', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card
-      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      // Click first video/audio card using POM
+      const card = mediaPage.getFirstMediaCardByType('video');
       await card.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
-      // Press 'l' to toggle loop
-      await page.keyboard.press('l');
-      await page.waitForTimeout(500);
+      // Press 'l' to toggle loop using POM
+      await viewerPage.toggleLoop();
+      await mediaPage.page.waitForTimeout(500);
 
       // Toast should appear indicating loop state
-      const toast = page.locator('#toast');
-      await expect(toast).toBeVisible();
-      const toastText = await toast.textContent();
+      await mediaPage.waitForToast();
+      const toastText = await mediaPage.getToastMessage();
       expect(toastText).toMatch(/Loop: (ON|OFF)/);
     });
 
-    test('w key closes player', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('w key closes player', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first card to open player
-      await page.locator('.media-card').first().click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      // Click first card to open player using POM
+      await mediaPage.getMediaCard(0).click();
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
       // Player should be visible
-      const player = page.locator('#pip-player');
-      await expect(player.first()).toBeVisible();
+      await expect(viewerPage.playerContainer).toBeVisible();
 
       // Press 'w' to close
-      await page.keyboard.press('w');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('w');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Player should be hidden
-      await expect(player.first()).toHaveClass(/hidden/);
+      // Player should be hidden using POM
+      await viewerPage.waitForHidden();
     });
 
-    test('Space key toggles play/pause', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('Space key toggles play/pause', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card
-      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      // Click first video/audio card using POM
+      const card = mediaPage.getFirstMediaCardByType('video');
       await card.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(1000);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial paused state
-      const isPausedInitial = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.paused : false;
-      });
+      // Get initial paused state using POM
+      const isPausedInitial = await viewerPage.isPlaying();
 
       // Press Space
-      await page.keyboard.press(' ');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press(' ');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Paused state should have toggled
-      const isPausedAfterSpace = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.paused : false;
-      });
+      // Paused state should have toggled using POM
+      const isPausedAfterSpace = await viewerPage.isPlaying();
 
       expect(isPausedAfterSpace).not.toBe(isPausedInitial);
     });
 
-    test('k key toggles play/pause', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('k key toggles play/pause', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card
-      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      // Click first video/audio card using POM
+      const card = mediaPage.getFirstMediaCardByType('video');
       await card.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(1000);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial paused state
-      const isPausedInitial = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.paused : false;
-      });
+      // Get initial paused state using POM
+      const isPausedInitial = await viewerPage.isPlaying();
 
       // Press 'k'
-      await page.keyboard.press('k');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('k');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Paused state should have toggled
-      const isPausedAfterK = await page.evaluate(() => {
-        const video = document.querySelector('video, audio') as HTMLMediaElement;
-        return video ? video.paused : false;
-      });
+      // Paused state should have toggled using POM
+      const isPausedAfterK = await viewerPage.isPlaying();
 
       expect(isPausedAfterK).not.toBe(isPausedInitial);
     });
 
-    test('f key toggles fullscreen', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('f key toggles fullscreen', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first card
-      await page.locator('.media-card').first().click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      // Click first card using POM
+      await mediaPage.getMediaCard(0).click();
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
       // Press 'f' to enter fullscreen
-      await page.keyboard.press('f');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('f');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Check if fullscreen is active
-      const isFullscreen = await page.evaluate(() => !!document.fullscreenElement);
-      // Note: In some headless environments, requestFullscreen might not actually work,
-      // but we can at least check if it was attempted or if the state changed.
-      // If it fails, we'll know and can adjust.
+      // Check if fullscreen is active using POM
+      const isFullscreen = await viewerPage.isFullscreenActive();
       expect(typeof isFullscreen).toBe('boolean');
     });
 
-    test('a key cycles aspect ratio', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('a key cycles aspect ratio', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video card
-      const videoCard = page.locator('.media-card[data-type*="video"]').first();
+      // Click first video card using POM
+      const videoCard = mediaPage.getFirstMediaCardByType('video');
       if (await videoCard.count() === 0) return;
-      
+
       await videoCard.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(1000);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(1000);
 
       // Press 'a' to cycle aspect ratio
-      await page.keyboard.press('a');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('a');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Check if aspect ratio style was applied to video
-      const aspectRatio = await page.evaluate(() => {
-        const video = document.querySelector('video') as HTMLVideoElement;
-        return video ? video.style.aspectRatio : '';
-      });
+      // Check if aspect ratio style was applied to video using POM
+      const aspectRatio = await viewerPage.getAspectRatio();
 
       // Normalize aspect ratio (browser may add spaces: '16 / 9' vs '16/9')
       expect(aspectRatio.replace(/\s/g, '')).toBe('16/9');
 
-      // Toast should appear
-      const toast = page.locator('#toast');
-      await expect(toast).toBeVisible();
-      const toastText = await toast.textContent();
+      // Toast should appear using POM
+      await mediaPage.waitForToast();
+      const toastText = await mediaPage.getToastMessage();
       expect(toastText).toContain('Aspect Ratio');
     });
   });
 
   test.describe('Metadata Shortcuts', () => {
-    test('i key toggles metadata modal', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('i key toggles metadata modal', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first card to open player
-      await page.locator('.media-card').first().click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      // Click first card to open player using POM
+      await mediaPage.getMediaCard(0).click();
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
-      // Press 'i' to open metadata
-      await page.keyboard.press('i');
-      await page.waitForTimeout(500);
+      // Press 'i' to open metadata using POM
+      await mediaPage.page.keyboard.press('i');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Metadata modal should be visible
-      const modal = page.locator('#metadata-modal');
-      await expect(modal.first()).toBeVisible();
+      // Metadata modal should be visible using POM
+      await expect(viewerPage.metadataModal.first()).toBeVisible();
 
       // Press 'i' again to close
-      await page.keyboard.press('i');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('i');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Metadata modal should be hidden
-      await expect(modal.first()).toHaveClass(/hidden/);
+      // Metadata modal should be hidden using POM
+      expect(await viewerPage.isMetadataModalHidden()).toBe(true);
     });
   });
 
   test.describe('Utility Shortcuts', () => {
+    test('c key copies media path to clipboard', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-    test('c key copies media path to clipboard', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
-
-      // Click first card to open player
-      const firstCard = page.locator('.media-card').first();
-      const expectedPath = await firstCard.locator('.media-title').textContent();
+      // Click first card to open player using POM
+      const firstCard = mediaPage.getMediaCard(0);
+      const expectedPath = await mediaPage.getMediaTitle(0);
       await firstCard.click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
       // Grant clipboard permissions
-      const context = page.context();
+      const context = mediaPage.page.context();
       await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
       // Press 'c' to copy path
-      await page.keyboard.press('c');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('c');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Toast should appear
-      const toast = page.locator('#toast');
-      await expect(toast).toBeVisible();
-      const toastText = await toast.textContent();
+      // Toast should appear using POM
+      await mediaPage.waitForToast();
+      const toastText = await mediaPage.getToastMessage();
       expect(toastText).toContain('Copied path');
     });
 
-    test('? key opens help modal', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('? key opens help modal', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
       // Press '?' to open help
-      await page.keyboard.press('?');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('?');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Help modal should be visible
-      const modal = page.locator('#help-modal');
-      await expect(modal.first()).toBeVisible();
+      // Help modal should be visible using POM
+      await expect(viewerPage.helpModal.first()).toBeVisible();
     });
 
-    test('/ key opens help modal', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('/ key opens help modal', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
       // Press '/' to open help
-      await page.keyboard.press('/');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('/');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Help modal should be visible
-      const modal = page.locator('#help-modal');
-      await expect(modal.first()).toBeVisible();
+      // Help modal should be visible using POM
+      await expect(viewerPage.helpModal.first()).toBeVisible();
     });
 
-    test('t key focuses search input', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('#search-input', { timeout: 10000 });
+    test('t key focuses search input', async ({ mediaPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
       // Press 't' to focus search
-      await page.keyboard.press('t');
-      await page.waitForTimeout(300);
+      await mediaPage.page.keyboard.press('t');
+      await mediaPage.page.waitForTimeout(300);
 
-      // Search input should have focus
-      const isFocused = await page.evaluate(() => {
-        return document.activeElement === document.getElementById('search-input');
-      });
-      expect(isFocused).toBe(true);
+      // Search input should have focus using POM
+      expect(await mediaPage.isSearchFocused()).toBe(true);
     });
   });
 
   test.describe('Subtitle Controls', () => {
-    test('v key toggles subtitle visibility', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl() + '/#mode=captions');
-      await page.waitForSelector('.caption-segment', { timeout: 10000 });
+    test('v key toggles subtitle visibility', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
+      await mediaPage.getCaptionSegments().first().waitFor({ state: 'visible', timeout: 10000 });
 
-      // Get caption count
-      const captionCount = await page.locator('.caption-segment').count();
+      // Get caption count using POM
+      const captionCount = await mediaPage.getCaptionSegments().count();
       if (captionCount === 0) {
         console.log('No captions available, skipping test');
         return;
       }
 
-      // Click a caption segment to open player with subtitles
-      await page.locator('.caption-segment').first().click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(1000);
+      // Click a caption segment to open player with subtitles using POM
+      await mediaPage.getCaptionSegments().first().click();
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(1000);
 
       // Press 'v' to toggle subtitle visibility
-      await page.keyboard.press('v');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('v');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Toast should appear (or player should still be visible)
-      const player = page.locator('#pip-player');
-      await expect(player.first()).toBeVisible();
-      
-      // Check if toast appeared (subtitle toggle message)
-      const toast = page.locator('#toast');
-      if (await toast.isVisible()) {
-        const toastText = await toast.textContent();
+      // Player should still be visible using POM
+      await expect(viewerPage.playerContainer.first()).toBeVisible();
+
+      // Check if toast appeared (subtitle toggle message) using POM
+      if (await mediaPage.toast.isVisible()) {
+        const toastText = await mediaPage.getToastMessage();
         expect(toastText).toMatch(/Subtitles: (Off|Track)/);
       }
     });
   });
 
   test.describe('Rating Shortcuts', () => {
-    test('1-5 keys rate media', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('1-5 keys rate media', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first card to open player
-      await page.locator('.media-card').first().click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      // Click first card to open player using POM
+      await mediaPage.getMediaCard(0).click();
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
       // Press '5' to rate 5 stars
-      await page.keyboard.press('5');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('5');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Toast should appear
-      const toast = page.locator('#toast');
-      await expect(toast).toBeVisible();
-      const toastText = await toast.textContent();
+      // Toast should appear using POM
+      await mediaPage.waitForToast();
+      const toastText = await mediaPage.getToastMessage();
       expect(toastText).toContain('Rated');
       expect(toastText).toContain('⭐');
     });
 
-    test('` key unrates media', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('` key unrates media', async ({ mediaPage, viewerPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Click first card to open player
-      await page.locator('.media-card').first().click();
-      await waitForPlayer(page);
-      await page.waitForTimeout(500);
+      // Click first card to open player using POM
+      await mediaPage.getMediaCard(0).click();
+      await viewerPage.waitForPlayer();
+      await mediaPage.page.waitForTimeout(500);
 
       // Press '`' to unrate
-      await page.keyboard.press('`');
-      await page.waitForTimeout(500);
+      await mediaPage.page.keyboard.press('`');
+      await mediaPage.page.waitForTimeout(500);
 
-      // Toast should appear
-      const toast = page.locator('#toast');
-      await expect(toast).toBeVisible();
-      const toastText = await toast.textContent();
+      // Toast should appear using POM
+      await mediaPage.waitForToast();
+      const toastText = await mediaPage.getToastMessage();
       expect(toastText).toContain('Unrated');
     });
   });
 
   test.describe('Rating (Drag and Drop)', () => {
-    test('rating buttons exist in sidebar', async ({ page, server }) => {
-      await page.goto(server.getBaseUrl());
-      await page.waitForSelector('.media-card', { timeout: 10000 });
+    test('rating buttons exist in sidebar', async ({ mediaPage, sidebarPage, server }) => {
+      await mediaPage.goto(server.getBaseUrl());
 
-      // Open sidebar to see rating buttons
-      const menuToggle = page.locator('#menu-toggle');
-      if (await menuToggle.isVisible()) {
-        await menuToggle.click();
-        await page.waitForTimeout(300);
-      }
+      // Expand ratings section using POM
+      await sidebarPage.expandRatingsSection();
 
-      // Expand ratings section
-      const ratingsSection = page.locator('#details-ratings');
-      if (await ratingsSection.isVisible()) {
-        await ratingsSection.evaluate((el: HTMLDetailsElement) => el.open = true);
-        await page.waitForTimeout(300);
-      }
-
-      // Verify rating buttons exist
-      const ratingBtn = page.locator('.category-btn[data-rating="5"]').first();
+      // Verify rating buttons exist using POM
+      const ratingBtn = mediaPage.getRatingButtons().first();
       await expect(ratingBtn).toBeAttached();
 
       // Rating buttons can be used for drag-drop

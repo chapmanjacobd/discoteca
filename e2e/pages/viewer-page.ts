@@ -10,6 +10,7 @@ export class ViewerPage {
   readonly mediaTitle: Locator;
   readonly videoElement: Locator;
   readonly audioElement: Locator;
+  readonly imageElement: Locator;
   readonly closeBtn: Locator;
   readonly theatreBtn: Locator;
   readonly speedBtn: Locator;
@@ -22,6 +23,12 @@ export class ViewerPage {
   readonly channelSurfBtn: Locator;
   readonly slideshowBtn: Locator;
   readonly queueContainer: Locator;
+  readonly documentModal: Locator;
+  readonly documentContainer: Locator;
+  readonly documentTitle: Locator;
+  readonly documentFullscreenBtn: Locator;
+  readonly metadataModal: Locator;
+  readonly helpModal: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -29,6 +36,7 @@ export class ViewerPage {
     this.mediaTitle = page.locator('#media-title');
     this.videoElement = page.locator('#pip-player video');
     this.audioElement = page.locator('#pip-player audio');
+    this.imageElement = page.locator('#pip-player img');
     this.closeBtn = page.locator('.close-pip, #pip-player .player-close, button:has-text("Close")').first();
     this.theatreBtn = page.locator('#pip-theatre');
     this.speedBtn = page.locator('#pip-speed');
@@ -41,6 +49,12 @@ export class ViewerPage {
     this.channelSurfBtn = page.locator('#channel-surf-btn');
     this.slideshowBtn = page.locator('#pip-slideshow');
     this.queueContainer = page.locator('#queue-container');
+    this.documentModal = page.locator('#document-modal');
+    this.documentContainer = page.locator('#document-container');
+    this.documentTitle = page.locator('#document-title');
+    this.documentFullscreenBtn = page.locator('#doc-fullscreen');
+    this.metadataModal = page.locator('#metadata-modal');
+    this.helpModal = page.locator('#help-modal');
   }
 
   /**
@@ -222,8 +236,8 @@ export class ViewerPage {
    * Check if slideshow mode is active
    */
   async isSlideshowActive(): Promise<boolean> {
-    return await this.slideshowBtn.isVisible() && 
-           !await this.slideshowBtn.classList().then(classes => classes?.includes('hidden'));
+    const classes = await this.slideshowBtn.getAttribute('class') || '';
+    return this.slideshowBtn.isVisible() && !classes.includes('hidden');
   }
 
   /**
@@ -285,5 +299,331 @@ export class ViewerPage {
       },
       { timeout }
     );
+  }
+
+  /**
+   * Get media element (video or audio)
+   */
+  getMediaElement(): Locator {
+    return this.videoElement.or(this.audioElement);
+  }
+
+  /**
+   * Check if player is hidden
+   */
+  async isHidden(): Promise<boolean> {
+    return await this.playerContainer.first().evaluate(el => el.classList.contains('hidden'));
+  }
+
+  /**
+   * Wait for player to be hidden
+   */
+  async waitForHidden(timeout: number = 5000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        const player = document.querySelector('#pip-player');
+        return player && player.classList.contains('hidden');
+      },
+      { timeout }
+    );
+  }
+
+  /**
+   * Get queue items
+   */
+  getQueueItems(): Locator {
+    return this.queueContainer.locator('.queue-item');
+  }
+
+  /**
+   * Get queue item by index
+   */
+  getQueueItem(index: number): Locator {
+    return this.getQueueItems().nth(index);
+  }
+
+  /**
+   * Check if speed menu is visible
+   */
+  async isSpeedMenuVisible(): Promise<boolean> {
+    return await this.speedMenu.isVisible();
+  }
+
+  /**
+   * Get speed options
+   */
+  getSpeedOptions(): Locator {
+    return this.speedMenu.locator('button');
+  }
+
+  /**
+   * Get speed option by value
+   */
+  getSpeedOption(speed: string): Locator {
+    return this.speedMenu.locator(`button:has-text("${speed}")`);
+  }
+
+  /**
+   * Check if next button is disabled
+   */
+  async isNextDisabled(): Promise<boolean> {
+    return await this.nextBtn.isDisabled();
+  }
+
+  /**
+   * Check if previous button is disabled
+   */
+  async isPrevDisabled(): Promise<boolean> {
+    return await this.prevBtn.isDisabled();
+  }
+
+  /**
+   * Get player class list
+   */
+  async getPlayerClasses(): Promise<string> {
+    return await this.playerContainer.first().getAttribute('class') || '';
+  }
+
+  /**
+   * Check if player has class
+   */
+  async hasPlayerClass(className: string): Promise<boolean> {
+    const classes = await this.getPlayerClasses();
+    return classes.includes(className);
+  }
+
+  /**
+   * Get media duration formatted
+   */
+  async getDurationFormatted(): Promise<string> {
+    const duration = await this.getDuration();
+    const mins = Math.floor(duration / 60);
+    const secs = Math.floor(duration % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Get current time formatted
+   */
+  async getCurrentTimeFormatted(): Promise<string> {
+    const time = await this.getCurrentTime();
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Check if media is muted
+   */
+  async isMuted(): Promise<boolean> {
+    const media = this.getMediaElement();
+    return await media.evaluate((el: HTMLMediaElement) => el.muted);
+  }
+
+  /**
+   * Toggle mute
+   */
+  async toggleMute(): Promise<void> {
+    const media = this.getMediaElement();
+    await media.evaluate((el: HTMLMediaElement) => {
+      el.muted = !el.muted;
+    });
+  }
+
+  /**
+   * Set volume
+   */
+  async setVolume(volume: number): Promise<void> {
+    const media = this.getMediaElement();
+    await media.evaluate((el: HTMLMediaElement, vol: number) => {
+      el.volume = Math.max(0, Math.min(1, vol));
+    }, volume);
+  }
+
+  /**
+   * Get volume level
+   */
+  async getVolume(): Promise<number> {
+    const media = this.getMediaElement();
+    return await media.evaluate((el: HTMLMediaElement) => el.volume);
+  }
+
+  /**
+   * Check if media is looping
+   */
+  async isLooping(): Promise<boolean> {
+    const media = this.getMediaElement();
+    return await media.evaluate((el: HTMLMediaElement) => el.loop);
+  }
+
+  /**
+   * Toggle loop
+   */
+  async toggleLoop(): Promise<void> {
+    const media = this.getMediaElement();
+    await media.evaluate((el: HTMLMediaElement) => {
+      el.loop = !el.loop;
+    });
+  }
+
+  /**
+   * Get ready state
+   */
+  async getReadyState(): Promise<number> {
+    const media = this.getMediaElement();
+    return await media.evaluate((el: HTMLMediaElement) => el.readyState);
+  }
+
+  /**
+   * Wait for media to have data
+   */
+  async waitForMediaData(timeout: number = 10000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        const video = document.querySelector('#pip-player video') as HTMLVideoElement;
+        const audio = document.querySelector('#pip-player audio') as HTMLAudioElement;
+        const media = video || audio;
+        return media && media.readyState >= 3; // HAVE_FUTURE_DATA
+      },
+      { timeout }
+    );
+  }
+
+  /**
+   * Get buffered ranges
+   */
+  async getBufferedRanges(): Promise<Array<{ start: number; end: number }>> {
+    const media = this.getMediaElement();
+    return await media.evaluate((el: HTMLMediaElement) => {
+      const ranges = [];
+      for (let i = 0; i < el.buffered.length; i++) {
+        ranges.push({
+          start: el.buffered.start(i),
+          end: el.buffered.end(i)
+        });
+      }
+      return ranges;
+    });
+  }
+
+  /**
+   * Check if document modal is visible
+   */
+  async isDocumentModalVisible(): Promise<boolean> {
+    return await this.documentModal.first().isVisible();
+  }
+
+  /**
+   * Check if document modal is hidden
+   */
+  async isDocumentModalHidden(): Promise<boolean> {
+    return await this.documentModal.first().evaluate(el => el.classList.contains('hidden'));
+  }
+
+  /**
+   * Wait for document modal
+   */
+  async waitForDocumentModal(timeout: number = 10000): Promise<void> {
+    await this.documentModal.first().waitFor({ state: 'visible', timeout });
+  }
+
+  /**
+   * Close document modal
+   */
+  async closeDocumentModal(): Promise<void> {
+    const closeBtn = this.documentModal.locator('.close-modal').first();
+    await closeBtn.click();
+    await this.documentModal.first().waitFor({ state: 'hidden' });
+  }
+
+  /**
+   * Get document iframe
+   */
+  getDocumentIframe(): Locator {
+    return this.documentContainer.locator('iframe');
+  }
+
+  /**
+   * Check if metadata modal is visible
+   */
+  async isMetadataModalVisible(): Promise<boolean> {
+    return await this.metadataModal.first().isVisible();
+  }
+
+  /**
+   * Check if metadata modal is hidden
+   */
+  async isMetadataModalHidden(): Promise<boolean> {
+    return await this.metadataModal.first().evaluate(el => el.classList.contains('hidden'));
+  }
+
+  /**
+   * Check if help modal is visible
+   */
+  async isHelpModalVisible(): Promise<boolean> {
+    return await this.helpModal.first().isVisible();
+  }
+
+  /**
+   * Check if help modal is hidden
+   */
+  async isHelpModalHidden(): Promise<boolean> {
+    return await this.helpModal.first().evaluate(el => el.classList.contains('hidden'));
+  }
+
+  /**
+   * Get image element
+   */
+  getImageElement(): Locator {
+    return this.imageElement;
+  }
+
+  /**
+   * Check if image viewer is open
+   */
+  async isImageViewerOpen(): Promise<boolean> {
+    return await this.imageElement.isVisible();
+  }
+
+  /**
+   * Wait for image to load
+   */
+  async waitForImageLoad(timeout: number = 10000): Promise<void> {
+    await this.imageElement.waitFor({ state: 'visible', timeout });
+  }
+
+  /**
+   * Check if fullscreen is active
+   */
+  async isFullscreenActive(): Promise<boolean> {
+    return await this.page.evaluate(() => !!document.fullscreenElement);
+  }
+
+  /**
+   * Wait for fullscreen change
+   */
+  async waitForFullscreenChange(timeout: number = 5000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !!document.fullscreenElement,
+      { timeout }
+    );
+  }
+
+  /**
+   * Wait for fullscreen exit
+   */
+  async waitForFullscreenExit(timeout: number = 5000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !document.fullscreenElement,
+      { timeout }
+    );
+  }
+
+  /**
+   * Get aspect ratio style
+   */
+  async getAspectRatio(): Promise<string> {
+    const video = this.videoElement;
+    return await video.evaluate((el: HTMLVideoElement) => el.style.aspectRatio || '');
   }
 }

@@ -2,156 +2,127 @@ import { test, expect } from '../fixtures';
 
 test.describe('Search and Filtering', () => {
   test.use({ readOnly: true });
-  test('search filters media by title', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-    
-    // Get initial count
-    const initialCards = page.locator('.media-card');
-    const initialCount = await initialCards.count();
-    
-    // Search for "movie"
-    await page.fill('#search-input', 'movie');
-    await page.press('#search-input', 'Enter');
-    
-    // Wait for search results
-    await page.waitForTimeout(1000);
-    
-    // Should have filtered results
-    const filteredCards = page.locator('.media-card');
-    const filteredCount = await filteredCards.count();
-    
+
+  test('search filters media by title', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
+
+    // Get initial count using POM
+    const initialCount = await mediaPage.getMediaCount();
+
+    // Search for "movie" using POM
+    await mediaPage.search('movie');
+
+    // Should have filtered results using POM
+    const filteredCount = await mediaPage.getMediaCount();
+
     // Count should be less than or equal to initial
     expect(filteredCount).toBeLessThanOrEqual(initialCount);
-    
-    // All results should contain "movie" in title or path
+
+    // All results should contain "movie" in title or path using POM
     for (let i = 0; i < filteredCount; i++) {
-      const title = await filteredCards.nth(i).locator('.media-title').textContent();
+      const title = await mediaPage.getMediaTitle(i);
       expect(title?.toLowerCase()).toContain('movie');
     }
   });
 
-  test('clears search when X button clicked', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-    
-    // Search for something
-    await page.fill('#search-input', 'movie');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
-    
-    // Clear search
-    await page.fill('#search-input', '');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
+  test('clears search when X button clicked', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    // Results should be back to normal
-    const cards = page.locator('.media-card');
-    const count = await cards.count();
+    // Search for something using POM
+    await mediaPage.search('movie');
+
+    // Clear search using POM
+    await mediaPage.clearSearch();
+
+    // Results should be back to normal using POM
+    const count = await mediaPage.getMediaCount();
     expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('filters by media type', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    
-    await page.waitForSelector('#details-media-type', { timeout: 10000 });
-    
-    // Expand media type filter
-    await page.locator('#details-media-type').evaluate((el: HTMLDetailsElement) => el.open = true);
-    
-    // Get initial count
-    const initialCards = page.locator('.media-card');
-    const initialCount = await initialCards.count();
-    
-    // Click video filter
-    await page.locator('#media-type-list .category-btn[data-type="video"]').click();
-    await page.waitForTimeout(1000);
-    
-    // Should have video results
-    const videoCards = page.locator('.media-card');
-    const videoCount = await videoCards.count();
-    
+  test('filters by media type', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
+
+    // Expand media type filter using POM
+    await sidebarPage.expandMediaTypeSection();
+
+    // Get initial count using POM
+    const initialCount = await mediaPage.getMediaCount();
+
+    // Click video filter using POM
+    await sidebarPage.getMediaTypeButton('video').click();
+    await mediaPage.page.waitForTimeout(1000);
+
+    // Should have video results using POM
+    const videoCount = await mediaPage.getMediaCount();
+
     // Count should be less than or equal to initial
     expect(videoCount).toBeLessThanOrEqual(initialCount);
   });
 
-  test('pagination works for large result sets', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-    
-    // Check if pagination is visible
-    const pagination = page.locator('#pagination-container');
-    
-    // If there are results, pagination controls should exist
-    const cards = page.locator('.media-card');
-    const count = await cards.count();
-    
+  test('pagination works for large result sets', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
+
+    // Check if pagination is visible using POM
+    const pagination = mediaPage.paginationContainer;
+
+    // If there are results, pagination controls should exist using POM
+    const count = await mediaPage.getMediaCount();
+
     if (count > 0) {
       await expect(pagination).toBeVisible();
-      
-      // Page info should show current page
-      const pageInfo = page.locator('#page-info');
-      await expect(pageInfo).toBeVisible();
+
+      // Page info should show current page using POM
+      await expect(mediaPage.pageInfo).toBeVisible();
     }
   });
 
-  test('sort options work', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
-    
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-    
-    // Change sort option
-    const sortBy = page.locator('#sort-by');
-    await sortBy.selectOption('size');
-    await page.waitForTimeout(500);
-    
-    // Verify sort changed
-    await expect(sortBy).toHaveValue('size');
-    
-    // Change to another sort
-    await sortBy.selectOption('duration');
-    await page.waitForTimeout(500);
-    await expect(sortBy).toHaveValue('duration');
+  test('sort options work', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
+
+    // Change sort option using POM
+    await mediaPage.setSortBy('size');
+    await mediaPage.page.waitForTimeout(500);
+
+    // Verify sort changed using POM
+    await expect(mediaPage.sortBySelect).toHaveValue('size');
+
+    // Change to another sort using POM
+    await mediaPage.setSortBy('duration');
+    await mediaPage.page.waitForTimeout(500);
+    await expect(mediaPage.sortBySelect).toHaveValue('duration');
   });
 
-  test('reverse sort toggles correctly', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl());
+  test('reverse sort toggles correctly', async ({ mediaPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
 
-    await page.waitForSelector('.media-card', { timeout: 10000 });
+    // Click to toggle using POM
+    await mediaPage.sortReverseBtn.click();
+    await mediaPage.page.waitForTimeout(300);
 
-    const reverseBtn = page.locator('#sort-reverse-btn');
+    // Should have active class using POM
+    await expect(mediaPage.sortReverseBtn).toHaveClass(/active/);
 
-    // Click to toggle
-    await reverseBtn.click();
-    await page.waitForTimeout(300);
+    // Click again to toggle off using POM
+    await mediaPage.sortReverseBtn.click();
+    await mediaPage.page.waitForTimeout(300);
 
-    // Should have active class
-    await expect(reverseBtn).toHaveClass(/active/);
-
-    // Click again to toggle off
-    await reverseBtn.click();
-    await page.waitForTimeout(300);
-
-    // Should not have active class
-    await expect(reverseBtn).not.toHaveClass(/active/);
+    // Should not have active class using POM
+    await expect(mediaPage.sortReverseBtn).not.toHaveClass(/active/);
   });
 
-  test('filter bins (sliders) are visible in DU mode', async ({ page, server }) => {
-    await page.goto(server.getBaseUrl() + '/#mode=du');
-    
-    await page.waitForSelector('#du-toolbar', { timeout: 10000 });
-    
-    // Open details elements
-    await page.locator('#details-episodes').evaluate((el: HTMLDetailsElement) => el.open = true);
-    await page.locator('#details-size').evaluate((el: HTMLDetailsElement) => el.open = true);
-    await page.locator('#details-duration').evaluate((el: HTMLDetailsElement) => el.open = true);
+  test('filter bins (sliders) are visible in DU mode', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl() + '/#mode=du');
 
-    // Filter sliders should be visible
-    await expect(page.locator('#episodes-slider-container')).toBeVisible();
-    await expect(page.locator('#size-slider-container')).toBeVisible();
-    await expect(page.locator('#duration-slider-container')).toBeVisible();
+    await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
+
+    // Open details elements using POM
+    await sidebarPage.expandEpisodesSection();
+    await sidebarPage.expandSizeSection();
+    await sidebarPage.expandDurationSection();
+
+    // Filter sliders should be visible using POM
+    await expect(mediaPage.episodesSliderContainer).toBeVisible();
+    await expect(mediaPage.sizeSliderContainer).toBeVisible();
+    await expect(mediaPage.durationSliderContainer).toBeVisible();
   });
 });
