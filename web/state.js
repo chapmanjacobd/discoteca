@@ -24,6 +24,7 @@ export const state = {
         unfinished: false,
         completed: false,
         captions: false,
+        searchType: localStorage.getItem('disco-search-type') || 'fts', // 'fts' or 'substring'
         browseCol: '',
         browseVal: ''
     },

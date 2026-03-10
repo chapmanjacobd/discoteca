@@ -91,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterBrowseVal = document.getElementById('filter-browse-val');
     const filterBrowseValContainer = document.getElementById('filter-browse-val-container');
 
+    const searchTypeToggle = document.getElementById('search-type-toggle');
+
     let currentMedia = [];
     let allDatabases = [];
     let searchAbortController = null;
@@ -286,6 +288,19 @@ document.addEventListener('DOMContentLoaded', () => {
         filterCaptions.onchange = (e) => {
             state.filters.captions = e.target.checked;
             localStorage.setItem('disco-captions', state.filters.captions);
+            performSearch();
+        };
+    }
+
+    // Search type toggle (FTS vs Substring)
+    if (searchTypeToggle) {
+        searchTypeToggle.textContent = state.filters.searchType === 'fts' ? 'FTS' : 'Substring';
+        searchTypeToggle.classList.toggle('active', state.filters.searchType === 'fts');
+        searchTypeToggle.onclick = () => {
+            state.filters.searchType = state.filters.searchType === 'fts' ? 'substring' : 'fts';
+            localStorage.setItem('disco-search-type', state.filters.searchType);
+            searchTypeToggle.textContent = state.filters.searchType === 'fts' ? 'FTS' : 'Substring';
+            searchTypeToggle.classList.toggle('active', state.filters.searchType === 'fts');
             performSearch();
         };
     }
@@ -893,6 +908,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.filters.search) params.set('search', state.filters.search);
             if (state.filters.min_score) params.set('min_score', state.filters.min_score);
             if (state.filters.max_score) params.set('max_score', state.filters.max_score);
+            if (state.filters.searchType && state.filters.searchType !== 'fts') {
+                params.set('search_type', state.filters.searchType);
+            }
 
             state.filters.episodes.forEach(b => params.append('episodes', getBinQueryParam(b)));
             state.filters.sizes.forEach(b => params.append('size', getBinQueryParam(b)));
@@ -1043,6 +1061,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.filters.all = params.get('all') === 'true';
             state.filters.min_score = params.get('min_score') || '';
             state.filters.max_score = params.get('max_score') || '';
+            state.filters.searchType = params.get('search_type') || 'fts';
 
             state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
             state.filters.sizes = params.getAll('size').map(parseFilterBin);
@@ -1060,6 +1079,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Restoration of complex filters from URL is tricky since we only have labels in bins
             // For now, we rely on state persistence in localStorage which is already happening
             // But we can try to parse them if we want to support sharing URLs
+
+            // Update search type toggle UI
+            if (searchTypeToggle) {
+                searchTypeToggle.textContent = state.filters.searchType === 'fts' ? 'FTS' : 'Substring';
+                searchTypeToggle.classList.toggle('active', state.filters.searchType === 'fts');
+            }
 
             if (searchInput) searchInput.value = state.filters.search;
 
@@ -1725,6 +1750,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const duToolbar = document.getElementById('du-toolbar');
         const duPathInput = document.getElementById('du-path-input');
         const duBackBtn = document.getElementById('du-back-btn');
+        const duBreadcrumbs = document.getElementById('du-breadcrumbs');
 
         if (duToolbar && duPathInput) {
             duToolbar.classList.remove('hidden');
@@ -1740,6 +1766,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     duBackBtn.style.display = 'none';
                 }
             }
+        }
+
+        // Render breadcrumbs for mobile navigation
+        if (duBreadcrumbs) {
+            renderDUBreadcrumbs(duBreadcrumbs);
         }
 
         // Show folder/file count in results-info
@@ -1764,6 +1795,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
         paginationContainer.classList.add('hidden');
         updateNavActiveStates();
+    }
+
+    function renderDUBreadcrumbs(container) {
+        const path = state.duPath || '/';
+        if (!path || path === '/') {
+            container.innerHTML = '';
+            return;
+        }
+
+        const parts = path.split('/').filter(p => p);
+        const breadcrumbs = [];
+        
+        // Root
+        breadcrumbs.push(`<span class="du-breadcrumb-item" data-path="/">/</span>`);
+        
+        // Build breadcrumb trail
+        let currentPath = '';
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            currentPath += '/' + part;
+            const isLast = i === parts.length - 1;
+            
+            breadcrumbs.push(`<span class="du-breadcrumb-sep">›</span>`);
+            if (isLast) {
+                breadcrumbs.push(`<span class="du-breadcrumb-item current">${part}</span>`);
+            } else {
+                breadcrumbs.push(`<span class="du-breadcrumb-item" data-path="${currentPath}/">${part}</span>`);
+            }
+        }
+
+        container.innerHTML = breadcrumbs.join('');
+
+        // Add click handlers
+        container.querySelectorAll('.du-breadcrumb-item[data-path]').forEach(item => {
+            item.onclick = () => {
+                const targetPath = item.dataset.path;
+                if (targetPath !== state.duPath) {
+                    fetchDU(targetPath);
+                }
+            };
+        });
     }
 
     function renderDUDetails(data) {
@@ -2687,6 +2759,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('watched', 'true');
             } else if (state.page === 'captions') {
                 params.append('captions', 'true');
+            }
+
+            // Add search type parameter
+            if (state.filters.searchType === 'substring') {
+                params.append('search_type', 'substring');
             }
 
             // Request filter counts for sidebar bins (eliminates separate /api/filter-bins call)

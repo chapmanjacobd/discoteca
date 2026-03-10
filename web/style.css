@@ -210,6 +210,7 @@ header {
     border: 1px solid var(--border-color);
     color: var(--text-color);
     padding: 0.6rem 1rem 0.6rem 2.2rem;
+    padding-right: 3.5rem;
     border-radius: 4px;
     outline: none;
     width: 100%;
@@ -217,6 +218,35 @@ header {
 
 #search-input:focus {
     border-color: var(--accent-color);
+}
+
+#search-type-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+#search-type-toggle:hover {
+    background: var(--hover-color);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+#search-type-toggle.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
 }
 
 #search-suggestions {
@@ -544,6 +574,51 @@ header {
 
 #du-path-input:focus {
     border-color: var(--accent-color);
+}
+
+#du-breadcrumbs {
+    display: none;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 0.3rem 0;
+    font-size: 0.8rem;
+}
+
+#du-breadcrumbs::-webkit-scrollbar {
+    height: 4px;
+}
+
+#du-breadcrumbs::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+}
+
+.du-breadcrumb-sep {
+    color: var(--text-muted);
+    margin: 0 0.3rem;
+    opacity: 0.5;
+}
+
+.du-breadcrumb-item {
+    color: var(--accent-color);
+    cursor: pointer;
+    text-decoration: none;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.du-breadcrumb-item:hover {
+    background: var(--hover-color);
+}
+
+.du-breadcrumb-item.current {
+    color: var(--text-color);
+    cursor: default;
+}
+
+.du-breadcrumb-item:hover.current {
+    background: transparent;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -2083,6 +2158,35 @@ body.has-pip #content {
         flex: 1;
         min-width: 140px;
         justify-content: center;
+    }
+
+    /* DU Toolbar mobile fix - stack vertically */
+    #du-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        padding: 0.6rem;
+    }
+
+    #du-path-input {
+        width: 100%;
+        font-size: 0.8rem;
+        padding: 0.5rem;
+    }
+
+    #du-back-btn {
+        width: 100%;
+        padding: 0.5rem;
+    }
+
+    /* Mobile DU breadcrumbs for drill-down navigation */
+    #du-breadcrumbs {
+        display: block;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #du-path-input {
+        display: none;
     }
 
     .grid {

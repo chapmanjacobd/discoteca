@@ -104,14 +104,19 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 
 	slog.Debug("handleSubtitles request", "path", path, "index", r.URL.Query().Get("index"))
 
-	// Verify path or siblings
+	// Verify path or siblings and check subtitle_count for optimization
 	found := false
+	hasSubtitles := false
 	for _, dbPath := range c.Databases {
 		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			_, err := queries.GetMediaByPathExact(r.Context(), path)
+			media, err := queries.GetMediaByPathExact(r.Context(), path)
 			if err == nil {
 				found = true
+				// Check if media has embedded subtitles
+				if media.SubtitleCount.Valid && media.SubtitleCount.Int64 > 0 {
+					hasSubtitles = true
+				}
 				return nil
 			}
 
@@ -132,6 +137,10 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 					mBase := strings.TrimSuffix(filepath.Base(m.Path), filepath.Ext(m.Path))
 					if mBase == base {
 						found = true
+						// Check if media has embedded subtitles
+						if m.SubtitleCount.Valid && m.SubtitleCount.Int64 > 0 {
+							hasSubtitles = true
+						}
 						break
 					}
 				}
@@ -190,6 +199,12 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 				slog.Debug("Found sidecar for media file", "media", r.URL.Query().Get("path"), "sidecar", path)
 			}
 		} else {
+			// Optimization: If no external sidecars found and DB says no embedded subtitles, return early
+			if !hasSubtitles {
+				slog.Debug("No subtitles found (DB check)", "path", path)
+				http.Error(w, "No subtitles available", http.StatusNotFound)
+				return
+			}
 			http.Error(w, "No index specified and no sidecar found", http.StatusNotFound)
 			return
 		}

@@ -20,6 +20,7 @@
         <div id="search-container">
             <span id="search-icon">🔍</span>
             <input type="text" id="search-input" placeholder="Search..." autocomplete="off">
+            <button id="search-type-toggle" class="search-type-toggle" title="Toggle search type (FTS/Substring)">FTS</button>
             <div id="search-suggestions" class="hidden"></div>
             <div id="results-info">
                 <span id="results-count"></span>
@@ -189,6 +190,7 @@
                 <div id="du-toolbar" class="hidden">
                     <button id="du-back-btn" class="category-btn" title="Go to parent directory">⤴️</button>
                     <input type="text" id="du-path-input" />
+                    <div id="du-breadcrumbs" class="du-breadcrumbs"></div>
                 </div>
 
                 <div id="view-toggle">

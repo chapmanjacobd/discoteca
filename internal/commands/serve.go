@@ -487,6 +487,13 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 		flags.GroupByParent = true
 	}
 
+	// Parse search type (FTS vs substring)
+	if searchType := q.Get("search_type"); searchType == "substring" {
+		flags.FTS = false
+	} else if searchType == "fts" {
+		flags.FTS = true
+	}
+
 	// Parse database filter from request
 	if dbs := q["db"]; len(dbs) > 0 {
 		flags.Databases = dbs
