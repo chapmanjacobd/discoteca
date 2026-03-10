@@ -1786,8 +1786,8 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 		tempFlags.FileCounts = ""
 	}
 
-	qb := query.NewQueryBuilder(tempFlags)
-	sqlQuery, args := qb.BuildSelect("path, size, duration")
+	fb := query.NewFilterBuilder(tempFlags)
+	sqlQuery, args := fb.BuildSelect("path, size, duration")
 
 	var wg sync.WaitGroup
 	for _, dbPath := range dbs {

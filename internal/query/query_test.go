@@ -8,18 +8,19 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/testutils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestNewQueryBuilder(t *testing.T) {
+func TestNewFilterBuilder(t *testing.T) {
 	flags := models.GlobalFlags{QueryFlags: models.QueryFlags{Query: "SELECT 1"}}
-	qb := NewQueryBuilder(flags)
-	if qb.Flags.Query != "SELECT 1" {
-		t.Errorf("Expected query SELECT 1, got %s", qb.Flags.Query)
+	fb := NewFilterBuilder(flags)
+	if fb.flags.Query != "SELECT 1" {
+		t.Errorf("Expected query SELECT 1, got %s", fb.flags.Query)
 	}
 }
 
-func TestQueryBuilder_Build(t *testing.T) {
+func TestFilterBuilder_Build(t *testing.T) {
 	tests := []struct {
 		name     string
 		flags    models.GlobalFlags
@@ -255,8 +256,8 @@ func TestQueryBuilder_Build(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			qb := NewQueryBuilder(tt.flags)
-			query, _ := qb.Build()
+			fb := NewFilterBuilder(tt.flags)
+			query, _ := fb.BuildQuery("*")
 			if query != tt.expected {
 				t.Errorf("Build() query = %q, want %q", query, tt.expected)
 			}
@@ -278,8 +279,8 @@ func TestFilterMedia(t *testing.T) {
 		expected int
 	}{
 		{"No filters", models.GlobalFlags{}, 2},
-		{"Include filter", models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Include: []string{"%.mp4"}}}, 1},
-		{"Exclude filter", models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Exclude: []string{"%.mp4"}}}, 1},
+		{"Include filter", models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Include: []string{"test1.mp4"}}}, 1},
+		{"Exclude filter", models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Exclude: []string{"test1.mp4"}}}, 1},
 		{"Size filter", models.GlobalFlags{FilterFlags: models.FilterFlags{Size: []string{">150B"}}}, 1},
 	}
 
@@ -360,9 +361,9 @@ func TestSortMediaAdvanced(t *testing.T) {
 		{Media: models.Media{Path: "dir1/file.mp4"}},
 	}
 
-	SortMediaAdvanced(media, "natural_parent")
+	NewSortBuilder(models.GlobalFlags{}).SortAdvanced(media, "natural_parent")
 	if !strings.Contains(media[0].Path, "dir1") {
-		t.Errorf("SortMediaAdvanced by natural_parent failed, got %s", media[0].Path)
+		t.Errorf("SortAdvanced by natural_parent failed, got %s", media[0].Path)
 	}
 }
 
@@ -384,7 +385,6 @@ func TestSortFolders(t *testing.T) {
 }
 
 func TestQueryDatabase(t *testing.T) {
-	// Create a temporary database file
 	f, err := os.CreateTemp("", "query-test-*.db")
 	if err != nil {
 		t.Fatal(err)
@@ -398,41 +398,11 @@ func TestQueryDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create schema
-	schema := `
-	CREATE TABLE media (
-		path TEXT PRIMARY KEY,
-		title TEXT,
-		duration INTEGER,
-		size INTEGER,
-		time_created INTEGER,
-		time_modified INTEGER,
-		time_deleted INTEGER DEFAULT 0,
-		time_first_played INTEGER DEFAULT 0,
-		time_last_played INTEGER DEFAULT 0,
-		play_count INTEGER DEFAULT 0,
-		playhead INTEGER DEFAULT 0,
-		type TEXT
-	);
-	CREATE TABLE history (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		media_path TEXT NOT NULL,
-		time_played INTEGER,
-		playhead INTEGER,
-		done INTEGER
-	);
-	CREATE TABLE captions (
-		media_path TEXT NOT NULL,
-		time REAL,
-		text TEXT
-	);
-	`
-	if _, err := dbConn.Exec(schema); err != nil {
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
 		dbConn.Close()
 		t.Fatal(err)
 	}
 
-	// Insert test data
 	insert := `INSERT INTO media (path, title, duration, size, type) VALUES (?, ?, ?, ?, ?)`
 	dbConn.Exec(insert, "/test/movie.mp4", "Test Movie", 7200, 1000000, "video")
 	dbConn.Close()
@@ -482,7 +452,6 @@ func TestSummarizeMedia(t *testing.T) {
 }
 
 func TestMediaQuery(t *testing.T) {
-	// Create two temporary databases
 	f1, _ := os.CreateTemp("", "query-test1-*.db")
 	dbPath1 := f1.Name()
 	f1.Close()
@@ -530,7 +499,6 @@ func TestReRankMedia(t *testing.T) {
 		{Media: models.Media{Path: "b", Size: &size100, Duration: &dur20}},
 	}
 
-	// Re-rank by size (desc) and duration (asc)
 	flags := models.GlobalFlags{SortFlags: models.SortFlags{ReRank: "-size=1 duration=1"}}
 	got := ReRankMedia(media, flags)
 	if len(got) != 2 {
@@ -588,7 +556,8 @@ func TestHistoricalUsage(t *testing.T) {
 }
 
 func TestOverrideSort(t *testing.T) {
-	got := OverrideSort("month_created")
+	fb := NewFilterBuilder(models.GlobalFlags{})
+	got := fb.OverrideSort("month_created")
 	if !strings.Contains(got, "strftime") {
 		t.Errorf("OverrideSort failed: %s", got)
 	}

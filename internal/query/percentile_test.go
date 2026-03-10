@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/testutils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -22,18 +23,9 @@ func TestResolvePercentileFlags(t *testing.T) {
 	dbConn, _ := sql.Open("sqlite3", dbPath)
 	defer dbConn.Close()
 
-	schema := `
-	CREATE TABLE media (
-		path TEXT PRIMARY KEY,
-		size INTEGER,
-		duration INTEGER,
-		time_deleted INTEGER DEFAULT 0,
-		categories TEXT
-	);
-	CREATE TABLE history (id INTEGER PRIMARY KEY AUTOINCREMENT, media_path TEXT NOT NULL, time_played INTEGER, playhead INTEGER, done INTEGER);
-	CREATE TABLE captions (media_path TEXT NOT NULL, time REAL, text TEXT);
-	`
-	dbConn.Exec(schema)
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
+		t.Fatalf("Failed to init test DB: %v", err)
+	}
 
 	// Insert 100 items with increasing size and duration
 	for i := 1; i <= 100; i++ {

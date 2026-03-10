@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -81,4 +83,50 @@ func (f *TestFixture) GetDB() *sql.DB {
 		f.T.Fatal(err)
 	}
 	return db
+}
+
+// GetSchema returns the canonical database schema
+func GetSchema() string {
+	return db.GetSchema()
+}
+
+// InitTestDB initializes a test database with the canonical schema
+func InitTestDB(sqlDB *sql.DB) error {
+	schema := db.GetSchema()
+	_, err := sqlDB.Exec(schema)
+	return err
+}
+
+// StripFTSFromSchema returns the schema without FTS5-specific statements
+func StripFTSFromSchema(schema string) string {
+	var filtered strings.Builder
+	lines := strings.Split(schema, ";")
+	skipNextEnd := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		upper := strings.ToUpper(trimmed)
+		if strings.Contains(upper, "FTS5") || strings.Contains(upper, "_FTS") {
+			if strings.Contains(upper, "BEGIN") && !strings.Contains(upper, "END") {
+				skipNextEnd = true
+			}
+			continue
+		}
+		if skipNextEnd && upper == "END" {
+			skipNextEnd = false
+			continue
+		}
+		filtered.WriteString(trimmed)
+		filtered.WriteString(";")
+	}
+	return filtered.String()
+}
+
+// InitTestDBNoFTS initializes a test database with the schema minus FTS5 features
+func InitTestDBNoFTS(sqlDB *sql.DB) error {
+	schema := StripFTSFromSchema(db.GetSchema())
+	_, err := sqlDB.Exec(schema)
+	return err
 }

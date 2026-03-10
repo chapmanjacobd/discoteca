@@ -4,13 +4,12 @@ package commands
 
 import (
 	"database/sql"
+
+	"github.com/chapmanjacobd/discotheque/internal/db"
 )
 
 func InitDB(sqlDB *sql.DB) error {
-	schema, err := schemaFS.ReadFile("schema.sql")
-	if err != nil {
-		return err
-	}
+	schema := db.GetSchema()
 
 	tx, err := sqlDB.Begin()
 	if err != nil {

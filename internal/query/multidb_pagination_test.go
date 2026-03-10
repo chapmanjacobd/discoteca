@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discotheque/internal/testutils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -162,19 +163,8 @@ func createTestDB(pattern string) (string, error) {
 	}
 	defer dbConn.Close()
 
-	// Create schema
-	schema := `CREATE TABLE media (
-		path TEXT PRIMARY KEY,
-		title TEXT,
-		type TEXT,
-		size INTEGER,
-		duration INTEGER,
-		time_deleted INTEGER DEFAULT 0,
-		play_count INTEGER DEFAULT 0,
-		playhead INTEGER DEFAULT 0,
-		time_last_played INTEGER DEFAULT 0
-	);`
-	if _, err := dbConn.Exec(schema); err != nil {
+	// Create schema using central schema (without FTS)
+	if err := testutils.InitTestDBNoFTS(dbConn); err != nil {
 		os.Remove(dbPath)
 		return "", err
 	}
