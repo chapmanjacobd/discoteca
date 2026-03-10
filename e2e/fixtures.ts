@@ -103,6 +103,15 @@ export const test = base.extend<{
     // Set base URL for Playwright
     process.env.DISCO_BASE_URL = server.getBaseUrl();
 
+    // Set authentication cookie before the test starts
+    const url = new URL(server.getBaseUrl());
+    await page.context().addCookies([{
+      name: 'disco_token',
+      value: 'e2e-test-token',
+      domain: url.hostname,
+      path: '/',
+    }]);
+
     page.on('console', msg => {
       const msgText = msg.text();
 

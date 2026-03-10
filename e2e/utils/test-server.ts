@@ -69,7 +69,11 @@ export class TestServer {
 
       this.process = spawn(binaryPath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, DISCO_DEV: 'true' },
+        env: {
+          ...process.env,
+          DISCO_DEV: 'true',
+          DISCO_API_TOKEN: 'e2e-test-token'
+        },
       });
 
       let started = false;

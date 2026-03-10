@@ -13,6 +13,50 @@ import (
 	"github.com/chapmanjacobd/discotheque/internal/models"
 )
 
+// handleMetadata returns detailed metadata for a specific media file.
+// GET /api/metadata?db=...&path=...
+func (c *ServeCmd) handleMetadata(w http.ResponseWriter, r *http.Request) {
+	dbPath := r.URL.Query().Get("db")
+	path := r.URL.Query().Get("path")
+
+	if path == "" {
+		http.Error(w, "Path required", http.StatusBadRequest)
+		return
+	}
+
+	var metadata models.Media
+	found := false
+
+	// If dbPath is provided, only check that database
+	dbs := c.Databases
+	if dbPath != "" {
+		dbs = []string{dbPath}
+	}
+
+	for _, dp := range dbs {
+		_ = c.execDB(r.Context(), dp, func(sqlDB *sql.DB) error {
+			queries := database.New(sqlDB)
+			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
+			if err == nil {
+				metadata = models.FromDB(dbMedia)
+				found = true
+			}
+			return err
+		})
+		if found {
+			break
+		}
+	}
+
+	if !found {
+		http.Error(w, "Media not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metadata)
+}
+
 // handleDatabases returns server configuration.
 // GET /api/databases
 func (c *ServeCmd) handleDatabases(w http.ResponseWriter, r *http.Request) {

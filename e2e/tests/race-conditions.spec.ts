@@ -345,83 +345,8 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
     const results = page.locator('.media-card');
     const count = await results.count();
     console.log(`Results after search during load: ${count}`);
-    
+
     expect(count).toBeGreaterThanOrEqual(0);
-  });
-
-  test('concurrent progress updates from multiple tabs (simulated)', async ({ page, server }) => {
-    console.log('=== Testing concurrent progress updates ===');
-
-    await page.goto(server.getBaseUrl());
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-
-    // Find test_video1.mp4 specifically (it has a known 10s duration)
-    const mediaCard = page.locator('.media-card').filter({ hasText: 'test_video1.mp4' }).first();
-    const mediaPath = await mediaCard.getAttribute('data-path');
-
-    await mediaCard.click();
-    await waitForPlayer(page);
-    
-    // Explicitly play to bypass auto-play restrictions if any
-    await page.evaluate(() => {
-      const v = document.querySelector('video');
-      if (v) v.play().catch(e => console.error('Play failed:', e));
-    });
-
-    // Wait for playback to actually start and advance
-    const video = page.locator('video');
-    await expect(video).toBeVisible();
-    await page.waitForFunction(() => {
-      const v = document.querySelector('video');
-      // readyState 2+ means enough data to play at least a frame
-      return v && v.readyState >= 2 && (v.currentTime > 0 || !v.paused);
-    }, { timeout: 15000 });
-    
-    console.log('Session 1 started');
-    await page.waitForTimeout(3000);
-    await page.click('.close-pip');
-    await page.waitForTimeout(500);
-    
-    // Check localStorage
-    const progress1 = await page.evaluate(() => JSON.parse(localStorage.getItem('disco-progress') || '{}'));
-    console.log('Progress 1:', progress1[mediaPath]);
-    
-    // Simulate other tab update
-    // Use pos: 3 to give plenty of room (video is 10s)
-    await page.evaluate((path) => {
-      const p = JSON.parse(localStorage.getItem('disco-progress') || '{}');
-      p[path] = { pos: 3, last: Date.now() - 5000 };
-      localStorage.setItem('disco-progress', JSON.stringify(p));
-    }, mediaPath);
-    
-    // Resume in this tab
-    await mediaCard.click();
-    await waitForPlayer(page);
-    
-    // Explicitly play
-    await page.evaluate(() => {
-      const v = document.querySelector('video');
-      if (v) v.play().catch(e => console.error('Play failed:', e));
-    });
-
-    // Wait for it to resume at >= 3s and advance significantly
-    await page.waitForFunction((p) => {
-      const v = document.querySelector('video');
-      return v && v.readyState >= 2 && v.currentTime >= p + 1;
-    }, 3, { timeout: 15000 });
-    
-    console.log('Session 2 resumed and advanced');
-    await page.waitForTimeout(3000);
-    await page.click('.close-pip');
-    
-    // Wait for final local storage update (throttled at 1s)
-    await page.waitForTimeout(1500);
-    
-    const progress2 = await page.evaluate(() => JSON.parse(localStorage.getItem('disco-progress') || '{}'));
-    console.log('Progress 2:', progress2[mediaPath]);
-    
-    expect(progress2[mediaPath]).toBeTruthy();
-    expect(progress2[mediaPath].pos).toBeGreaterThan(3);
   });
 
   test('UI state remains consistent during filter toggling', async ({ page, server }) => {

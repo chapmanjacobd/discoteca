@@ -56,6 +56,7 @@ type FilterBinsResponse struct {
 	Episodes []FilterBin `json:"episodes"`
 	Size     []FilterBin `json:"size"`
 	Duration []FilterBin `json:"duration"`
+	Type     []FilterBin `json:"type"`
 
 	EpisodesMin int64 `json:"episodes_min"`
 	EpisodesMax int64 `json:"episodes_max"`

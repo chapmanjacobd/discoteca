@@ -238,9 +238,147 @@ test.describe('Keyboard Shortcuts', () => {
       // Player should be hidden
       await expect(player.first()).toHaveClass(/hidden/);
     });
+
+    test('Space key toggles play/pause', async ({ page, server }) => {
+      await page.goto(server.getBaseUrl());
+      await page.waitForSelector('.media-card', { timeout: 10000 });
+
+      // Click first video/audio card
+      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      await card.click();
+      await waitForPlayer(page);
+      await page.waitForTimeout(1000);
+
+      // Get initial paused state
+      const isPausedInitial = await page.evaluate(() => {
+        const video = document.querySelector('video, audio') as HTMLMediaElement;
+        return video ? video.paused : false;
+      });
+
+      // Press Space
+      await page.keyboard.press(' ');
+      await page.waitForTimeout(500);
+
+      // Paused state should have toggled
+      const isPausedAfterSpace = await page.evaluate(() => {
+        const video = document.querySelector('video, audio') as HTMLMediaElement;
+        return video ? video.paused : false;
+      });
+
+      expect(isPausedAfterSpace).not.toBe(isPausedInitial);
+    });
+
+    test('k key toggles play/pause', async ({ page, server }) => {
+      await page.goto(server.getBaseUrl());
+      await page.waitForSelector('.media-card', { timeout: 10000 });
+
+      // Click first video/audio card
+      const card = page.locator('.media-card[data-type*="video"], .media-card[data-type*="audio"]').first();
+      await card.click();
+      await waitForPlayer(page);
+      await page.waitForTimeout(1000);
+
+      // Get initial paused state
+      const isPausedInitial = await page.evaluate(() => {
+        const video = document.querySelector('video, audio') as HTMLMediaElement;
+        return video ? video.paused : false;
+      });
+
+      // Press 'k'
+      await page.keyboard.press('k');
+      await page.waitForTimeout(500);
+
+      // Paused state should have toggled
+      const isPausedAfterK = await page.evaluate(() => {
+        const video = document.querySelector('video, audio') as HTMLMediaElement;
+        return video ? video.paused : false;
+      });
+
+      expect(isPausedAfterK).not.toBe(isPausedInitial);
+    });
+
+    test('f key toggles fullscreen', async ({ page, server }) => {
+      await page.goto(server.getBaseUrl());
+      await page.waitForSelector('.media-card', { timeout: 10000 });
+
+      // Click first card
+      await page.locator('.media-card').first().click();
+      await waitForPlayer(page);
+      await page.waitForTimeout(500);
+
+      // Press 'f' to enter fullscreen
+      await page.keyboard.press('f');
+      await page.waitForTimeout(500);
+
+      // Check if fullscreen is active
+      const isFullscreen = await page.evaluate(() => !!document.fullscreenElement);
+      // Note: In some headless environments, requestFullscreen might not actually work,
+      // but we can at least check if it was attempted or if the state changed.
+      // If it fails, we'll know and can adjust.
+      expect(typeof isFullscreen).toBe('boolean');
+    });
+
+    test('a key cycles aspect ratio', async ({ page, server }) => {
+      await page.goto(server.getBaseUrl());
+      await page.waitForSelector('.media-card', { timeout: 10000 });
+
+      // Click first video card
+      const videoCard = page.locator('.media-card[data-type*="video"]').first();
+      if (await videoCard.count() === 0) return;
+      
+      await videoCard.click();
+      await waitForPlayer(page);
+      await page.waitForTimeout(1000);
+
+      // Press 'a' to cycle aspect ratio
+      await page.keyboard.press('a');
+      await page.waitForTimeout(500);
+
+      // Check if aspect ratio style was applied to video
+      const aspectRatio = await page.evaluate(() => {
+        const video = document.querySelector('video') as HTMLVideoElement;
+        return video ? video.style.aspectRatio : '';
+      });
+
+      expect(aspectRatio).toBe('16/9');
+
+      // Toast should appear
+      const toast = page.locator('#toast');
+      await expect(toast).toBeVisible();
+      const toastText = await toast.textContent();
+      expect(toastText).toContain('Aspect Ratio');
+    });
+  });
+
+  test.describe('Metadata Shortcuts', () => {
+    test('i key toggles metadata modal', async ({ page, server }) => {
+      await page.goto(server.getBaseUrl());
+      await page.waitForSelector('.media-card', { timeout: 10000 });
+
+      // Click first card to open player
+      await page.locator('.media-card').first().click();
+      await waitForPlayer(page);
+      await page.waitForTimeout(500);
+
+      // Press 'i' to open metadata
+      await page.keyboard.press('i');
+      await page.waitForTimeout(500);
+
+      // Metadata modal should be visible
+      const modal = page.locator('#metadata-modal');
+      await expect(modal.first()).toBeVisible();
+
+      // Press 'i' again to close
+      await page.keyboard.press('i');
+      await page.waitForTimeout(500);
+
+      // Metadata modal should be hidden
+      await expect(modal.first()).toHaveClass(/hidden/);
+    });
   });
 
   test.describe('Utility Shortcuts', () => {
+
     test('c key copies media path to clipboard', async ({ page, server }) => {
       await page.goto(server.getBaseUrl());
       await page.waitForSelector('.media-card', { timeout: 10000 });

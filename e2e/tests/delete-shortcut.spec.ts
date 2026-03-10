@@ -112,18 +112,12 @@ test.describe('Delete Shortcut', () => {
     await page.goto(server.getBaseUrl());
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Search for test PDF
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForTimeout(1000);
-
-    // Wait for search results
-    await page.waitForSelector('.media-card:has-text("test-document.pdf")', { timeout: 5000 });
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
-    expect(await pdfCard.count()).toBeGreaterThan(0);
-
+    // Open first text document (PDF/EPUB)
+    const docCard = page.locator('.media-card[data-type*="text"]').first();
+    await expect(docCard).toBeVisible();
+    
     // Click to open document modal
-    await pdfCard.first().click();
+    await docCard.click();
     await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
     // Modal should be visible

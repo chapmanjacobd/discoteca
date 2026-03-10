@@ -1,6 +1,18 @@
+Sort debugging UI, see why a media card shows up where it does
 
-e2e CLI
+> Failed to convert subtitles
+We could avoid this by only running ffmpeg on files with subtitle_count>0, ie. db query first
 
-e2e web safari
+> http://100.92.160.95:5555/#mode=du&history=in-progress
 
-e2e web mobile
+blank page should show No Media Found page with hint to reduce filters
+
+disk usage mode mobile stack du toolbar and sort vertically
+
+DU mode Default sort should be similar to xklb
+
+
+
+on desktop and mobile chrome gifs load fine, but on mobile Fennec they load in thumbnails but not in PiP player. any ideas?
+
+non-fts build should have support for substring searches somehow, performance benchmark comparison of options:

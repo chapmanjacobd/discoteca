@@ -1,14 +1,14 @@
-package commands
+package db
 
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
-
-	"github.com/chapmanjacobd/discotheque/internal/utils"
 )
 
-func runMigrations(db *sql.DB) error {
+// Migrate runs schema migrations on an existing database
+func Migrate(db *sql.DB) error {
 	// 1. Column migrations
 	if err := migrateColumns(db); err != nil {
 		return err
@@ -25,6 +25,78 @@ func runMigrations(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+// pathToFtsPath converts a file path to FTS-friendly format
+func pathToFtsPath(path string) string {
+	re := regexp.MustCompile(`[/\\.\[\]\-\+(){}_&]`)
+	s := re.ReplaceAllString(path, " ")
+	return cleanString(s)
+}
+
+// cleanString removes brackets, special chars, and normalizes whitespace
+func cleanString(s string) string {
+	s = removeTextInsideBrackets(s)
+	s = strings.ReplaceAll(s, "\x7f", "")
+	s = strings.ReplaceAll(s, "&", "")
+	s = strings.ReplaceAll(s, "%", "")
+	s = strings.ReplaceAll(s, "$", "")
+	s = strings.ReplaceAll(s, "#", "")
+	s = strings.ReplaceAll(s, "!", "")
+	s = strings.ReplaceAll(s, "?", "")
+	s = strings.ReplaceAll(s, "|", "")
+	s = strings.ReplaceAll(s, "^", "")
+	s = strings.ReplaceAll(s, "'", "")
+	s = strings.ReplaceAll(s, "\"", "")
+	s = strings.ReplaceAll(s, ")", "")
+	s = strings.ReplaceAll(s, ":", "")
+	s = strings.ReplaceAll(s, ">", "")
+	s = strings.ReplaceAll(s, "<", "")
+	s = strings.ReplaceAll(s, "\\", " ")
+	s = strings.ReplaceAll(s, "/", " ")
+
+	s = removeConsecutives(s, []string{"."})
+	s = strings.ReplaceAll(s, "(", " ")
+	s = strings.ReplaceAll(s, "-.", ".")
+	s = strings.ReplaceAll(s, " - ", " ")
+	s = strings.ReplaceAll(s, "- ", " ")
+	s = strings.ReplaceAll(s, " -", " ")
+	s = strings.ReplaceAll(s, " _ ", "_")
+	s = strings.ReplaceAll(s, " _", "_")
+	s = strings.ReplaceAll(s, "_ ", "_")
+
+	s = removeConsecutiveWhitespace(s)
+
+	return s
+}
+
+func removeTextInsideBrackets(s string) string {
+	var result strings.Builder
+	depth := 0
+	for _, r := range s {
+		if r == '(' || r == '[' || r == '{' {
+			depth++
+		} else if r == ')' || r == ']' || r == '}' {
+			if depth > 0 {
+				depth--
+			}
+		} else if depth == 0 {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
+}
+
+func removeConsecutiveWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func removeConsecutives(s string, chars []string) string {
+	for _, char := range chars {
+		re := regexp.MustCompile(regexp.QuoteMeta(char) + "+")
+		s = re.ReplaceAllString(s, char)
+	}
+	return s
 }
 
 func migrateColumns(db *sql.DB) error {
@@ -101,7 +173,7 @@ func populateFtsPath(db *sql.DB) error {
 		updates = append(updates, struct {
 			path    string
 			ftsPath string
-		}{path, utils.PathToSentenceFull(path)})
+		}{path, pathToFtsPath(path)})
 	}
 	rows.Close()
 

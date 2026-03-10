@@ -575,6 +575,8 @@ func (c *ServeCmd) handleCategorizeApply(w http.ResponseWriter, r *http.Request)
 
 func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
+	dbParam := r.URL.Query().Get("db")
+
 	if path == "" {
 		http.Error(w, "Path required", http.StatusBadRequest)
 		return
@@ -586,6 +588,17 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate database if provided
+	dbs := c.Databases
+	if dbParam != "" {
+		var err error
+		dbs, err = c.filterDatabases([]string{dbParam})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
 	slog.Debug("handleRaw request", "path", path)
 
 	var m models.Media
@@ -593,8 +606,8 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 
 	localPath := path
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+	for _, dbPath := range dbs {
+		_ = c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
 			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
 			if err == nil {
@@ -606,14 +619,11 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 		if found {
 			break
 		}
-		if err != nil && err != sql.ErrNoRows {
-			slog.Error("Database error in handleRaw", "db", dbPath, "error", err)
-		}
 	}
 
 	if !found {
 		slog.Warn("Access denied: file not in database", "path", path)
-		http.Error(w, "Access denied: file not in database", http.StatusForbidden)
+		http.Error(w, "Media not found in database", http.StatusNotFound)
 		return
 	}
 

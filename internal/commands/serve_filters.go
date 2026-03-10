@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -22,6 +23,7 @@ type filterBinsData struct {
 	sizes        []int64
 	durations    []int64
 	parentCounts map[string]int64
+	typeCounts   map[string]int64
 }
 
 // computeFilterBinsData queries specified databases and collects size, duration, and parent count data
@@ -33,9 +35,11 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 		size      int64
 		duration  int64
 		parentDir string
+		mediaType string
 	}
 	var allItems []itemWithParent
 	allParentCounts := make(map[string]int64)
+	allTypeCounts := make(map[string]int64)
 
 	// Build flags for this query, ignoring the specified filter
 	tempFlags := flags
@@ -49,10 +53,15 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 		tempFlags.Duration = nil
 	} else if filterToIgnore == "episodes" {
 		tempFlags.FileCounts = ""
+	} else if filterToIgnore == "type" {
+		tempFlags.VideoOnly = false
+		tempFlags.AudioOnly = false
+		tempFlags.ImageOnly = false
+		tempFlags.TextOnly = false
 	}
 
 	fb := query.NewFilterBuilder(tempFlags)
-	sqlQuery, args := fb.BuildSelect("path, size, duration")
+	sqlQuery, args := fb.BuildSelect("path, size, duration, type")
 
 	var wg sync.WaitGroup
 	for _, dbPath := range dbs {
@@ -68,13 +77,21 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 
 				var localItems []itemWithParent
 				localParentCounts := make(map[string]int64)
+				localTypeCounts := make(map[string]int64)
 
 				for rows.Next() {
 					var p string
 					var s, d sql.NullInt64
-					if err := rows.Scan(&p, &s, &d); err == nil {
+					var t sql.NullString
+					if err := rows.Scan(&p, &s, &d, &t); err == nil {
 						parent := filepath.Dir(p)
 						localParentCounts[parent]++
+
+						mediaType := "unknown"
+						if t.Valid && t.String != "" {
+							mediaType = t.String
+						}
+						localTypeCounts[mediaType]++
 
 						var sizeVal, durVal int64
 						if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
@@ -87,6 +104,7 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 							size:      sizeVal,
 							duration:  durVal,
 							parentDir: parent,
+							mediaType: mediaType,
 						})
 					}
 				}
@@ -95,6 +113,9 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 				allItems = append(allItems, localItems...)
 				for k, v := range localParentCounts {
 					allParentCounts[k] += v
+				}
+				for k, v := range localTypeCounts {
+					allTypeCounts[k] += v
 				}
 				mu.Unlock()
 				return nil
@@ -121,12 +142,15 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 
 			// Filter items to only those from matching parents
 			filteredItems := make([]itemWithParent, 0, len(allItems))
+			newTypeCounts := make(map[string]int64)
 			for _, item := range allItems {
 				if _, ok := allParentCounts[item.parentDir]; ok {
 					filteredItems = append(filteredItems, item)
+					newTypeCounts[item.mediaType]++
 				}
 			}
 			allItems = filteredItems
+			allTypeCounts = newTypeCounts
 		}
 	}
 
@@ -146,6 +170,7 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 		sizes:        allSizes,
 		durations:    allDurations,
 		parentCounts: allParentCounts,
+		typeCounts:   allTypeCounts,
 	}
 }
 
@@ -289,6 +314,24 @@ func buildEpisodeBins(parentCounts map[string]int64) (minVal, maxVal int64, bins
 	return minVal, maxVal, bins, percentiles
 }
 
+// buildTypeBins creates type filter bins from type counts
+func buildTypeBins(typeCounts map[string]int64) []models.FilterBin {
+	var bins []models.FilterBin
+	var keys []string
+	for k := range typeCounts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		bins = append(bins, models.FilterBin{
+			Label: k,
+			Value: typeCounts[k],
+		})
+	}
+	return bins
+}
+
 // handleFilterBins handles the /api/filter-bins endpoint
 func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	flags := c.parseFlags(r)
@@ -324,6 +367,10 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	durData := c.computeFilterBinsData(r.Context(), flags, "duration", dbs)
 	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
+	// Get type data
+	typeData := c.computeFilterBinsData(r.Context(), flags, "type", dbs)
+	resp.Type = buildTypeBins(typeData.typeCounts)
+
 	// Log query info for debugging
 	slog.Info("FilterBins computed",
 		"episodesOnly", episodesOnly,
@@ -354,6 +401,9 @@ func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.Globa
 
 	durData := c.computeFilterBinsData(ctx, flags, "duration", dbs)
 	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
+
+	typeData := c.computeFilterBinsData(ctx, flags, "type", dbs)
+	resp.Type = buildTypeBins(typeData.typeCounts)
 
 	return resp
 }

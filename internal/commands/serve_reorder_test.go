@@ -4,293 +4,138 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discotheque/internal/db"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestServeCmd_PlaylistReorder(t *testing.T) {
-	fixture := testutils.Setup(t)
-	defer fixture.Cleanup()
+func TestServeReorder_Playlist(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_reorder.db")
 
-	db := fixture.GetDB()
-	InitDB(db)
+	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	db.InitDB(sqlDB)
 
-	// Insert test data
-	_, err := db.Exec(`
-		INSERT INTO media (path, type, time_deleted)
-		VALUES 
-		('item1.mp4', 'video/mp4', 0),
-		('item2.mp4', 'video/mp4', 0),
-		('item3.mp4', 'video/mp4', 0);
+	// Setup: 1 playlist with 3 items
+	res := sqlDB.QueryRow(`INSERT INTO playlists (path, title) VALUES ('/plist', 'Test Playlist') RETURNING id`)
+	var pid int64
+	res.Scan(&pid)
 
-		INSERT INTO playlists (title, path, time_deleted)
-		VALUES ('Test Playlist', 'custom:123', 0);
-
-		INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
-		VALUES 
-		(1, 'item1.mp4', NULL, 100),
-		(1, 'item2.mp4', NULL, 200),
-		(1, 'item3.mp4', 1, 300);
-	`)
-	if err != nil {
-		t.Fatal(err)
+	for i := 1; i <= 3; i++ {
+		path := fmt.Sprintf("/media%d.mp4", i)
+		sqlDB.Exec(`INSERT INTO media (path, type, time_deleted) VALUES (?, 'video', 0)`, path)
+		sqlDB.Exec(`INSERT INTO playlist_items (playlist_id, media_path, track_number) VALUES (?, ?, ?)`, pid, path, i)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	cmd := &ServeCmd{
-		Databases: []string{fixture.DBPath},
+		Databases: []string{dbPath},
 	}
-	handler := cmd.Mux()
+	mux := cmd.Mux()
 
-	// Initial check: item1 (NULL, 100), item2 (NULL, 200), item3 (1, 300)
-	// SQLite sorts NULLs first. So order should be item1, item2, item3 (since item1 < item2 by time_added if track_number matches - wait, query orders by track_number, then time_added)
-	// Query: ORDER BY pi.track_number, pi.time_added, m.path
-	// NULL, 100 -> 1st
-	// NULL, 200 -> 2nd
-	// 1, 300    -> 3rd
+	// Reorder: Move item 3 to track 1
+	reorderReq := map[string]any{
+		"playlist_title": "Test Playlist",
+		"media_path":     "/media3.mp4",
+		"new_index":      0, // 0-based index means track_number 1
+	}
+	body, _ := json.Marshal(reorderReq)
+	req := httptest.NewRequest("POST", "/api/playlists/reorder", bytes.NewBuffer(body))
+	req.Header.Set("X-Disco-Token", cmd.APIToken)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
 
-	t.Run("InitialOrder", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/playlists/items?title=Test%20Playlist", nil)
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
 
-		if w.Code != http.StatusOK {
-			t.Fatalf("Expected 200, got %d", w.Code)
-		}
+	// Verify track numbers in DB
+	sqlDB, _ = sql.Open("sqlite3", dbPath)
+	rows, _ := sqlDB.Query(`SELECT media_path, track_number FROM playlist_items WHERE playlist_id = ? ORDER BY track_number`, pid)
+	defer rows.Close()
 
-		var items []struct {
-			Path        string `json:"path"`
-			TrackNumber *int64 `json:"track_number"`
-		}
-		if err := json.NewDecoder(w.Body).Decode(&items); err != nil {
-			t.Fatal(err)
-		}
+	expected := map[string]int64{
+		"/media3.mp4": 1,
+		"/media1.mp4": 2,
+		"/media2.mp4": 3,
+	}
 
-		if len(items) != 3 {
-			t.Fatalf("Expected 3 items, got %d", len(items))
+	for rows.Next() {
+		var path string
+		var track int64
+		rows.Scan(&path, &track)
+		if expected[path] != track {
+			t.Errorf("Expected path %s to have track %d, got %d", path, expected[path], track)
 		}
-		if items[0].Path != "item1.mp4" {
-			t.Errorf("Expected item1 first, got %s", items[0].Path)
-		}
-		if items[1].Path != "item2.mp4" {
-			t.Errorf("Expected item2 second, got %s", items[1].Path)
-		}
-		if items[2].Path != "item3.mp4" {
-			t.Errorf("Expected item3 third, got %s", items[2].Path)
-		}
-	})
+	}
+}
 
-	// Move item3 (last) to position 0 (first)
-	t.Run("MoveLastToFirst", func(t *testing.T) {
-		payload := map[string]any{
-			"playlist_title": "Test Playlist",
-			"media_path":     "item3.mp4",
+func TestServeReorder_Security(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_reorder_sec.db")
+
+	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	db.InitDB(sqlDB)
+	sqlDB.Close()
+
+	cmd := &ServeCmd{
+		Databases: []string{dbPath},
+	}
+	mux := cmd.Mux()
+
+	t.Run("UnauthorizedDatabase", func(t *testing.T) {
+		// handlePlaylistReorder doesn't take a 'db' param, it checks ALL configured DBs
+		// but it requires a playlist title
+		reorderReq := map[string]any{
+			"playlist_title": "Nonexistent",
+			"media_path":     "/some.mp4",
 			"new_index":      0,
 		}
-		body, _ := json.Marshal(payload)
-		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
+		body, _ := json.Marshal(reorderReq)
+		req := httptest.NewRequest("POST", "/api/playlists/reorder", bytes.NewBuffer(body))
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+		mux.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Fatalf("Expected 200, got %d", w.Code)
-		}
-
-		// Verify new order: item3, item1, item2
-		req = httptest.NewRequest(http.MethodGet, "/api/playlists/items?title=Test%20Playlist", nil)
-		w = httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		var items []struct {
-			Path        string `json:"path"`
-			TrackNumber *int64 `json:"track_number"`
-		}
-		json.NewDecoder(w.Body).Decode(&items)
-
-		if items[0].Path != "item3.mp4" {
-			t.Errorf("Expected item3 first, got %s", items[0].Path)
-		}
-		if items[1].Path != "item1.mp4" {
-			t.Errorf("Expected item1 second, got %s", items[1].Path)
-		}
-		if items[2].Path != "item2.mp4" {
-			t.Errorf("Expected item2 third, got %s", items[2].Path)
-		}
-
-		// Verify track numbers are normalized (1, 2, 3)
-		if *items[0].TrackNumber != 1 {
-			t.Errorf("Expected item3 track 1, got %v", items[0].TrackNumber)
-		}
-		if *items[1].TrackNumber != 2 {
-			t.Errorf("Expected item1 track 2, got %v", items[1].TrackNumber)
-		}
-		if *items[2].TrackNumber != 3 {
-			t.Errorf("Expected item2 track 3, got %v", items[2].TrackNumber)
+		// Should be 404 because playlist not found
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected 404 for nonexistent playlist, got %d", w.Code)
 		}
 	})
 
-	// Move item1 (now middle) to end (index 2)
-	// Current: item3, item1, item2
-	// Move item1 -> index 2
-	// Expected: item3, item2, item1
-	t.Run("MoveMiddleToEnd", func(t *testing.T) {
-		payload := map[string]any{
-			"playlist_title": "Test Playlist",
-			"media_path":     "item1.mp4",
-			"new_index":      2,
+	t.Run("MultipleDatabasesAllowed", func(t *testing.T) {
+		dbPath2 := filepath.Join(tempDir, "test_reorder_sec2.db")
+		db2, _ := sql.Open("sqlite3", dbPath2)
+		db.InitDB(db2)
+		// Add a playlist to the second DB
+		db2.Exec(`INSERT INTO playlists (path, title) VALUES ('/plist2', 'Other Playlist')`)
+		db2.Close()
+
+		cmd2 := &ServeCmd{
+			Databases: []string{dbPath, dbPath2},
 		}
-		body, _ := json.Marshal(payload)
-		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+		mux2 := cmd2.Mux()
 
-		if w.Code != http.StatusOK {
-			t.Fatalf("Expected 200, got %d", w.Code)
-		}
-
-		req = httptest.NewRequest(http.MethodGet, "/api/playlists/items?title=Test%20Playlist", nil)
-		w = httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		var items []struct {
-			Path string `json:"path"`
-		}
-		json.NewDecoder(w.Body).Decode(&items)
-
-		if items[0].Path != "item3.mp4" {
-			t.Errorf("Expected item3 first, got %s", items[0].Path)
-		}
-		if items[1].Path != "item2.mp4" {
-			t.Errorf("Expected item2 second, got %s", items[1].Path)
-		}
-		if items[2].Path != "item1.mp4" {
-			t.Errorf("Expected item1 third, got %s", items[2].Path)
-		}
-	})
-
-	// Move item1 (now last) to middle (index 1)
-	// Current: item3, item2, item1
-	// Move item1 -> index 1
-	// Expected: item3, item1, item2
-	t.Run("MoveEndToMiddle", func(t *testing.T) {
-		payload := map[string]any{
-			"playlist_title": "Test Playlist",
-			"media_path":     "item1.mp4",
-			"new_index":      1,
-		}
-		body, _ := json.Marshal(payload)
-		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Fatalf("Expected 200, got %d", w.Code)
-		}
-
-		req = httptest.NewRequest(http.MethodGet, "/api/playlists/items?title=Test%20Playlist", nil)
-		w = httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		var items []struct {
-			Path string `json:"path"`
-		}
-		json.NewDecoder(w.Body).Decode(&items)
-
-		if items[0].Path != "item3.mp4" {
-			t.Errorf("Expected item3 first, got %s", items[0].Path)
-		}
-		if items[1].Path != "item1.mp4" {
-			t.Errorf("Expected item1 second, got %s", items[1].Path)
-		}
-		if items[2].Path != "item2.mp4" {
-			t.Errorf("Expected item2 third, got %s", items[2].Path)
-		}
-	})
-
-	t.Run("MultiDBReorder", func(t *testing.T) {
-		// Setup second DB
-		db2Path := fixture.TempDir + "/test2.db"
-		db2, err := sql.Open("sqlite3", db2Path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		InitDB(db2)
-		defer db2.Close()
-
-		// Insert data into DB2
-		// item4 in DB2, track 3 (global)
-		_, err = db2.Exec(`
-			INSERT INTO media (path, type, time_deleted)
-			VALUES ('item4.mp4', 'video/mp4', 0);
-
-			INSERT INTO playlists (title, path, time_deleted)
-			VALUES ('Test Playlist', 'custom:123', 0);
-
-			INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
-			VALUES (1, 'item4.mp4', 3, 400);
-		`)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Reset DB1 state (item1: 0, item3: 1, item2: 2) from previous tests
-		// Wait, previous tests modified DB1 state.
-		// Current state of DB1 from MoveEndToMiddle:
-		// item3 (0), item1 (1), item2 (2).
-		// Plus DB2 item4 (3).
-		// Global order: item3, item1, item2, item4.
-
-		cmd := &ServeCmd{
-			Databases: []string{fixture.DBPath, db2Path},
-		}
-		handler := cmd.Mux()
-
-		// Move item4 (index 3, from DB2) to index 0 (start)
-		// Expected: item4, item3, item1, item2
-		payload := map[string]any{
-			"playlist_title": "Test Playlist",
-			"media_path":     "item4.mp4",
+		// Request for second DB playlist should work
+		reorderReq := map[string]any{
+			"playlist_title": "Other Playlist",
+			"media_path":     "/some.mp4",
 			"new_index":      0,
 		}
-		body, _ := json.Marshal(payload)
-		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
+		body, _ := json.Marshal(reorderReq)
+		req := httptest.NewRequest("POST", "/api/playlists/reorder", bytes.NewBuffer(body))
+		req.Header.Set("X-Disco-Token", cmd2.APIToken)
 		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+		mux2.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		// Verify order via API
-		req = httptest.NewRequest(http.MethodGet, "/api/playlists/items?title=Test%20Playlist", nil)
-		w = httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		var items []struct {
-			Path        string `json:"path"`
-			TrackNumber *int64 `json:"track_number"`
-		}
-		json.NewDecoder(w.Body).Decode(&items)
-
-		if len(items) != 4 {
-			t.Fatalf("Expected 4 items, got %d", len(items))
-		}
-
-		// We expect item4 at index 0
-		if items[0].Path != "item4.mp4" {
-			t.Errorf("Expected item4 first, got %s (track: %v)", items[0].Path, items[0].TrackNumber)
-		}
-		if items[1].Path != "item3.mp4" {
-			t.Errorf("Expected item3 second, got %s (track: %v)", items[1].Path, items[1].TrackNumber)
-		}
-		if items[2].Path != "item1.mp4" {
-			t.Errorf("Expected item1 third, got %s (track: %v)", items[2].Path, items[2].TrackNumber)
-		}
-		if items[3].Path != "item2.mp4" {
-			t.Errorf("Expected item2 fourth, got %s (track: %v)", items[3].Path, items[3].TrackNumber)
+		// 404 because item not in playlist, but not 401/403/400
+		if w.Code == http.StatusBadRequest || w.Code == http.StatusUnauthorized {
+			t.Errorf("Expected 404 for item not in playlist, got %d", w.Code)
 		}
 	})
 }

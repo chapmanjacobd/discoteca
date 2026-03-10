@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
 
@@ -13,7 +14,7 @@ func TestSimilarityCmds(t *testing.T) {
 
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	InitDB(sqlDB)
+	db.InitDB(sqlDB)
 
 	// Create files that are similar in size/duration
 	f1 := fixture.CreateDummyFile("video1.mp4")

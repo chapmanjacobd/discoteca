@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
@@ -369,7 +370,7 @@ func TestOptimizeCmd_Run(t *testing.T) {
 	addCmd.AfterApply() // Will fail if no paths, but we just want to init DB
 	// Manually init DB
 	dbConn := fixture.GetDB()
-	InitDB(dbConn)
+	db.InitDB(dbConn)
 	dbConn.Close()
 
 	cmd := &OptimizeCmd{
@@ -684,7 +685,7 @@ func TestExecutePostAction(t *testing.T) {
 	}
 	// Manually init DB
 	dbConn := fixture.GetDB()
-	InitDB(dbConn)
+	db.InitDB(dbConn)
 	dbConn.Exec("INSERT INTO media (path) VALUES (?)", f1)
 	dbConn.Close()
 

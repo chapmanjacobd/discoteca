@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
 
@@ -28,7 +29,7 @@ func TestServeCmd_HandleLs(t *testing.T) {
 	}
 
 	dbConn := fixture.GetDB()
-	if err := InitDB(dbConn); err != nil {
+	if err := db.InitDB(dbConn); err != nil {
 		t.Fatalf("Failed to initialize DB: %v", err)
 	}
 	for _, p := range paths {

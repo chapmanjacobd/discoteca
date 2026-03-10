@@ -1,15 +1,13 @@
 //go:build fts5
 
-package commands
+package db
 
 import (
 	"database/sql"
-
-	"github.com/chapmanjacobd/discotheque/internal/db"
 )
 
 func InitDB(sqlDB *sql.DB) error {
-	schema := db.GetSchema()
+	schema := GetSchema()
 
 	tx, err := sqlDB.Begin()
 	if err != nil {
@@ -17,7 +15,7 @@ func InitDB(sqlDB *sql.DB) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(string(schema)); err != nil {
+	if _, err := tx.Exec(schema); err != nil {
 		return err
 	}
 
@@ -25,5 +23,5 @@ func InitDB(sqlDB *sql.DB) error {
 		return err
 	}
 
-	return runMigrations(sqlDB)
+	return Migrate(sqlDB)
 }

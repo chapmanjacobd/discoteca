@@ -8,6 +8,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discotheque/internal/commands"
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 	_ "github.com/mattn/go-sqlite3"
@@ -16,11 +17,11 @@ import (
 func TestE2E_AddAndCheck(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
-	db := fixture.GetDB()
-	if err := commands.InitDB(db); err != nil {
+	sqlDB := fixture.GetDB()
+	if err := db.InitDB(sqlDB); err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	// 1. Add a dummy file
 	dummyPath := fixture.CreateDummyFile("video.mp4")
@@ -37,16 +38,16 @@ func TestE2E_AddAndCheck(t *testing.T) {
 	}
 
 	// 2. Verify file is in DB
-	db = fixture.GetDB()
+	sqlDB = fixture.GetDB()
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM media WHERE path = ? AND time_deleted = 0", dummyPath).Scan(&count)
+	err := sqlDB.QueryRow("SELECT COUNT(*) FROM media WHERE path = ? AND time_deleted = 0", dummyPath).Scan(&count)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Errorf("Expected 1 media record, got %d", count)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	// 3. Delete the physical file
 	if err := os.Remove(dummyPath); err != nil {
@@ -64,26 +65,26 @@ func TestE2E_AddAndCheck(t *testing.T) {
 	}
 
 	// 5. Verify marked as deleted
-	db = fixture.GetDB()
+	sqlDB = fixture.GetDB()
 	var timeDeleted int64
-	err = db.QueryRow("SELECT time_deleted FROM media WHERE path = ?", dummyPath).Scan(&timeDeleted)
+	err = sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", dummyPath).Scan(&timeDeleted)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if timeDeleted == 0 {
 		t.Error("Expected file to be marked as deleted in database")
 	}
-	db.Close()
+	sqlDB.Close()
 }
 
 func TestE2E_HistoryAdd(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
-	db := fixture.GetDB()
-	if err := commands.InitDB(db); err != nil {
+	sqlDB := fixture.GetDB()
+	if err := db.InitDB(sqlDB); err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	dummyPath := fixture.CreateDummyFile("played.mp4")
 
@@ -100,32 +101,33 @@ func TestE2E_HistoryAdd(t *testing.T) {
 	histCmd := &commands.HistoryAddCmd{
 		Database: fixture.DBPath,
 		Paths:    []string{dummyPath},
+		Done:     true,
 	}
 	if err := histCmd.Run(nil); err != nil {
 		t.Fatalf("HistoryAddCmd failed: %v", err)
 	}
 
 	// 3. Verify history record
-	db = fixture.GetDB()
+	sqlDB = fixture.GetDB()
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM history WHERE media_path = ? AND done = 1", dummyPath).Scan(&count)
+	err := sqlDB.QueryRow("SELECT COUNT(*) FROM history WHERE media_path = ? AND done = 1", dummyPath).Scan(&count)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Errorf("Expected 1 history record, got %d", count)
 	}
-	db.Close()
+	sqlDB.Close()
 }
 
 func TestE2E_PathConsolidation(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
-	db := fixture.GetDB()
-	if err := commands.InitDB(db); err != nil {
+	sqlDB := fixture.GetDB()
+	if err := db.InitDB(sqlDB); err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	parentDir := filepath.Join(fixture.TempDir, "parent")
 	subDir := filepath.Join(parentDir, "sub")
@@ -141,13 +143,13 @@ func TestE2E_PathConsolidation(t *testing.T) {
 	}
 	addCmd.Run(nil)
 
-	db = fixture.GetDB()
+	sqlDB = fixture.GetDB()
 	var count int
-	db.QueryRow("SELECT COUNT(*) FROM playlists").Scan(&count)
+	sqlDB.QueryRow("SELECT COUNT(*) FROM playlists").Scan(&count)
 	if count != 1 {
 		t.Errorf("Expected 1 playlist, got %d", count)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	// 2. Try adding subpath - should be skipped
 	addCmdSub := &commands.AddCmd{
@@ -157,12 +159,12 @@ func TestE2E_PathConsolidation(t *testing.T) {
 	}
 	addCmdSub.Run(nil)
 
-	db = fixture.GetDB()
-	db.QueryRow("SELECT COUNT(*) FROM playlists").Scan(&count)
+	sqlDB = fixture.GetDB()
+	sqlDB.QueryRow("SELECT COUNT(*) FROM playlists").Scan(&count)
 	if count != 1 {
 		t.Errorf("Expected still 1 playlist, got %d", count)
 	}
-	db.Close()
+	sqlDB.Close()
 }
 
 func TestE2E_Stats(t *testing.T) {
@@ -208,14 +210,14 @@ func TestE2E_AddWithVTTCaptions(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	db, err := sql.Open("sqlite3", fixture.DBPath)
+	sqlDB, err := sql.Open("sqlite3", fixture.DBPath)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	if err := commands.InitDB(db); err != nil {
+	if err := db.InitDB(sqlDB); err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	// 1. Create a dummy video file and a sidecar VTT
 	videoPath := filepath.Join(fixture.TempDir, "movie.mp4")
@@ -256,14 +258,14 @@ Another caption here.
 	}
 
 	// 3. Verify captions are in DB
-	db, err = sql.Open("sqlite3", fixture.DBPath)
+	sqlDB, err = sql.Open("sqlite3", fixture.DBPath)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM media WHERE path = ?", videoPath).Scan(&count)
+	err = sqlDB.QueryRow("SELECT COUNT(*) FROM media WHERE path = ?", videoPath).Scan(&count)
 	if err != nil {
 		t.Fatalf("failed to query media: %v", err)
 	}
@@ -271,7 +273,7 @@ Another caption here.
 		t.Fatalf("Expected media to be imported into the database, but found 0")
 	}
 
-	err = db.QueryRow("SELECT COUNT(*) FROM captions WHERE media_path = ?", videoPath).Scan(&count)
+	err = sqlDB.QueryRow("SELECT COUNT(*) FROM captions WHERE media_path = ?", videoPath).Scan(&count)
 	if err != nil {
 		t.Fatalf("failed to query captions: %v", err)
 	}

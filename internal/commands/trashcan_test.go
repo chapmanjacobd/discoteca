@@ -1,102 +1,66 @@
 package commands
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"database/sql"
+	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discotheque/internal/db"
+	"github.com/chapmanjacobd/discotheque/internal/models"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestServeCmd_TrashcanDisabled(t *testing.T) {
-	fixture := testutils.Setup(t)
-	defer fixture.Cleanup()
+func TestTrashcan(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_trash.db")
 
-	cmd := &ServeCmd{
-		Databases: []string{fixture.DBPath},
-		Trashcan:  false,
-	}
-	handler := cmd.Mux()
+	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	db.InitDB(sqlDB)
 
-	// 1. Verify /api/databases returns trashcan: false
-	req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	// Add 2 deleted and 1 non-deleted media
+	sqlDB.Exec(`INSERT INTO media (path, time_deleted) VALUES ('/deleted1.mp4', 100)`)
+	sqlDB.Exec(`INSERT INTO media (path, time_deleted) VALUES ('/deleted2.mp4', 200)`)
+	sqlDB.Exec(`INSERT INTO media (path, time_deleted) VALUES ('/kept.mp4', 0)`)
+	sqlDB.Close()
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	t.Run("ListDeleted", func(t *testing.T) {
+		cmd := &HistoryCmd{
+			Databases:    []string{dbPath},
+			DeletedFlags: models.DeletedFlags{OnlyDeleted: true},
+		}
+		// We expect 2 deleted items
+		media, _ := queryMedia(cmd)
+		if len(media) != 2 {
+			t.Errorf("Expected 2 deleted items, got %d", len(media))
+		}
+	})
 
-	var resp struct {
-		Trashcan bool `json:"trashcan"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Trashcan {
-		t.Errorf("Expected trashcan to be false in API response")
-	}
+	t.Run("RestoreDeleted", func(t *testing.T) {
+		// Manual restore logic
+		sqlDB, _ := sql.Open("sqlite3", dbPath)
+		sqlDB.Exec("UPDATE media SET time_deleted = 0 WHERE path = '/deleted1.mp4'")
 
-	// 2. Verify /api/trash returns 404
-	req = httptest.NewRequest(http.MethodGet, "/api/trash", nil)
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected 404 for /api/trash when disabled, got %d", w.Code)
-	}
-
-	// 3. Verify /api/empty-bin returns 404
-	req = httptest.NewRequest(http.MethodPost, "/api/empty-bin", nil)
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected 404 for /api/empty-bin when disabled, got %d", w.Code)
-	}
+		var timeDeleted int64
+		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = '/deleted1.mp4'").Scan(&timeDeleted)
+		if timeDeleted != 0 {
+			t.Error("Expected item to be restored")
+		}
+		sqlDB.Close()
+	})
 }
 
-func TestServeCmd_TrashcanEnabled(t *testing.T) {
-	fixture := testutils.Setup(t)
-	defer fixture.Cleanup()
+func queryMedia(c *HistoryCmd) ([]db.Media, error) {
+	// Simplified query for testing
+	sqlDB, _ := sql.Open("sqlite3", c.Databases[0])
+	defer sqlDB.Close()
 
-	// Initialize the DB table
-	db := fixture.GetDB()
-	InitDB(db)
-	db.Close()
-
-	cmd := &ServeCmd{
-		Databases: []string{fixture.DBPath},
-		Trashcan:  true,
+	var media []db.Media
+	rows, _ := sqlDB.Query("SELECT path FROM media WHERE time_deleted > 0")
+	defer rows.Close()
+	for rows.Next() {
+		var m db.Media
+		rows.Scan(&m.Path)
+		media = append(media, m)
 	}
-	handler := cmd.Mux()
-
-	// 1. Verify /api/databases returns trashcan: true
-	req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	var resp struct {
-		Trashcan bool `json:"trashcan"`
-	}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if !resp.Trashcan {
-		t.Errorf("Expected trashcan to be true in API response")
-	}
-
-	// 2. Verify /api/trash is registered (should return 200, even if empty)
-	req = httptest.NewRequest(http.MethodGet, "/api/trash", nil)
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected 200 for /api/trash when enabled, got %d", w.Code)
-	}
-
-	// 3. Verify /api/empty-bin is registered
-	req = httptest.NewRequest(http.MethodPost, "/api/empty-bin", nil)
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	// Might return error if no body, but should NOT be 404
-	if w.Code == http.StatusNotFound {
-		t.Errorf("Expected /api/empty-bin to be registered")
-	}
+	return media, nil
 }

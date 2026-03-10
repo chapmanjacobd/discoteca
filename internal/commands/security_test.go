@@ -23,7 +23,7 @@ func TestSecurity_Blacklist(t *testing.T) {
 	}{
 		{"/etc/passwd", http.StatusForbidden},
 		{"/home/user/.ssh/id_rsa", http.StatusForbidden},
-		{"/media/video.mp4", http.StatusForbidden}, // Returns 403 when not in DB
+		{"/media/video.mp4", http.StatusNotFound}, // Returns 404 when not in DB
 	}
 
 	for _, tc := range testCases {

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
 
@@ -13,7 +14,7 @@ func TestCategorizeCmd_Run(t *testing.T) {
 
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	InitDB(sqlDB)
+	db.InitDB(sqlDB)
 
 	// Create files that should match some categories
 	f1 := fixture.CreateDummyFile("football_match.mp4")

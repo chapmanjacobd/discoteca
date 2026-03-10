@@ -1,22 +1,20 @@
 //go:build !fts5
 
-package commands
+package db
 
 import (
 	"database/sql"
 	"strings"
-
-	"github.com/chapmanjacobd/discotheque/internal/db"
 )
 
 func InitDB(sqlDB *sql.DB) error {
-	schema := db.GetSchema()
+	schema := GetSchema()
 
 	// Filter out FTS5 specific commands
 	var filteredSchema strings.Builder
-	lines := strings.SplitSeq(schema, ";")
+	lines := strings.Split(schema, ";")
 	skipNextEnd := false
-	for line := range lines {
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
@@ -42,7 +40,7 @@ func InitDB(sqlDB *sql.DB) error {
 	}
 	defer tx.Rollback()
 
-	if _, err = tx.Exec(filteredSchema.String()); err != nil {
+	if _, err := tx.Exec(filteredSchema.String()); err != nil {
 		return err
 	}
 
@@ -50,5 +48,5 @@ func InitDB(sqlDB *sql.DB) error {
 		return err
 	}
 
-	return runMigrations(sqlDB)
+	return Migrate(sqlDB)
 }

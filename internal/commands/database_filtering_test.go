@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
 
@@ -16,9 +17,9 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	defer fixture.Cleanup()
 
 	// Initialize the DB
-	db := fixture.GetDB()
-	InitDB(db)
-	db.Close()
+	sqlDB := fixture.GetDB()
+	db.InitDB(sqlDB)
+	sqlDB.Close()
 
 	// Create ServeCmd with only the fixture database
 	cmd := &ServeCmd{
@@ -101,16 +102,16 @@ func TestDatabaseFiltering_FilterBins(t *testing.T) {
 	defer fixture.Cleanup()
 
 	// Initialize the DB with some test data
-	db := fixture.GetDB()
-	InitDB(db)
-	_, err := db.Exec(`
+	sqlDB := fixture.GetDB()
+	db.InitDB(sqlDB)
+	_, err := sqlDB.Exec(`
 		INSERT INTO media (path, size, duration, type, time_deleted)
 		VALUES ('/test/video.mp4', 1000000, 120, 'video', 0)
 	`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	sqlDB.Close()
 
 	cmd := &ServeCmd{
 		Databases: []string{fixture.DBPath},
@@ -151,11 +152,11 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 
 	// Initialize both databases with schema
 	db1 := fixture1.GetDB()
-	InitDB(db1)
+	db.InitDB(db1)
 	db1.Close()
 
 	db2 := fixture2.GetDB()
-	InitDB(db2)
+	db.InitDB(db2)
 	db2.Close()
 
 	cmd := &ServeCmd{
@@ -194,7 +195,7 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 
 		// Initialize the other database too
 		otherDb := otherFixture.GetDB()
-		InitDB(otherDb)
+		db.InitDB(otherDb)
 		otherDb.Close()
 
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+otherFixture.DBPath, nil)

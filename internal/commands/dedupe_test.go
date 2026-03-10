@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
@@ -14,7 +15,7 @@ func TestDedupeCmd_Run(t *testing.T) {
 
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	InitDB(sqlDB)
+	db.InitDB(sqlDB)
 
 	f1 := fixture.CreateDummyFile("video1.mp4")
 	f2 := fixture.CreateDummyFile("video2.mp4")

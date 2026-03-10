@@ -9,19 +9,16 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Keyboard Shortcuts Edge Cases', () => {
+  test.use({ readOnly: true });
   test.describe('Document Viewer Fullscreen Edge Cases', () => {
     test('f -> s -> f: exit fullscreen via f even after closing modal', async ({ page, server }) => {
       await page.goto(server.getBaseUrl());
       await page.waitForSelector('.media-card', { timeout: 10000 });
 
-      // Search for test PDF
-      await page.fill('#search-input', 'test-document.pdf');
-      await page.press('#search-input', 'Enter');
-      await page.waitForTimeout(500);
-
-      const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
-      await expect(pdfCard.first()).toBeVisible();
-      await pdfCard.first().click();
+      // Open first text document (PDF/EPUB)
+      const docCard = page.locator('.media-card[data-type*="text"]').first();
+      await expect(docCard).toBeVisible();
+      await docCard.first().click();
       await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
       // Press 'f' to enter fullscreen
@@ -53,13 +50,9 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
       await page.goto(server.getBaseUrl());
       await page.waitForSelector('.media-card', { timeout: 10000 });
 
-      // Search for test PDF
-      await page.fill('#search-input', 'test-document.pdf');
-      await page.press('#search-input', 'Enter');
-      await page.waitForTimeout(500);
-
-      const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
-      await pdfCard.first().click();
+      // Open first text document (PDF/EPUB)
+      const docCard = page.locator('.media-card[data-type*="text"]').first();
+      await docCard.first().click();
       await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
       // Press 'f' to enter fullscreen
@@ -85,13 +78,9 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
       await page.goto(server.getBaseUrl());
       await page.waitForSelector('.media-card', { timeout: 10000 });
 
-      // Search for test PDF
-      await page.fill('#search-input', 'test-document.pdf');
-      await page.press('#search-input', 'Enter');
-      await page.waitForTimeout(500);
-
-      const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
-      await pdfCard.first().click();
+      // Open first text document (PDF/EPUB)
+      const docCard = page.locator('.media-card[data-type*="text"]').first();
+      await docCard.first().click();
       await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
       // Press 'w' to close the modal
@@ -207,12 +196,8 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
       await page.waitForSelector('.media-card', { timeout: 10000 });
 
       // Open document viewer
-      await page.fill('#search-input', 'test-document.pdf');
-      await page.press('#search-input', 'Enter');
-      await page.waitForTimeout(500);
-
-      const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
-      await pdfCard.first().click();
+      const docCard = page.locator('.media-card[data-type*="text"]').first();
+      await docCard.first().click();
       await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
       // Enter fullscreen
@@ -244,12 +229,8 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
       await page.waitForSelector('.media-card', { timeout: 10000 });
 
       // Open document viewer
-      await page.fill('#search-input', 'test-document.pdf');
-      await page.press('#search-input', 'Enter');
-      await page.waitForTimeout(500);
-
-      const pdfCard = page.locator('.media-card:has-text("test-document.pdf")');
-      await pdfCard.first().click();
+      const docCard = page.locator('.media-card[data-type*="text"]').first();
+      await docCard.first().click();
       await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
       // Rapidly press 'f' multiple times

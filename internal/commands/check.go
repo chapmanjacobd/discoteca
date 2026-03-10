@@ -90,7 +90,7 @@ func (c *CheckCmd) Run(ctx *kong.Context) error {
 		}
 		defer sqlDB.Close()
 
-		if err := InitDB(sqlDB); err != nil {
+		if err := db.InitDB(sqlDB); err != nil {
 			return fmt.Errorf("failed to initialize database %s: %w", dbPath, err)
 		}
 

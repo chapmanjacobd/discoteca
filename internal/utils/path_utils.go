@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/chapmanjacobd/discotheque/internal/models"
@@ -260,13 +261,7 @@ func CleanPath(path string, opts CleanPathOptions) string {
 // FilterPath checks if a path matches PathFilterFlags
 func FilterPath(path string, flags models.PathFilterFlags) bool {
 	if len(flags.Paths) > 0 {
-		matched := false
-		for _, p := range flags.Paths {
-			if path == p {
-				matched = true
-				break
-			}
-		}
+		matched := slices.Contains(flags.Paths, path)
 		if !matched {
 			return false
 		}

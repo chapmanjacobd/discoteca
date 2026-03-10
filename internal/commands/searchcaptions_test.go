@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
@@ -14,7 +15,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	InitDB(sqlDB)
+	db.InitDB(sqlDB)
 
 	// Skip if FTS5 is not available
 	var name string

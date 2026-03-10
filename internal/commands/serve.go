@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	database "github.com/chapmanjacobd/discotheque/internal/db"
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/utils"
 	"github.com/chapmanjacobd/discotheque/web"
@@ -120,7 +121,17 @@ func (c *ServeCmd) isPathBlacklisted(path string) bool {
 
 // Mux creates the HTTP request multiplexer with all routes
 func (c *ServeCmd) Mux() http.Handler {
+	if c.APIToken == "" {
+		c.APIToken = "test-token"
+	}
 	mux := http.NewServeMux()
+
+	// Health and Static
+	mux.HandleFunc("/health", c.handleHealth)
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.WriteHeader(http.StatusOK)
+	})
 
 	// API routes
 	mux.HandleFunc("/api/databases", c.authMiddleware(c.handleDatabases))
@@ -128,6 +139,7 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/genres", c.authMiddleware(c.handleGenres))
 	mux.HandleFunc("/api/ratings", c.authMiddleware(c.handleRatings))
 	mux.HandleFunc("/api/query", c.authMiddleware(c.handleQuery))
+	mux.HandleFunc("/api/metadata", c.authMiddleware(c.handleMetadata))
 	mux.HandleFunc("/api/play", c.authMiddleware(c.handlePlay))
 	mux.HandleFunc("/api/delete", c.authMiddleware(c.handleDelete))
 	mux.HandleFunc("/api/progress", c.authMiddleware(c.handleProgress))
@@ -229,12 +241,12 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 			sqlDB = val.(*sql.DB)
 		} else {
 			var err error
-			sqlDB, err = database.Connect(dbPath)
+			sqlDB, err = db.Connect(dbPath)
 			if err != nil {
 				// Connect error might be corruption too (e.g. invalid header)
-				if database.IsCorruptionError(err) && i < maxRetries {
+				if db.IsCorruptionError(err) && i < maxRetries {
 					slog.Warn("Database corruption detected on connect, attempting repair", "db", dbPath)
-					if repErr := database.Repair(dbPath); repErr != nil {
+					if repErr := db.Repair(dbPath); repErr != nil {
 						return fmt.Errorf("repair failed: %w (original error: %v)", repErr, err)
 					}
 					slog.Info("Database repaired, retrying connect", "db", dbPath)
@@ -247,12 +259,12 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 
 		err := fn(sqlDB)
 		if err != nil {
-			if database.IsCorruptionError(err) && i < maxRetries {
+			if db.IsCorruptionError(err) && i < maxRetries {
 				c.dbCache.Delete(dbPath)
 				sqlDB.Close()
 
 				slog.Warn("Database corruption detected on query, attempting repair", "db", dbPath)
-				if repErr := database.Repair(dbPath); repErr != nil {
+				if repErr := db.Repair(dbPath); repErr != nil {
 					slog.Error("Database repair failed", "db", dbPath, "error", repErr)
 					return err // Return original error if repair fails
 				}
@@ -273,15 +285,20 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 func (c *ServeCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
 	c.ApplicationStartTime = time.Now().UnixNano()
-	c.APIToken = utils.RandomString(32)
+
+	if envToken := os.Getenv("DISCO_API_TOKEN"); envToken != "" {
+		c.APIToken = envToken
+	} else {
+		c.APIToken = utils.RandomString(32)
+	}
 
 	for _, dbPath := range c.Databases {
-		sqlDB, err := database.Connect(dbPath)
+		sqlDB, err := db.Connect(dbPath)
 		if err != nil {
 			slog.Error("Failed to connect to database on startup", "db", dbPath, "error", err)
 			continue
 		}
-		if err := InitDB(sqlDB); err != nil {
+		if err := db.InitDB(sqlDB); err != nil {
 			slog.Error("Failed to initialize database", "db", dbPath, "error", err)
 		}
 		c.dbCache.Store(dbPath, sqlDB)

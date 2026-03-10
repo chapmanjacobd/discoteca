@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discotheque/internal/db"
 	"github.com/chapmanjacobd/discotheque/internal/models"
 	"github.com/chapmanjacobd/discotheque/internal/testutils"
 )
@@ -19,7 +20,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 	// We'll manually insert them into the DB to have controlled metadata
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	InitDB(sqlDB)
+	db.InitDB(sqlDB)
 
 	files := []struct {
 		path     string
@@ -171,7 +172,7 @@ func TestStatsWithFrequency(t *testing.T) {
 
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	InitDB(sqlDB)
+	db.InitDB(sqlDB)
 
 	now := 1708358400 // 2024-02-19
 	sqlDB.Exec("INSERT INTO media (path, size, duration, time_last_played) VALUES (?, ?, ?, ?)",

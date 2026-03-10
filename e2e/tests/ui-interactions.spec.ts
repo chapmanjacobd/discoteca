@@ -2,6 +2,7 @@ import { waitForPlayer, isPlayerOpen } from '../fixtures';
 import { test, expect } from '../fixtures';
 
 test.describe('Fullscreen Toggle', () => {
+  test.use({ readOnly: true });
   test.describe.configure({ mode: 'serial' });
   test('fullscreen button is visible in document viewer', async ({ page, server }) => {
     await page.goto(server.getBaseUrl());
@@ -9,15 +10,9 @@ test.describe('Fullscreen Toggle', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Search for PDF document
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-    await page.waitForTimeout(1000);
-
-    // Open the PDF
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")').first();
-    await pdfCard.click();
+    // Open first text document (PDF/EPUB)
+    const docCard = page.locator('.media-card[data-type*="text"]').first();
+    await docCard.click();
     await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
     // Fullscreen button should be visible in document modal
@@ -31,15 +26,9 @@ test.describe('Fullscreen Toggle', () => {
     // Wait for media to load
     await page.waitForSelector('.media-card', { timeout: 10000 });
 
-    // Search for PDF document
-    await page.fill('#search-input', 'test-document.pdf');
-    await page.press('#search-input', 'Enter');
-    await page.waitForSelector('.media-card', { timeout: 10000 });
-    await page.waitForTimeout(1000);
-
-    // Open the PDF
-    const pdfCard = page.locator('.media-card:has-text("test-document.pdf")').first();
-    await pdfCard.click();
+    // Open first text document (PDF/EPUB)
+    const docCard = page.locator('.media-card[data-type*="text"]').first();
+    await docCard.click();
     await page.waitForSelector('#document-modal:not(.hidden)', { timeout: 10000 });
 
     // Click fullscreen button

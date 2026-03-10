@@ -77,7 +77,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	}
 	defer sqlDB.Close()
 
-	if err := InitDB(sqlDB); err != nil {
+	if err := db.InitDB(sqlDB); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 

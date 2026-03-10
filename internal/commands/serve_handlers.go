@@ -21,6 +21,12 @@ import (
 	"github.com/chapmanjacobd/discotheque/internal/utils"
 )
 
+// handleHealth returns OK if the server is running
+func (c *ServeCmd) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
 // handleQuery handles media searching and filtering.
 // GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
 func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {

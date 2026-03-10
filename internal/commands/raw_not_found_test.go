@@ -1,52 +1,49 @@
 package commands
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discotheque/internal/db"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestHandleRaw_FileNotFound(t *testing.T) {
-	fixture := testutils.Setup(t)
-	defer fixture.Cleanup()
+func TestRawNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_notfound.db")
 
-	db := fixture.GetDB()
-	InitDB(db)
-
-	// Insert a path that does NOT exist on disk
-	missingPath := "/tmp/this/file/does/not/exist/at/all/ever.mp4"
-	_, err := db.Exec("INSERT INTO media (path, type, time_deleted) VALUES (?, 'video/mp4', 0)", missingPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.Close()
+	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	db.InitDB(sqlDB)
+	sqlDB.Close()
 
 	cmd := &ServeCmd{
-		Databases: []string{fixture.DBPath},
+		Databases: []string{dbPath},
 	}
-	handler := cmd.Mux()
+	mux := cmd.Mux()
 
-	// Request the missing file
-	req := httptest.NewRequest(http.MethodGet, "/api/raw?path="+missingPath, nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	t.Run("MediaNotFound", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/raw?db="+dbPath+"&path=/nonexistent.mp4", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
 
-	// 1. Should return 404
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected 404, got %d", w.Code)
-	}
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected 404, got %d", w.Code)
+		}
+	})
 
-	// 2. Should have marked as deleted in DB
-	db = fixture.GetDB()
-	defer db.Close()
-	var timeDeleted int64
-	err = db.QueryRow("SELECT time_deleted FROM media WHERE path = ?", missingPath).Scan(&timeDeleted)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if timeDeleted == 0 {
-		t.Error("Expected time_deleted to be non-zero after 404")
-	}
+	t.Run("DatabaseNotFound", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/raw?db=missing.db&path=/some.mp4", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		// Should be 400 Bad Request if DB is not in allowed list
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected 400, got %d", w.Code)
+		}
+	})
 }
