@@ -69,7 +69,7 @@ func FormatSize(bytes int64) string {
 	if bytes == 0 {
 		return "-"
 	}
-	const unit = 1024
+	const unit = 1000
 	if bytes < unit {
 		return fmt.Sprintf("%d B", bytes)
 	}

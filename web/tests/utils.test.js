@@ -10,9 +10,9 @@ describe('Utility Functions', () => {
     it('formats bytes correctly', () => {
       const { formatSize } = window.disco;
       expect(formatSize(0)).toBe('-');
-      expect(formatSize(1024)).toBe('1.0 KB');
-      expect(formatSize(1024 * 1024)).toBe('1.0 MB');
-      expect(formatSize(1024 * 1024 * 1024)).toBe('1.0 GB');
+      expect(formatSize(1000)).toBe('1.0 KB');
+      expect(formatSize(1000 * 1000)).toBe('1.0 MB');
+      expect(formatSize(1000 * 1000 * 1000)).toBe('1.0 GB');
     });
   });
 
