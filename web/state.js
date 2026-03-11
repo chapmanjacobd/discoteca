@@ -8,6 +8,7 @@ export const state = {
         search: '',
         categories: JSON.parse(localStorage.getItem('disco-filter-categories') || '[]'),
         genre: '',
+        languages: JSON.parse(localStorage.getItem('disco-filter-languages') || '[]'),
         ratings: JSON.parse(localStorage.getItem('disco-filter-ratings') || '[]'),
         playlist: null, // This will now be the playlist title (string)
         sort: localStorage.getItem('disco-sort') || 'default',
@@ -68,6 +69,7 @@ export const state = {
     databases: [], // Array of database paths from server
     categories: [],
     genres: [],
+    languages: [],
     ratings: [],
     filterBins: {
         episodes: [], size: [], duration: [],

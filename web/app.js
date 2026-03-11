@@ -92,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterBrowseValContainer = document.getElementById('filter-browse-val-container');
 
     const settingSearchType = document.getElementById('setting-search-type');
+    const settingShowLanguages = document.getElementById('setting-show-languages');
 
     let currentMedia = [];
     let allDatabases = [];
@@ -299,6 +300,24 @@ document.addEventListener('DOMContentLoaded', () => {
             state.filters.searchType = e.target.checked ? 'fts' : 'substring';
             localStorage.setItem('disco-search-type', state.filters.searchType);
             performSearch();
+        };
+    }
+
+    // Language filter visibility toggle
+    if (settingShowLanguages) {
+        const showLanguages = localStorage.getItem('disco-show-languages') === 'true';
+        settingShowLanguages.checked = showLanguages;
+        if (showLanguages) {
+            document.body.classList.add('advanced-enabled');
+        }
+        settingShowLanguages.onchange = (e) => {
+            const show = e.target.checked;
+            localStorage.setItem('disco-show-languages', show);
+            if (show) {
+                document.body.classList.add('advanced-enabled');
+            } else {
+                document.body.classList.remove('advanced-enabled');
+            }
         };
     }
 
@@ -565,6 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.sidebarState = {};
         state.filters.categories = [];
         state.filters.genre = '';
+        state.filters.languages = [];
         state.filters.ratings = [];
         state.filters.playlist = null;
         state.filters.sizes = [];
@@ -593,6 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear all filter-related state
         state.filters.categories = [];
         state.filters.genre = '';
+        state.filters.languages = [];
         state.filters.ratings = [];
         state.filters.sizes = [];
         state.filters.durations = [];
@@ -800,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.filters.search) params.append('search', state.filters.search);
         state.filters.categories.forEach(c => params.append('category', c));
         if (state.filters.genre) params.append('genre', state.filters.genre);
+        state.filters.languages.forEach(l => params.append('language', l));
         state.filters.ratings.forEach(r => params.append('rating', r));
         if (state.filters.unplayed) params.append('unplayed', 'true');
         if (state.filters.unfinished) params.append('unfinished', 'true');
@@ -970,6 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mode === 'trash') {
             state.page = 'trash';
             state.filters.categories = [];
+            state.filters.languages = [];
             state.filters.ratings = [];
             // Read filter bins for trash mode
             state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
@@ -978,16 +1001,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (mode === 'history') {
             state.page = 'history';
             state.filters.categories = [];
+            state.filters.languages = [];
             state.filters.ratings = [];
         } else if (mode === 'playlist') {
             state.page = 'playlist';
             state.filters.playlist = params.get('title');
             state.filters.categories = [];
+            state.filters.languages = [];
             state.filters.ratings = [];
         } else if (mode === 'du') {
             state.page = 'du';
             state.duPath = params.get('path') || '';
             state.filters.categories = [];
+            state.filters.languages = [];
             state.filters.ratings = [];
             // Read filter bins for DU mode
             state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
@@ -996,10 +1022,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (mode === 'curation') {
             state.page = 'curation';
             state.filters.categories = [];
+            state.filters.languages = [];
             state.filters.ratings = [];
         } else if (mode === 'captions') {
             state.page = 'captions';
             state.filters.categories = [];
+            state.filters.languages = [];
             state.filters.ratings = [];
             // Read filter bins for captions mode
             state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
@@ -1014,6 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             state.filters.categories = params.getAll('category');
             state.filters.genre = params.get('genre') || '';
+            state.filters.languages = params.getAll('language');
             state.filters.ratings = params.getAll('rating');
             state.filters.search = params.get('search') || '';
             state.filters.all = params.get('all') === 'true';
@@ -1028,6 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (openSections) {
                 if (state.filters.categories.length > 0) state.sidebarState['details-categories'] = true;
                 if (state.filters.genre) state.sidebarState['details-browse'] = true;
+                if (state.filters.languages.length > 0) state.sidebarState['details-languages'] = true;
                 if (state.filters.ratings.length > 0) state.sidebarState['details-ratings'] = true;
                 if (state.filters.episodes.length > 0) state.sidebarState['details-episodes'] = true;
                 if (state.filters.sizes.length > 0) state.sidebarState['details-size'] = true;
@@ -1246,6 +1276,17 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCategoryList();
         } catch (err) {
             console.error('Failed to fetch categories', err);
+        }
+    }
+
+    async function fetchLanguages() {
+        try {
+            const resp = await fetchAPI('/api/languages');
+            if (!resp.ok) throw new Error('Failed to fetch languages');
+            state.languages = await resp.json() || [];
+            renderLanguageList();
+        } catch (err) {
+            console.error('Failed to fetch languages', err);
         }
     }
 
@@ -1796,6 +1837,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderDUDetails(data) {
+        // Handle empty state
+        if (!data || data.length === 0) {
+            resultsContainer.className = 'no-results-container';
+            resultsContainer.innerHTML = `
+                <div class="no-results" style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 2rem;
+                    text-align: center;
+                    color: var(--text-muted);
+                    max-width: 500px;
+                    margin: 0 auto;
+                ">
+                    <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;">🎒</div>
+                    <h2 style="margin: 0 0 0.5rem 0; color: var(--text);">No media found</h2>
+                    <p style="margin: 0; max-width: 400px;">
+                        Try adjusting your filters or navigate to a different directory.
+                    </p>
+                    ${state.filters.episodes.length > 0 || state.filters.sizes.length > 0 || state.filters.durations.length > 0 ? `
+                        <button class="category-btn" onclick="window.disco.resetFilters()" style="margin-top: 1.5rem;">
+                            Clear all filters
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+            paginationContainer.classList.add('hidden');
+            return;
+        }
+
         // Table view for DU data
         resultsContainer.className = 'details-view du-view';
         resultsContainer.innerHTML = '';
@@ -1889,6 +1961,37 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDUGrid(data) {
         resultsContainer.className = 'grid du-view';
         resultsContainer.innerHTML = '';
+
+        // Handle empty state
+        if (!data || data.length === 0) {
+            resultsContainer.className = 'no-results-container';
+            resultsContainer.innerHTML = `
+                <div class="no-results" style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 2rem;
+                    text-align: center;
+                    color: var(--text-muted);
+                    max-width: 500px;
+                    margin: 0 auto;
+                ">
+                    <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;">🎒</div>
+                    <h2 style="margin: 0 0 0.5rem 0; color: var(--text);">No media found</h2>
+                    <p style="margin: 0; max-width: 400px;">
+                        Try adjusting your filters or navigate to a different directory.
+                    </p>
+                    ${state.filters.episodes.length > 0 || state.filters.sizes.length > 0 || state.filters.durations.length > 0 ? `
+                        <button class="category-btn" onclick="window.disco.resetFilters()" style="margin-top: 1.5rem;">
+                            Clear all filters
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+            paginationContainer.classList.add('hidden');
+            return;
+        }
 
         const maxSize = Math.max(...data.map(d => d.total_size || 0));
 
@@ -5825,6 +5928,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderLanguageList() {
+        const languageList = document.getElementById('language-list');
+        if (!languageList) return;
+
+        const sortedLanguages = [...state.languages].sort((a, b) => {
+            return b.count - a.count;
+        });
+
+        languageList.innerHTML = sortedLanguages.map(l => `
+            <button class="category-btn ${state.filters.languages.includes(l.category) ? 'active' : ''}" data-lang="${l.category}">
+                ${l.category} <small>(${l.count})</small>
+            </button>
+        `).join('');
+
+        languageList.querySelectorAll('.category-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const lang = btn.dataset.lang;
+                if (state.page !== 'trash') state.page = 'search';
+
+                if (state.filters.languages.includes(lang)) {
+                    state.filters.languages = [];
+                } else {
+                    state.filters.languages = [lang];
+                }
+
+                localStorage.setItem('disco-filter-languages', JSON.stringify(state.filters.languages));
+                state.currentPage = 1;
+                updateNavActiveStates();
+                performSearch();
+            };
+        });
+    }
+
     // --- Helpers ---
     function errorToast(err, fallbackMsg) {
         console.error('errorToast:', fallbackMsg, err);
@@ -7163,7 +7299,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        if (allMediaBtn) allMediaBtn.classList.toggle('active', state.page === 'search' && state.filters.categories.length === 0 && state.filters.genre === '' && state.filters.ratings.length === 0 && !state.filters.playlist && !state.filters.unplayed && !state.filters.unfinished && !state.filters.completed && state.filters.sizes.length === 0 && state.filters.durations.length === 0 && state.filters.episodes.length === 0 && state.filters.types.length === 0);
+        if (allMediaBtn) allMediaBtn.classList.toggle('active', state.page === 'search' && state.filters.categories.length === 0 && state.filters.genre === '' && state.filters.languages.length === 0 && state.filters.ratings.length === 0 && !state.filters.playlist && !state.filters.unplayed && !state.filters.unfinished && !state.filters.completed && state.filters.sizes.length === 0 && state.filters.durations.length === 0 && state.filters.episodes.length === 0 && state.filters.types.length === 0);
         if (trashBtn) trashBtn.classList.toggle('active', state.page === 'trash');
         if (duBtn) duBtn.classList.toggle('active', state.page === 'du');
         if (captionsBtn) captionsBtn.classList.toggle('active', state.page === 'captions');
@@ -7189,6 +7325,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const cat = btn.dataset.cat;
             const genre = btn.dataset.genre;
+            const lang = btn.dataset.lang;
             const rating = btn.dataset.rating;
             const type = btn.dataset.type;
             // For playlists, we check both the button itself and if it's a wrapper for a drop zone
@@ -7197,6 +7334,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let isActive = false;
             if (cat !== undefined) isActive = state.page === 'search' && state.filters.categories.includes(cat);
             else if (genre !== undefined) isActive = state.page === 'search' && state.filters.genre === genre;
+            else if (lang !== undefined) isActive = state.page === 'search' && state.filters.languages.includes(lang);
             else if (rating !== undefined) isActive = state.page === 'search' && state.filters.ratings.includes(rating);
             else if (playlist !== undefined) isActive = state.page === 'playlist' && state.filters.playlist === playlist;
             else if (type !== undefined) isActive = state.page === 'search' && state.filters.types.length === 1 && state.filters.types[0] === type;
@@ -7616,6 +7754,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchDatabases();
 
     fetchCategories();
+    fetchLanguages();
     fetchGenres();
     fetchRatings();
     fetchPlaylists();

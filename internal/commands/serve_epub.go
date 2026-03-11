@@ -21,13 +21,21 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract path from URL - everything after /api/epub/
-	pathParts := strings.TrimPrefix(r.URL.Path, "/api/epub/")
-	unescaped, err := unescapePath(pathParts)
-	if err == nil {
-		pathParts = unescaped
+	// Extract path from URL using path value (captures {path...} from mux)
+	pathParts := r.PathValue("path")
+	if pathParts == "" {
+		// Fallback for older Go versions or if path value is not set
+		pathParts = strings.TrimPrefix(r.URL.Path, "/api/epub/")
 	}
-	slog.Debug("handleEpubConvert request", "pathParts", pathParts)
+
+	// We ONLY unescape if it contains %, otherwise we might mess up valid paths
+	if strings.Contains(pathParts, "%") {
+		unescaped, err := unescapePath(pathParts)
+		if err == nil {
+			pathParts = unescaped
+		}
+	}
+	slog.Info("handleEpubConvert request", "pathParts", pathParts)
 
 	if pathParts == "" || pathParts == "/" {
 		http.Error(w, "Path required", http.StatusBadRequest)
@@ -42,7 +50,8 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	ebookExts := []string{".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".docx", ".odt", ".rtf", ".txt", ".md", ".html", ".htm", ".pdf"}
 
 	for _, ext := range ebookExts {
-		extIdx := strings.Index(strings.ToLower(pathParts), ext)
+		lowerParts := strings.ToLower(pathParts)
+		extIdx := strings.Index(lowerParts, ext)
 		if extIdx != -1 {
 			// Found the extension. The document path ends here.
 			endIdx := extIdx + len(ext)
@@ -57,14 +66,12 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slog.Debug("Parsed paths", "docPath", docPath, "assetPath", assetPath)
-
 	// Ensure docPath starts with / for absolute paths
 	if !strings.HasPrefix(docPath, "/") && !strings.HasPrefix(docPath, "C:") {
 		docPath = "/" + docPath
 	}
 
-	slog.Debug("Final docPath", "docPath", docPath)
+	slog.Info("Final resolved paths", "docPath", docPath, "assetPath", assetPath)
 
 	// Verify file access
 	if c.isPathBlacklisted(docPath) {
@@ -74,7 +81,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 
 	// Check if file exists
 	if _, err := os.Stat(docPath); err != nil {
-		slog.Warn("File not found", "path", docPath, "error", err)
+		slog.Error("EPUB file not found on disk", "path", docPath, "error", err)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}

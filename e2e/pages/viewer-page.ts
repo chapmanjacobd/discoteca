@@ -212,6 +212,9 @@ export class ViewerPage {
    * Get media title
    */
   async getTitle(): Promise<string> {
+    if (await this.documentModal.isVisible()) {
+      return await this.documentTitle.textContent() || '';
+    }
     return await this.mediaTitle.textContent() || '';
   }
 

@@ -78,6 +78,18 @@ main {
     display: none !important;
 }
 
+.advanced-only {
+    display: none;
+}
+
+body.advanced-enabled .advanced-only {
+    display: block !important;
+}
+
+body.advanced-enabled details.advanced-only {
+    display: block !important;
+}
+
 .spinner {
     border: 4px solid rgba(0, 0, 0, 0.1);
     width: 36px;
@@ -371,6 +383,7 @@ header {
 
 #rating-list,
 #category-list,
+#language-list,
 #maintenance-list {
     display: flex;
     flex-direction: column;
@@ -378,7 +391,8 @@ header {
 }
 
 #rating-list .category-btn,
-#category-list .category-btn {
+#category-list .category-btn,
+#language-list .category-btn {
     width: 100%;
     display: flex;
     justify-content: space-between;

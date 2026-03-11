@@ -20,6 +20,7 @@ type Querier interface {
 	GetCustomCategories(ctx context.Context) ([]string, error)
 	GetGenreStats(ctx context.Context) ([]GetGenreStatsRow, error)
 	GetHistoryCount(ctx context.Context, mediaPath string) (int64, error)
+	GetLanguageStats(ctx context.Context) ([]GetLanguageStatsRow, error)
 	GetMedia(ctx context.Context, limit int64) ([]Media, error)
 	GetMediaByDuration(ctx context.Context, arg GetMediaByDurationParams) ([]Media, error)
 	GetMediaByPath(ctx context.Context, arg GetMediaByPathParams) ([]Media, error)

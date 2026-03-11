@@ -75,16 +75,18 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				} else {
 					// No search - return captions ordered by path and time for captions view
 					// Apply media type filters
-					rawRows, err2 := queries.GetAllCaptionsOrdered(ctx, database.GetAllCaptionsOrderedParams{
-						VideoOnly: flags.VideoOnly,
-						AudioOnly: flags.AudioOnly,
-						ImageOnly: flags.ImageOnly,
-						TextOnly:  flags.TextOnly,
+					params := database.GetAllCaptionsOrderedParams{
+						VideoOnly: utils.BoolToInt64(flags.VideoOnly),
+						AudioOnly: utils.BoolToInt64(flags.AudioOnly),
+						ImageOnly: utils.BoolToInt64(flags.ImageOnly),
+						TextOnly:  utils.BoolToInt64(flags.TextOnly),
 						Limit:     int64(limit),
-					})
+					}
+					rawRows, err2 := queries.GetAllCaptionsOrdered(ctx, params)
 					if err2 != nil {
 						return err2
 					}
+					slog.Info("Fetched captions", "count", len(rawRows), "video_only", params.VideoOnly, "audio_only", params.AudioOnly)
 					for _, r := range rawRows {
 						rows = append(rows, database.SearchCaptionsRow(r))
 					}
@@ -184,6 +186,10 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if media == nil {
+			media = []models.MediaWithDB{}
+		}
+
 		// Check if filter counts are requested
 		includeCounts := q.Get("include_counts") == "true"
 		var filterCounts *models.FilterBinsResponse
@@ -194,14 +200,20 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
 		w.Header().Set("Content-Type", "application/json")
 
+		// Ensure media is not nil for JSON encoding
+		items := media
+		if items == nil {
+			items = []models.MediaWithDB{}
+		}
+
 		if includeCounts && filterCounts != nil {
 			response := map[string]any{
-				"items":  media,
+				"items":  items,
 				"counts": filterCounts,
 			}
 			json.NewEncoder(w).Encode(response)
 		} else {
-			json.NewEncoder(w).Encode(media)
+			json.NewEncoder(w).Encode(items)
 		}
 		return
 	}
@@ -279,15 +291,21 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
+	// Ensure media is not nil for JSON encoding
+	items := media
+	if items == nil {
+		items = []models.MediaWithDB{}
+	}
+
 	// Return counts with media if requested
 	if includeCounts && filterCounts != nil {
 		response := map[string]any{
-			"items":  media,
+			"items":  items,
 			"counts": filterCounts,
 		}
 		json.NewEncoder(w).Encode(response)
 	} else {
-		json.NewEncoder(w).Encode(media)
+		json.NewEncoder(w).Encode(items)
 	}
 }
 

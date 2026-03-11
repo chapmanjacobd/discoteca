@@ -109,21 +109,22 @@ JOIN media m ON c.media_path = m.path
 WHERE m.time_deleted = 0
   AND c.text IS NOT NULL AND c.text != ''
   AND (
-    (?1 = 0 OR m.type = 'video')
-    AND (?2 = 0 OR m.type IN ('audio', 'audiobook'))
-    AND (?3 = 0 OR m.type = 'image')
-    AND (?4 = 0 OR m.type = 'text')
+    (CAST(?1 AS INT) = 0 AND CAST(?2 AS INT) = 0 AND CAST(?3 AS INT) = 0 AND CAST(?4 AS INT) = 0)
+    OR (CAST(?1 AS INT) = 1 AND m.type = 'video')
+    OR (CAST(?2 AS INT) = 1 AND m.type IN ('audio', 'audiobook'))
+    OR (CAST(?3 AS INT) = 1 AND m.type = 'image')
+    OR (CAST(?4 AS INT) = 1 AND m.type = 'text')
   )
 ORDER BY c.media_path, c.time
 LIMIT ?5
 `
 
 type GetAllCaptionsOrderedParams struct {
-	VideoOnly interface{} `json:"video_only"`
-	AudioOnly interface{} `json:"audio_only"`
-	ImageOnly interface{} `json:"image_only"`
-	TextOnly  interface{} `json:"text_only"`
-	Limit     int64       `json:"limit"`
+	VideoOnly int64 `json:"video_only"`
+	AudioOnly int64 `json:"audio_only"`
+	ImageOnly int64 `json:"image_only"`
+	TextOnly  int64 `json:"text_only"`
+	Limit     int64 `json:"limit"`
 }
 
 type GetAllCaptionsOrderedRow struct {
@@ -366,6 +367,42 @@ func (q *Queries) GetHistoryCount(ctx context.Context, mediaPath string) (int64,
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getLanguageStats = `-- name: GetLanguageStats :many
+SELECT language, COUNT(*) as count
+FROM media
+WHERE time_deleted = 0 AND language IS NOT NULL AND language != ''
+GROUP BY language
+ORDER BY count DESC
+`
+
+type GetLanguageStatsRow struct {
+	Language sql.NullString `json:"language"`
+	Count    int64          `json:"count"`
+}
+
+func (q *Queries) GetLanguageStats(ctx context.Context) ([]GetLanguageStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLanguageStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetLanguageStatsRow{}
+	for rows.Next() {
+		var i GetLanguageStatsRow
+		if err := rows.Scan(&i.Language, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getMedia = `-- name: GetMedia :many

@@ -55,6 +55,7 @@ type FilterFlags struct {
 type MediaFilterFlags struct {
 	Category            []string `help:"Filter by category" group:"MediaFilter"`
 	Genre               string   `help:"Filter by genre" group:"MediaFilter"`
+	Language            []string `help:"Filter by language" group:"MediaFilter"`
 	Ext                 []string `short:"e" help:"Filter by extensions (e.g., .mp4,.mkv)" group:"MediaFilter"`
 	VideoOnly           bool     `help:"Only video files" group:"MediaFilter"`
 	AudioOnly           bool     `help:"Only audio files" group:"MediaFilter"`

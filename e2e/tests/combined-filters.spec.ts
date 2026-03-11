@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures';
+import { execSync } from 'child_process';
 
 test.describe('Combined Filters and Views', () => {
-  test.use({ readOnly: true });
 
   const modes = [
     { name: 'Search', hash: '', selector: '#all-media-btn' },
@@ -12,6 +12,13 @@ test.describe('Combined Filters and Views', () => {
 
   for (const mode of modes) {
     test(`mode: ${mode.name} - switching views and filtering`, async ({ mediaPage, sidebarPage, viewerPage, server }) => {
+      // Setup data for specific modes
+      if (mode.name === 'Trash') {
+        execSync(`sqlite3 "${server.getDatabasePath()}" "UPDATE media SET time_deleted = strftime('%s', 'now') WHERE path LIKE '%test_video2.mp4';"`);
+      } else if (mode.name === 'History') {
+        execSync(`sqlite3 "${server.getDatabasePath()}" "UPDATE media SET time_last_played = strftime('%s', 'now'), play_count = 1 WHERE path LIKE '%test_video1.mp4';"`);
+      }
+
       await mediaPage.goto(server.getBaseUrl() + (mode.hash ? `#${mode.hash}` : ''));
 
       // Wait for results container using POM
@@ -134,7 +141,9 @@ test.describe('Combined Filters and Views', () => {
 
     // Navigate to a different mode using POM
     await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
-    await mediaPage.getCaptionCards().first().waitFor({ state: 'visible', timeout: 10000 });
+    // Captions may render as cards, table, or groups depending on view mode
+    const captionSelectors = ['.caption-media-card', '.details-table', '.caption-group'];
+    await mediaPage.page.locator(captionSelectors.join(', ')).first().waitFor({ state: 'visible', timeout: 10000 });
 
     // Go back to home using POM
     await mediaPage.goto(server.getBaseUrl());

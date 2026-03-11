@@ -1,17 +1,10 @@
 fix failing tests or code
 
-Lets add language as an explicit filter option similar to Categories
-
 double check that we are using optimal data types and SQLite types. Are we using using `STRICT` ?
 
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
 - Search filtering should work across all modes without exiting that mode--but you could hide the searchbox on the Categorization page as that one doesn't really need it
-
-
-> http://100.92.160.95:5555/#mode=du&history=in-progress
-blank page should show No Media Found page with hint to reduce filters
-
 
 Split up app.js
 

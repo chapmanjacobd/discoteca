@@ -234,6 +234,47 @@ func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
+// handleLanguages returns language statistics.
+// GET /api/languages
+func (c *ServeCmd) handleLanguages(w http.ResponseWriter, r *http.Request) {
+	counts := make(map[string]int64)
+
+	for _, dbPath := range c.Databases {
+		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			queries := database.New(sqlDB)
+			rows, err := queries.GetLanguageStats(r.Context())
+			if err != nil {
+				return err
+			}
+			for _, row := range rows {
+				if row.Language.Valid {
+					counts[row.Language.String] = row.Count
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			slog.Error("Failed to fetch languages", "db", dbPath, "error", err)
+			continue
+		}
+	}
+
+	var res []models.CatStat
+	for k, v := range counts {
+		res = append(res, models.CatStat{Category: k, Count: v})
+	}
+
+	sort.Slice(res, func(i, j int) bool {
+		if res[i].Count != res[j].Count {
+			return res[i].Count > res[j].Count
+		}
+		return res[i].Category < res[j].Category
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}
+
 // getCaptionsWithContext fetches captions matching a query along with 2 captions before and after each match
 func (c *ServeCmd) getCaptionsWithContext(ctx context.Context, queries *database.Queries, queryStr string, limit int64, videoOnly, audioOnly, imageOnly, textOnly bool) ([]database.SearchCaptionsRow, error) {
 	// First, get the matching captions with media type filters

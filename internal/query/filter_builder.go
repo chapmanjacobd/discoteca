@@ -77,6 +77,18 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 		args = append(args, fb.flags.Genre)
 	}
 
+	// Language filter
+	if len(fb.flags.Language) > 0 {
+		var langClauses []string
+		for _, lang := range fb.flags.Language {
+			langClauses = append(langClauses, "language = ?")
+			args = append(args, lang)
+		}
+		if len(langClauses) > 0 {
+			whereClauses = append(whereClauses, "("+strings.Join(langClauses, " OR ")+")")
+		}
+	}
+
 	// Search terms (FTS or LIKE)
 	allInclude := append([]string{}, fb.flags.Search...)
 	allInclude = append(allInclude, fb.flags.Include...)

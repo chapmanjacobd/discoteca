@@ -83,7 +83,15 @@ export class MediaPage {
    * Wait for media cards to be visible
    */
   async waitForMediaToLoad(timeout: number = 10000): Promise<void> {
-    await this.mediaCards.first().waitFor({ state: 'visible', timeout });
+    const selectors = [
+      '.media-card',
+      '.caption-group',
+      '.details-table',
+      '.no-results',
+      '.captions-group-view',
+      '.caption-media-card'
+    ];
+    await this.page.locator(selectors.join(', ')).first().waitFor({ state: 'visible', timeout });
   }
 
   /**

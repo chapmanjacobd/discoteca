@@ -137,6 +137,7 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/databases", c.authMiddleware(c.handleDatabases))
 	mux.HandleFunc("/api/categories", c.authMiddleware(c.handleCategories))
 	mux.HandleFunc("/api/genres", c.authMiddleware(c.handleGenres))
+	mux.HandleFunc("/api/languages", c.authMiddleware(c.handleLanguages))
 	mux.HandleFunc("/api/ratings", c.authMiddleware(c.handleRatings))
 	mux.HandleFunc("/api/query", c.authMiddleware(c.handleQuery))
 	mux.HandleFunc("/api/metadata", c.authMiddleware(c.handleMetadata))
@@ -358,6 +359,9 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 	}
 	if genre := q.Get("genre"); genre != "" {
 		flags.Genre = genre
+	}
+	if languages := q["language"]; len(languages) > 0 {
+		flags.Language = languages
 	}
 	if paths := q.Get("paths"); paths != "" {
 		flags.Paths = strings.Split(paths, ",")
