@@ -4,7 +4,40 @@ Golang implementation of xklb/library
 
 ## Install
 
-    go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
+### Quick Install
+
+```bash
+go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
+```
+
+### Pre-built Binaries
+
+Download from [GitHub Releases](https://github.com/chapmanjacobd/discoteca/releases) for:
+- **Linux**: amd64, arm64
+- **Windows**: amd64
+- **macOS**: amd64, arm64 (Apple Silicon)
+
+### Build from Source
+
+```bash
+git clone https://github.com/chapmanjacobd/discoteca.git
+cd discoteca
+go build -tags "fts5" -o disco ./cmd/disco
+```
+
+See [INSTALL.md](INSTALL.md) for detailed platform-specific instructions and optional dependencies.
+
+## Dependencies
+
+**Required:** None (SQLite is embedded via CGO)
+
+**Optional:**
+- `ffmpeg` - Media transcoding, streaming, duration detection
+- `calibre` - Ebook conversion (EPUB, MOBI, PDF)
+- `espeak-ng` - Text-to-speech generation
+- `mpv` - Playback control
+
+See [INSTALL.md](INSTALL.md) for installation instructions on your platform.
 
 ## Usage
 

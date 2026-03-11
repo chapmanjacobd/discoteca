@@ -3,6 +3,12 @@
 BINARY_NAME=disco
 BUILD_TAGS=fts5
 
+ifeq ($(OS),Windows_NT)
+	EXE=.exe
+else
+	EXE=
+endif
+
 all: fmt lint sql test build webtest webbuild readme
 
 ubuntu-deps:
@@ -29,7 +35,11 @@ ubuntu-deps:
 		libpango-1.0-0 \
 		libcairo2
 
+macos-deps:
+	brew install ffmpeg pandoc calibre sqlite
+
 go-deps:
+
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install golang.org/x/tools/cmd/goimports@latest
@@ -62,7 +72,7 @@ dev:
 	air -d
 
 readme: build
-	./$(BINARY_NAME) readme > README.md
+	./$(BINARY_NAME)$(EXE) readme > README.md
 
 test:
 	go test -tags "$(BUILD_TAGS)" ./...
@@ -81,7 +91,7 @@ e2e-install:
 	cd e2e && npm install && npx playwright install --with-deps
 
 e2e-init: build
-	./e2e/fixtures/init-db.sh
+	./e2e/fixtures/init-db.sh $(BINARY_NAME)$(EXE)
 
 e2e: e2e-init
 	cd e2e && npx playwright test

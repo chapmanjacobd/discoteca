@@ -31,10 +31,10 @@ func GetDefaultBrowser() string {
 	case "darwin":
 		return "open"
 	case "windows":
-		return "start"
-	default:
-		return "xdg-open"
+		// 'start' is a cmd.exe builtin, not an executable
+		return "cmd"
 	}
+	return "xdg-open"
 }
 
 func IsSQLite(path string) bool {

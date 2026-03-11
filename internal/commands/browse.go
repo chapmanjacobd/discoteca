@@ -107,7 +107,14 @@ func (c *BrowseCmd) Run(ctx *kong.Context) error {
 		return fmt.Errorf("no URLs found")
 	}
 
-	args := append([]string{browser}, urls...)
-	cmd := exec.Command(args[0], args[1:]...)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" && browser == "cmd" {
+		// On Windows, use 'cmd /c start' to open URLs
+		args := append([]string{"/c", "start"}, urls...)
+		cmd = exec.Command("cmd", args...)
+	} else {
+		args := append([]string{browser}, urls...)
+		cmd = exec.Command(args[0], args[1:]...)
+	}
 	return cmd.Start()
 }
