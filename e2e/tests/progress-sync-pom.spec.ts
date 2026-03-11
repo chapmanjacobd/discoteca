@@ -166,8 +166,8 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.page.waitForTimeout(3000);
     await viewerPage.close();
 
-    // Wait for results to refresh
-    await mediaPage.page.waitForTimeout(1000);
+    // Reload to refresh results with new progress
+    await mediaPage.page.reload();
     await mediaPage.waitForMediaToLoad();
 
     // Find the card with the video we played

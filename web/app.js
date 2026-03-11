@@ -5180,7 +5180,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const plays = getPlayCount(item);
             const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(item.path)}`;
 
-            const progress = (item.duration && item.playhead) ? Math.round((item.playhead / item.duration) * 100) : 0;
+            const localPos = getLocalProgress(item);
+            const playhead = (localPos > 0) ? localPos : (item.playhead || 0);
+            const progress = (item.duration && playhead) ? Math.round((playhead / item.duration) * 100) : 0;
             const progressHtml = progress > 0 ? `
                 <div class="progress-container" title="${progress}% completed">
                     <div class="progress-bar" style="width: ${progress}%"></div>
@@ -5746,7 +5748,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
 
-            const progress = (item.duration && item.playhead) ? Math.round((item.playhead / item.duration) * 100) : 0;
+            const localPos = getLocalProgress(item);
+            const playhead = (localPos > 0) ? localPos : (item.playhead || 0);
+            const progress = (item.duration && playhead) ? Math.round((playhead / item.duration) * 100) : 0;
             const progressHtml = `
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div class="progress-container" style="margin-top: 0; flex: 1; background: rgba(0,0,0,0.2);">

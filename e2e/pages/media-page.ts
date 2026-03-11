@@ -41,7 +41,7 @@ export class MediaPage {
     this.page = page;
     this.searchInput = page.locator('#search-input');
     this.resultsContainer = page.locator('#results-container');
-    this.mediaCards = page.locator('.media-card');
+    this.mediaCards = page.locator('.media-card:not(.skeleton), .details-table tbody tr');
     this.sortBySelect = page.locator('#sort-by');
     this.viewGridButton = page.locator('#view-grid');
     this.viewDetailsButton = page.locator('#view-details');
@@ -84,7 +84,8 @@ export class MediaPage {
    */
   async waitForMediaToLoad(timeout: number = 10000): Promise<void> {
     const selectors = [
-      '.media-card',
+      '.media-card:not(.skeleton)',
+      '.details-table tbody tr',
       '.caption-group',
       '.details-table',
       '.no-results',
@@ -125,6 +126,11 @@ export class MediaPage {
   async search(query: string): Promise<void> {
     await this.searchInput.fill(query);
     await this.searchInput.press('Enter');
+    
+    // Wait for skeletons to appear (search started)
+    // We use a short timeout because if it's already cached/fast it might skip skeletons
+    await this.page.locator('.media-card.skeleton').first().waitFor({ state: 'visible', timeout: 1000 }).catch(() => {});
+    
     await this.waitForMediaToLoad();
   }
 
