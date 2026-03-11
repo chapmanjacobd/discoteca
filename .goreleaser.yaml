@@ -1,0 +1,54 @@
+# .goreleaser.yaml
+version: 2
+
+project_name: disco
+
+before:
+  hooks:
+    - go mod tidy
+    - make webbuild
+
+builds:
+  - id: disco
+    main: ./cmd/disco
+    binary: disco
+    env:
+      - CGO_ENABLED=1
+      # Use zig for cross-compilation
+      - CC=zig cc -target {{ .Target }}
+      - CXX=zig c++ -target {{ .Target }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    tags:
+      - fts5
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

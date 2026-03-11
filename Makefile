@@ -3,7 +3,7 @@
 BINARY_NAME=disco
 BUILD_TAGS=fts5
 
-all: webbuild fmt lint sql test build webtest readme
+all: fmt lint sql test build webtest webbuild readme
 
 ubuntu-deps:
 	sudo apt-get update && sudo apt-get install -y \
