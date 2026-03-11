@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	database "github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/query"
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	database "github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Request) {
@@ -760,10 +760,10 @@ func (c *ServeCmd) handleOPDS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/atom+xml;charset=utf-8")
 	fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:opds="http://opds-spec.org/2010/catalog">
-  <id>discotheque-text</id>
-  <title>Discotheque Text</title>
+  <id>discoteca-text</id>
+  <title>Discoteca Text</title>
   <updated>`+time.Now().Format(time.RFC3339)+`</updated>
-  <author><name>Discotheque</name></author>
+  <author><name>Discoteca</name></author>
 `)
 
 	host := r.Host

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/chapmanjacobd/discotheque/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 type Tracker struct {

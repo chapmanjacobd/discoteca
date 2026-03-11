@@ -13,11 +13,11 @@ import (
 	"sync"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/fs"
-	"github.com/chapmanjacobd/discotheque/internal/metadata"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fs"
+	"github.com/chapmanjacobd/discoteca/internal/metadata"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type AddCmd struct {

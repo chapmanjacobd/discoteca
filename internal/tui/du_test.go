@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

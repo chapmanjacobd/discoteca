@@ -3,7 +3,7 @@ package aggregate
 import (
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestIsSameGroup(t *testing.T) {

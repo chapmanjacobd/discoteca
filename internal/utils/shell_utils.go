@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/shellquote"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
 
 // RenameMoveFile moves a file from src to dst, creating parent directories if needed

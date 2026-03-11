@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type UpdateCmd struct{}

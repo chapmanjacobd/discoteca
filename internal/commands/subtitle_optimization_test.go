@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/db"
 	_ "github.com/mattn/go-sqlite3"
 )
 

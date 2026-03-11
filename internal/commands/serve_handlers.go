@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chapmanjacobd/discotheque/internal/aggregate"
-	database "github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/query"
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/aggregate"
+	database "github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // handleHealth returns OK if the server is running

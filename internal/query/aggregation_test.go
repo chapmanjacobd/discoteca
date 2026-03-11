@@ -3,7 +3,7 @@ package query
 import (
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestAggregateExtensions(t *testing.T) {

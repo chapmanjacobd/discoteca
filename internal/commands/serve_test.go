@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
 func setupTestServeCmd(dbPath string) *ServeCmd {

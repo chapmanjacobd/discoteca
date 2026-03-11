@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -17,7 +17,7 @@ func main() {
 	cli := &CLI{}
 	parser, err := kong.New(cli,
 		kong.Name("disco"),
-		kong.Description("discotheque management tool"),
+		kong.Description("discoteca management tool"),
 		kong.UsageOnError(),
 	)
 	if err != nil {

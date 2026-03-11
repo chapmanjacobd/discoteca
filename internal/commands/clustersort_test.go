@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestClusterSortCmd_Run(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
 func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {

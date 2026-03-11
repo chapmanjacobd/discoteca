@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type CheckCmd struct {

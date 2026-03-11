@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	database "github.com/chapmanjacobd/discotheque/internal/db"
+	database "github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 type playlistItem struct {

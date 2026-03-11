@@ -1,7 +1,7 @@
 import { expect, Locator, Page } from '@playwright/test';
 
 /**
- * Custom Playwright matchers for Discotheque E2E tests
+ * Custom Playwright matchers for Discoteca E2E tests
  */
 
 /**

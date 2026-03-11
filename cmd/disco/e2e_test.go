@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/commands"
-	"github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discoteca/internal/commands"
+	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/testutils"
 	_ "github.com/mattn/go-sqlite3"
 )
 

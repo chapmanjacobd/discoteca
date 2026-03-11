@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 // RandomString returns a random hexadecimal string of the given length

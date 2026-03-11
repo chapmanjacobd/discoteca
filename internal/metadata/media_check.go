@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func DecodeQuickScan(ctx context.Context, path string, scans []float64, scanDuration float64) float64 {

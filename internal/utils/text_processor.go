@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 // LineSplitter splits a line into words using multiple regex patterns

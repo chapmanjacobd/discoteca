@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/shellquote"
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
 
 func TestShellQuote(t *testing.T) {

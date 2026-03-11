@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 type MpvResponse struct {

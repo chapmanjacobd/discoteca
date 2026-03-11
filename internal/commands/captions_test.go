@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	_ "github.com/mattn/go-sqlite3"
 )
 

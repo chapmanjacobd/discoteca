@@ -1,5 +1,5 @@
 {
-  "name": "discotheque-e2e",
+  "name": "discoteca-e2e",
   "version": "1.0.0",
   "main": "index.js",
   "private": true,
@@ -14,15 +14,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chapmanjacobd/discotheque.git"
+    "url": "git+https://github.com/chapmanjacobd/discoteca.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/chapmanjacobd/discotheque/issues"
+    "url": "https://github.com/chapmanjacobd/discoteca/issues"
   },
-  "homepage": "https://github.com/chapmanjacobd/discotheque#readme",
+  "homepage": "https://github.com/chapmanjacobd/discoteca#readme",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.3.5",

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/history"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/history"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 )
 
 type HistoryCmd struct {

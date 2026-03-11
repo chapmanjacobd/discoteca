@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/aggregate"
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/aggregate"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 )
 
 type SimilarFilesCmd struct {

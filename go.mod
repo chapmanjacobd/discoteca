@@ -1,4 +1,4 @@
-module github.com/chapmanjacobd/discotheque
+module github.com/chapmanjacobd/discoteca
 
 go 1.26.0
 

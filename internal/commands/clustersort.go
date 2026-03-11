@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/aggregate"
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/aggregate"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 type ClusterSortCmd struct {

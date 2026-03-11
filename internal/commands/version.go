@@ -3,7 +3,7 @@ package commands
 import (
 	"os"
 
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type VersionCmd struct{}

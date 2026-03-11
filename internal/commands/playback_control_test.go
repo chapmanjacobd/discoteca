@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func startMockMpvServer(t *testing.T) string {

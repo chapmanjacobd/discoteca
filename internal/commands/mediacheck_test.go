@@ -3,7 +3,7 @@ package commands
 import (
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/testutils"
+	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
 func TestMediaCheckCmd_Run(t *testing.T) {

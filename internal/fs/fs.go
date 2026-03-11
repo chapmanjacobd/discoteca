@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func FindMedia(root string, filter map[string]bool) (map[string]os.FileInfo, error) {

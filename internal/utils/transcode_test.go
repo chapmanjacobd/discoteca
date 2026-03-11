@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestGenerateHLSPlaylist(t *testing.T) {

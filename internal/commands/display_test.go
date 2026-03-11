@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestErrUserQuit(t *testing.T) {

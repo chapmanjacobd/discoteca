@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	database "github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	database "github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 // handleMetadata returns detailed metadata for a specific media file.

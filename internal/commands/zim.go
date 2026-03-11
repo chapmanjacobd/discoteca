@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chapmanjacobd/discotheque/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 const (

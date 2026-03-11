@@ -2,8 +2,8 @@ package commands
 
 import (
 	"github.com/alecthomas/kong"
-	database "github.com/chapmanjacobd/discotheque/internal/db"
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	database "github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 type RepairCmd struct {

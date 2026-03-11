@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestMpvCall(t *testing.T) {

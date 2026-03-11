@@ -41,7 +41,7 @@ func init() {
 }
 
 func RenderVersion(w io.Writer) {
-	fmt.Fprintf(w, "discotheque built from %s on %s with %s\n",
+	fmt.Fprintf(w, "discoteca built from %s on %s with %s\n",
 		Version, When, runtime.Version())
 
 	fmt.Fprintln(w, "Build Settings:")

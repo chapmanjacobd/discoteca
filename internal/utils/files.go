@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/gabriel-vasile/mimetype"
 )
 

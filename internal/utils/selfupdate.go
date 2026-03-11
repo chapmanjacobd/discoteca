@@ -223,7 +223,7 @@ func doUpdateAt(curp, url string) bool {
 	return true
 }
 
-var githubApiUrl = "https://api.github.com/repos/chapmanjacobd/discotheque/releases/latest"
+var githubApiUrl = "https://api.github.com/repos/chapmanjacobd/discoteca/releases/latest"
 
 func checkUpdate() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

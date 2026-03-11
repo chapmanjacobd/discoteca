@@ -3,7 +3,7 @@ package commands
 import (
 	"embed"
 
-	"github.com/chapmanjacobd/discotheque/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 // SchemaFS provides access to the database schema

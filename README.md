@@ -1,10 +1,10 @@
-# discotheque
+# discoteca
 
 Golang implementation of xklb/library
 
 ## Install
 
-    go install github.com/chapmanjacobd/discotheque/cmd/disco@latest
+    go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
 ## Usage
 

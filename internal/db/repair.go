@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chapmanjacobd/discotheque/internal/shellquote"
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 	_ "github.com/mattn/go-sqlite3"
 )
 

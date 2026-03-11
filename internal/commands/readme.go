@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discotheque/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 type ReadmeCmd struct {
@@ -34,10 +34,10 @@ type ReadmeCmd struct {
 func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	var sb strings.Builder
 
-	sb.WriteString("# discotheque\n\n")
+	sb.WriteString("# discoteca\n\n")
 	sb.WriteString("Golang implementation of xklb/library\n\n")
 	sb.WriteString("## Install\n\n")
-	sb.WriteString("    go install github.com/chapmanjacobd/discotheque/cmd/disco@latest\n\n")
+	sb.WriteString("    go install github.com/chapmanjacobd/discoteca/cmd/disco@latest\n\n")
 	sb.WriteString("## Usage\n\n")
 
 	examples := map[string][]string{

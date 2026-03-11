@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/chapmanjacobd/discotheque/internal/commands"
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 )
 
 // CLI defines the command-line interface
