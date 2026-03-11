@@ -38,6 +38,20 @@ func GetInt64(v any) int64 {
 	return 0
 }
 
+func GetFloat64(v any) float64 {
+	switch f := v.(type) {
+	case float32:
+		return float64(f)
+	case float64:
+		return f
+	case int64:
+		return float64(f)
+	case int:
+		return float64(f)
+	}
+	return 0
+}
+
 func StringValue(s *string) string {
 	if s == nil {
 		return ""

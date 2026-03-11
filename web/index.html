@@ -20,7 +20,6 @@
         <div id="search-container">
             <span id="search-icon">🔍</span>
             <input type="text" id="search-input" placeholder="Search..." autocomplete="off">
-            <button id="search-type-toggle" class="search-type-toggle" title="Toggle search type (FTS/Substring)">FTS</button>
             <div id="search-suggestions" class="hidden"></div>
             <div id="results-info">
                 <span id="results-count"></span>
@@ -210,8 +209,8 @@
                         <option value="progress">Progress</option>
                         <option value="time_created">Created</option>
                         <option value="time_modified">Modified</option>
-                        <option value="bitrate">Bitrate</option>
-                        <option value="extension">Extension</option>
+                        <option value="time_downloaded">Time Scanned</option>
+                        <option value="bitrate">Bitrate</option>                        <option value="extension">Extension</option>
                         <option value="random">Random</option>
                     </select>
                     <button id="sort-reverse-btn" title="Reverse Sort">⇅</button>
@@ -393,17 +392,6 @@
                             Advanced Settings
                         </summary>
 
-                        <div class="full-toggle">
-                            <label class="switch">
-                                <input type="checkbox" id="setting-debug-mode">
-                                <span class="slider round"></span>
-                            </label>
-                            <div class="toggle-text">
-                                <h3>Debug Mode</h3>
-                                <p>Show sort and filter debugging information on media cards</p>
-                            </div>
-                        </div>
-
                         <div class="setting-item">
                             <label for="setting-player">Default Player:</label>
                             <select id="setting-player">
@@ -420,6 +408,17 @@
                         <div class="setting-item">
                             <label for="setting-rsvp-wpm">RSVP Speed (WPM):</label>
                             <input type="number" id="setting-rsvp-wpm" min="50" max="1000" step="10">
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-search-type">
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Full Text Search</h3>
+                                <p>Use FTS for searching (turn off for substring matching)</p>
+                            </div>
                         </div>
 
                         <div class="setting-item">

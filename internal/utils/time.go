@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -73,7 +74,7 @@ func getDateSortKey(t time.Time) dateSortKey {
 }
 
 // SpecificDate finds the earliest most-specific past date from a list of strings
-func SpecificDate(dates ...string) *int64 {
+func SpecificDate(dates ...string) *time.Time {
 	var pastDates []time.Time
 	now := time.Now()
 
@@ -91,28 +92,25 @@ func SpecificDate(dates ...string) *int64 {
 		return nil
 	}
 
+	// Sort by specificity (has month, then has day) then by earliest date
 	sort.Slice(pastDates, func(i, j int) bool {
 		ki := getDateSortKey(pastDates[i])
 		kj := getDateSortKey(pastDates[j])
 
 		if ki.hasMonth != kj.hasMonth {
-			return ki.hasMonth // true (1) comes before false (0) if we want max first, but sort.Slice is ascending
+			return ki.hasMonth
 		}
 		if ki.hasDay != kj.hasDay {
 			return ki.hasDay
 		}
-		return ki.negTS > kj.negTS // bigger negTS means smaller TS (earlier)
+		return ki.negTS > kj.negTS
 	})
-
-	// Since we want the "MAX" key in Python (reverse=True), we should pick the one that would be at the start of a descending sort.
-	// Let's refine the less function for ascending sort so the "best" is at the end, or just find it.
 
 	best := pastDates[0]
 	for i := 1; i < len(pastDates); i++ {
 		ki := getDateSortKey(best)
 		kj := getDateSortKey(pastDates[i])
 
-		// kj is better than ki if:
 		better := false
 		if kj.hasMonth != ki.hasMonth {
 			if kj.hasMonth {
@@ -131,8 +129,7 @@ func SpecificDate(dates ...string) *int64 {
 		}
 	}
 
-	ts := best.Unix()
-	return &ts
+	return &best
 }
 
 // TubeDate extracts and parses dates from various common metadata keys
@@ -207,4 +204,12 @@ func ParseDateOrRelative(dateStr string) int64 {
 
 func UtcFromLocalTimestamp(n int64) time.Time {
 	return time.Unix(n, 0).UTC()
+}
+
+func ToDecade(year int) string {
+	if year < 1900 {
+		return ""
+	}
+	decade := (year / 10) * 10
+	return fmt.Sprintf("%02ds", decade%100)
 }

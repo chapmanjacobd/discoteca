@@ -58,33 +58,18 @@ type Media struct {
 	Album           sql.NullString  `json:"album"`
 	Artist          sql.NullString  `json:"artist"`
 	Genre           sql.NullString  `json:"genre"`
-	Mood            sql.NullString  `json:"mood"`
-	Bpm             sql.NullInt64   `json:"bpm"`
-	Key             sql.NullString  `json:"key"`
-	Decade          sql.NullString  `json:"decade"`
 	Categories      sql.NullString  `json:"categories"`
-	City            sql.NullString  `json:"city"`
-	Country         sql.NullString  `json:"country"`
 	Description     sql.NullString  `json:"description"`
 	Language        sql.NullString  `json:"language"`
-	Webpath         sql.NullString  `json:"webpath"`
-	Uploader        sql.NullString  `json:"uploader"`
-	TimeUploaded    sql.NullInt64   `json:"time_uploaded"`
 	TimeDownloaded  sql.NullInt64   `json:"time_downloaded"`
-	ViewCount       sql.NullInt64   `json:"view_count"`
-	NumComments     sql.NullInt64   `json:"num_comments"`
-	FavoriteCount   sql.NullInt64   `json:"favorite_count"`
 	Score           sql.NullFloat64 `json:"score"`
-	UpvoteRatio     sql.NullFloat64 `json:"upvote_ratio"`
-	Latitude        sql.NullFloat64 `json:"latitude"`
-	Longitude       sql.NullFloat64 `json:"longitude"`
-	Extension       sql.NullString  `json:"extension"`
 }
 
 type MediaFts struct {
-	Path    string `json:"path"`
-	FtsPath string `json:"fts_path"`
-	Title   string `json:"title"`
+	Path        string `json:"path"`
+	FtsPath     string `json:"fts_path"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 type PlaylistItems struct {

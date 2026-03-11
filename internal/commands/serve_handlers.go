@@ -173,8 +173,6 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 		totalCount := len(media)
 
-		query.SortMedia(media, flags)
-
 		// Pagination for captions (since we fetched them all or up to limit per DB)
 		if !flags.All && flags.Limit > 0 && !aggregate {
 			start := flags.Offset

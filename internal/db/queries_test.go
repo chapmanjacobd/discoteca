@@ -3,8 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,19 +15,7 @@ func setupDB(t *testing.T) (*sql.DB, *Queries) {
 		t.Fatal(err)
 	}
 
-	// Read schema
-	schemaPath := filepath.Join("..", "commands", "schema.sql")
-	schemaBytes, err := os.ReadFile(schemaPath)
-	if err != nil {
-		// Fallback for some environments
-		schemaPath = filepath.Join("internal", "commands", "schema.sql")
-		schemaBytes, err = os.ReadFile(schemaPath)
-		if err != nil {
-			t.Fatalf("Could not read schema.sql: %v", err)
-		}
-	}
-
-	schema := string(schemaBytes)
+	schema := GetSchema()
 
 	// Simple FTS5 check
 	var hasFTS5 bool

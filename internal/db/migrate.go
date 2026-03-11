@@ -3,24 +3,28 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
 
 // Migrate runs schema migrations on an existing database
 func Migrate(db *sql.DB) error {
-	// 1. Column migrations
+	// 1. Column migrations (Add new ones first)
 	if err := migrateColumns(db); err != nil {
 		return err
 	}
 
-	// 2. Table migrations
+	// 2. Data consolidation and table cleanup
+	if err := cleanupMediaTable(db); err != nil {
+		return err
+	}
+
+	// 3. Table migrations (FTS etc)
 	if err := migrateTables(db); err != nil {
 		return err
 	}
 
-	// 3. Index migrations
+	// 4. Index migrations
 	if err := migrateIndexes(db); err != nil {
 		return err
 	}
@@ -109,7 +113,8 @@ func migrateColumns(db *sql.DB) error {
 		{"playlists", "title", "TEXT"},
 		{"playlist_items", "time_added", "INTEGER DEFAULT 0"},
 		{"media", "fts_path", "TEXT"},
-		{"media", "extension", "TEXT"},
+		{"media", "description", "TEXT"},
+		{"media", "time_downloaded", "INTEGER"},
 	}
 
 	for _, c := range cols {
@@ -151,61 +156,117 @@ func migrateColumns(db *sql.DB) error {
 					return fmt.Errorf("failed to populate fts_path: %w", err)
 				}
 			}
-
-			if c.table == "media" && c.column == "extension" {
-				// New column added, populate it for existing rows
-				if err := populateExtension(db); err != nil {
-					return fmt.Errorf("failed to populate extension: %w", err)
-				}
-			}
 		}
 	}
 	return nil
 }
 
-func populateExtension(db *sql.DB) error {
-	rows, err := db.Query("SELECT path FROM media WHERE extension IS NULL")
+func cleanupMediaTable(db *sql.DB) error {
+	// 1. Check if we need cleanup (do dead columns exist?)
+	rows, err := db.Query("PRAGMA table_info(media)")
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	var updates []struct {
-		path string
-		ext  string
+	hasDeadColumns := false
+	deadColumns := map[string]bool{
+		"upvote_ratio": true, "num_comments": true, "favorite_count": true,
+		"view_count": true, "time_uploaded": true, "uploader": true,
+		"webpath": true, "city": true, "country": true,
+		"latitude": true, "longitude": true, "decade": true,
+		"mood": true, "bpm": true, "key": true, "extension": true,
 	}
+
 	for rows.Next() {
-		var path string
-		if err := rows.Scan(&path); err != nil {
+		var cid int
+		var name, dtype string
+		var notnull, pk int
+		var dfltValue any
+		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
 			return err
 		}
-		ext := strings.ToLower(filepath.Ext(path))
-		updates = append(updates, struct {
-			path string
-			ext  string
-		}{path, ext})
+		if deadColumns[strings.ToLower(name)] {
+			hasDeadColumns = true
+			break
+		}
 	}
 	rows.Close()
 
-	if len(updates) == 0 {
+	if !hasDeadColumns {
 		return nil
 	}
 
+	// 2. Consolidate metadata into description before dropping columns
+	// decade, mood, bpm, key
+	_, _ = db.Exec(`UPDATE media SET description = 
+        COALESCE(description, '') || 
+        CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
+        CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
+        CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
+        CASE WHEN "key" IS NOT NULL AND "key" != '' THEN '\nKey: ' || "key" ELSE '' END
+        WHERE decade IS NOT NULL OR mood IS NOT NULL OR bpm IS NOT NULL OR "key" IS NOT NULL`)
+
+	// 3. Recreate table (SQLite standard way to drop multiple columns)
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare("UPDATE media SET extension = ? WHERE path = ?")
-	if err != nil {
-		return err
+	sqls := []string{
+		`CREATE TABLE media_dg_tmp (
+            path TEXT PRIMARY KEY,
+            fts_path TEXT,
+            title TEXT,
+            duration INTEGER,
+            size INTEGER,
+            time_created INTEGER,
+            time_modified INTEGER,
+            time_deleted INTEGER DEFAULT 0,
+            time_first_played INTEGER DEFAULT 0,
+            time_last_played INTEGER DEFAULT 0,
+            play_count INTEGER DEFAULT 0,
+            playhead INTEGER DEFAULT 0,
+            type TEXT,
+            width INTEGER,
+            height INTEGER,
+            fps REAL,
+            video_codecs TEXT,
+            audio_codecs TEXT,
+            subtitle_codecs TEXT,
+            video_count INTEGER DEFAULT 0,
+            audio_count INTEGER DEFAULT 0,
+            subtitle_count INTEGER DEFAULT 0,
+            album TEXT,
+            artist TEXT,
+            genre TEXT,
+            categories TEXT,
+            description TEXT,
+            language TEXT,
+            time_downloaded INTEGER,
+            score REAL
+        )`,
+		`INSERT INTO media_dg_tmp (
+            path, fts_path, title, duration, size, time_created, time_modified,
+            time_deleted, time_first_played, time_last_played, play_count, playhead,
+            type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs,
+            video_count, audio_count, subtitle_count, album, artist, genre,
+            categories, description, language, time_downloaded, score
+        ) SELECT 
+            path, fts_path, title, duration, size, time_created, time_modified,
+            time_deleted, time_first_played, time_last_played, play_count, playhead,
+            type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs,
+            video_count, audio_count, subtitle_count, album, artist, genre,
+            categories, description, language, time_downloaded, score
+        FROM media`,
+		`DROP TABLE media`,
+		`ALTER TABLE media_dg_tmp RENAME TO media`,
 	}
-	defer stmt.Close()
 
-	for _, u := range updates {
-		if _, err := stmt.Exec(u.ext, u.path); err != nil {
-			return err
+	for _, sql := range sqls {
+		if _, err := tx.Exec(sql); err != nil {
+			return fmt.Errorf("failed cleanup step: %w", err)
 		}
 	}
 
@@ -294,6 +355,7 @@ func migrateTables(db *sql.DB) error {
 					path,
 					fts_path,
 					title,
+                    description,
 					content='media',
 					content_rowid='rowid',
 					tokenize = 'trigram'
@@ -315,15 +377,15 @@ func migrateTables(db *sql.DB) error {
 			if tableName == "media_fts" {
 				triggerSqls := []string{
 					`CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
-						INSERT INTO media_fts(rowid, path, fts_path, title)
-						VALUES (new.rowid, new.path, new.fts_path, new.title);
+						INSERT INTO media_fts(rowid, path, fts_path, title, description)
+						VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
 					END;`,
 					`CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
 						DELETE FROM media_fts WHERE rowid = old.rowid;
 					END;`,
 					`CREATE TRIGGER IF NOT EXISTS media_au AFTER UPDATE ON media BEGIN
-						INSERT INTO media_fts(media_fts, rowid, path, fts_path, title) VALUES('delete', old.rowid, old.path, old.fts_path, old.title);
-						INSERT INTO media_fts(rowid, path, fts_path, title) VALUES (new.rowid, new.path, new.fts_path, new.title);
+						INSERT INTO media_fts(media_fts, rowid, path, fts_path, title, description) VALUES('delete', old.rowid, old.path, old.fts_path, old.title, old.description);
+						INSERT INTO media_fts(rowid, path, fts_path, title, description) VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
 					END;`,
 				}
 				for _, tsql := range triggerSqls {
@@ -342,7 +404,7 @@ func migrateTables(db *sql.DB) error {
 		return nil
 	}
 
-	if err := upgradeFTS("media_fts", "fts_path"); err != nil {
+	if err := upgradeFTS("media_fts", "description"); err != nil {
 		return err
 	}
 	if err := upgradeFTS("captions_fts", ""); err != nil {
@@ -359,14 +421,10 @@ func migrateIndexes(db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_artist ON media(artist)",
 		"CREATE INDEX IF NOT EXISTS idx_album ON media(album)",
 		"CREATE INDEX IF NOT EXISTS idx_categories ON media(categories)",
-		"CREATE INDEX IF NOT EXISTS idx_uploader ON media(uploader)",
 		"CREATE INDEX IF NOT EXISTS idx_score ON media(score)",
-		"CREATE INDEX IF NOT EXISTS idx_view_count ON media(view_count)",
 		"CREATE INDEX IF NOT EXISTS idx_time_created ON media(time_created)",
 		"CREATE INDEX IF NOT EXISTS idx_time_modified ON media(time_modified)",
-		"CREATE INDEX IF NOT EXISTS idx_time_uploaded ON media(time_uploaded)",
 		"CREATE INDEX IF NOT EXISTS idx_time_downloaded ON media(time_downloaded)",
-		"CREATE INDEX IF NOT EXISTS idx_extension ON media(extension)",
 	}
 
 	for _, idx := range indexes {

@@ -98,12 +98,12 @@ var TextExtensions = []string{
 }
 
 var (
-	VideoExtensionMap = make(map[string]bool)
-	AudioExtensionMap = make(map[string]bool)
-	ImageExtensionMap = make(map[string]bool)
-	TextExtensionMap  = make(map[string]bool)
+	VideoExtensionMap   = make(map[string]bool)
+	AudioExtensionMap   = make(map[string]bool)
+	ImageExtensionMap   = make(map[string]bool)
+	TextExtensionMap    = make(map[string]bool)
 	ArchiveExtensionMap = make(map[string]bool)
-	MediaExtensionMap = make(map[string]bool)
+	MediaExtensionMap   = make(map[string]bool)
 )
 
 func init() {

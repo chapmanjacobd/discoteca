@@ -22,7 +22,6 @@ type Media struct {
 	PlayCount       *int64   `json:"play_count,omitempty"`
 	Playhead        *int64   `json:"playhead,omitempty"`
 	Type            *string  `json:"type,omitempty"`
-	Extension       *string  `json:"extension,omitempty"`
 	Width           *int64   `json:"width,omitempty"`
 	Height          *int64   `json:"height,omitempty"`
 	Fps             *float64 `json:"fps,omitempty"`
@@ -35,27 +34,11 @@ type Media struct {
 	Album           *string  `json:"album,omitempty"`
 	Artist          *string  `json:"artist,omitempty"`
 	Genre           *string  `json:"genre,omitempty"`
-	Mood            *string  `json:"mood,omitempty"`
-	Bpm             *int64   `json:"bpm,omitempty"`
-	Key             *string  `json:"key,omitempty"`
-	Decade          *string  `json:"decade,omitempty"`
 	Categories      *string  `json:"categories,omitempty"`
-	City            *string  `json:"city,omitempty"`
-	Country         *string  `json:"country,omitempty"`
 	Description     *string  `json:"description,omitempty"`
 	Language        *string  `json:"language,omitempty"`
-
-	Webpath        *string  `json:"webpath,omitempty"`
-	Uploader       *string  `json:"uploader,omitempty"`
-	TimeUploaded   *int64   `json:"time_uploaded,omitempty"`
-	TimeDownloaded *int64   `json:"time_downloaded,omitempty"`
-	ViewCount      *int64   `json:"view_count,omitempty"`
-	NumComments    *int64   `json:"num_comments,omitempty"`
-	FavoriteCount  *int64   `json:"favorite_count,omitempty"`
-	Score          *float64 `json:"score,omitempty"`
-	UpvoteRatio    *float64 `json:"upvote_ratio,omitempty"`
-	Latitude       *float64 `json:"latitude,omitempty"`
-	Longitude      *float64 `json:"longitude,omitempty"`
+	TimeDownloaded  *int64   `json:"time_downloaded,omitempty"`
+	Score           *float64 `json:"score,omitempty"`
 
 	TrackNumber *int64 `json:"track_number,omitempty"`
 }
@@ -100,20 +83,24 @@ func (m *Media) Parent() string {
 }
 
 func (m *Media) Stem() string {
-	ext := filepath.Ext(m.Path)
 	base := filepath.Base(m.Path)
-	if base == ext {
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	if stem == "" {
 		return base
 	}
-	return strings.TrimSuffix(base, ext)
+	return stem
+}
+
+func (m *Media) Extension() string {
+	return strings.ToLower(filepath.Ext(m.Path))
 }
 
 func (m *Media) ParentAtDepth(depth int) string {
-	parts := strings.Split(filepath.Clean(m.Path), string(filepath.Separator))
+	parts := strings.Split(filepath.Dir(m.Path), string(filepath.Separator))
 	if depth <= 0 {
-		return "/"
+		return string(filepath.Separator)
 	}
-	if depth >= len(parts)-1 {
+	if depth >= len(parts) {
 		return filepath.Dir(m.Path)
 	}
 	return strings.Join(parts[:depth+1], string(filepath.Separator))
@@ -131,23 +118,23 @@ type MediaWithDB struct {
 	EpisodeCount    int64   `json:"episode_count"`
 	TotalSize       int64   `json:"total_size"`
 	TotalDuration   int64   `json:"total_duration"`
-	SortValue       string  `json:"sort_value,omitempty"`
 }
 
 // FolderStats aggregates media by folder
 type FolderStats struct {
 	Path           string        `json:"path"`
 	Count          int           `json:"count"`
+	ExistsCount    int           `json:"exists_count"`
+	PlayedCount    int           `json:"played_count"`
+	DeletedCount   int           `json:"deleted_count"`
+	FolderCount    int           `json:"folder_count"`
 	TotalSize      int64         `json:"total_size"`
 	TotalDuration  int64         `json:"total_duration"`
 	AvgSize        int64         `json:"avg_size"`
 	AvgDuration    int64         `json:"avg_duration"`
 	MedianSize     int64         `json:"median_size"`
 	MedianDuration int64         `json:"median_duration"`
-	DeletedCount   int           `json:"deleted_count"`
-	ExistsCount    int           `json:"exists_count"`
-	PlayedCount    int           `json:"played_count"`
-	FolderCount    int           `json:"folder_count"`
+	TimeLastPlayed int64         `json:"time_last_played"`
 	Files          []MediaWithDB `json:"files,omitempty"`
 }
 
@@ -180,27 +167,11 @@ func FromDB(m db.Media) Media {
 		Album:           NullStringPtr(m.Album),
 		Artist:          NullStringPtr(m.Artist),
 		Genre:           NullStringPtr(m.Genre),
-		Mood:            NullStringPtr(m.Mood),
-		Bpm:             NullInt64Ptr(m.Bpm),
-		Key:             NullStringPtr(m.Key),
-		Decade:          NullStringPtr(m.Decade),
 		Categories:      NullStringPtr(m.Categories),
-		City:            NullStringPtr(m.City),
-		Country:         NullStringPtr(m.Country),
 		Description:     NullStringPtr(m.Description),
 		Language:        NullStringPtr(m.Language),
-		Webpath:         NullStringPtr(m.Webpath),
-		Uploader:        NullStringPtr(m.Uploader),
-		TimeUploaded:    NullInt64Ptr(m.TimeUploaded),
 		TimeDownloaded:  NullInt64Ptr(m.TimeDownloaded),
-		ViewCount:       NullInt64Ptr(m.ViewCount),
-		NumComments:     NullInt64Ptr(m.NumComments),
-		FavoriteCount:   NullInt64Ptr(m.FavoriteCount),
 		Score:           NullFloat64Ptr(m.Score),
-		UpvoteRatio:     NullFloat64Ptr(m.UpvoteRatio),
-		Latitude:        NullFloat64Ptr(m.Latitude),
-		Longitude:       NullFloat64Ptr(m.Longitude),
-		Extension:       NullStringPtr(m.Extension),
 	}
 }
 
@@ -230,30 +201,14 @@ func ToDBUpsert(m Media) db.UpsertMediaParams {
 		VideoCount:     ToNullInt64(m.VideoCount),
 		AudioCount:     ToNullInt64(m.AudioCount),
 		SubtitleCount:  ToNullInt64(m.SubtitleCount),
-		Extension:      ToNullString(m.Extension),
 		Album:          ToNullString(m.Album),
 		Artist:         ToNullString(m.Artist),
 		Genre:          ToNullString(m.Genre),
-		Mood:           ToNullString(m.Mood),
-		Bpm:            ToNullInt64(m.Bpm),
-		Key:            ToNullString(m.Key),
-		Decade:         ToNullString(m.Decade),
 		Categories:     ToNullString(m.Categories),
-		City:           ToNullString(m.City),
-		Country:        ToNullString(m.Country),
 		Description:    ToNullString(m.Description),
 		Language:       ToNullString(m.Language),
-		Webpath:        ToNullString(m.Webpath),
-		Uploader:       ToNullString(m.Uploader),
-		TimeUploaded:   ToNullInt64(m.TimeUploaded),
 		TimeDownloaded: ToNullInt64(m.TimeDownloaded),
-		ViewCount:      ToNullInt64(m.ViewCount),
-		NumComments:    ToNullInt64(m.NumComments),
-		FavoriteCount:  ToNullInt64(m.FavoriteCount),
 		Score:          ToNullFloat64(m.Score),
-		UpvoteRatio:    ToNullFloat64(m.UpvoteRatio),
-		Latitude:       ToNullFloat64(m.Latitude),
-		Longitude:      ToNullFloat64(m.Longitude),
 	}
 }
 

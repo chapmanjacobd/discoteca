@@ -44,16 +44,15 @@ func TestSpecificDate(t *testing.T) {
 	// Should pick earliest most-specific past date
 	d1 := "2020-01-01" // specific
 	d2 := "2019-05-20" // earlier and specific
-	d3 := "2025-01-01" // future (assuming now > 2025) - wait, today is 2026!
-	// Feb 18, 2026 is today.
+	d3 := "2025-01-01" // future (assuming now > 2025)
 
 	got := SpecificDate(d1, d2, d3)
 	if got == nil {
 		t.Fatal("SpecificDate returned nil")
 	}
 
-	t2 := SuperParser(d2).Unix()
-	if *got != t2 {
+	t2 := *SuperParser(d2)
+	if got.Unix() != t2.Unix() {
 		t.Errorf("SpecificDate expected %v, got %v", t2, *got)
 	}
 }
@@ -148,7 +147,7 @@ func TestSpecificDateExtra(t *testing.T) {
 	d1 := "2020-01-01" // Jan 1st is less specific than d2
 	d2 := "2020-05-20" // more specific (has month/day != 1)
 	got := SpecificDate(d1, d2)
-	if got == nil || *got != SuperParser(d2).Unix() {
+	if got == nil || got.Unix() != SuperParser(d2).Unix() {
 		t.Errorf("SpecificDate failed to pick more specific date: %v", got)
 	}
 

@@ -66,7 +66,6 @@ export const state = {
     trashcan: false,
     readOnly: false,
     dev: false,
-    debugMode: localStorage.getItem('disco-debug-mode') === 'true',
     databases: [], // Array of database paths from server
     categories: [],
     genres: [],

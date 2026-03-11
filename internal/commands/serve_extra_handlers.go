@@ -955,6 +955,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 				for _, item := range items {
 					m := models.FromDB(database.Media{
 						Path:            item.Path,
+						FtsPath:         item.FtsPath,
 						Title:           item.Title,
 						Duration:        item.Duration,
 						Size:            item.Size,
@@ -978,26 +979,11 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 						Album:           item.Album,
 						Artist:          item.Artist,
 						Genre:           item.Genre,
-						Mood:            item.Mood,
-						Bpm:             item.Bpm,
-						Key:             item.Key,
-						Decade:          item.Decade,
 						Categories:      item.Categories,
-						City:            item.City,
-						Country:         item.Country,
 						Description:     item.Description,
 						Language:        item.Language,
-						Webpath:         item.Webpath,
-						Uploader:        item.Uploader,
-						TimeUploaded:    item.TimeUploaded,
 						TimeDownloaded:  item.TimeDownloaded,
-						ViewCount:       item.ViewCount,
-						NumComments:     item.NumComments,
-						FavoriteCount:   item.FavoriteCount,
 						Score:           item.Score,
-						UpvoteRatio:     item.UpvoteRatio,
-						Latitude:        item.Latitude,
-						Longitude:       item.Longitude,
 					})
 					m.TrackNumber = models.NullInt64Ptr(item.TrackNumber)
 					mw := models.MediaWithDB{

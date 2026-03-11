@@ -220,35 +220,6 @@ header {
     border-color: var(--accent-color);
 }
 
-#search-type-toggle {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 0.3rem 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-    z-index: 10;
-}
-
-#search-type-toggle:hover {
-    background: var(--hover-color);
-    border-color: var(--accent-color);
-    color: var(--accent-color);
-}
-
-#search-type-toggle.active {
-    background: var(--accent-color);
-    border-color: var(--accent-color);
-    color: white;
-}
-
 #search-suggestions {
     position: absolute;
     top: 100%;

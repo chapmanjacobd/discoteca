@@ -14,6 +14,7 @@ WHERE time_deleted = 0
   )
 ORDER BY path
 LIMIT ?;
+
 -- name: GetMediaBySize :many
 SELECT * FROM media
 WHERE time_deleted = 0
@@ -100,7 +101,7 @@ LIMIT ?;
 -- name: SearchMediaFTS :many
 SELECT * FROM media
 WHERE rowid IN (
-    SELECT rowid FROM media_fts f WHERE f.fts_path MATCH sqlc.arg('query') OR f.title MATCH sqlc.arg('query')
+    SELECT rowid FROM media_fts f WHERE f.fts_path MATCH sqlc.arg('query') OR f.title MATCH sqlc.arg('query') OR f.description MATCH sqlc.arg('query')
 )
 AND time_deleted = 0
 LIMIT sqlc.arg('limit');
@@ -174,28 +175,21 @@ FROM media
 WHERE time_deleted = 0 AND genre IS NOT NULL AND genre != ''
 GROUP BY genre
 ORDER BY count DESC;
+
 -- name: UpsertMedia :exec
 INSERT INTO media (
     path, fts_path, title, duration, size, time_created, time_modified,
     type, width, height, fps,
     video_codecs, audio_codecs, subtitle_codecs,
-    video_count, audio_count, subtitle_count, extension,
-    album, artist, genre, 
-    mood, bpm, key, decade, categories, city, country,
-    description, language,
-    webpath, uploader, time_uploaded, time_downloaded,
-    view_count, num_comments, favorite_count, score, upvote_ratio,
-    latitude, longitude
+    video_count, audio_count, subtitle_count,
+    album, artist, genre, categories, description, language,
+    time_downloaded, score
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?,
-    ?, ?, ?, ?,
     ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?,
-    ?, ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?,
     ?, ?
 )
 ON CONFLICT(path) DO UPDATE SET
@@ -214,30 +208,14 @@ ON CONFLICT(path) DO UPDATE SET
     video_count = excluded.video_count,
     audio_count = excluded.audio_count,
     subtitle_count = excluded.subtitle_count,
-    extension = excluded.extension,
     album = excluded.album,
     artist = excluded.artist,
     genre = excluded.genre,
-    mood = excluded.mood,
-    bpm = excluded.bpm,
-    key = excluded.key,
-    decade = excluded.decade,
     categories = excluded.categories,
-    city = excluded.city,
-    country = excluded.country,
     description = excluded.description,
     language = excluded.language,
-    webpath = excluded.webpath,
-    uploader = excluded.uploader,
-    time_uploaded = excluded.time_uploaded,
-    time_downloaded = excluded.time_downloaded,
-    view_count = excluded.view_count,
-    num_comments = excluded.num_comments,
-    favorite_count = excluded.favorite_count,
-    score = excluded.score,
-    upvote_ratio = excluded.upvote_ratio,
-    latitude = excluded.latitude,
-    longitude = excluded.longitude;
+    time_downloaded = COALESCE(media.time_downloaded, excluded.time_downloaded),
+    score = excluded.score;
 
 -- name: InsertPlaylist :one
 INSERT INTO playlists (path, title, extractor_key, extractor_config)
