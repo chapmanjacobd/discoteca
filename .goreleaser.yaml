@@ -20,34 +20,8 @@ builds:
       - windows_amd64
     env:
       - CGO_ENABLED=1
-      - >-
-        CC=zig cc -target 
-        {{- if eq .Os "linux" }}
-          {{- if eq .Arch "amd64" }}x86_64-linux-gnu
-          {{- else if eq .Arch "arm64" }}aarch64-linux-gnu
-          {{- end }}
-        {{- else if eq .Os "darwin" }}
-          {{- if eq .Arch "amd64" }}x86_64-macos-none
-          {{- else if eq .Arch "arm64" }}aarch64-macos-none
-          {{- end }}
-        {{- else if eq .Os "windows" }}
-          {{- if eq .Arch "amd64" }}x86_64-windows-gnu
-          {{- end }}
-        {{- end }}
-      - >-
-        CXX=zig c++ -target 
-        {{- if eq .Os "linux" }}
-          {{- if eq .Arch "amd64" }}x86_64-linux-gnu
-          {{- else if eq .Arch "arm64" }}aarch64-linux-gnu
-          {{- end }}
-        {{- else if eq .Os "darwin" }}
-          {{- if eq .Arch "amd64" }}x86_64-macos-none
-          {{- else if eq .Arch "arm64" }}aarch64-macos-none
-          {{- end }}
-        {{- else if eq .Os "windows" }}
-          {{- if eq .Arch "amd64" }}x86_64-windows-gnu
-          {{- end }}
-        {{- end }}
+      - CC=zig cc -target {{ if eq .Os "linux" }}{{ if eq .Arch "amd64" }}x86_64-linux-gnu{{ else if eq .Arch "arm64" }}aarch64-linux-gnu{{ end }}{{ else if eq .Os "darwin" }}{{ if eq .Arch "amd64" }}x86_64-macos-none{{ else if eq .Arch "arm64" }}aarch64-macos-none{{ end }}{{ else if eq .Os "windows" }}{{ if eq .Arch "amd64" }}x86_64-windows-gnu{{ end }}{{ end }}
+      - CXX=zig c++ -target {{ if eq .Os "linux" }}{{ if eq .Arch "amd64" }}x86_64-linux-gnu{{ else if eq .Arch "arm64" }}aarch64-linux-gnu{{ end }}{{ else if eq .Os "darwin" }}{{ if eq .Arch "amd64" }}x86_64-macos-none{{ else if eq .Arch "arm64" }}aarch64-macos-none{{ end }}{{ else if eq .Os "windows" }}{{ if eq .Arch "amd64" }}x86_64-windows-gnu{{ end }}{{ end }}
     tags:
       - fts5
     flags:
