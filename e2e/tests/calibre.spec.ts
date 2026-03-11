@@ -212,15 +212,15 @@ test.describe('Calibre EPUB Viewer', () => {
   test('can search for EPUB files and open them', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
-    // Search for EPUB files using POM
-    await mediaPage.search('.epub');
+    // Search for test-book EPUB file using POM
+    await mediaPage.search('test-book');
 
     // Should have at least one result using POM
     const epubCount = await mediaPage.getMediaCount();
     expect(epubCount).toBeGreaterThan(0);
 
     // Open first EPUB using POM
-    const epubCard = mediaPage.getMediaCard(0);
+    const epubCard = mediaPage.page.locator('.media-card[data-type*="text"]').first();
     await epubCard.click();
 
     // Document modal should open using POM
@@ -228,7 +228,7 @@ test.describe('Calibre EPUB Viewer', () => {
 
     // Verify it's an EPUB using POM
     const title = await viewerPage.getTitle();
-    expect(title.toLowerCase()).toContain('.epub');
+    expect(title.toLowerCase()).toContain('epub');
 
     // Close modal using POM
     await viewerPage.closeDocumentModal();

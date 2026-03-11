@@ -9,19 +9,21 @@ test.describe('Search and Filtering', () => {
     // Get initial count using POM
     const initialCount = await mediaPage.getMediaCount();
 
-    // Search for "movie" using POM
-    await mediaPage.search('movie');
+    // Search for "video" which should match test_video files using POM
+    await mediaPage.search('video');
 
     // Should have filtered results using POM
     const filteredCount = await mediaPage.getMediaCount();
 
     // Count should be less than or equal to initial
     expect(filteredCount).toBeLessThanOrEqual(initialCount);
+    expect(filteredCount).toBeGreaterThan(0);
 
-    // All results should contain "movie" in title or path using POM
+    // All results should contain "video" in title or path using POM
     for (let i = 0; i < filteredCount; i++) {
-      const title = await mediaPage.getMediaTitle(i);
-      expect(title?.toLowerCase()).toContain('movie');
+      const card = mediaPage.getMediaCard(i);
+      const path = await card.getAttribute('data-path');
+      expect(path?.toLowerCase().includes('video')).toBe(true);
     }
   });
 
@@ -29,7 +31,7 @@ test.describe('Search and Filtering', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Search for something using POM
-    await mediaPage.search('movie');
+    await mediaPage.search('video');
 
     // Clear search using POM
     await mediaPage.clearSearch();

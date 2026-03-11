@@ -77,17 +77,26 @@ test.describe('Large Result Sets Scrolling', () => {
 
     // Rapid scrolling should not crash the page using POM
     for (let i = 0; i < 5; i++) {
-      await mediaPage.page.evaluate(() => {
-        const content = document.querySelector('#content');
+      await mediaPage.page.evaluate((scrollPos) => {
+        const content = document.querySelector('#results-container, #content, main');
         if (content) {
-          content.scrollTo(0, i * 500);
+          content.scrollTo(0, scrollPos);
+        } else {
+          window.scrollTo(0, scrollPos);
         }
-      });
+      }, i * 500);
       await mediaPage.page.waitForTimeout(200);
     }
 
     // Page should still be functional using POM
     await expect(mediaPage.resultsContainer).toBeVisible();
+    
+    // Page should not have crashed (check for error state)
+    const hasError = await mediaPage.page.evaluate(() => {
+      return document.body.classList.contains('error') || 
+             document.querySelector('.error-message') !== null;
+    });
+    expect(hasError).toBe(false);
   });
 
   test('scroll position is maintained after search', async ({ mediaPage, server }) => {

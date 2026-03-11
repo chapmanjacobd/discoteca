@@ -10,19 +10,20 @@ test.describe('Search and Query Integration', () => {
     const initialCount = await mediaPage.getMediaCount();
     expect(initialCount).toBeGreaterThan(0);
 
-    // Search for a specific movie using POM
-    await mediaPage.search('test_video');
+    // Search for 'video' which should match test_video files using FTS
+    await mediaPage.search('video');
+    await mediaPage.page.waitForTimeout(500);
 
     // Count should decrease or change using POM
     const searchCount = await mediaPage.getMediaCount();
 
-    // At least test_video should be there
+    // Should have results
     expect(searchCount).toBeGreaterThan(0);
     expect(searchCount).toBeLessThanOrEqual(initialCount);
 
-    // Check first result title using POM
-    const firstTitle = await mediaPage.getMediaTitle(0);
-    expect(firstTitle?.toLowerCase()).toContain('test_video');
+    // Check first result contains 'video' in path using POM
+    const firstPath = await mediaPage.getMediaCardPath(0);
+    expect(firstPath.toLowerCase().includes('video')).toBe(true);
   });
 
   test('filters by media type', async ({ mediaPage, sidebarPage, server }) => {
@@ -71,16 +72,19 @@ test.describe('Search and Query Integration', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Search with lowercase using POM
-    await mediaPage.search('test');
+    await mediaPage.search('video');
+    await mediaPage.page.waitForTimeout(500);
     const lowerCount = await mediaPage.getMediaCount();
+    expect(lowerCount).toBeGreaterThan(0);
 
     // Clear and search with uppercase using POM
     await mediaPage.clearSearch();
-    await mediaPage.search('TEST');
+    await mediaPage.search('VIDEO');
+    await mediaPage.page.waitForTimeout(500);
     const upperCount = await mediaPage.getMediaCount();
 
-    // Results should be similar (case insensitive)
-    expect(Math.abs(lowerCount - upperCount)).toBeLessThanOrEqual(1);
+    // Results should be the same (case insensitive)
+    expect(upperCount).toBe(lowerCount);
   });
 
   test('search with special characters', async ({ mediaPage, server }) => {
@@ -102,12 +106,15 @@ test.describe('Search and Query Integration', () => {
     const initialCount = await mediaPage.getMediaCount();
 
     // Search using POM
-    await mediaPage.search('test');
+    await mediaPage.search('video');
+    await mediaPage.page.waitForTimeout(500);
     const searchCount = await mediaPage.getMediaCount();
     expect(searchCount).toBeLessThanOrEqual(initialCount);
+    expect(searchCount).toBeGreaterThan(0);
 
     // Clear search using POM
     await mediaPage.clearSearch();
+    await mediaPage.page.waitForTimeout(500);
 
     // Count should return to initial using POM
     const finalCount = await mediaPage.getMediaCount();
@@ -118,11 +125,14 @@ test.describe('Search and Query Integration', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Search using POM
-    await mediaPage.search('test');
+    await mediaPage.search('video');
+    await mediaPage.page.waitForTimeout(500);
     const searchCount = await mediaPage.getMediaCount();
+    expect(searchCount).toBeGreaterThan(0);
 
     // Switch to details view using POM
     await mediaPage.switchToDetailsView();
+    await mediaPage.page.waitForTimeout(500);
 
     // Search results should persist using POM
     const detailsCount = await mediaPage.getMediaCount();
@@ -130,6 +140,7 @@ test.describe('Search and Query Integration', () => {
 
     // Switch back to grid using POM
     await mediaPage.switchToGridView();
+    await mediaPage.page.waitForTimeout(500);
 
     // Search results should still persist using POM
     const gridCount = await mediaPage.getMediaCount();

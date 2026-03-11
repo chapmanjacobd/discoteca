@@ -411,17 +411,20 @@ test.describe('Playback Controls', () => {
       return v && !v.paused;
     }, { timeout: 5000 });
 
+    // Verify media is playing using POM
+    expect(await viewerPage.isPlaying()).toBe(true);
+
     // Pause via JavaScript using POM
     await viewerPage.pause();
     await mediaPage.page.waitForTimeout(300);
 
-    expect(await viewerPage.isPlaying()).toBe(true);
+    expect(await viewerPage.isPlaying()).toBe(false);
 
     // Play via JavaScript using POM
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(300);
 
-    expect(await viewerPage.isPlaying()).toBe(false);
+    expect(await viewerPage.isPlaying()).toBe(true);
   });
 
   test('seek functionality works', async ({ mediaPage, viewerPage, server }) => {
