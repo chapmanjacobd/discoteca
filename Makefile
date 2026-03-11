@@ -1,9 +1,43 @@
-.PHONY: build build-fts5 build-bleve build-nofts test cover webtest webcover e2e clean fmt lint sql install all readme dev
+.PHONY: build build-fts5 build-bleve build-nofts test cover webtest webcover e2e clean fmt lint sql install all readme dev ubuntu-deps go-deps
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
 
 all: fmt lint sql test build webtest webbuild readme
+
+ubuntu-deps:
+	sudo apt-get update && sudo apt-get install -y \
+		ffmpeg \
+		pandoc \
+		groff \
+		calibre \
+		fonts-dejavu-core \
+		sqlite3 \
+		libnss3 \
+		libnspr4 \
+		libatk1.0-0 \
+		libatk-bridge2.0-0 \
+		libcups2 \
+		libdrm2 \
+		libxkbcommon0 \
+		libxcomposite1 \
+		libxdamage1 \
+		libxfixes3 \
+		libxrandr2 \
+		libgbm1 \
+		libasound2t64 \
+		libpango-1.0-0 \
+		libcairo2
+
+go-deps:
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install golang.org/x/tools/cmd/goimports@latest
+	go install mvdan.cc/gofumpt@latest
+	go install github.com/daixiang0/gci@latest
+
+web-install:
+	npm install --prefix web
 
 webbuild:
 	npm run build --prefix web
@@ -44,7 +78,7 @@ webcover:
 	npm run cover --prefix web
 
 e2e-install:
-	cd e2e && npm install && npx playwright install
+	cd e2e && npm install && npx playwright install --with-deps
 
 e2e-init: build
 	./e2e/fixtures/init-db.sh
@@ -82,3 +116,7 @@ clean:
 # Install the binary to $GOPATH/bin
 install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco
+
+release-build: webbuild
+	mkdir -p dist
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -tags "$(BUILD_TAGS)" -o dist/$(BINARY_NAME)-$(GOOS)-$(GOARCH) ./cmd/disco

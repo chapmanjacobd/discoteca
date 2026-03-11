@@ -10,40 +10,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.26.0'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
-      - name: Install Go dependencies
+      - name: Install dependencies
         run: |
-          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install mvdan.cc/gofumpt@latest
-          go install github.com/daixiang0/gci@latest
-
-      - name: Install Node.js dependencies
-        run: npm install
-        working-directory: web
-
-      - name: Install additional dependencies for tests
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            ffmpeg \
-            pandoc \
-            fonts-dejavu-core \
-            sqlite3
+          make ubuntu-deps
+          make go-deps
+          make web-install
 
       - name: Run all checks and build
         run: make all
