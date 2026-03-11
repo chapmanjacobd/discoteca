@@ -1,21 +1,10 @@
 fix failing tests or code
 
-double check that we are using optimal data types and SQLite types. Are we using using `STRICT` ?
-
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
 - Search filtering should work across all modes without exiting that mode--but you could hide the searchbox on the Categorization page as that one doesn't really need it
 
 Split up app.js
-
-DU mode Default sort should be similar to xklb:
-lambda x: (
-        (x.get("size") or 0) / (x.get("count") or 1),
-        x.get("size") or 0,
-        x.get("count") or 1,
-        x.get("folders") or 1,
-        objects.Reverser(x.get("path")),
-    )
 
 Search mode should also use xklb sorting, but wrapped in PlayInOrder():
 lambda x: (
@@ -48,7 +37,14 @@ lambda x: (
 
 Or maybe accept an array for complex sorting with drag-and-drop reordering? The functionality should expose a level of completeness which allows for the above to be default for default
 
-on desktop and mobile chrome gifs load fine, but on mobile Fennec they load in thumbnails but not in PiP player. any ideas?
+DU mode Default sort should be similar to xklb:
+lambda x: (
+        (x.get("size") or 0) / (x.get("count") or 1),
+        x.get("size") or 0,
+        x.get("count") or 1,
+        x.get("folders") or 1,
+        objects.Reverser(x.get("path")),
+    )
 
 non-fts build should have support for substring searches somehow... do an estimated performance benchmark comparison of the options
 

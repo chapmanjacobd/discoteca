@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Open in PiP
-                await openActivePlayer(data, true, true);
+                await openActivePlayer(data, true);
 
                 // Seek to the random start time
                 const media = pipViewer.querySelector('video, audio');
@@ -780,10 +780,9 @@ document.addEventListener('DOMContentLoaded', () => {
      * Documents open in the document modal, all other media opens in PiP.
      * @param {Object} item - The media item to play
      * @param {boolean} isNewSession - Whether this is a new explicit user request
-     * @param {boolean} isSurfing - Whether this is a channel surfing action
      * @param {boolean} skipSync - Whether to skip syncUrl
      */
-    function openActivePlayer(item, isNewSession = false, isSurfing = false, skipSync = false, queueIndex = -1, keepFullscreen = false) {
+    function openActivePlayer(item, isNewSession = false, skipSync = false, queueIndex = -1, keepFullscreen = false) {
         const type = item.type || "";
         const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi');
 
@@ -798,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.activeModal = 'document-modal';
             openInDocumentViewer(item);
         } else {
-            openInPiP(item, isNewSession, isSurfing);
+            openInPiP(item, isNewSession);
         }
 
         if (!skipSync) {
@@ -983,7 +982,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!state.playback.item || state.playback.item.path !== playingParam) {
                 // If we're already playing something, close it first
                 const mediaItem = currentMedia.find(m => m.path === playingParam) || { path: playingParam };
-                openActivePlayer(mediaItem, true, false, true);
+                openActivePlayer(mediaItem, true, true);
             }
         } else if (state.playback.item) {
             closeActivePlayer(true);
@@ -3085,7 +3084,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (state.player === 'browser') {
-            openActivePlayer(item, true, false, false, queueIndex);
+            openActivePlayer(item, true, false, queueIndex);
             return;
         }
 
@@ -3144,8 +3143,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function updateProgress(item, playhead, duration, isComplete = false) {
-        if (state.playback.isSurfing) return state.playback.pendingUpdate;
-
         if (playhead > 1) {
             state.playback.consecutiveErrors = 0;
         }
@@ -3377,7 +3374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (nextIndex >= 0 && nextIndex < queue.length) {
-                    openActivePlayer(queue[nextIndex], false, false, false, nextIndex, keepFullscreen);
+                    openActivePlayer(queue[nextIndex], false, false, nextIndex, keepFullscreen);
                     renderQueue();
                     return;
                 } else {
@@ -3442,7 +3439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playItem = (index) => {
             if (index >= 0 && index < currentMedia.length) {
                 if (state.player === 'browser') {
-                    openActivePlayer(currentMedia[index], isNewSession, false, false, -1, keepFullscreen);
+                    openActivePlayer(currentMedia[index], isNewSession, false, -1, keepFullscreen);
                 } else {
                     playMedia(currentMedia[index]);
                 }
@@ -4309,17 +4306,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function openInPiP(item, isNewSession = false, isSurfing = false) {
-        state.playback.isSurfing = isSurfing;
+    async function openInPiP(item, isNewSession = false) {
         updatePipVisibility();
 
         if (state.playback.slideshowTimer) {
             clearTimeout(state.playback.slideshowTimer);
             state.playback.slideshowTimer = null;
-        }
-        if (state.playback.surfTimer) {
-            clearTimeout(state.playback.surfTimer);
-            state.playback.surfTimer = null;
         }
 
         if (isNewSession) {
@@ -4512,6 +4504,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 // If this element is no longer the active one, ignore the error
                 if (el !== pipViewer.querySelector('video, audio')) return;
 
+                // Check if this is a decode error (error code 3 = MEDIA_ERR_DECODE)
+                // This can happen for animated GIFs that ffprobe detected as video
+                // but the browser's video element can't decode
+                if (el.error && el.error.code === (typeof MediaError !== 'undefined' ? MediaError.MEDIA_ERR_DECODE : 3)) {
+                    console.warn("Video decode failed, falling back to image element for:", item.path);
+                    fallbackToImageElement(item, url);
+                    return;
+                }
+
                 const currentSrc = el.src || '';
                 if (needsTranscode && (currentSrc.includes('/api/hls/playlist') || (state.playback.hlsInstance && state.playback.hlsInstance.url === currentSrc))) {
                     console.warn("HLS failed, trying direct stream fallback...");
@@ -4696,7 +4697,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (type.includes('image')) {
             el = document.createElement('img');
             el.onload = () => {
-                if (state.imageAutoplay && !state.playback.isSurfing) {
+                if (state.imageAutoplay) {
                     startSlideshow();
                 }
             };
@@ -4707,65 +4708,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.onload();
             }
             el.ondblclick = () => toggleFullscreen(pipViewer, pipViewer);
-
-            // Zoom/Pan logic for fullscreen
-            let scale = 1;
-            let translateX = 0;
-            let translateY = 0;
-            let isDragging = false;
-            let lastX, lastY;
-
-            el.addEventListener('wheel', (e) => {
-                if (!document.fullscreenElement) return;
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                const newScale = Math.min(Math.max(1, scale * delta), 10);
-
-                if (newScale !== scale) {
-                    scale = newScale;
-                    if (scale === 1) {
-                        translateX = 0;
-                        translateY = 0;
-                    }
-                    el.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
-                }
-            }, { passive: false });
-
-            el.addEventListener('mousedown', (e) => {
-                if (!document.fullscreenElement || scale <= 1) return;
-                isDragging = true;
-                lastX = e.clientX;
-                lastY = e.clientY;
-                el.style.cursor = 'grabbing';
-            });
-
-            window.addEventListener('mousemove', (e) => {
-                if (!isDragging || !document.fullscreenElement) return;
-                const dx = (e.clientX - lastX) / scale;
-                const dy = (e.clientY - lastY) / scale;
-                translateX += dx;
-                translateY += dy;
-                lastX = e.clientX;
-                lastY = e.clientY;
-                el.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
-            });
-
-            window.addEventListener('mouseup', () => {
-                isDragging = false;
-                if (el) el.style.cursor = '';
-            });
-
-            document.addEventListener('fullscreenchange', () => {
-                if (!document.fullscreenElement) {
-                    scale = 1;
-                    translateX = 0;
-                    translateY = 0;
-                    if (el) {
-                        el.style.transform = '';
-                        el.style.cursor = '';
-                    }
-                }
-            });
+            setupImageZoomPan(el);
         } else {
             showToast('Unsupported media format');
             return;
@@ -4961,6 +4904,92 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(`Error attempting to enable full-screen mode: ${err.message}`);
             });
         }
+    }
+
+    // Setup zoom/pan functionality for image elements in fullscreen
+    function setupImageZoomPan(el) {
+        if (!el) return;
+        
+        let scale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        let lastX, lastY;
+
+        el.addEventListener('wheel', (e) => {
+            if (!document.fullscreenElement) return;
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newScale = Math.min(Math.max(1, scale * delta), 10);
+
+            if (newScale !== scale) {
+                scale = newScale;
+                if (scale === 1) {
+                    translateX = 0;
+                    translateY = 0;
+                }
+                el.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+            }
+        }, { passive: false });
+
+        el.addEventListener('mousedown', (e) => {
+            if (!document.fullscreenElement || scale <= 1) return;
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            el.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging || !document.fullscreenElement) return;
+            const dx = (e.clientX - lastX) / scale;
+            const dy = (e.clientY - lastY) / scale;
+            translateX += dx;
+            translateY += dy;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            el.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            if (el) el.style.cursor = '';
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                scale = 1;
+                translateX = 0;
+                translateY = 0;
+                if (el) {
+                    el.style.transform = '';
+                    el.style.cursor = '';
+                }
+            }
+        });
+    }
+
+    // Fallback function for when video element can't decode a file (e.g., animated GIFs)
+    // Replaces the video element with an img element
+    function fallbackToImageElement(item, url) {
+        const imgEl = document.createElement('img');
+        imgEl.onload = () => {
+            if (state.imageAutoplay) {
+                startSlideshow();
+            }
+        };
+        imgEl.onerror = () => handleMediaError(item, imgEl);
+        imgEl.src = url;
+        if (imgEl.complete && imgEl.onload) {
+            imgEl.onload();
+        }
+        imgEl.ondblclick = () => toggleFullscreen(pipViewer, pipViewer);
+        imgEl.controls = false;
+
+        // Replace video with img in the viewer
+        pipViewer.innerHTML = '';
+        pipViewer.appendChild(imgEl);
+        setupImageZoomPan(imgEl);
     }
 
     async function closePiP() {

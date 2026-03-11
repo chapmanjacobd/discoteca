@@ -9,18 +9,25 @@ import (
 
 // Migrate runs schema migrations on an existing database
 func Migrate(db *sql.DB) error {
+	// 0. Check SQLite version for STRICT support (3.37.0+)
+	var version string
+	if err := db.QueryRow("SELECT sqlite_version()").Scan(&version); err != nil {
+		return err
+	}
+	hasStrict := isVersionGreaterOrEqual(version, "3.37.0")
+
 	// 1. Column migrations (Add new ones first)
 	if err := migrateColumns(db); err != nil {
 		return err
 	}
 
-	// 2. Data consolidation and table cleanup
-	if err := cleanupMediaTable(db); err != nil {
+	// 2. Data consolidation and table cleanup (now includes STRICT)
+	if err := cleanupMediaTable(db, hasStrict); err != nil {
 		return err
 	}
 
-	// 3. Table migrations (FTS etc)
-	if err := migrateTables(db); err != nil {
+	// 3. Table migrations (FTS etc, and STRICT for other tables)
+	if err := migrateTables(db, hasStrict); err != nil {
 		return err
 	}
 
@@ -30,6 +37,89 @@ func Migrate(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func isVersionGreaterOrEqual(v, target string) bool {
+	var v1, v2, v3 int
+	fmt.Sscanf(v, "%d.%d.%d", &v1, &v2, &v3)
+	var t1, t2, t3 int
+	fmt.Sscanf(target, "%d.%d.%d", &t1, &t2, &t3)
+
+	if v1 != t1 {
+		return v1 > t1
+	}
+	if v2 != t2 {
+		return v2 > t2
+	}
+	return v3 >= t3
+}
+
+func isTableStrict(db *sql.DB, tableName string) (bool, error) {
+	var isStrict bool
+	// PRAGMA table_list is available since 3.37.0
+	err := db.QueryRow(fmt.Sprintf("SELECT strict FROM pragma_table_list WHERE name='%s'", tableName)).Scan(&isStrict)
+	if err != nil {
+		// If table_list is not available or table not found, assume not strict
+		return false, nil
+	}
+	return isStrict, nil
+}
+
+func migrateToStrict(db *sql.DB, tableName string, createSql string) error {
+	strict, err := isTableStrict(db, tableName)
+	if err != nil {
+		return err
+	}
+	if strict {
+		return nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Rename old table
+	oldTable := tableName + "_old_strict"
+	if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tableName, oldTable)); err != nil {
+		return fmt.Errorf("failed to rename %s: %w", tableName, err)
+	}
+
+	// Create new STRICT table
+	if _, err := tx.Exec(createSql); err != nil {
+		return fmt.Errorf("failed to create strict %s: %w", tableName, err)
+	}
+
+	// Copy data
+	// Get columns from old table to ensure they match
+	rows, err := tx.Query(fmt.Sprintf("PRAGMA table_info(%s)", oldTable))
+	if err != nil {
+		return err
+	}
+	var cols []string
+	for rows.Next() {
+		var name string
+		var ignored any
+		if err := rows.Scan(&ignored, &name, &ignored, &ignored, &ignored, &ignored); err != nil {
+			rows.Close()
+			return err
+		}
+		cols = append(cols, name)
+	}
+	rows.Close()
+
+	colStr := strings.Join(cols, ", ")
+	if _, err := tx.Exec(fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM %s", tableName, colStr, colStr, oldTable)); err != nil {
+		return fmt.Errorf("failed to copy data for %s: %w", tableName, err)
+	}
+
+	// Drop old table
+	if _, err := tx.Exec(fmt.Sprintf("DROP TABLE %s", oldTable)); err != nil {
+		return fmt.Errorf("failed to drop %s: %w", oldTable, err)
+	}
+
+	return tx.Commit()
 }
 
 // pathToFtsPath converts a file path to FTS-friendly format
@@ -161,8 +251,8 @@ func migrateColumns(db *sql.DB) error {
 	return nil
 }
 
-func cleanupMediaTable(db *sql.DB) error {
-	// 1. Check if we need cleanup (do dead columns exist?)
+func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
+	// 1. Check if we need cleanup (do dead columns exist?) OR if we need to migrate to STRICT
 	rows, err := db.Query("PRAGMA table_info(media)")
 	if err != nil {
 		return err
@@ -193,29 +283,38 @@ func cleanupMediaTable(db *sql.DB) error {
 	}
 	rows.Close()
 
-	if !hasDeadColumns {
+	strict, _ := isTableStrict(db, "media")
+	needsStrictMigration := hasStrict && !strict
+
+	if !hasDeadColumns && !needsStrictMigration {
 		return nil
 	}
 
 	// 2. Consolidate metadata into description before dropping columns
-	// decade, mood, bpm, key
-	_, _ = db.Exec(`UPDATE media SET description = 
-        COALESCE(description, '') || 
-        CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
-        CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
-        CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
-        CASE WHEN "key" IS NOT NULL AND "key" != '' THEN '\nKey: ' || "key" ELSE '' END
-        WHERE decade IS NOT NULL OR mood IS NOT NULL OR bpm IS NOT NULL OR "key" IS NOT NULL`)
+	if hasDeadColumns {
+		_, _ = db.Exec(`UPDATE media SET description = 
+            COALESCE(description, '') || 
+            CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
+            CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
+            CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
+            CASE WHEN "key" IS NOT NULL AND "key" != '' THEN '\nKey: ' || "key" ELSE '' END
+            WHERE decade IS NOT NULL OR mood IS NOT NULL OR bpm IS NOT NULL OR "key" IS NOT NULL`)
+	}
 
-	// 3. Recreate table (SQLite standard way to drop multiple columns)
+	// 3. Recreate table (SQLite standard way to drop multiple columns and/or add STRICT)
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
+	strictSql := ""
+	if hasStrict {
+		strictSql = "STRICT"
+	}
+
 	sqls := []string{
-		`CREATE TABLE media_dg_tmp (
+		fmt.Sprintf(`CREATE TABLE media_dg_tmp (
             path TEXT PRIMARY KEY,
             fts_path TEXT,
             title TEXT,
@@ -246,7 +345,7 @@ func cleanupMediaTable(db *sql.DB) error {
             language TEXT,
             time_downloaded INTEGER,
             score REAL
-        )`,
+        ) %s`, strictSql),
 		`INSERT INTO media_dg_tmp (
             path, fts_path, title, duration, size, time_created, time_modified,
             time_deleted, time_first_played, time_last_played, play_count, playhead,
@@ -321,14 +420,83 @@ func populateFtsPath(db *sql.DB) error {
 	return tx.Commit()
 }
 
-func migrateTables(db *sql.DB) error {
-	// Create custom_keywords table if it doesn't exist
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS custom_keywords (
-		category TEXT NOT NULL,
-		keyword TEXT NOT NULL,
-		PRIMARY KEY (category, keyword)
-	)`); err != nil {
-		return fmt.Errorf("failed to create custom_keywords table: %w", err)
+func migrateTables(db *sql.DB, hasStrict bool) error {
+	strictSql := ""
+	if hasStrict {
+		strictSql = "STRICT"
+	}
+
+	// 1. Migrate small tables to STRICT
+	if hasStrict {
+		migrations := []struct {
+			name string
+			sql  string
+		}{
+			{"playlists", fmt.Sprintf(`CREATE TABLE playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT UNIQUE,
+                title TEXT,
+                extractor_key TEXT,
+                extractor_config TEXT,
+                time_deleted INTEGER DEFAULT 0
+            ) %s`, strictSql)},
+			{"playlist_items", fmt.Sprintf(`CREATE TABLE playlist_items (
+                playlist_id INTEGER NOT NULL,
+                media_path TEXT NOT NULL,
+                track_number INTEGER,
+                time_added INTEGER DEFAULT (unixepoch()),
+                PRIMARY KEY (playlist_id, media_path),
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+            ) %s`, strictSql)},
+			{"captions", fmt.Sprintf(`CREATE TABLE captions (
+                media_path TEXT NOT NULL,
+                time REAL,
+                text TEXT,
+                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+            ) %s`, strictSql)},
+			{"history", fmt.Sprintf(`CREATE TABLE history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                media_path TEXT NOT NULL,
+                time_played INTEGER DEFAULT (unixepoch()),
+                playhead INTEGER,
+                done INTEGER,
+                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+            ) %s`, strictSql)},
+			{"custom_keywords", fmt.Sprintf(`CREATE TABLE custom_keywords (
+                category TEXT NOT NULL,
+                keyword TEXT NOT NULL,
+                PRIMARY KEY (category, keyword)
+            ) %s`, strictSql)},
+		}
+
+		for _, m := range migrations {
+			// Check if table exists before migrating
+			var exists int
+			err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", m.name).Scan(&exists)
+			if err != nil {
+				return err
+			}
+			if exists > 0 {
+				if err := migrateToStrict(db, m.name, m.sql); err != nil {
+					return err
+				}
+			} else {
+				// Create it if it doesn't exist
+				if _, err := db.Exec(m.sql); err != nil {
+					return fmt.Errorf("failed to create %s: %w", m.name, err)
+				}
+			}
+		}
+	} else {
+		// Just ensure custom_keywords exists if not using STRICT (older SQLite)
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS custom_keywords (
+            category TEXT NOT NULL,
+            keyword TEXT NOT NULL,
+            PRIMARY KEY (category, keyword)
+        )`); err != nil {
+			return fmt.Errorf("failed to create custom_keywords table: %w", err)
+		}
 	}
 
 	// Check if FTS tables need upgrade to trigram or new columns

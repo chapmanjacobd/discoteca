@@ -36,5 +36,14 @@ jobs:
         run: npm install
         working-directory: web
 
+      - name: Install additional dependencies for tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ffmpeg \
+            pandoc \
+            fonts-dejavu-core \
+            sqlite3
+
       - name: Run all checks and build
         run: make all

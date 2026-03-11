@@ -241,7 +241,7 @@ SELECT * FROM playlists WHERE time_deleted = 0 ORDER BY title, path;
 
 -- name: AddPlaylistItem :exec
 INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
-VALUES (?, ?, ?, strftime('%s', 'now'))
+VALUES (?, ?, ?, unixepoch())
 ON CONFLICT(playlist_id, media_path) DO UPDATE SET
     track_number = excluded.track_number;
 

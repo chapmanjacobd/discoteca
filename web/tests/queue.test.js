@@ -136,7 +136,7 @@ describe('Queue Management', () => {
         state.playback.queue = [item, item, { path: 'third.mp4', duration: 10, type: 'video/mp4' }];
         
         // Play first item (explicitly passing index 0)
-        window.disco.openActivePlayer(state.playback.queue[0], true, false, false, 0);
+        window.disco.openActivePlayer(state.playback.queue[0], true, false, 0);
         expect(state.playback.item.path).toBe('duplicate.mp4');
         expect(state.playback.queueIndex).toBe(0);
         

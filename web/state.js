@@ -90,7 +90,6 @@ export const state = {
         shuffle: localStorage.getItem('disco-shuffle') === 'true',
         timer: null,
         slideshowTimer: null,
-        surfTimer: null,
         startTime: null,
         lastUpdate: 0,
         lastLocalUpdate: 0,

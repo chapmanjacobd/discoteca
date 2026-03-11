@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -16,6 +17,23 @@ func setupDB(t *testing.T) (*sql.DB, *Queries) {
 	}
 
 	schema := GetSchema()
+
+	// Check for STRICT support
+	var version string
+	if err := db.QueryRow("SELECT sqlite_version()").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	var v1, v2, v3 int
+	fmt.Sscanf(version, "%d.%d.%d", &v1, &v2, &v3)
+	hasStrict := v1 > 3 || (v1 == 3 && v2 >= 37)
+
+	if !hasStrict {
+		schema = strings.ReplaceAll(schema, "STRICT", "")
+		// Also replace unixepoch() with strftime('%s', 'now') if using very old SQLite
+		if v1 < 3 || (v1 == 3 && v2 < 38) {
+			schema = strings.ReplaceAll(schema, "unixepoch()", "strftime('%s', 'now')")
+		}
+	}
 
 	// Simple FTS5 check
 	var hasFTS5 bool
@@ -363,6 +381,24 @@ func TestQueries(t *testing.T) {
 		_, err = q.GetMediaByPathExact(ctx, "tx.mp4")
 		if err != nil {
 			t.Error("tx.mp4 should exist after successful transaction")
+		}
+	})
+
+	t.Run("StrictEnforcement", func(t *testing.T) {
+		var version string
+		db.QueryRow("SELECT sqlite_version()").Scan(&version)
+		var v1, v2, v3 int
+		fmt.Sscanf(version, "%d.%d.%d", &v1, &v2, &v3)
+		if v1 < 3 || (v1 == 3 && v2 < 37) {
+			t.Skip("STRICT not supported")
+		}
+
+		// Try to insert a string into an INTEGER column (duration)
+		_, err := db.Exec("INSERT INTO media (path, duration) VALUES ('strict-test.mp4', 'not-an-int')")
+		if err == nil {
+			t.Error("Expected error when inserting string into INTEGER column in STRICT table, but got none")
+		} else if !strings.Contains(err.Error(), "datatype mismatch") && !strings.Contains(err.Error(), "cannot store TEXT value in INTEGER column") {
+			t.Errorf("Expected datatype mismatch error, got: %v", err)
 		}
 	})
 }

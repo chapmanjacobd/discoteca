@@ -5,17 +5,17 @@ CREATE TABLE playlists (
     extractor_key TEXT,
     extractor_config TEXT,
     time_deleted INTEGER DEFAULT 0
-);
+) STRICT;
 CREATE TABLE sqlite_sequence(name,seq);
 CREATE TABLE playlist_items (
     playlist_id INTEGER NOT NULL,
     media_path TEXT NOT NULL,
     track_number INTEGER,
-    time_added INTEGER DEFAULT (strftime('%s', 'now')),
+    time_added INTEGER DEFAULT (unixepoch()),
     PRIMARY KEY (playlist_id, media_path),
     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
     FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-);
+) STRICT;
 CREATE TABLE media (
     path TEXT PRIMARY KEY,
     fts_path TEXT, -- Processed path for FTS (dots replaced by spaces etc)
@@ -55,13 +55,13 @@ CREATE TABLE media (
     -- Metadata
     time_downloaded INTEGER, -- Repurposed as Time First Scanned
     score REAL
-);
+) STRICT;
 CREATE TABLE captions (
     media_path TEXT NOT NULL,
     time REAL,
     text TEXT,
     FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-);
+) STRICT;
 CREATE INDEX idx_captions_path ON captions(media_path);
 CREATE VIRTUAL TABLE captions_fts USING fts5(
     media_path UNINDEXED,
@@ -84,18 +84,18 @@ END;
 CREATE TABLE history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     media_path TEXT NOT NULL,
-    time_played INTEGER DEFAULT (strftime('%s', 'now')),
+    time_played INTEGER DEFAULT (unixepoch()),
     playhead INTEGER,
     done INTEGER,
     FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-);
+) STRICT;
 CREATE INDEX idx_history_path ON history(media_path);
 CREATE INDEX idx_history_time ON history(time_played);
 CREATE TABLE custom_keywords (
     category TEXT NOT NULL,
     keyword TEXT NOT NULL,
     PRIMARY KEY (category, keyword)
-);
+) STRICT;
 CREATE INDEX idx_time_deleted ON media(time_deleted);
 CREATE INDEX idx_time_last_played ON media(time_last_played);
 CREATE INDEX idx_duration ON media(duration);
