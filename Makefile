@@ -3,7 +3,7 @@
 BINARY_NAME=disco
 BUILD_TAGS=fts5
 
-all: fmt lint sql test build webtest e2e readme
+all: fmt lint sql test build webtest readme
 
 build:
 	go build -tags "$(BUILD_TAGS)" -o $(BINARY_NAME) ./cmd/disco

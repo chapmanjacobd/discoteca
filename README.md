@@ -83,6 +83,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -145,6 +147,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -259,6 +263,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -462,6 +468,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -572,6 +580,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -754,6 +764,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -900,6 +912,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1018,6 +1032,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1131,6 +1147,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1295,6 +1313,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1457,6 +1477,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1629,6 +1651,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1769,6 +1793,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -1935,6 +1961,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -2117,6 +2145,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -2374,6 +2404,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -2616,6 +2648,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -2749,6 +2783,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -2883,6 +2919,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -3066,6 +3104,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -3360,6 +3400,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -3510,6 +3552,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -4040,6 +4084,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
@@ -4166,6 +4212,8 @@ Flags:
         Filter by category
   --genre
         Filter by genre
+  --language
+        Filter by language
   -e, --ext
         Filter by extensions (e.g., .mp4,.mkv)
   --video-only
