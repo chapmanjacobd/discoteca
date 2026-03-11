@@ -397,8 +397,15 @@ func TestQueries(t *testing.T) {
 		_, err := db.Exec("INSERT INTO media (path, duration) VALUES ('strict-test.mp4', 'not-an-int')")
 		if err == nil {
 			t.Error("Expected error when inserting string into INTEGER column in STRICT table, but got none")
-		} else if !strings.Contains(err.Error(), "datatype mismatch") && !strings.Contains(err.Error(), "cannot store TEXT value in INTEGER column") {
-			t.Errorf("Expected datatype mismatch error, got: %v", err)
+		} else {
+			msg := err.Error()
+			if strings.Contains(msg, "datatype mismatch") || strings.Contains(msg, "cannot store TEXT value in INTEGER column") {
+				// This is the expected behavior for STRICT tables
+				t.Logf("Caught expected STRICT error: %v", msg)
+			} else {
+				// This is an unexpected error (e.g., connection issue, syntax error, etc.)
+				t.Errorf("Expected a datatype mismatch error from the STRICT table, but got a different error: %v", err)
+			}
 		}
 	})
 }
