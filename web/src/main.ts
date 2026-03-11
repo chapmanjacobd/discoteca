@@ -1,4 +1,5 @@
 import './style.css';
+import Hls from 'hls.js';
 import { fetchAPI, getCookie } from './api';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
@@ -103,8 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingImageAutoplay = document.getElementById('setting-image-autoplay') as HTMLInputElement;
     if (settingImageAutoplay) settingImageAutoplay.checked = state.imageAutoplay;
     (document.getElementById('setting-local-resume') as HTMLInputElement).checked = state.localResume;
-    (document.getElementById('setting-default-video-rate') as HTMLSelectElement).value = state.defaultVideoRate;
-    (document.getElementById('setting-default-audio-rate') as HTMLSelectElement).value = state.defaultAudioRate;
+    (document.getElementById('setting-default-video-rate') as HTMLSelectElement).value = state.defaultVideoRate.toString().toString();
+    (document.getElementById('setting-default-audio-rate') as HTMLSelectElement).value = state.defaultAudioRate.toString().toString();
 
     const settingShowPipSpeed = document.getElementById('setting-show-pip-speed') as HTMLInputElement;
     const settingShowPipSurf = document.getElementById('setting-show-pip-surf') as HTMLInputElement;
@@ -114,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         settingShowPipSpeed.checked = state.showPipSpeed;
         settingShowPipSpeed.onchange = (e) => {
             state.showPipSpeed = (e.target as HTMLInputElement).checked;
-            localStorage.setItem('disco-show-pip-speed', state.showPipSpeed.toString());
+            localStorage.setItem('disco-show-pip-speed', String(state.showPipSpeed.toString()));
             updatePipVisibility();
         };
     }
@@ -122,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         settingShowPipSurf.checked = state.showPipSurf;
         settingShowPipSurf.onchange = (e) => {
             state.showPipSurf = (e.target as HTMLInputElement).checked;
-            localStorage.setItem('disco-show-pip-surf', state.showPipSurf.toString());
+            localStorage.setItem('disco-show-pip-surf', String(state.showPipSurf.toString()));
             updatePipVisibility();
         };
     }
@@ -130,21 +131,21 @@ document.addEventListener('DOMContentLoaded', () => {
         settingShowPipStream.checked = state.showPipStream;
         settingShowPipStream.onchange = (e) => {
             state.showPipStream = (e.target as HTMLInputElement).checked;
-            localStorage.setItem('disco-show-pip-stream', state.showPipStream.toString());
+            localStorage.setItem('disco-show-pip-stream', String(state.showPipStream.toString()));
             updatePipVisibility();
         };
     }
 
     updatePipVisibility();
 
-    (document.getElementById('setting-slideshow-delay') as HTMLInputElement).value = state.slideshowDelay.toString();
-    if (settingTrackShuffleDuration) settingTrackShuffleDuration.value = state.trackShuffleDuration.toString();
+    (document.getElementById('setting-slideshow-delay') as HTMLInputElement).value = state.slideshowDelay.toString().toString();
+    if (settingTrackShuffleDuration) settingTrackShuffleDuration.value = state.trackShuffleDuration.toString().toString();
     const settingAutoLoopMax = document.getElementById('setting-auto-loop-max') as HTMLInputElement;
     if (settingAutoLoopMax) {
-        settingAutoLoopMax.value = state.autoLoopMaxDuration.toString();
-        settingAutoLoopMax.onchange = (e) => {
+        (settingAutoLoopMax as HTMLInputElement).value = state.autoLoopMaxDuration.toString().toString();
+        (settingAutoLoopMax as HTMLElement).onchange = (e) => {
             state.autoLoopMaxDuration = parseInt((e.target as HTMLInputElement).value) || 0;
-            localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration.toString());
+            localStorage.setItem('disco-auto-loop-max-duration', String(state.autoLoopMaxDuration.toString()));
         };
     }
     if (limitInput) limitInput.value = state.filters.limit.toString();
@@ -155,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         filterCaptions.checked = state.filters.captions;
         filterCaptions.onchange = (e) => {
             state.filters.captions = (e.target as HTMLInputElement).checked;
-            localStorage.setItem('disco-captions', state.filters.captions.toString());
+            localStorage.setItem('disco-captions', String(state.filters.captions.toString()));
             performSearch();
         };
     }
@@ -165,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         settingSearchType.checked = state.filters.searchType === 'fts';
         settingSearchType.onchange = (e) => {
             state.filters.searchType = (e.target as HTMLInputElement).checked ? 'fts' : 'substring';
-            localStorage.setItem('disco-search-type', state.filters.searchType);
+            localStorage.setItem('disco-search-type', String(state.filters.searchType));
             performSearch();
         };
     }
@@ -179,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         settingShowLanguages.onchange = (e) => {
             const show = (e.target as HTMLInputElement).checked;
-            localStorage.setItem('disco-show-languages', show.toString());
+            localStorage.setItem('disco-show-languages', String(show.toString()));
             if (show) {
                 document.body.classList.add('advanced-enabled');
             } else {
@@ -204,11 +205,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const params = new URLSearchParams();
-                if (type) params.append('type', type);
+                if (type) params.append('type', String(type));
 
                 // Add duration param
                 const duration = state.trackShuffleDuration || 0;
-                params.append('duration', duration.toString());
+                params.append('duration', String(duration.toString()));
 
                 const resp = await fetchAPI(`/api/random-clip?${params.toString()}`);
                 if (!resp.ok) {
@@ -248,13 +249,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     retries++;
                     if (retries >= maxRetries) {
                         console.error('Failed to play random media after retries:', err);
-                        errorToast(err, 'Failed to play random media');
+                        errorToast(err as any, 'Failed to play random media');
                         return;
                     }
                     continue;
                 }
                 console.error('Failed to play random media:', err);
-                errorToast(err, 'Failed to play random media');
+                errorToast(err as any, 'Failed to play random media');
                 return;
             }
         }
@@ -270,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingDefaultVideoRate) {
         settingDefaultVideoRate.onchange = (e) => {
             state.defaultVideoRate = parseFloat((e.target as HTMLInputElement).value);
-            localStorage.setItem('disco-default-video-rate', state.defaultVideoRate.toString());
+            localStorage.setItem('disco-default-video-rate', String(state.defaultVideoRate.toString()));
             if (state.playback.item && state.playback.item.type.includes('video')) {
                 setPlaybackRate(state.defaultVideoRate);
             }
@@ -281,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingDefaultAudioRate) {
         settingDefaultAudioRate.onchange = (e) => {
             state.defaultAudioRate = parseFloat((e.target as HTMLInputElement).value);
-            localStorage.setItem('disco-default-audio-rate', state.defaultAudioRate.toString());
+            localStorage.setItem('disco-default-audio-rate', String(state.defaultAudioRate.toString()));
             if (state.playback.item && state.playback.item.type.includes('audio')) {
                 setPlaybackRate(state.defaultAudioRate);
             }
@@ -292,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingSlideshowDelay) {
         settingSlideshowDelay.onchange = (e) => {
             state.slideshowDelay = parseInt((e.target as HTMLInputElement).value);
-            localStorage.setItem('disco-slideshow-delay', state.slideshowDelay.toString());
+            localStorage.setItem('disco-slideshow-delay', String(state.slideshowDelay.toString()));
             if (state.playback.slideshowTimer) {
                 stopSlideshow();
                 startSlideshow();
@@ -303,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingTrackShuffleDuration) {
         settingTrackShuffleDuration.onchange = (e) => {
             state.trackShuffleDuration = parseInt((e.target as HTMLInputElement).value);
-            localStorage.setItem('disco-track-shuffle-duration', state.trackShuffleDuration.toString());
+            localStorage.setItem('disco-track-shuffle-duration', String(state.trackShuffleDuration.toString()));
         };
     }
 
@@ -335,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Listen
             det.addEventListener('toggle', () => {
                 state.sidebarState[id] = (det as HTMLDetailsElement).open;
-                localStorage.setItem('disco-sidebar-state', JSON.stringify(state.sidebarState));
+                localStorage.setItem('disco-sidebar-state', String(JSON.stringify(state.sidebarState)));
             });
 
             // Ctrl+click to toggle all
@@ -351,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 state.sidebarState[(d as HTMLDetailsElement).id] = newState;
                             }
                         });
-                        localStorage.setItem('disco-sidebar-state', JSON.stringify(state.sidebarState));
+                        localStorage.setItem('disco-sidebar-state', String(JSON.stringify(state.sidebarState)));
                     }
                 };
             }
@@ -410,14 +411,14 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = newHtml;
 
         container.querySelectorAll('button').forEach(btn => {
-            btn.onclick = () => {
-                const type = btn.dataset.type;
+            (btn as any).onclick = () => {
+                const type = (btn as any).dataset.type;
                 if (state.filters.types.includes(type)) {
                     state.filters.types = [];
                 } else {
                     state.filters.types = [type];
                 }
-                localStorage.setItem('disco-types', JSON.stringify(state.filters.types));
+                localStorage.setItem('disco-types', String(JSON.stringify(state.filters.types)));
                 updateNavActiveStates();
                 performSearch();
             };
@@ -444,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.unplayed = false;
         state.filters.unfinished = false;
         state.filters.completed = false;
-        if (searchInput) searchInput.value = '';
+        if (searchInput) (searchInput as HTMLInputElement).value = '';
 
         details.forEach(det => {
             const id = (det as HTMLDetailsElement).id;
@@ -453,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.sidebarState[id] = false;
         });
 
-        localStorage.setItem('disco-sidebar-state', JSON.stringify(state.sidebarState));
+        localStorage.setItem('disco-sidebar-state', String(JSON.stringify(state.sidebarState)));
         clearAllFilters();
         updateNavActiveStates();
     }
@@ -514,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setLocalStorageItem(key, value) {
-        localStorage.setItem(key, JSON.stringify(value));
+        localStorage.setItem(key, String(JSON.stringify(value)));
     }
 
     function clearAllFilters() {
@@ -526,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'disco-filter-episodes',
             'disco-types'
         ];
-        filterKeys.forEach(key => localStorage.setItem(key, '[]'));
+        filterKeys.forEach(key => localStorage.setItem(key, String('[]')));
     }
 
     /**
@@ -569,15 +570,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const media = pipViewer.querySelector('video, audio');
             if (media) {
-                media.onerror = null;
-                media.onended = null;
-                media.onpause = null;
-                media.ontimeupdate = null;
-                media.onvolumechange = null;
-                media.oncanplay = null;
-                media.pause();
+                (media as HTMLMediaElement).onerror = null;
+                (media as HTMLMediaElement).onended = null;
+                (media as HTMLMediaElement).onpause = null;
+                (media as HTMLMediaElement).ontimeupdate = null;
+                (media as HTMLMediaElement).onvolumechange = null;
+                (media as HTMLMediaElement).oncanplay = null;
+                (media as HTMLMediaElement).pause();
                 media.removeAttribute('src');
-                media.load();
+                (media as HTMLMediaElement).load();
             }
             pipViewer.innerHTML = '';
             pipPlayer.classList.add('hidden');
@@ -660,35 +661,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function appendFilterParams(params) {
-        if (state.filters.search) params.append('search', state.filters.search);
-        state.filters.categories.forEach(c => params.append('category', c));
-        if (state.filters.genre) params.append('genre', state.filters.genre);
-        state.filters.languages.forEach(l => params.append('language', l));
-        state.filters.ratings.forEach(r => params.append('rating', r));
-        if (state.filters.unplayed) params.append('unplayed', 'true');
-        if (state.filters.unfinished) params.append('unfinished', 'true');
-        if (state.filters.completed) params.append('completed', 'true');
-        if (state.filters.min_score) params.append('min_score', state.filters.min_score);
-        if (state.filters.max_score) params.append('max_score', state.filters.max_score);
+        if (state.filters.search) params.append('search', String(state.filters.search));
+        state.filters.categories.forEach(c => params.append('category', String(c)));
+        if (state.filters.genre) params.append('genre', String(state.filters.genre));
+        state.filters.languages.forEach(l => params.append('language', String(l)));
+        state.filters.ratings.forEach(r => params.append('rating', String(r)));
+        if (state.filters.unplayed) params.append('unplayed', String('true'));
+        if (state.filters.unfinished) params.append('unfinished', String('true'));
+        if (state.filters.completed) params.append('completed', String('true'));
+        if (state.filters.min_score) params.append('min_score', String(state.filters.min_score));
+        if (state.filters.max_score) params.append('max_score', String(state.filters.max_score));
 
-        state.filters.episodes.forEach(b => params.append('episodes', getBinQueryParam(b)));
-        state.filters.sizes.forEach(b => params.append('size', getBinQueryParam(b)));
-        state.filters.durations.forEach(b => params.append('duration', getBinQueryParam(b)));
+        state.filters.episodes.forEach(b => params.append('episodes', String(getBinQueryParam(b))));
+        state.filters.sizes.forEach(b => params.append('size', String(getBinQueryParam(b))));
+        state.filters.durations.forEach(b => params.append('duration', String(getBinQueryParam(b))));
 
-        state.filters.types.forEach(t => params.append('type', t));
+        state.filters.types.forEach(t => params.append('type', String(t)));
 
         // Add database filter (send included DBs, not excluded)
         if (state.databases && state.databases.length > 0) {
             const includedDbs = state.databases.filter(db => !state.filters.excludedDbs.includes(db));
-            includedDbs.forEach(db => params.append('db', db));
+            includedDbs.forEach(db => params.append('db', String(db)));
         }
 
         // Add sort parameters
         if (state.filters.sort && state.filters.sort !== 'default') {
-            params.append('sort', state.filters.sort);
+            params.append('sort', String(state.filters.sort));
         }
         if (state.filters.reverse) {
-            params.append('reverse', 'true');
+            params.append('reverse', String('true'));
         }
     }
 
@@ -697,64 +698,64 @@ document.addEventListener('DOMContentLoaded', () => {
     function syncUrl() {
         const params = new URLSearchParams();
         if (state.page === 'trash') {
-            params.set('mode', 'trash');
+            params.set('mode', String('trash'));
         } else if (state.page === 'history') {
-            params.set('mode', 'history');
+            params.set('mode', String('history'));
         } else if (state.page === 'playlist' && state.filters.playlist) {
-            params.set('mode', 'playlist');
-            params.set('title', state.filters.playlist);
+            params.set('mode', String('playlist'));
+            params.set('title', String(state.filters.playlist));
         } else if (state.page === 'du') {
-            params.set('mode', 'du');
-            if (state.duPath) params.set('path', state.duPath);
+            params.set('mode', String('du'));
+            if (state.duPath) params.set('path', String(state.duPath));
         } else if (state.page === 'curation') {
-            params.set('mode', 'curation');
+            params.set('mode', String('curation'));
         } else if (state.page === 'captions') {
-            params.set('mode', 'captions');
+            params.set('mode', String('captions'));
         }
 
         // History filters apply across all modes (like Media Type filters)
         if (state.filters.unplayed || state.filters.unfinished || state.filters.completed) {
-            if (state.filters.unfinished) params.set('history', 'in-progress');
-            else if (state.filters.unplayed) params.set('history', 'unplayed');
-            else if (state.filters.completed) params.set('history', 'completed');
+            if (state.filters.unfinished) params.set('history', String('in-progress'));
+            else if (state.filters.unplayed) params.set('history', String('unplayed'));
+            else if (state.filters.completed) params.set('history', String('completed'));
         }
 
         if (state.page !== 'curation') {
             // Include search and sidebar filters for non-curation modes
             if (state.page !== 'history') {
                 // Categories, genre, ratings don't apply in history mode
-                state.filters.categories.forEach(c => params.append('category', c));
-                if (state.filters.genre) params.set('genre', state.filters.genre);
-                state.filters.ratings.forEach(r => params.append('rating', r));
+                state.filters.categories.forEach(c => params.append('category', String(c)));
+                if (state.filters.genre) params.set('genre', String(state.filters.genre));
+                state.filters.ratings.forEach(r => params.append('rating', String(r)));
             }
-            if (state.filters.search) params.set('search', state.filters.search);
-            if (state.filters.min_score) params.set('min_score', state.filters.min_score);
-            if (state.filters.max_score) params.set('max_score', state.filters.max_score);
+            if (state.filters.search) params.set('search', String(state.filters.search));
+            if (state.filters.min_score) params.set('min_score', String(state.filters.min_score));
+            if (state.filters.max_score) params.set('max_score', String(state.filters.max_score));
             if (state.filters.searchType && state.filters.searchType !== 'fts') {
-                params.set('search_type', state.filters.searchType);
+                params.set('search_type', String(state.filters.searchType));
             }
 
-            state.filters.episodes.forEach(b => params.append('episodes', getBinQueryParam(b)));
-            state.filters.sizes.forEach(b => params.append('size', getBinQueryParam(b)));
-            state.filters.durations.forEach(b => params.append('duration', getBinQueryParam(b)));
+            state.filters.episodes.forEach(b => params.append('episodes', String(getBinQueryParam(b))));
+            state.filters.sizes.forEach(b => params.append('size', String(getBinQueryParam(b))));
+            state.filters.durations.forEach(b => params.append('duration', String(getBinQueryParam(b))));
         }
 
         // Media Type filters apply across all modes except DU, trash, and playlist
         if (state.page !== 'du' && state.page !== 'trash' && state.page !== 'playlist') {
-            state.filters.types.forEach(t => params.append('type', t));
+            state.filters.types.forEach(t => params.append('type', String(t)));
         }
 
         if (state.currentPage > 1) {
-            params.set('p', state.currentPage);
+            params.set('p', String(state.currentPage.toString()));
         }
 
         // Modal and playback states in URL (primarily for mobile back button)
         if (isMobileOrFullscreen()) {
             if (state.activeModal) {
-                params.set('modal', state.activeModal);
+                params.set('modal', String(state.activeModal));
             }
             if (state.playback.item) {
-                params.set('playing', state.playback.item.path);
+                params.set('playing', String(state.playback.item.path));
             }
         }
 
@@ -890,7 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.filters.all = params.get('all') === 'true';
             state.filters.min_score = params.get('min_score') || '';
             state.filters.max_score = params.get('max_score') || '';
-            state.filters.searchType = params.get('search_type') || 'fts';
+            state.filters.searchType = (params.get('search_type') || 'fts') as 'fts' | 'substring';
 
             state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
             state.filters.sizes = params.getAll('size').map(parseFilterBin);
@@ -915,7 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 settingSearchType.checked = state.filters.searchType === 'fts';
             }
 
-            if (searchInput) searchInput.value = state.filters.search;
+            if (searchInput) (searchInput as HTMLInputElement).value = state.filters.search;
 
             if (state.filters.genre && filterBrowseCol) {
                 filterBrowseCol.value = 'genre';
@@ -1042,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const inputVal = searchInput.value;
+        const inputVal = (searchInput as HTMLInputElement).value;
         const isRelative = inputVal.startsWith('./');
 
         searchSuggestions.innerHTML = items.map((item, idx) => {
@@ -1077,21 +1078,21 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedSuggestionIndex = -1;
 
         searchSuggestions.querySelectorAll('.suggestion-item').forEach(el => {
-            el.onclick = () => {
-                const path = el.dataset.path;
-                const isDir = el.dataset.isDir === 'true';
+            (el as HTMLElement).onclick = () => {
+                const path = (el as HTMLElement).dataset.path;
+                const isDir = (el as HTMLElement).dataset.isDir === 'true';
                 if (isDir) {
-                    if (searchInput.value.startsWith('./')) {
-                        const newName = el.dataset.name;
-                        const lastSlash = searchInput.value.lastIndexOf('/');
-                        const newPath = searchInput.value.substring(0, lastSlash + 1) + newName + '/';
-                        searchInput.value = newPath;
+                    if ((searchInput as HTMLInputElement).value.startsWith('./')) {
+                        const newName = (el as HTMLElement).dataset.name;
+                        const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
+                        const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + newName + '/';
+                        (searchInput as HTMLInputElement).value = newPath;
                     } else {
                         const newPath = path.endsWith('/') ? path : path + '/';
-                        searchInput.value = newPath;
+                        (searchInput as HTMLInputElement).value = newPath;
                     }
                     searchInput.focus();
-                    fetchSuggestions(searchInput.value);
+                    fetchSuggestions((searchInput as HTMLInputElement).value);
                     performSearch();
                 } else {
                     const item = state.lastSuggestions.find(s => s.path === path);
@@ -1105,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const parts = path.split('/');
                         parts.pop();
                         const parent = parts.join('/') + '/';
-                        searchInput.value = parent;
+                        (searchInput as HTMLInputElement).value = parent;
                         searchSuggestions.classList.add('hidden');
                         performSearch();
                     }
@@ -1206,11 +1207,11 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
 
         playlistList.querySelectorAll('.playlist-drop-zone').forEach(zone => {
-            zone.onclick = (e) => {
+            (zone as HTMLElement).onclick = (e) => {
                 // Ignore clicks on the delete button
                 if ((e.target as HTMLElement).closest('.delete-playlist-btn')) return;
 
-                const title = zone.dataset.title;
+                const title = (zone as HTMLElement).dataset.title;
                 state.page = 'playlist';
                 state.filters.playlist = title;
                 state.filters.categories = [];
@@ -1231,12 +1232,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             zone.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
+                (e as DragEvent).dataTransfer.dropEffect = 'copy';
             });
 
             zone.addEventListener('dragleave', (e) => {
                 // Only remove if we're actually leaving the zone
-                if (!zone.contains(e.relatedTarget)) {
+                if (!zone.contains(((e as MouseEvent).relatedTarget as HTMLElement))) {
                     zone.classList.remove('drag-over');
                 }
             });
@@ -1247,8 +1248,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 zone.classList.remove('drag-over');
 
-                const title = zone.dataset.title;
-                const path = e.dataTransfer.getData('text/plain');
+                const title = (zone as HTMLElement).dataset.title;
+                const path = (e as DragEvent).dataTransfer.getData('text/plain');
 
                 if (path && title) {
                     // Find the item if possible
@@ -1266,10 +1267,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         playlistList.querySelectorAll('.delete-playlist-btn').forEach(btn => {
-            btn.onclick = (e) => {
+            (btn as any).onclick = (e) => {
                 e.stopPropagation();
                 if (confirm('Delete this playlist?')) {
-                    deletePlaylist(btn.dataset.title);
+                    deletePlaylist((btn as any).dataset.title);
                 }
             };
         });
@@ -1282,7 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update all media cards to show/hide playing indicator
         const currentPath = state.playback.item ? state.playback.item.path : null;
         document.querySelectorAll('.media-card').forEach(card => {
-            const path = card.dataset.path;
+            const path = (card as HTMLElement).dataset.path;
             if (path && currentPath && path === currentPath) {
                 card.classList.add('playing');
             } else {
@@ -1311,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchPlaylistItems(state.filters.playlist);
         } catch (err) {
             console.error('Reorder failed:', err);
-            errorToast(err, 'Reorder failed');
+            errorToast(err as any, 'Reorder failed');
         }
     }
 
@@ -1345,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             clearTimeout(skeletonTimeout);
             console.error('Playlist items fetch failed:', err);
-            errorToast(err, 'Failed to load playlist');
+            errorToast(err as any, 'Failed to load playlist');
         }
     }
 
@@ -1462,8 +1463,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
 
         ratingList.querySelectorAll('.category-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const rating = btn.dataset.rating;
+            (btn as any).onclick = (e) => {
+                const rating = (btn as any).dataset.rating;
                 if (state.page !== 'trash') state.page = 'search';
 
                 const idx = state.filters.ratings.indexOf(rating);
@@ -1473,7 +1474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.filters.ratings.push(rating);
                 }
 
-                localStorage.setItem('disco-filter-ratings', JSON.stringify(state.filters.ratings));
+                localStorage.setItem('disco-filter-ratings', String(JSON.stringify(state.filters.ratings)));
                 btn.classList.toggle('active');
                 state.currentPage = 1;
                 updateNavActiveStates();
@@ -1487,11 +1488,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             btn.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
+                (e as DragEvent).dataTransfer.dropEffect = 'copy';
             });
 
             btn.addEventListener('dragleave', (e) => {
-                if (!btn.contains(e.relatedTarget)) {
+                if (!btn.contains(((e as MouseEvent).relatedTarget as HTMLElement))) {
                     btn.classList.remove('drag-over');
                 }
             });
@@ -1501,8 +1502,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 btn.classList.remove('drag-over');
 
-                const rating = parseInt(btn.dataset.rating);
-                const path = e.dataTransfer.getData('text/plain');
+                const rating = parseInt((btn as any).dataset.rating);
+                const path = (e as DragEvent).dataTransfer.getData('text/plain');
 
                 if (path) {
                     const item = (state.draggedItem && state.draggedItem.path === path) ?
@@ -1536,12 +1537,12 @@ document.addEventListener('DOMContentLoaded', () => {
             state.view = 'grid'; // Default to grid view in DU
             const sortBy = document.getElementById('sort-by');
             const sortReverseBtn = document.getElementById('sort-reverse-btn');
-            if (sortBy) sortBy.value = 'size';
+            if (sortBy) (sortBy as HTMLSelectElement).value = 'size';
             if (sortReverseBtn) sortReverseBtn.classList.add('active');
 
             // Fetch filter bins to populate percentile sliders when entering DU mode
             // This ensures bins are populated even when coming from "No media found" state
-            fetchFilterBins();
+            fetchFilterBins(null);
         }
 
         syncUrl();
@@ -1552,7 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const params = new URLSearchParams();
-            params.append('path', path);
+            params.append('path', String(path));
             appendFilterParams(params);
 
             const resp = await fetchAPI(`/api/du?${params.toString()}`);
@@ -1583,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             clearTimeout(skeletonTimeout);
             console.error('DU fetch failed:', err);
-            errorToast(err, 'Failed to load Disk Usage');
+            errorToast(err as any, 'Failed to load Disk Usage');
         }
     }
 
@@ -1599,7 +1600,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (duToolbar && duPathInput) {
             duToolbar.classList.remove('hidden');
             const displayPath = state.duPath || '/';
-            duPathInput.value = displayPath;
+            (duPathInput as HTMLInputElement).value = displayPath;
             duPathInput.title = displayPath;
 
             // Show/hide back button based on current path
@@ -1674,7 +1675,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add click handlers
         container.querySelectorAll('.du-breadcrumb-item[data-path]').forEach(item => {
             item.onclick = () => {
-                const targetPath = item.dataset.path;
+                const targetPath = (item as HTMLElement).dataset.path;
                 if (targetPath !== state.duPath) {
                     fetchDU(targetPath);
                 }
@@ -1852,10 +1853,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Render as clickable media card
                 const mediaItem = item.files[0];
                 card.className = 'media-card';
-                card.dataset.path = mediaItem.path;
-                card.dataset.type = mediaItem.type || '';
-                if (mediaItem.is_dir) card.dataset.isDir = 'true';
-                card.onclick = () => playMedia(mediaItem);
+                (card as HTMLElement).dataset.path = mediaItem.path;
+                (card as HTMLElement).dataset.type = mediaItem.type || '';
+                if (mediaItem.is_dir) (card as HTMLElement).dataset.isDir = 'true';
+                (card as HTMLElement).onclick = () => playMedia(mediaItem);
 
                 const title = truncateString(mediaItem.title || mediaItem.path.split('/').pop());
                 const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(mediaItem.path)}`;
@@ -1879,9 +1880,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.files.forEach(mediaItem => {
                     const fileCard = document.createElement('div');
                     fileCard.className = 'media-card';
-                    fileCard.dataset.path = mediaItem.path;
-                    fileCard.dataset.type = mediaItem.type || '';
-                    if (mediaItem.is_dir) fileCard.dataset.isDir = 'true';
+                    (fileCard as HTMLElement).dataset.path = mediaItem.path;
+                    (fileCard as HTMLElement).dataset.type = mediaItem.type || '';
+                    if (mediaItem.is_dir) (fileCard as HTMLElement).dataset.isDir = 'true';
                     fileCard.onclick = () => playMedia(mediaItem);
 
                     const title = truncateString(mediaItem.title || mediaItem.path.split('/').pop());
@@ -1907,7 +1908,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // Render as folder card
                 card.className = 'media-card du-card';
-                card.onclick = () => fetchDU(item.path + (item.path.endsWith('/') ? '' : '/'));
+                (card as HTMLElement).onclick = () => fetchDU(item.path + (item.path.endsWith('/') ? '' : '/'));
 
                 const name = item.path.split('/').pop() || item.path;
                 const size = formatSize(item.total_size);
@@ -1964,17 +1965,17 @@ document.addEventListener('DOMContentLoaded', () => {
             appendFilterParams(params);
 
             if (state.filters.all) {
-                params.append('all', 'true');
+                params.append('all', String('true'));
             } else {
-                params.append('limit', state.filters.limit);
+                params.append('limit', String(state.filters.limit.toString()));
             }
 
             if (state.page === 'trash') {
-                params.append('trash', 'true');
+                params.append('trash', String('true'));
             } else if (state.page === 'history') {
-                params.append('watched', 'true');
+                params.append('watched', String('true'));
             } else if (state.page === 'captions') {
-                params.append('captions', 'true');
+                params.append('captions', String('true'));
             }
 
             const resp = await fetchAPI(`/api/episodes?${params.toString()}`, {
@@ -2058,7 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error('Episodes fetch failed:', err);
-            errorToast(err, 'Failed to load Episodes');
+            errorToast(err as any, 'Failed to load Episodes');
             resultsContainer.innerHTML = `<div class="error">Failed to load episodes.</div>`;
         }
     }
@@ -2105,10 +2106,10 @@ document.addEventListener('DOMContentLoaded', () => {
             group.files.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'media-card';
-                card.dataset.path = item.path;
-                card.dataset.type = item.type || '';
-                if (item.is_dir) card.dataset.isDir = 'true';
-                card.onclick = () => playMedia(item);
+                (card as HTMLElement).dataset.path = item.path;
+                (card as HTMLElement).dataset.type = item.type || '';
+                if (item.is_dir) (card as HTMLElement).dataset.isDir = 'true';
+                (card as HTMLElement).onclick = () => playMedia(item);
 
                 const title = item.title || item.path.split('/').pop();
                 const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(item.path)}`;
@@ -2156,7 +2157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCuration(data);
         } catch (err) {
             console.error('Curation fetch failed:', err);
-            errorToast(err, 'Failed to load Curation Tool');
+            errorToast(err as any, 'Failed to load Curation Tool');
             resultsContainer.innerHTML = '<div class="error">Failed to load categorization tool.</div>';
         }
     }
@@ -2164,7 +2165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function createCategoryCard(cat) {
         const card = document.createElement('div');
         card.className = 'curation-cat-card';
-        card.dataset.category = cat.category;
+        (card as HTMLElement).dataset.category = cat.category;
         card.style.background = 'var(--sidebar-bg)';
         card.style.padding = '1rem';
         card.style.borderRadius = '8px';
@@ -2198,21 +2199,21 @@ document.addEventListener('DOMContentLoaded', () => {
         card.addEventListener('drop', async (e) => {
             e.preventDefault();
             card.style.borderColor = 'var(--border-color)';
-            const keyword = e.dataTransfer.getData('text/plain');
+            const keyword = (e as DragEvent).dataTransfer.getData('text/plain');
             if (keyword) {
                 await addKeyword(cat.category, keyword);
             }
         });
 
         // Delete Category
-        card.querySelector('.delete-cat-btn').onclick = async () => {
+        (card.querySelector('.delete-cat-btn') as HTMLElement).onclick = async () => {
             if (confirm(`Delete category "${cat.category}" and all its keywords?`)) {
                 await deleteCategory(cat.category);
             }
         };
 
         // Add Keyword manually
-        card.querySelector('.add-kw-btn').onclick = async () => {
+        (card.querySelector('.add-kw-btn') as HTMLElement).onclick = async () => {
             const kw = prompt(`Add keyword to "${cat.category}":`);
             if (kw) {
                 await addKeyword(cat.category, kw);
@@ -2221,10 +2222,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Remove Keyword
         card.querySelectorAll('.remove-kw').forEach(btn => {
-            btn.onclick = async (e) => {
+            (btn as any).onclick = async (e) => {
                 e.stopPropagation(); // prevent drag start if any
                 const tag = (e.target as HTMLElement).closest('.curation-tag');
-                const kw = tag.dataset.keyword;
+                const kw = (tag as HTMLElement).dataset.keyword;
                 await deleteKeyword(cat.category, kw);
             };
         });
@@ -2281,8 +2282,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fullPathCheck = document.getElementById('categorize-full-path');
         if (fullPathCheck) {
-            fullPathCheck.onchange = (e) => {
-                localStorage.setItem('disco-categorize-full-path', e.target.checked);
+            (fullPathCheck as any).onchange = (e) => {
+                localStorage.setItem('disco-categorize-full-path', String((e.target as any).checked));
             };
         }
 
@@ -2337,7 +2338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Setup New Category button (in header)
         const newCatBtn = categoriesCol.querySelector('#new-category-btn');
         if (newCatBtn) {
-            newCatBtn.onclick = async () => {
+            (newCatBtn as HTMLElement).onclick = async () => {
                 const name = prompt('New Category Name:');
                 if (name) {
                     const kw = prompt(`Add first keyword for "${name}":`);
@@ -2364,13 +2365,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const findBtn = suggestionsCol.querySelector('#find-keywords-btn');
         const suggestionsArea = suggestionsCol.querySelector('#suggestions-area');
 
-        findBtn.onclick = async () => {
-            findBtn.disabled = true;
+        (findBtn as HTMLElement).onclick = async () => {
+            (findBtn as HTMLButtonElement).disabled = true;
             findBtn.textContent = 'Analyzing...';
             suggestionsArea.innerHTML = '<div class="spinner" style="width: 24px; height: 24px; margin: 1rem auto;"></div>';
 
             try {
-                const isFullPath = fullPathCheck ? fullPathCheck.checked : false;
+                const isFullPath = fullPathCheck ? (fullPathCheck as any).checked : false;
                 const resp = await fetchAPI(`/api/categorize/suggest?full_path=${isFullPath}`);
                 if (!resp.ok) throw new Error('Failed');
                 const suggestions = await resp.json();
@@ -2379,7 +2380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(err);
                 suggestionsArea.innerHTML = '<p>Failed to load suggestions.</p>';
             } finally {
-                findBtn.disabled = false;
+                (findBtn as HTMLButtonElement).disabled = false;
                 findBtn.textContent = 'Find Potential Keywords';
             }
         };
@@ -2390,9 +2391,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Header Actions
         const backBtn = headerEl.querySelector('#curation-back-btn');
         if (backBtn) {
-            backBtn.onclick = () => {
+            (backBtn as HTMLElement).onclick = () => {
                 state.page = 'search';
-                state.filters.category = '';
+                state.filters.categories = [];
                 updateNavActiveStates();
                 performSearch();
             };
@@ -2400,12 +2401,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnRun = headerEl.querySelector('#run-auto-categorize');
         if (btnRun) {
-            btnRun.onclick = async () => {
+            (btnRun as HTMLElement).onclick = async () => {
                 if (state.readOnly) return showToast('Read-only mode');
-                btnRun.disabled = true;
+                (btnRun as HTMLButtonElement).disabled = true;
                 btnRun.textContent = 'Running...';
                 try {
-                    const isFullPath = fullPathCheck ? fullPathCheck.checked : false;
+                    const isFullPath = fullPathCheck ? (fullPathCheck as any).checked : false;
                     const resp = await fetchAPI(`/api/categorize/apply?full_path=${isFullPath}`, { method: 'POST' });
                     if (!resp.ok) throw new Error('Apply failed');
                     const data = await resp.json();
@@ -2414,9 +2415,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Don't refresh curation page necessarily, user might want to keep editing
                 } catch (err) {
                     console.error('Apply failed:', err);
-                    errorToast(err, 'Failed to run categorization');
+                    errorToast(err as any, 'Failed to run categorization');
                 } finally {
-                    btnRun.disabled = false;
+                    (btnRun as HTMLButtonElement).disabled = false;
                     btnRun.textContent = 'Run Categorization Now';
                 }
             };
@@ -2424,7 +2425,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnDefaults = categoriesCol.querySelector('#add-default-cats');
         if (btnDefaults) {
-            btnDefaults.onclick = async () => {
+            (btnDefaults as HTMLElement).onclick = async () => {
                 if (confirm('Add default categories and keywords? (Existing ones will be kept)')) {
                     try {
                         const resp = await fetchAPI('/api/categorize/defaults', { method: 'POST' });
@@ -2433,7 +2434,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fetchCuration(); // Refresh
                     } catch (err) {
                         console.error(err);
-                        errorToast(err, 'Failed to add defaults');
+                        errorToast(err as any, 'Failed to add defaults');
                     }
                 }
             };
@@ -2464,8 +2465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         container.querySelectorAll('.suggestion-tag').forEach(tag => {
-            tag.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text/plain', tag.dataset.word);
+            tag.addEventListener('dragstart', (e: DragEvent) => { (e as DragEvent).dataTransfer.setData('text/plain', (tag as HTMLElement).dataset.word);
                 tag.style.opacity = '0.5';
             });
             tag.addEventListener('dragend', (e) => {
@@ -2473,7 +2473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             // Click also prompts for category (legacy behavior, still useful)
             tag.onclick = async () => {
-                const keyword = tag.dataset.word;
+                const keyword = (tag as HTMLElement).dataset.word;
                 const category = prompt(`Assign keyword "${keyword}" to category:`, keyword);
                 if (category) {
                     await addKeyword(category, keyword);
@@ -2523,12 +2523,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!kwContainer.querySelector(`.existing-keyword[data-keyword="${CSS.escape(keyword)}"]`)) {
                         const tag = document.createElement('span');
                         tag.className = 'curation-tag existing-keyword';
-                        tag.dataset.keyword = keyword;
-                        tag.dataset.category = category;
+                        (tag as HTMLElement).dataset.keyword = keyword;
+                        (tag as HTMLElement).dataset.category = category;
                         tag.innerHTML = `${keyword} <span class="remove-kw" style="cursor:pointer; margin-left:4px; opacity:0.6;">&times;</span>`;
 
                         // Add delete handler to the new tag
-                        tag.querySelector('.remove-kw').onclick = async (e) => {
+                        (tag.querySelector('.remove-kw') as HTMLElement).onclick = async (e) => {
                             e.stopPropagation();
                             await deleteKeyword(category, keyword);
                         };
@@ -2547,7 +2547,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error(err);
-            errorToast(err, 'Failed to save keyword');
+            errorToast(err as any, 'Failed to save keyword');
         }
     }
 
@@ -2567,7 +2567,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error(err);
-            errorToast(err, 'Failed to delete category');
+            errorToast(err as any, 'Failed to delete category');
         }
     }
     async function deleteKeyword(category, keyword) {
@@ -2590,7 +2590,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error(err);
-            errorToast(err, 'Failed to delete keyword');
+            errorToast(err as any, 'Failed to delete keyword');
         }
     }
 
@@ -2603,7 +2603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.page !== 'trash' && state.page !== 'history' && state.page !== 'playlist' && state.page !== 'du' && state.page !== 'curation' && state.page !== 'captions') {
             state.page = 'search';
         }
-        state.filters.search = searchInput ? searchInput.value : '';
+        state.filters.search = searchInput ? (searchInput as HTMLInputElement).value : '';
         state.filters.sort = sortBy ? sortBy.value : 'default';
         state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
         state.filters.all = limitAll ? limitAll.checked : false;
@@ -2627,8 +2627,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         searchAbortController = new AbortController();
 
-        localStorage.setItem('disco-limit', state.filters.limit);
-        localStorage.setItem('disco-limit-all', state.filters.all);
+        localStorage.setItem('disco-limit', String(state.filters.limit));
+        localStorage.setItem('disco-limit-all', String(state.filters.all));
 
         if (limitInput) limitInput.disabled = state.filters.all;
 
@@ -2642,39 +2642,39 @@ document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams();
 
             if (state.page === 'trash') {
-                params.append('trash', 'true');
+                params.append('trash', String('true'));
             } else if (state.page === 'history') {
-                params.append('watched', 'true');
+                params.append('watched', String('true'));
             } else if (state.page === 'captions') {
-                params.append('captions', 'true');
-                params.append('aggregate', 'true');
+                params.append('captions', String('true'));
+                params.append('aggregate', String('true'));
             }
 
             appendFilterParams(params);
             
             // Sidebar captions filter (when not in full captions mode)
             if (state.filters.captions && state.page !== 'captions') {
-                params.append('captions', 'true');
-                params.append('aggregate', 'true');
+                params.append('captions', String('true'));
+                params.append('aggregate', String('true'));
             }
 
-            params.append('sort', state.filters.sort);
-            if (state.filters.reverse) params.append('reverse', 'true');
+            params.append('sort', String(state.filters.sort));
+            if (state.filters.reverse) params.append('reverse', String('true'));
 
             if (state.filters.all) {
-                params.append('all', 'true');
+                params.append('all', String('true'));
             } else {
-                params.append('limit', state.filters.limit);
-                params.append('offset', (state.currentPage - 1) * state.filters.limit);
+                params.append('limit', String(state.filters.limit.toString()));
+                params.append('offset', String(((state.currentPage - 1)) * state.filters.limit).toString());
             }
 
             // Add search type parameter
             if (state.filters.searchType === 'substring') {
-                params.append('search_type', 'substring');
+                params.append('search_type', String('substring'));
             }
 
             // Request filter counts for sidebar bins (eliminates separate /api/filter-bins call)
-            params.append('include_counts', 'true');
+            params.append('include_counts', String('true'));
 
             const resp = await fetchAPI(`/api/query?${params.toString()}`, {
                 signal: searchAbortController.signal
@@ -2840,7 +2840,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchTrash();
         } catch (err) {
             console.error('Empty bin failed:', err);
-            errorToast(err, 'Failed to empty bin');
+            errorToast(err as any, 'Failed to empty bin');
         }
     }
 
@@ -2859,7 +2859,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchTrash();
         } catch (err) {
             console.error('Permanent delete failed:', err);
-            errorToast(err, 'Failed to delete');
+            errorToast(err as any, 'Failed to delete');
         }
     }
 
@@ -2901,7 +2901,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error('Delete/Restore failed:', err);
-            errorToast(err, 'Action failed');
+            errorToast(err as any, 'Action failed');
             if (itemEl) itemEl.classList.remove('fade-out');
         } finally {
             if (content) content.style.overflow = '';
@@ -2980,12 +2980,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         playSibling(1);
                     }
                 } else {
-                    errorToast(err, 'Playback failed');
+                    errorToast(new Error(resp.statusText), 'Playback failed');
                 }
             }
         } catch (err) {
             console.error('Playback failed', err);
-            errorToast(err, 'Playback failed');
+            errorToast(err as any, 'Playback failed');
         }
     }
 
@@ -2995,7 +2995,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const media = pipViewer.querySelector('video, audio');
-        if (!isComplete && media && (media.seeking || media.readyState < 3)) {
+        if (!isComplete && media && ((media as any).seeking || (media as any).readyState < 3)) {
             return state.playback.pendingUpdate;
         }
 
@@ -3185,13 +3185,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setPlaybackRate(rate) {
         state.playbackRate = rate;
-        localStorage.setItem('disco-playback-rate', rate);
+        localStorage.setItem('disco-playback-rate', String(rate));
         const speedBtn = document.getElementById('pip-speed');
         if (speedBtn) speedBtn.textContent = `${rate}x`;
 
         const media = pipViewer.querySelector('video, audio');
         if (media) {
-            media.playbackRate = rate;
+            (media as any).playbackRate = rate;
         }
     }
 
@@ -3387,7 +3387,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Marked as played', '✅');
             } catch (err) {
                 console.error('Failed to mark as played:', err);
-                errorToast(err, 'Action failed');
+                errorToast(err as any, 'Action failed');
                 return;
             }
         }
@@ -3436,7 +3436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Marked as unplayed', '⭕');
             } catch (err) {
                 console.error('Failed to mark as unplayed:', err);
-                errorToast(err, 'Action failed');
+                errorToast(err as any, 'Action failed');
                 return;
             }
         }
@@ -3498,16 +3498,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function cycleSubtitles(reverse = false) {
         const media = pipViewer.querySelector('video');
-        if (!media || !media.textTracks) return;
+        if (!media || !(media as HTMLMediaElement).textTracks) return;
 
-        const tracks = Array.from(media.textTracks).filter(t => t.kind === 'subtitles');
+        const tracks = Array.from((media as HTMLMediaElement).textTracks).filter(t => t.kind === 'subtitles');
         if (tracks.length === 0) return;
 
         // Find current active track index
-        let activeIndex = tracks.findIndex(t => t.mode === 'showing');
+        let activeIndex = tracks.findIndex(t => (t as TextTrack).mode === 'showing');
 
         // Disable all
-        tracks.forEach(t => t.mode = 'disabled');
+        tracks.forEach(t => (t as TextTrack).mode = 'disabled');
 
         if (reverse) {
             // Cycle: showing (0) -> none (-1) -> last (N-1) -> ...
@@ -3631,7 +3631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const current = media.currentTime || 0;
+            const current = (media as HTMLMediaElement).currentTime || 0;
             let targetCue = null;
 
             if (reverse) {
@@ -3661,7 +3661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (targetCue) {
-                media.currentTime = targetCue.start;
+                (media as HTMLMediaElement).currentTime = targetCue.start;
                 showToast(`Subtitle: ${targetCue.text.substring(0, 50)}${targetCue.text.length > 50 ? '...' : ''}`, '💬');
             }
         });
@@ -3678,14 +3678,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (withoutSubs && video.textTracks) {
                 // Temporarily disable all subtitle tracks
                 const tracks = Array.from(video.textTracks);
-                const showingTracks = tracks.filter(t => t.mode === 'showing');
-                tracks.forEach(t => t.mode = 'disabled');
+                const showingTracks = tracks.filter(t => (t as TextTrack).mode === 'showing');
+                tracks.forEach(t => (t as TextTrack).mode = 'disabled');
 
                 // Draw video without subtitles
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                 // Restore subtitle tracks
-                showingTracks.forEach(t => t.mode = 'showing');
+                showingTracks.forEach(t => (t as TextTrack).mode = 'showing');
             } else {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             }
@@ -3705,7 +3705,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 'image/png');
         } catch (err) {
             console.error('Screenshot failed:', err);
-            errorToast(err, 'Screenshot failed');
+            errorToast(err as any, 'Screenshot failed');
         }
     }
 
@@ -3756,9 +3756,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear handlers to prevent other events (like onended) firing after error
         const media = pipViewer.querySelector('video, audio, img');
         if (media) {
-            media.onerror = null;
-            media.onended = null;
-            media.onload = null;
+            (media as HTMLMediaElement).onerror = null;
+            (media as HTMLMediaElement).onended = null;
+            (media as any).onload = null;
         }
 
         const basename = item.path.split('/').pop();
@@ -3898,7 +3898,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveQueue() {
-        localStorage.setItem('disco-queue', JSON.stringify(state.playback.queue || []));
+        localStorage.setItem('disco-queue', String(JSON.stringify(state.playback.queue || [])));
     }
 
     function renderQueue() {
@@ -3908,7 +3908,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         queueList.innerHTML = '';
         const queue = state.playback.queue || [];
-        queueCountBadge.textContent = queue.length;
+        queueCountBadge.textContent = queue.length.toString();
 
         queue.forEach((item, index) => {
             const queueItem = document.createElement('div');
@@ -3946,7 +3946,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playMedia(item, true, index);
             };
 
-            queueItem.querySelector('.remove').onclick = (e) => {
+            (queueItem.querySelector('.remove') as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 state.playback.queue.splice(index, 1);
                 // Adjust queueIndex if needed
@@ -3960,11 +3960,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Drag and drop for reordering and adding new items
             const handle = queueItem.querySelector('.queue-item-handle');
-            handle.ondragstart = (e) => {
-                e.dataTransfer.setData('application/x-disco-queue-index', index);
+            (handle as HTMLElement).ondragstart = (e: DragEvent) => { (e as DragEvent).dataTransfer.setData('application/x-disco-queue-index', index.toString());
                 queueItem.style.opacity = '0.5';
             };
-            handle.ondragend = () => {
+            (handle as HTMLElement).ondragend = () => {
                 queueItem.style.opacity = '1';
             };
 
@@ -3991,7 +3990,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isBefore = e.clientY < midY;
                 queueItem.classList.remove('drop-before', 'drop-after');
 
-                const fromIndexStr = e.dataTransfer.getData('application/x-disco-queue-index');
+                const fromIndexStr = (e as DragEvent).dataTransfer.getData('application/x-disco-queue-index');
                 const targetIndex = isBefore ? index : index + 1;
 
                 if (fromIndexStr !== '') {
@@ -4024,7 +4023,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (playPauseBtn) {
             const media = pipViewer.querySelector('video, audio');
-            if (media && !media.paused) {
+            if (media && !(media as HTMLMediaElement).paused) {
                 playPauseBtn.textContent = '⏸️';
             } else {
                 playPauseBtn.textContent = '▶️';
@@ -4067,8 +4066,8 @@ document.addEventListener('DOMContentLoaded', () => {
             playPauseBtn.onclick = () => {
                 const media = pipViewer.querySelector('video, audio');
                 if (media) {
-                    if (media.paused) media.play();
-                    else media.pause();
+                    if ((media as HTMLMediaElement).paused) (media as HTMLMediaElement).play();
+                    else (media as HTMLMediaElement).pause();
                     renderQueue();
                 }
             };
@@ -4078,7 +4077,7 @@ document.addEventListener('DOMContentLoaded', () => {
             queueContainer.addEventListener('dragover', (e) => {
                 if (state.draggedItem) {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'copy';
+                    (e as DragEvent).dataTransfer.dropEffect = 'copy';
                 }
             });
 
@@ -4105,7 +4104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (expandBtn) {
             expandBtn.onclick = () => {
                 state.queueExpanded = !state.queueExpanded;
-                localStorage.setItem('disco-queue-expanded', state.queueExpanded);
+                localStorage.setItem('disco-queue-expanded', String(state.queueExpanded));
                 updateQueueVisibility();
             };
         }
@@ -4113,7 +4112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (shuffleBtn) {
             shuffleBtn.onclick = () => {
                 state.playback.shuffle = !state.playback.shuffle;
-                localStorage.setItem('disco-shuffle', state.playback.shuffle);
+                localStorage.setItem('disco-shuffle', String(state.playback.shuffle));
                 if (state.playback.shuffle) {
                     // Simple shuffle
                     for (let i = state.playback.queue.length - 1; i > 0; i--) {
@@ -4129,8 +4128,8 @@ document.addEventListener('DOMContentLoaded', () => {
             repeatBtn.onclick = () => {
                 const modes = ['off', 'all', 'one'];
                 const currentIndex = modes.indexOf(state.playback.repeatMode);
-                state.playback.repeatMode = modes[(currentIndex + 1) % modes.length];
-                localStorage.setItem('disco-repeat-mode', state.playback.repeatMode);
+                state.playback.repeatMode = modes[(currentIndex + 1) % modes.length] as any;
+                localStorage.setItem('disco-repeat-mode', String(state.playback.repeatMode));
                 renderQueue();
             };
         }
@@ -4138,7 +4137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (addModeBtn) {
             addModeBtn.onclick = () => {
                 state.queueAddMode = state.queueAddMode === 'end' ? 'next' : 'end';
-                localStorage.setItem('disco-queue-add-mode', state.queueAddMode);
+                localStorage.setItem('disco-queue-add-mode', String(state.queueAddMode));
                 renderQueue();
             };
         }
@@ -4339,7 +4338,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.onvolumechange = () => {
                 if (el._systemMute) return;
                 state.playback.muted = el.muted;
-                localStorage.setItem('disco-muted', el.muted);
+                localStorage.setItem('disco-muted', String(el.muted));
             };
 
             // Auto-Loop short media
@@ -4387,7 +4386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, { once: true });
                 } else if (Hls.isSupported()) {
                     // hls.js
-                    const hls = new Hls({
+                    const hls = new (Hls as any)({
                         maxBufferLength: 60,
                         maxMaxBufferLength: 180,
                         maxBufferSize: 120 * 1000 * 1000, // 120MB
@@ -4434,7 +4433,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const track = document.createElement('track');
                 track.kind = 'subtitles';
                 track.label = label;
-                track.srclang = state.language || 'en';
+                (track as any).srclang = state.language || 'en';
                 track.src = trackUrl; // Append start param
 
                 track.onload = () => {
@@ -4504,7 +4503,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.onvolumechange = () => {
                 if (el._systemMute) return;
                 state.playback.muted = el.muted;
-                localStorage.setItem('disco-muted', el.muted);
+                localStorage.setItem('disco-muted', String(el.muted));
             };
 
             el.onerror = () => handleMediaError(item, el);
@@ -4531,7 +4530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const track = document.createElement('track');
                 track.kind = 'subtitles';
                 track.src = `/api/subtitles?path=${encodeURIComponent(path)}`;
-                track.srclang = state.language || 'en';
+                (track as any).srclang = state.language || 'en';
                 el.appendChild(track);
 
                 track.onload = () => {
@@ -4554,7 +4553,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el.complete) {
                 el.onload();
             }
-            el.ondblclick = () => toggleFullscreen(pipViewer, pipViewer);
+            (el as HTMLElement).ondblclick = () => toggleFullscreen(pipViewer as HTMLElement);
             setupImageZoomPan(el);
         } else {
             showToast('Unsupported media format');
@@ -4828,10 +4827,10 @@ document.addEventListener('DOMContentLoaded', () => {
         imgEl.onerror = () => handleMediaError(item, imgEl);
         imgEl.src = url;
         if (imgEl.complete && imgEl.onload) {
-            imgEl.onload();
+            (imgEl as any).onload(new Event("load"));
         }
-        imgEl.ondblclick = () => toggleFullscreen(pipViewer, pipViewer);
-        imgEl.controls = false;
+        imgEl.ondblclick = () => toggleFullscreen(pipViewer as HTMLElement);
+        (imgEl as any).controls = false;
 
         // Replace video with img in the viewer
         pipViewer.innerHTML = '';
@@ -4858,8 +4857,8 @@ document.addEventListener('DOMContentLoaded', () => {
             pageInfo.textContent = `Page ${state.currentPage}`;
         }
 
-        prevPageBtn.disabled = state.currentPage === 1;
-        nextPageBtn.disabled = state.currentPage >= totalPages;
+        (prevPageBtn as HTMLButtonElement).disabled = state.currentPage === 1;
+        (nextPageBtn as HTMLButtonElement).disabled = state.currentPage >= totalPages;
     }
 
     function showSkeletons() {
@@ -4974,16 +4973,16 @@ document.addEventListener('DOMContentLoaded', () => {
         currentMedia.forEach((item, index) => {
             const card = document.createElement('div');
             card.className = 'media-card';
-            card.dataset.path = item.path;
-            card.dataset.type = item.type || '';
-            if (item.is_dir) card.dataset.isDir = 'true';
-            card._item = item;
+            (card as HTMLElement).dataset.path = item.path;
+            (card as HTMLElement).dataset.type = item.type || '';
+            if (item.is_dir) (card as HTMLElement).dataset.isDir = 'true';
+            (card as any)._item = item;
             card.draggable = true;
 
             card.addEventListener('dragstart', (e) => {
                 state.draggedItem = item;
-                e.dataTransfer.effectAllowed = 'all';
-                e.dataTransfer.setData('text/plain', item.path);
+                (e as DragEvent).dataTransfer.effectAllowed = 'all';
+                (e as DragEvent).dataTransfer.setData('text/plain', item.path);
                 card.classList.add('dragging');
                 document.body.classList.add('is-dragging');
             });
@@ -4995,11 +4994,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearAllDragOver();
             });
 
-            card.onclick = (e) => {
+            (card as HTMLElement).onclick = (e) => {
                 if ((e.target as HTMLElement).closest('.media-actions') || (e.target as HTMLElement).closest('.media-action-btn')) return;
 
                 if (item.is_dir) {
-                    searchInput.value = item.path.endsWith('/') ? item.path : item.path + '/';
+                    (searchInput as HTMLInputElement).value = item.path.endsWith('/') ? item.path : item.path + '/';
                     performSearch();
                     return;
                 }
@@ -5013,7 +5012,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isCaptionClick && item.caption_time) {
                     playMedia(item).then(() => {
                         const media = pipViewer.querySelector('video, audio');
-                        if (media) media.currentTime = item.caption_time;
+                        if (media) (media as HTMLMediaElement).currentTime = item.caption_time;
                     });
                 } else {
                     playMedia(item);
@@ -5101,7 +5100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isPlaylist) {
                 card.addEventListener('dragover', (e) => {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
+                    (e as DragEvent).dataTransfer.dropEffect = 'move';
 
                     const rect = card.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -5146,31 +5145,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const btnDelete = card.querySelector('.media-action-btn.delete');
-            if (btnDelete) btnDelete.onclick = (e) => {
+            if (btnDelete) (btnDelete as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 deleteMedia(item.path, false);
             };
 
             const btnRSVP = card.querySelector('.media-action-btn.rsvp');
-            if (btnRSVP) btnRSVP.onclick = (e) => {
+            if (btnRSVP) (btnRSVP as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 playRSVP(item);
             };
 
             const btnRestore = card.querySelector('.media-action-btn.restore');
-            if (btnRestore) btnRestore.onclick = (e) => {
+            if (btnRestore) (btnRestore as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 deleteMedia(item.path, true);
             };
 
             const btnDeletePermanent = card.querySelector('.media-action-btn.delete-permanent');
-            if (btnDeletePermanent) btnDeletePermanent.onclick = (e) => {
+            if (btnDeletePermanent) (btnDeletePermanent as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 permanentlyDeleteMedia(item.path);
             };
 
             const btnAddPlaylist = card.querySelector('.media-action-btn.add-playlist');
-            if (btnAddPlaylist) btnAddPlaylist.onclick = (e) => {
+            if (btnAddPlaylist) (btnAddPlaylist as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 if (state.playlists.length === 0) {
                     showToast('Create a playlist first');
@@ -5190,19 +5189,19 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const btnMarkPlayed = card.querySelector('.media-action-btn.mark-played');
-            if (btnMarkPlayed) btnMarkPlayed.onclick = (e) => {
+            if (btnMarkPlayed) (btnMarkPlayed as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 markMediaPlayed(item);
             };
 
             const btnMarkUnplayed = card.querySelector('.media-action-btn.mark-unplayed');
-            if (btnMarkUnplayed) btnMarkUnplayed.onclick = (e) => {
+            if (btnMarkUnplayed) (btnMarkUnplayed as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 markMediaUnplayed(item);
             };
 
             const btnRemovePlaylist = card.querySelector('.media-action-btn.remove-playlist');
-            if (btnRemovePlaylist) btnRemovePlaylist.onclick = (e) => {
+            if (btnRemovePlaylist) (btnRemovePlaylist as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 removeFromPlaylist(state.filters.playlist, item);
             };
@@ -5318,19 +5317,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            group.querySelector('.play-group').onclick = (e) => {
+            (group.querySelector('.play-group') as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 playMedia(firstCap);
             };
 
             group.querySelectorAll('.caption-group-segment').forEach(seg => {
-                seg.onclick = (e) => {
+                (seg as HTMLElement).onclick = (e) => {
                     e.stopPropagation();
-                    const time = parseFloat(seg.dataset.time);
+                    const time = parseFloat((seg as HTMLElement).dataset.time);
                     playMedia(firstCap).then(() => {
                         const media = pipViewer.querySelector('video, audio');
                         if (media) {
-                            media.currentTime = time;
+                            (media as HTMLMediaElement).currentTime = time;
                             // Highlight
                             seg.classList.add('playing');
                             setTimeout(() => seg.classList.remove('playing'), 3000);
@@ -5349,7 +5348,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const captions = captionsByPath[path];
             const card = document.createElement('div');
             card.className = 'media-card caption-media-card';
-            card.dataset.path = path;
+            (card as HTMLElement).dataset.path = path;
 
             const basename = path.split('/').pop();
             const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(path)}`;
@@ -5389,20 +5388,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Click on thumb plays media
             const thumb = card.querySelector('.media-thumb');
-            thumb.onclick = (e) => {
+            (thumb as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 playMedia(captions[0]);
             };
 
             // Click on caption segment jumps to that time
             card.querySelectorAll('.caption-segment').forEach(seg => {
-                seg.onclick = (e) => {
+                (seg as HTMLElement).onclick = (e) => {
                     e.stopPropagation();
-                    const time = parseFloat(seg.dataset.time);
+                    const time = parseFloat((seg as HTMLElement).dataset.time);
                     playMedia(captions[0]).then(() => {
                         const media = pipViewer.querySelector('video, audio');
                         if (media) {
-                            media.currentTime = time;
+                            (media as HTMLMediaElement).currentTime = time;
                             // Highlight the segment briefly
                             seg.classList.add('caption-playing');
                             setTimeout(() => seg.classList.remove('caption-playing'), 2000);
@@ -5439,7 +5438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const captions = captionsByPath[path];
             const firstCap = captions[0];
             const tr = document.createElement('tr');
-            tr.dataset.path = path;
+            (tr as HTMLElement).dataset.path = path;
 
             const size = formatSize(firstCap.size || 0);
             const duration = formatDuration(firstCap.duration || 0);
@@ -5456,7 +5455,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.onclick = () => {
                 playMedia(firstCap).then(() => {
                     const media = pipViewer.querySelector('video, audio');
-                    if (media) media.currentTime = captions[0].caption_time;
+                    if (media) (media as HTMLMediaElement).currentTime = captions[0].caption_time;
                 });
             };
 
@@ -5505,13 +5504,13 @@ document.addEventListener('DOMContentLoaded', () => {
         currentMedia.forEach((item, index) => {
             const tr = document.createElement('tr');
             tr.onclick = () => playMedia(item);
-            tr.dataset.path = item.path;
+            (tr as HTMLElement).dataset.path = item.path;
             tr.draggable = true;
 
             tr.addEventListener('dragstart', (e) => {
                 state.draggedItem = item;
-                e.dataTransfer.effectAllowed = 'all';
-                e.dataTransfer.setData('text/plain', item.path);
+                (e as DragEvent).dataTransfer.effectAllowed = 'all';
+                (e as DragEvent).dataTransfer.setData('text/plain', item.path);
                 tr.classList.add('dragging');
                 document.body.classList.add('is-dragging');
             });
@@ -5526,7 +5525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isPlaylist) {
                 tr.addEventListener('dragover', (e) => {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
+                    (e as DragEvent).dataTransfer.dropEffect = 'move';
 
                     const rect = tr.getBoundingClientRect();
                     const y = e.clientY - rect.top;
@@ -5635,37 +5634,37 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             const btnMarkPlayed = tr.querySelector('.mark-played-btn');
-            if (btnMarkPlayed) btnMarkPlayed.onclick = (e) => {
+            if (btnMarkPlayed) (btnMarkPlayed as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 markMediaPlayed(item);
             };
 
             const btnMarkUnplayed = tr.querySelector('.mark-unplayed-btn');
-            if (btnMarkUnplayed) btnMarkUnplayed.onclick = (e) => {
+            if (btnMarkUnplayed) (btnMarkUnplayed as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 markMediaUnplayed(item);
             };
 
             const btnDelete = tr.querySelector('.delete-btn');
-            if (btnDelete) btnDelete.onclick = (e) => {
+            if (btnDelete) (btnDelete as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 deleteMedia(item.path, false);
             };
 
             const btnRestore = tr.querySelector('.restore-btn');
-            if (btnRestore) btnRestore.onclick = (e) => {
+            if (btnRestore) (btnRestore as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 deleteMedia(item.path, true);
             };
 
             const btnDeletePermanent = tr.querySelector('.delete-permanent-btn');
-            if (btnDeletePermanent) btnDeletePermanent.onclick = (e) => {
+            if (btnDeletePermanent) (btnDeletePermanent as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 permanentlyDeleteMedia(item.path);
             };
 
             const btnAdd = tr.querySelector('.add-btn');
-            if (btnAdd) btnAdd.onclick = (e) => {
+            if (btnAdd) (btnAdd as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 if (state.playlists.length === 0) {
                     showToast('Create a playlist first');
@@ -5684,16 +5683,16 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const btnRemove = tr.querySelector('.remove-btn');
-            if (btnRemove) btnRemove.onclick = (e) => {
+            if (btnRemove) (btnRemove as HTMLElement).onclick = (e) => {
                 e.stopPropagation();
                 removeFromPlaylist(state.filters.playlist, item);
             };
 
             const trackInput = tr.querySelector('.track-number-input');
             if (trackInput) {
-                trackInput.onclick = (e) => e.stopPropagation();
-                trackInput.onchange = (e) => {
-                    updateTrackNumber(state.filters.playlist, item, e.target.value);
+                (trackInput as HTMLInputElement).onclick = (e) => e.stopPropagation();
+                (trackInput as HTMLInputElement).onchange = (e) => {
+                    updateTrackNumber(state.filters.playlist, item, (e.target as any).value);
                 };
             }
 
@@ -5701,8 +5700,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         table.querySelectorAll('th[data-sort]').forEach(th => {
-            th.onclick = () => {
-                const field = th.dataset.sort;
+            (th as HTMLElement).onclick = () => {
+                const field = (th as HTMLElement).dataset.sort;
                 if (state.filters.sort === field) {
                     state.filters.reverse = !state.filters.reverse;
                 } else {
@@ -5739,13 +5738,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         list.querySelectorAll('input').forEach(input => {
             input.onchange = (e) => {
-                const val = e.target.value;
-                if (e.target.checked) {
+                const val = (e.target as any).value;
+                if ((e.target as any).checked) {
                     state.filters.excludedDbs = state.filters.excludedDbs.filter(d => d !== val);
                 } else {
                     state.filters.excludedDbs.push(val);
                 }
-                localStorage.setItem('disco-excluded-dbs', JSON.stringify(state.filters.excludedDbs));
+                localStorage.setItem('disco-excluded-dbs', String(JSON.stringify(state.filters.excludedDbs)));
                 state.currentPage = 1;
                 performSearch();
             };
@@ -5790,8 +5789,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         categoryList.querySelectorAll('.category-btn').forEach(btn => {
             if (btn.id === 'categorization-link-btn') return;
-            btn.onclick = (e) => {
-                const cat = btn.dataset.cat;
+            (btn as any).onclick = (e) => {
+                const cat = (btn as any).dataset.cat;
                 if (state.page !== 'trash') state.page = 'search';
 
                 if (state.filters.categories.includes(cat)) {
@@ -5800,7 +5799,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.filters.categories = [cat];
                 }
 
-                localStorage.setItem('disco-filter-categories', JSON.stringify(state.filters.categories));
+                localStorage.setItem('disco-filter-categories', String(JSON.stringify(state.filters.categories)));
                 state.currentPage = 1;
                 updateNavActiveStates();
                 performSearch();
@@ -5823,8 +5822,8 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
 
         languageList.querySelectorAll('.category-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const lang = btn.dataset.lang;
+            (btn as any).onclick = (e) => {
+                const lang = (btn as any).dataset.lang;
                 if (state.page !== 'trash') state.page = 'search';
 
                 if (state.filters.languages.includes(lang)) {
@@ -5833,7 +5832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.filters.languages = [lang];
                 }
 
-                localStorage.setItem('disco-filter-languages', JSON.stringify(state.filters.languages));
+                localStorage.setItem('disco-filter-languages', String(JSON.stringify(state.filters.languages)));
                 state.currentPage = 1;
                 updateNavActiveStates();
                 performSearch();
@@ -5842,7 +5841,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helpers ---
-    function errorToast(err, fallbackMsg) {
+    function errorToast(err: any, fallbackMsg) {
         console.error('errorToast:', fallbackMsg, err);
         if (err.message === 'Access Denied' || err.message === 'Unauthorized') {
             showToast(err.message);
@@ -5909,7 +5908,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Keyboard Shortcuts ---
     window.addEventListener('keydown', (e) => {
         // Don't trigger shortcuts if user is typing in an input
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).tagName === 'SELECT') {
             return;
         }
 
@@ -5924,9 +5923,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const hovered = document.querySelector('.media-card:hover');
             if (hovered) {
                 const pathEl = hovered.querySelector('[data-path]');
-                if (pathEl) return pathEl.dataset.path;
+                if (pathEl) return (pathEl as HTMLElement).dataset.path;
                 // Try to get path from data attribute on card itself
-                if (hovered.dataset.path) return hovered.dataset.path;
+                if ((hovered as HTMLElement).dataset.path) return (hovered as HTMLElement).dataset.path;
             }
             return null;
         };
@@ -5970,9 +5969,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
             if (isPipVisible) {
                 const media = pipViewer.querySelector('video, audio');
-                if (media && !isNaN(media.duration)) {
+                if (media && !isNaN((media as HTMLMediaElement).duration)) {
                     const percent = e.key === '0' ? 1.0 : parseInt(e.key) / 10;
-                    media.currentTime = media.duration * percent;
+                    (media as HTMLMediaElement).currentTime = (media as HTMLMediaElement).duration * percent;
                     showToast(`Seek to ${e.key === '0' ? 100 : parseInt(e.key) * 10}%`, '⏩');
                 }
             }
@@ -6035,7 +6034,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             showToast(`Copied path to clipboard`, '📋');
                         }).catch(err => {
                             console.error('Failed to copy path:', err);
-                            errorToast(err, 'Failed to copy path');
+                            errorToast(err as any, 'Failed to copy path');
                         });
                     }
                     return;
@@ -6125,13 +6124,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const isPlaying = (media.paused === false);
-        const duration = media.duration;
-        const currentTime = media.currentTime || 0;
+        const isPlaying = ((media as HTMLMediaElement).paused === false);
+        const duration = (media as HTMLMediaElement).duration;
+        const currentTime = (media as HTMLMediaElement).currentTime || 0;
 
         const setTime = (t) => {
-            if (media.currentTime !== undefined && !isNaN(t) && isFinite(t)) {
-                media.currentTime = t;
+            if ((media as HTMLMediaElement).currentTime !== undefined && !isNaN(t) && isFinite(t)) {
+                (media as HTMLMediaElement).currentTime = t;
             }
         };
 
@@ -6140,22 +6139,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (state.playback.slideshowTimer) stopSlideshow();
                 else startSlideshow();
             } else {
-                if (media.paused) media.play();
-                else media.pause();
+                if ((media as HTMLMediaElement).paused) (media as HTMLMediaElement).play();
+                else (media as HTMLMediaElement).pause();
             }
         };
 
         const toggleSubtitleVisibility = () => {
-            if (!media.textTracks) return;
-            const tracks = Array.from(media.textTracks).filter(t => t.kind === 'subtitles');
+            if (!(media as HTMLMediaElement).textTracks) return;
+            const tracks = Array.from((media as HTMLMediaElement).textTracks).filter(t => t.kind === 'subtitles');
             if (tracks.length === 0) return;
 
             // Check if any track is showing
-            const hasShowingTrack = tracks.some(t => t.mode === 'showing');
+            const hasShowingTrack = tracks.some(t => (t as TextTrack).mode === 'showing');
 
             if (hasShowingTrack) {
                 // Disable all tracks
-                tracks.forEach(t => t.mode = 'disabled');
+                tracks.forEach(t => (t as TextTrack).mode = 'disabled');
                 showToast('Subtitles: Off', '💬');
             } else {
                 // Enable first track
@@ -6171,7 +6170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playPause();
                 break;
             case 'm':
-                media.muted = !media.muted;
+                (media as HTMLMediaElement).muted = !(media as HTMLMediaElement).muted;
                 break;
             case 'j':
                 if (media.tagName === 'VIDEO') {
@@ -6191,15 +6190,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         state.autoLoopMaxDuration = 30;
                     }
-                    localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration);
+                    localStorage.setItem('disco-auto-loop-max-duration', String(state.autoLoopMaxDuration));
                     const settingAutoLoopMax = document.getElementById('setting-auto-loop-max');
-                    if (settingAutoLoopMax) settingAutoLoopMax.value = state.autoLoopMaxDuration;
+                    if (settingAutoLoopMax) (settingAutoLoopMax as HTMLInputElement).value = state.autoLoopMaxDuration.toString();
                     showToast(`Auto-Loop: ${state.autoLoopMaxDuration > 0 ? state.autoLoopMaxDuration + 's' : 'OFF'}`, '🔁');
                     return;
                 }
                 if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
-                    media.loop = !media.loop;
-                    showToast(media.loop ? 'Loop: ON' : 'Loop: OFF', '🔁');
+                    (media as HTMLMediaElement).loop = !(media as HTMLMediaElement).loop;
+                    showToast((media as HTMLMediaElement).loop ? 'Loop: ON' : 'Loop: OFF', '🔁');
                 }
                 break;
             case 'o':
@@ -6374,25 +6373,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Volume control shortcuts (numpad)
             case '/':
                 if (e.code === 'NumpadDivide' || e.key === 'NumpadDivide') {
-                    media.volume = Math.max(0, media.volume - 0.1);
-                    showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                    (media as HTMLMediaElement).volume = Math.max(0, (media as HTMLMediaElement).volume - 0.1);
+                    showToast(`Volume: ${Math.round((media as HTMLMediaElement).volume * 100)}%`, '🔊');
                 }
                 break;
             case '*':
                 if (e.code === 'NumpadMultiply' || e.key === 'NumpadMultiply') {
-                    media.volume = Math.min(1, media.volume + 0.1);
-                    showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                    (media as HTMLMediaElement).volume = Math.min(1, (media as HTMLMediaElement).volume + 0.1);
+                    showToast(`Volume: ${Math.round((media as HTMLMediaElement).volume * 100)}%`, '🔊');
                 }
                 break;
             case '9':
                 // Numpad 9 for volume down (when not seeking)
-                media.volume = Math.max(0, media.volume - 0.1);
-                showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                (media as HTMLMediaElement).volume = Math.max(0, (media as HTMLMediaElement).volume - 0.1);
+                showToast(`Volume: ${Math.round((media as HTMLMediaElement).volume * 100)}%`, '🔊');
                 break;
             case '0':
                 // Numpad 0 for volume up (when not seeking)
-                media.volume = Math.min(1, media.volume + 0.1);
-                showToast(`Volume: ${Math.round(media.volume * 100)}%`, '🔊');
+                (media as HTMLMediaElement).volume = Math.min(1, (media as HTMLMediaElement).volume + 0.1);
+                showToast(`Volume: ${Math.round((media as HTMLMediaElement).volume * 100)}%`, '🔊');
                 break;
             // Screenshot shortcuts
             case 's':
@@ -6437,11 +6436,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
                     e.preventDefault();
                     if (isPlaying) {
-                        media.pause();
+                        (media as HTMLMediaElement).pause();
                     }
                     // Try to advance by 1 frame at a time
                     // Start with 1/60s and increase until we see a change
-                    const fps = media.webkitDecodedFrameCount && media.webkitDecodedFrameCount > 0
+                    const fps = (media as any).webkitDecodedFrameCount && (media as any).webkitDecodedFrameCount > 0
                         ? 60
                         : (duration && duration <= 10 ? 30 : 24); // Estimate based on duration
                     let step = 1 / fps;
@@ -6466,10 +6465,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') {
                     e.preventDefault();
                     if (isPlaying) {
-                        media.pause();
+                        (media as HTMLMediaElement).pause();
                     }
                     // Try to go back by 1 frame at a time
-                    const fps = media.webkitDecodedFrameCount && media.webkitDecodedFrameCount > 0
+                    const fps = (media as any).webkitDecodedFrameCount && (media as any).webkitDecodedFrameCount > 0
                         ? 60
                         : (duration && duration <= 10 ? 30 : 24);
                     let step = 1 / fps;
@@ -6497,8 +6496,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         e.preventDefault();
 
-        const duration = media.duration;
-        const currentTime = media.currentTime || 0;
+        const duration = (media as HTMLMediaElement).duration;
+        const currentTime = (media as HTMLMediaElement).currentTime || 0;
 
         // Handle horizontal scroll (wheel left/right)
         if (e.deltaX !== 0) {
@@ -6507,7 +6506,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newTime = Math.max(0, Math.min(duration, currentTime + delta));
             state.playback.seekHistory.push(currentTime);
             if (state.playback.seekHistory.length > 10) state.playback.seekHistory.shift();
-            media.currentTime = newTime;
+            (media as HTMLMediaElement).currentTime = newTime;
             const direction = delta > 0 ? 'forward' : 'backward';
             showToast(`Seek ${direction} 10s`, '⏩');
         }
@@ -6515,8 +6514,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (e.deltaY !== 0) {
             // Wheel up/down: Increase/decrease volume
             const delta = e.deltaY > 0 ? -0.05 : 0.05;
-            const newVolume = Math.max(0, Math.min(1, media.volume + delta));
-            media.volume = newVolume;
+            const newVolume = Math.max(0, Math.min(1, (media as HTMLMediaElement).volume + delta));
+            (media as HTMLMediaElement).volume = newVolume;
             const volumePercent = Math.round(newVolume * 100);
             showToast(`Volume: ${volumePercent}%`, '🔊');
         }
@@ -6595,16 +6594,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const debouncedSearch = debounce(performSearch, 300);
 
     document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+        if (!searchInput.contains(e.target as Node) && !searchSuggestions.contains(e.target as Node)) {
             searchSuggestions.classList.add('hidden');
         }
     });
 
     searchInput.oninput = (e) => {
-        let val = e.target.value;
+        let val = (e.target as any).value;
         if (val.includes('\\')) {
             val = val.replace(/\\/g, '/');
-            e.target.value = val;
+            (e.target as any).value = val;
         }
 
         if (val.startsWith('/') || val.startsWith('./')) {
@@ -6617,10 +6616,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     searchInput.onfocus = () => {
-        let val = searchInput.value;
+        let val = (searchInput as HTMLInputElement).value;
         if (val.includes('\\')) {
             val = val.replace(/\\/g, '/');
-            searchInput.value = val;
+            (searchInput as HTMLInputElement).value = val;
         }
 
         if (val.startsWith('/') || val.startsWith('./')) {
@@ -6631,7 +6630,7 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.onkeydown = (e) => {
         if (e.key === 'Tab' && e.shiftKey) {
             e.preventDefault();
-            const val = searchInput.value;
+            const val = (searchInput as HTMLInputElement).value;
             if (val.startsWith('/') || val.startsWith('./')) {
                 const parts = val.split('/');
                 if (val.endsWith('/')) {
@@ -6641,8 +6640,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     parts.pop(); // remove partial segment
                 }
                 const newVal = parts.join('/') + (parts.length > 0 ? '/' : '');
-                searchInput.value = newVal || (val.startsWith('/') ? '/' : './');
-                fetchSuggestions(searchInput.value);
+                (searchInput as HTMLInputElement).value = newVal || (val.startsWith('/') ? '/' : './');
+                fetchSuggestions((searchInput as HTMLInputElement).value);
                 performSearch();
             }
             return;
@@ -6657,22 +6656,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedSuggestionIndex = 0;
             }
             const el = items[selectedSuggestionIndex];
-            const path = el.dataset.path;
-            const isDir = el.dataset.isDir === 'true';
+            const path = (el as HTMLElement).dataset.path;
+            const isDir = (el as HTMLElement).dataset.isDir === 'true';
             if (isDir) {
-                if (searchInput.value.startsWith('./')) {
-                    const newName = el.dataset.name;
-                    const lastSlash = searchInput.value.lastIndexOf('/');
-                    const newPath = searchInput.value.substring(0, lastSlash + 1) + newName + '/';
-                    searchInput.value = newPath;
+                if ((searchInput as HTMLInputElement).value.startsWith('./')) {
+                    const newName = (el as HTMLElement).dataset.name;
+                    const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
+                    const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + newName + '/';
+                    (searchInput as HTMLInputElement).value = newPath;
                 } else {
                     const newPath = path.endsWith('/') ? path : path + '/';
-                    searchInput.value = newPath;
+                    (searchInput as HTMLInputElement).value = newPath;
                 }
-                fetchSuggestions(searchInput.value);
+                fetchSuggestions((searchInput as HTMLInputElement).value);
                 performSearch();
             } else {
-                searchInput.value = path;
+                (searchInput as HTMLInputElement).value = path;
                 searchSuggestions.classList.add('hidden');
                 performSearch();
             }
@@ -6687,22 +6686,22 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (e.key === 'Enter' && selectedSuggestionIndex >= 0) {
             e.preventDefault();
             const el = items[selectedSuggestionIndex];
-            const path = el.dataset.path;
-            const isDir = el.dataset.isDir === 'true';
+            const path = (el as HTMLElement).dataset.path;
+            const isDir = (el as HTMLElement).dataset.isDir === 'true';
             if (isDir) {
-                if (searchInput.value.startsWith('./')) {
-                    const newName = el.dataset.name;
-                    const lastSlash = searchInput.value.lastIndexOf('/');
-                    const newPath = searchInput.value.substring(0, lastSlash + 1) + newName + '/';
-                    searchInput.value = newPath;
+                if ((searchInput as HTMLInputElement).value.startsWith('./')) {
+                    const newName = (el as HTMLElement).dataset.name;
+                    const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
+                    const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + newName + '/';
+                    (searchInput as HTMLInputElement).value = newPath;
                 } else {
                     const newPath = path.endsWith('/') ? path : path + '/';
-                    searchInput.value = newPath;
+                    (searchInput as HTMLInputElement).value = newPath;
                 }
-                fetchSuggestions(searchInput.value);
+                fetchSuggestions((searchInput as HTMLInputElement).value);
                 performSearch();
             } else {
-                searchInput.value = path;
+                (searchInput as HTMLInputElement).value = path;
                 searchSuggestions.classList.add('hidden');
                 performSearch();
             }
@@ -6729,7 +6728,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.onclick = (e) => {
+        (btn as any).onclick = (e) => {
             const modal = (e.target as HTMLElement).closest('.modal');
             if (modal) {
                 if (modal.id === 'document-modal') {
@@ -6742,7 +6741,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const closePipBtn = document.querySelector('.close-pip');
-    if (closePipBtn) closePipBtn.onclick = closePiP;
+    if (closePipBtn) (closePipBtn as HTMLElement).onclick = closePiP;
 
 
 
@@ -6790,16 +6789,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (pipSpeedBtn) {
-        pipSpeedBtn.onclick = (e) => {
+        (pipSpeedBtn as HTMLElement).onclick = (e) => {
             e.stopPropagation();
             pipSpeedMenu.classList.toggle('hidden');
         };
     }
 
     document.querySelectorAll('.speed-opt').forEach(btn => {
-        btn.onclick = (e) => {
+        (btn as any).onclick = (e) => {
             e.stopPropagation();
-            const rate = parseFloat(btn.dataset.speed);
+            const rate = parseFloat((btn as any).dataset.speed);
             setPlaybackRate(rate);
             pipSpeedMenu.classList.add('hidden');
         };
@@ -6814,13 +6813,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pipStreamTypeBtn) pipStreamTypeBtn.onclick = () => {
         if (!state.playback.item) return;
         state.playback.item.transcode = !state.playback.item.transcode;
-        const currentPos = pipViewer.querySelector('video, audio')?.currentTime || 0;
+        const currentPos = (pipViewer.querySelector('video') as HTMLMediaElement)?.currentTime || 0;
         openActivePlayer(state.playback.item);
 
         const media = pipViewer.querySelector('video, audio');
         if (media) {
-            media.onloadedmetadata = () => {
-                media.currentTime = currentPos;
+            (media as HTMLMediaElement).onloadedmetadata = () => {
+                (media as HTMLMediaElement).currentTime = currentPos;
             };
         }
     };
@@ -6907,15 +6906,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const relativeX = (touch.clientX - rect.left) / rect.width;
 
                 if (relativeX < 0.33) {
-                    media.currentTime = Math.max(0, media.currentTime - 10);
+                    (media as HTMLMediaElement).currentTime = Math.max(0, (media as HTMLMediaElement).currentTime - 10);
                     showIndicator('⏪ -10s');
                 } else if (relativeX > 0.66) {
-                    media.currentTime = Math.min(media.duration, media.currentTime + 10);
+                    (media as HTMLMediaElement).currentTime = Math.min((media as HTMLMediaElement).duration, (media as HTMLMediaElement).currentTime + 10);
                     showIndicator('⏩ +10s');
                 } else {
-                    if (media.paused) media.play();
-                    else media.pause();
-                    showIndicator(media.paused ? '⏸️' : '▶️');
+                    if ((media as HTMLMediaElement).paused) (media as HTMLMediaElement).play();
+                    else (media as HTMLMediaElement).pause();
+                    showIndicator((media as HTMLMediaElement).paused ? '⏸️' : '▶️');
                 }
                 lastTapTime = 0;
                 touchStartTime = 0; // Prevent swipe after double tap
@@ -6925,7 +6924,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastTapTime = now;
 
             // Initialize seek time on touch
-            if (media) initialSeekTime = media.currentTime;
+            if (media) initialSeekTime = (media as HTMLMediaElement).currentTime;
 
         }, { passive: false });
 
@@ -6936,15 +6935,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const diffY = touch.screenY - touchStartY;
 
             const media = pipViewer.querySelector('video, audio');
-            if (media && !isNaN(media.duration)) {
+            if (media && !isNaN((media as HTMLMediaElement).duration)) {
                 // MX Player style: movement relative to screen width
                 const screenWidth = window.innerWidth;
                 const sensitivity = 0.5; // Swiping full screen = half video duration
-                const timeDiff = (diffX / screenWidth) * media.duration * sensitivity;
-                const targetTime = Math.max(0, Math.min(media.duration, initialSeekTime + timeDiff));
-                media.currentTime = targetTime;
+                const timeDiff = (diffX / screenWidth) * (media as HTMLMediaElement).duration * sensitivity;
+                const targetTime = Math.max(0, Math.min((media as HTMLMediaElement).duration, initialSeekTime + timeDiff));
+                (media as HTMLMediaElement).currentTime = targetTime;
 
-                const timeStr = formatDuration(targetTime) + ' / ' + formatDuration(media.duration);
+                const timeStr = formatDuration(targetTime) + ' / ' + formatDuration((media as HTMLMediaElement).duration);
                 showIndicator(timeStr);
                 if (e.cancelable) e.preventDefault();
             }
@@ -6989,41 +6988,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const settingPlayer = document.getElementById('setting-player');
     if (settingPlayer) settingPlayer.onchange = (e) => {
-        state.player = e.target.value;
-        localStorage.setItem('disco-player', state.player);
+        state.player = (e.target as any).value;
+        localStorage.setItem('disco-player', String(state.player));
     };
 
     const settingLanguage = document.getElementById('setting-language');
     if (settingLanguage) settingLanguage.oninput = (e) => {
-        state.language = e.target.value;
-        localStorage.setItem('disco-language', state.language);
+        state.language = (e.target as any).value;
+        localStorage.setItem('disco-language', String(state.language));
 
         // Update current tracks
         const media = pipViewer.querySelector('video, audio');
         if (media) {
-            for (let i = 0; i < media.textTracks.length; i++) {
-                media.textTracks[i].srclang = state.language;
+            for (let i = 0; i < (media as HTMLMediaElement).textTracks.length; i++) {
+                ((media as HTMLMediaElement).textTracks[i] as any).srclang = state.language;
             }
         }
     };
 
     const settingTheme = document.getElementById('setting-theme');
     if (settingTheme) settingTheme.onchange = (e) => {
-        state.theme = e.target.value;
-        localStorage.setItem('disco-theme', state.theme);
+        state.theme = (e.target as any).value;
+        localStorage.setItem('disco-theme', String(state.theme));
         applyTheme();
     };
 
     const settingPostPlayback = document.getElementById('setting-post-playback');
     if (settingPostPlayback) settingPostPlayback.onchange = (e) => {
-        state.postPlaybackAction = e.target.value;
-        localStorage.setItem('disco-post-playback', state.postPlaybackAction);
+        state.postPlaybackAction = (e.target as any).value;
+        localStorage.setItem('disco-post-playback', String(state.postPlaybackAction));
     };
 
     const settingDefaultView = document.getElementById('setting-default-view');
     if (settingDefaultView) settingDefaultView.onchange = (e) => {
-        state.defaultView = e.target.value;
-        localStorage.setItem('disco-default-view', state.defaultView);
+        state.defaultView = (e.target as any).value;
+        localStorage.setItem('disco-default-view', String(state.defaultView));
 
         if (pipPlayer.classList.contains('hidden')) {
             state.playerMode = state.defaultView;
@@ -7034,40 +7033,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const settingAutoplay = document.getElementById('setting-autoplay');
     if (settingAutoplay) {
-        settingAutoplay.checked = state.autoplay;
-        settingAutoplay.onchange = (e) => {
-            state.autoplay = e.target.checked;
-            localStorage.setItem('disco-autoplay', state.autoplay);
+        (settingAutoplay as HTMLInputElement).checked = state.autoplay;
+        (settingAutoplay as HTMLElement).onchange = (e) => {
+            state.autoplay = (e.target as any).checked;
+            localStorage.setItem('disco-autoplay', String(state.autoplay.toString()));
         };
     }
 
     const settingEnableQueueOnchange = document.getElementById('setting-enable-queue');
     if (settingEnableQueueOnchange) {
         settingEnableQueueOnchange.addEventListener('change', (e) => {
-            state.enableQueue = e.target.checked;
-            localStorage.setItem('disco-enable-queue', state.enableQueue);
+            state.enableQueue = (e.target as any).checked;
+            localStorage.setItem('disco-enable-queue', String(state.enableQueue.toString()));
             updateQueueVisibility();
         });
     }
 
     const settingRsvpWpm = document.getElementById('setting-rsvp-wpm');
     if (settingRsvpWpm) {
-        settingRsvpWpm.value = state.rsvpWpm;
-        settingRsvpWpm.onchange = (e) => {
-            state.rsvpWpm = parseInt(e.target.value) || 250;
-            localStorage.setItem('disco-rsvp-wpm', state.rsvpWpm);
+        (settingRsvpWpm as HTMLInputElement).value = state.rsvpWpm.toString();
+        (settingRsvpWpm as HTMLElement).onchange = (e) => {
+            state.rsvpWpm = parseInt((e.target as any).value) || 250;
+            localStorage.setItem('disco-rsvp-wpm', String(state.rsvpWpm.toString()));
         };
     }
 
     if (settingImageAutoplay) settingImageAutoplay.onchange = (e) => {
-        state.imageAutoplay = e.target.checked;
-        localStorage.setItem('disco-image-autoplay', state.imageAutoplay);
+        state.imageAutoplay = (e.target as any).checked;
+        localStorage.setItem('disco-image-autoplay', String(state.imageAutoplay.toString()));
     };
 
     const settingLocalResume = document.getElementById('setting-local-resume');
     if (settingLocalResume) settingLocalResume.onchange = (e) => {
-        state.localResume = e.target.checked;
-        localStorage.setItem('disco-local-resume', state.localResume);
+        state.localResume = (e.target as any).checked;
+        localStorage.setItem('disco-local-resume', String(state.localResume.toString()));
     };
 
     function calculateStorageSize() {
@@ -7130,7 +7129,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update Media Type buttons
         document.querySelectorAll('#media-type-list .category-btn').forEach(btn => {
-            const isActive = state.filters.types.includes(btn.dataset.type);
+            const isActive = state.filters.types.includes((btn as any).dataset.type);
             btn.classList.toggle('active', isActive);
         });
 
@@ -7160,15 +7159,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update Bins
         if (state.filterBins) {
             document.querySelectorAll('#episodes-list .category-btn').forEach(btn => {
-                const bin = state.filterBins.episodes[btn.dataset.index];
+                const bin = state.filterBins.episodes[(btn as any).dataset.index];
                 if (bin) btn.classList.toggle('active', state.filters.episodes.some(b => b.label === bin.label));
             });
             document.querySelectorAll('#size-list .category-btn').forEach(btn => {
-                const bin = state.filterBins.size[btn.dataset.index];
+                const bin = state.filterBins.size[(btn as any).dataset.index];
                 if (bin) btn.classList.toggle('active', state.filters.sizes.some(b => b.label === bin.label));
             });
             document.querySelectorAll('#duration-list .category-btn').forEach(btn => {
-                const bin = state.filterBins.duration[btn.dataset.index];
+                const bin = state.filterBins.duration[(btn as any).dataset.index];
                 if (bin) btn.classList.toggle('active', state.filters.durations.some(b => b.label === bin.label));
             });
         }
@@ -7197,13 +7196,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.closest('#media-type-list')) return;
             if (btn.closest('#episodes-list') || btn.closest('#size-list') || btn.closest('#duration-list')) return;
 
-            const cat = btn.dataset.cat;
-            const genre = btn.dataset.genre;
-            const lang = btn.dataset.lang;
-            const rating = btn.dataset.rating;
-            const type = btn.dataset.type;
+            const cat = (btn as any).dataset.cat;
+            const genre = (btn as any).dataset.genre;
+            const lang = (btn as any).dataset.lang;
+            const rating = (btn as any).dataset.rating;
+            const type = (btn as any).dataset.type;
             // For playlists, we check both the button itself and if it's a wrapper for a drop zone
-            const playlist = btn.dataset.title || btn.querySelector('.playlist-name')?.dataset.title;
+            const playlist = (btn as any).dataset.title || (btn.querySelector('.playlist-name') as HTMLElement)?.dataset.title;
 
             let isActive = false;
             if (cat !== undefined) isActive = state.page === 'search' && state.filters.categories.includes(cat);
@@ -7260,11 +7259,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         trashBtn.addEventListener('dragover', (e) => {
             e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
+            (e as DragEvent).dataTransfer.dropEffect = 'move';
         });
 
         trashBtn.addEventListener('dragleave', (e) => {
-            if (!trashBtn.contains(e.relatedTarget)) {
+            if (!trashBtn.contains(((e as MouseEvent).relatedTarget as HTMLElement))) {
                 trashBtn.classList.remove('drag-over');
             }
         });
@@ -7274,7 +7273,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             trashBtn.classList.remove('drag-over');
 
-            const path = e.dataTransfer.getData('text/plain');
+            const path = (e as DragEvent).dataTransfer.getData('text/plain');
             if (path) {
                 deleteMedia(path);
             }
@@ -7374,7 +7373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         duPathInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const newPath = duPathInput.value.trim();
+                const newPath = (duPathInput as HTMLInputElement).value.trim();
                 if (newPath && newPath !== state.duPath) {
                     fetchDU(newPath);
                 }
@@ -7383,7 +7382,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Also select on focus
         duPathInput.addEventListener('focus', () => {
-            duPathInput.select();
+            (duPathInput as HTMLInputElement).select();
         });
     }
 
@@ -7405,7 +7404,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (sortBy) sortBy.onchange = () => {
         state.filters.sort = sortBy.value;
-        localStorage.setItem('disco-sort', state.filters.sort);
+        localStorage.setItem('disco-sort', String(state.filters.sort));
         if (state.page === 'playlist') {
             sortPlaylistItems();
             renderResults();
@@ -7420,7 +7419,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (sortReverseBtn) sortReverseBtn.onclick = () => {
         state.filters.reverse = !state.filters.reverse;
-        localStorage.setItem('disco-reverse', state.filters.reverse);
+        localStorage.setItem('disco-reverse', String(state.filters.reverse));
         sortReverseBtn.classList.toggle('active');
         if (state.page === 'playlist') {
             sortPlaylistItems();
@@ -7503,7 +7502,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewGrid) {
         viewGrid.onclick = () => {
             state.view = 'grid';
-            localStorage.setItem('disco-view', 'grid');
+            localStorage.setItem('disco-view', String('grid'));
             updateNavActiveStates();
             performSearch();
         };
@@ -7512,7 +7511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewGroup) {
         viewGroup.onclick = () => {
             state.view = 'group';
-            localStorage.setItem('disco-view', 'group');
+            localStorage.setItem('disco-view', String('group'));
             updateNavActiveStates();
             performSearch();
         };
@@ -7521,13 +7520,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewDetails) {
         viewDetails.onclick = () => {
             state.view = 'details';
-            localStorage.setItem('disco-view', 'details');
+            localStorage.setItem('disco-view', String('details'));
             updateNavActiveStates();
             performSearch();
         };
     }
 
-    if (prevPageBtn) prevPageBtn.onclick = () => {
+    if (prevPageBtn) (prevPageBtn as HTMLElement).onclick = () => {
         if (state.currentPage > 1) {
             state.currentPage--;
             performSearch();
@@ -7535,7 +7534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    if (nextPageBtn) nextPageBtn.onclick = () => {
+    if (nextPageBtn) (nextPageBtn as HTMLElement).onclick = () => {
         const totalPages = Math.ceil(state.totalCount / state.filters.limit);
         if (state.currentPage < totalPages) {
             state.currentPage++;
@@ -7654,7 +7653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Expose for testing
-    window.disco = {
+    (window as any).disco = {
         get currentMedia() { return currentMedia; },
         set currentMedia(v) { currentMedia = v; },
         formatSize,

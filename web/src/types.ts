@@ -19,6 +19,7 @@ export interface MediaItem {
     rating?: number;
     similarity?: number;
     parent_path?: string;
+    transcode?: boolean;
 }
 
 export interface FilterBins {
@@ -122,11 +123,13 @@ export interface State {
     readOnly: boolean;
     dev: boolean;
     databases: string[];
-    categories: string[];
-    genres: string[];
-    languages: string[];
-    ratings: string[];
+    categories: { category: string; count: number }[];
+    genres: { genre: string; count: number }[];
+    languages: { category: string; count: number }[];
+    ratings: { rating: number; count: number }[];
     filterBins: FilterBins;
+    duData?: any[];
+    similarityData?: any[];
     playlists: string[];
     newCategories: string[];
     playlistItems: MediaItem[];
