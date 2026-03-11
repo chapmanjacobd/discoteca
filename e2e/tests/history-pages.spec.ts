@@ -29,12 +29,15 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     // Wait for video to be ready and start playing using POM
     await viewerPage.waitForMediaData();
 
-    // Click play to ensure video is playing
-    await mediaCard.click();
-    await mediaPage.page.waitForTimeout(500);
+    // Ensure video is playing (autoplay should handle this, but verify)
+    const isPlaying = await viewerPage.isPlaying();
+    if (!isPlaying) {
+      await viewerPage.play();
+    }
 
-    // Let it play briefly
-    await mediaPage.page.waitForTimeout(3000);
+    // Let it play briefly to accumulate progress
+    // Progress is throttled to save once per second, so wait at least 2 seconds
+    await mediaPage.page.waitForTimeout(2500);
 
     // Check video position before closing using POM
     const videoPosBeforeClose = await viewerPage.getCurrentTime();

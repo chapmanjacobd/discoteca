@@ -90,7 +90,7 @@ echo "# Test Document
 
 This is a test PDF document for e2e testing.
 
-It contains multiple lines to ensure it's a valid, readable PDF." | pandoc -f markdown -t pdf -o "$MEDIA_DIR/documents/test-document.pdf"
+It contains multiple lines to ensure it's a valid, readable PDF." | pandoc -f markdown -t ms --pdf-engine=pdfroff -o "$MEDIA_DIR/documents/test-document.pdf"
 
 # Create EPUB using pandoc for testing calibre conversion
 cat > "$MEDIA_DIR/documents/test-book.md" << 'MD'

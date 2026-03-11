@@ -35,6 +35,7 @@ jobs:
           sudo apt-get install -y \
             ffmpeg \
             pandoc \
+            groff \
             fonts-dejavu-core \
             sqlite3 \
             libnss3 \
