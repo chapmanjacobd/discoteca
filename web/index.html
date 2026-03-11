@@ -1,633 +1,908 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
+        <title>𝑑𝑖𝑠𝑐𝑜𝑡𝑒𝑐𝑎</title>
+        <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>𝑑𝑖𝑠𝑐𝑜𝑡𝑒𝑐𝑎</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-</head>
-
-<body>
-    <header>
-        <button id="menu-toggle" title="Menu">☰</button>
-        <div id="logo">
-            <span id="disco-ball">🪩</span>
-            <span id="logo-text">Disco<span id="logo-suffix">teca</span></span>
-        </div>
-        <div id="search-container">
-            <span id="search-icon">🔍</span>
-            <input type="text" id="search-input" placeholder="Search..." autocomplete="off">
-            <div id="search-suggestions" class="hidden"></div>
-            <div id="results-info">
-                <span id="results-count"></span>
+    <body>
+        <header>
+            <button id="menu-toggle" title="Menu">☰</button>
+            <div id="logo">
+                <span id="disco-ball">🪩</span>
+                <span id="logo-text">Disco<span id="logo-suffix">teca</span></span>
             </div>
-        </div>
-        <div id="header-actions">
-            <button id="settings-button" title="Settings">⚙️</button>
-        </div>
-    </header>
-
-    <main>
-        <div id="sidebar-overlay" class="hidden"></div>
-        <aside id="sidebar">
-            <div id="nav-list">
-                <button id="all-media-btn" class="category-btn active" style="width: 100%; margin-bottom: 0.2rem;">🗂️
-                    All Media</button>
-                <button id="captions-btn" class="category-btn" style="width: 100%; margin-bottom: 0.2rem;">💬
-                    Captions</button>
-            </div>
-
-            <div class="sidebar-separator"></div>
-
-            <details id="details-playlists">
-                <summary>Playlists</summary>
-
-                <div id="playlist-list">
-                    <!-- Playlists will be injected here -->
-                </div>
-
-                <button id="new-playlist-btn" class="category-btn"
-                    style="width: 100%; margin-top: 0.5rem; border: 1px dashed var(--border-color);">+ New
-                    Playlist</button>
-            </details>
-
-            <details id="details-history">
-                <summary>History</summary>
-                <div style="display: flex; flex-direction: column; gap: 0.2rem; padding: 0.5rem 0;">
-                    <button id="history-in-progress-btn" class="category-btn">⏯️ In Progress</button>
-                    <button id="history-unplayed-btn" class="category-btn">⭕ Unplayed</button>
-                    <button id="history-completed-btn" class="category-btn">✅ Completed</button>
-                </div>
-            </details>
-
-            <details id="details-media-type">
-                <summary>Media Type</summary>
-                <div id="media-type-list" class="sidebar-buttons">
-                    <button class="category-btn" data-type="video">🎬 Video</button>
-                    <button class="category-btn" data-type="audio">🎵 Audio</button>
-                    <button class="category-btn" data-type="text">📖 Text</button>
-                    <button class="category-btn" data-type="image">🖼️ Image</button>
-                </div>
-            </details>
-
-            <details id="details-episodes">
-                <summary>Episodes</summary>
-                <div id="episodes-slider-container" class="sidebar-slider-container">
-                    <div class="slider-label"><span id="episodes-percentile-label"></span></div>
-                    <div class="range-slider">
-                        <div class="range-track"></div>
-                        <input type="range" id="episodes-min-slider" min="0" max="100" value="0">
-                        <input type="range" id="episodes-max-slider" min="0" max="100" value="100">
-                    </div>
-                    <div class="slider-footer">
-                        <span id="episodes-min-label"></span>
-                        <span id="episodes-max-label"></span>
-                    </div>
-                </div>
-                <div id="episodes-list" class="sidebar-buttons hidden">
-                    <!-- Episode bins will be injected here -->
-                </div>
-            </details>
-
-            <details id="details-size">
-                <summary>File Size</summary>
-                <div id="size-slider-container" class="sidebar-slider-container">
-                    <div class="slider-label"><span id="size-percentile-label"></span></div>
-                    <div class="range-slider">
-                        <div class="range-track"></div>
-                        <input type="range" id="size-min-slider" min="0" max="100" value="0">
-                        <input type="range" id="size-max-slider" min="0" max="100" value="100">
-                    </div>
-                    <div class="slider-footer">
-                        <span id="size-min-label"></span>
-                        <span id="size-max-label"></span>
-                    </div>
-                </div>
-                <div id="size-list" class="sidebar-buttons hidden">
-                    <!-- Size bins will be injected here -->
-                </div>
-            </details>
-
-            <details id="details-duration">
-                <summary>Duration</summary>
-                <div id="duration-slider-container" class="sidebar-slider-container">
-                    <div class="slider-label"><span id="duration-percentile-label"></span></div>
-                    <div class="range-slider">
-                        <div class="range-track"></div>
-                        <input type="range" id="duration-min-slider" min="0" max="100" value="0">
-                        <input type="range" id="duration-max-slider" min="0" max="100" value="100">
-                    </div>
-                    <div class="slider-footer">
-                        <span id="duration-min-label"></span>
-                        <span id="duration-max-label"></span>
-                    </div>
-                </div>
-                <div id="duration-list" class="sidebar-buttons hidden">
-                    <!-- Duration bins will be injected here -->
-                </div>
-            </details>
-
-            <details id="details-categories">
-                <summary>Categories</summary>
-                <div id="category-list">
-                    <!-- Categories will be injected here -->
-                </div>
-            </details>
-
-            <details id="details-languages" class="advanced-only">
-                <summary>Languages</summary>
-                <div id="language-list">
-                    <!-- Languages will be injected here -->
-                </div>
-            </details>
-
-            <details id="details-ratings">
-                <summary>Ratings</summary>
-                <div id="rating-list">
-                    <!-- Ratings will be injected here -->
-                </div>
-            </details>
-
-            <div class="sidebar-separator"></div>
-
-            <button id="du-btn" class="category-btn" style="width: 100%; margin-bottom: 0.2rem;">📊
-                Disk Usage</button>
-            <button id="trash-btn" class="category-btn hidden" style="width: 100%; margin-bottom: 0.5rem;">🗑️
-                Trash</button>
-        </aside>
-
-        <section id="content">
-            <div id="theatre-anchor"></div>
-            <div id="queue-container" class="hidden">
-                <div id="now-playing-header">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <h2>🎵 Playback Queue</h2>
-                        <span id="queue-count-badge" class="badge"></span>
-                    </div>
-                    <div id="queue-controls">
-                        <button id="queue-play-pause-btn" class="queue-control-btn" title="Play/Pause">▶️</button>
-                        <button id="queue-expand-btn" class="queue-control-btn"
-                            title="Expand/Collapse Queue">↕️</button>
-                        <button id="queue-shuffle-btn" class="queue-control-btn" title="Shuffle Queue">🔀</button>
-                        <button id="queue-repeat-btn" class="queue-control-btn" title="Repeat Mode">🔁 Off</button>
-                        <button id="queue-add-mode-btn" class="queue-control-btn" title="Add Mode: End">➕ End</button>
-                        <button id="queue-clear-btn" class="queue-control-btn" title="Clear Queue">🗑️</button>
-                    </div>
-                </div>
-                <div id="queue-list">
-                    <!-- Queue items will be injected here -->
+            <div id="search-container">
+                <span id="search-icon">🔍</span>
+                <input type="text" id="search-input" placeholder="Search..." autocomplete="off" />
+                <div id="search-suggestions" class="hidden"></div>
+                <div id="results-info">
+                    <span id="results-count"></span>
                 </div>
             </div>
-            <div id="toolbar">
-                <div id="du-toolbar" class="hidden">
-                    <button id="du-back-btn" class="category-btn" title="Go to parent directory">⤴️</button>
-                    <input type="text" id="du-path-input" />
-                    <div id="du-breadcrumbs" class="du-breadcrumbs"></div>
+            <div id="header-actions">
+                <button id="settings-button" title="Settings">⚙️</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="sidebar-overlay" class="hidden"></div>
+            <aside id="sidebar">
+                <div id="nav-list">
+                    <button
+                        id="all-media-btn"
+                        class="category-btn active"
+                        style="width: 100%; margin-bottom: 0.2rem"
+                    >
+                        🗂️ All Media
+                    </button>
+                    <button
+                        id="captions-btn"
+                        class="category-btn"
+                        style="width: 100%; margin-bottom: 0.2rem"
+                    >
+                        💬 Captions
+                    </button>
                 </div>
 
-                <div id="view-toggle">
-                    <button id="view-grid" class="active">Grid</button>
-                    <button id="view-group">Group</button>
-                    <button id="view-details">Details</button>
+                <div class="sidebar-separator"></div>
+
+                <details id="details-playlists">
+                    <summary>Playlists</summary>
+
+                    <div id="playlist-list">
+                        <!-- Playlists will be injected here -->
+                    </div>
+
+                    <button
+                        id="new-playlist-btn"
+                        class="category-btn"
+                        style="
+                            width: 100%;
+                            margin-top: 0.5rem;
+                            border: 1px dashed var(--border-color);
+                        "
+                    >
+                        + New Playlist
+                    </button>
+                </details>
+
+                <details id="details-history">
+                    <summary>History</summary>
+                    <div
+                        style="display: flex; flex-direction: column; gap: 0.2rem; padding: 0.5rem 0"
+                    >
+                        <button id="history-in-progress-btn" class="category-btn">
+                            ⏯️ In Progress
+                        </button>
+                        <button id="history-unplayed-btn" class="category-btn">⭕ Unplayed</button>
+                        <button id="history-completed-btn" class="category-btn">✅ Completed</button>
+                    </div>
+                </details>
+
+                <details id="details-media-type">
+                    <summary>Media Type</summary>
+                    <div id="media-type-list" class="sidebar-buttons">
+                        <button class="category-btn" data-type="video">🎬 Video</button>
+                        <button class="category-btn" data-type="audio">🎵 Audio</button>
+                        <button class="category-btn" data-type="text">📖 Text</button>
+                        <button class="category-btn" data-type="image">🖼️ Image</button>
+                    </div>
+                </details>
+
+                <details id="details-episodes">
+                    <summary>Episodes</summary>
+                    <div id="episodes-slider-container" class="sidebar-slider-container">
+                        <div class="slider-label"><span id="episodes-percentile-label"></span></div>
+                        <div class="range-slider">
+                            <div class="range-track"></div>
+                            <input
+                                type="range"
+                                id="episodes-min-slider"
+                                min="0"
+                                max="100"
+                                value="0"
+                            />
+                            <input
+                                type="range"
+                                id="episodes-max-slider"
+                                min="0"
+                                max="100"
+                                value="100"
+                            />
+                        </div>
+                        <div class="slider-footer">
+                            <span id="episodes-min-label"></span>
+                            <span id="episodes-max-label"></span>
+                        </div>
+                    </div>
+                    <div id="episodes-list" class="sidebar-buttons hidden">
+                        <!-- Episode bins will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-size">
+                    <summary>File Size</summary>
+                    <div id="size-slider-container" class="sidebar-slider-container">
+                        <div class="slider-label"><span id="size-percentile-label"></span></div>
+                        <div class="range-slider">
+                            <div class="range-track"></div>
+                            <input type="range" id="size-min-slider" min="0" max="100" value="0" />
+                            <input type="range" id="size-max-slider" min="0" max="100" value="100" />
+                        </div>
+                        <div class="slider-footer">
+                            <span id="size-min-label"></span>
+                            <span id="size-max-label"></span>
+                        </div>
+                    </div>
+                    <div id="size-list" class="sidebar-buttons hidden">
+                        <!-- Size bins will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-duration">
+                    <summary>Duration</summary>
+                    <div id="duration-slider-container" class="sidebar-slider-container">
+                        <div class="slider-label"><span id="duration-percentile-label"></span></div>
+                        <div class="range-slider">
+                            <div class="range-track"></div>
+                            <input
+                                type="range"
+                                id="duration-min-slider"
+                                min="0"
+                                max="100"
+                                value="0"
+                            />
+                            <input
+                                type="range"
+                                id="duration-max-slider"
+                                min="0"
+                                max="100"
+                                value="100"
+                            />
+                        </div>
+                        <div class="slider-footer">
+                            <span id="duration-min-label"></span>
+                            <span id="duration-max-label"></span>
+                        </div>
+                    </div>
+                    <div id="duration-list" class="sidebar-buttons hidden">
+                        <!-- Duration bins will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-categories">
+                    <summary>Categories</summary>
+                    <div id="category-list">
+                        <!-- Categories will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-languages" class="advanced-only">
+                    <summary>Languages</summary>
+                    <div id="language-list">
+                        <!-- Languages will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-ratings">
+                    <summary>Ratings</summary>
+                    <div id="rating-list">
+                        <!-- Ratings will be injected here -->
+                    </div>
+                </details>
+
+                <div class="sidebar-separator"></div>
+
+                <button id="du-btn" class="category-btn" style="width: 100%; margin-bottom: 0.2rem">
+                    📊 Disk Usage
+                </button>
+                <button
+                    id="trash-btn"
+                    class="category-btn hidden"
+                    style="width: 100%; margin-bottom: 0.5rem"
+                >
+                    🗑️ Trash
+                </button>
+            </aside>
+
+            <section id="content">
+                <div id="theatre-anchor"></div>
+                <div id="queue-container" class="hidden">
+                    <div id="now-playing-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem">
+                            <h2>🎵 Playback Queue</h2>
+                            <span id="queue-count-badge" class="badge"></span>
+                        </div>
+                        <div id="queue-controls">
+                            <button
+                                id="queue-play-pause-btn"
+                                class="queue-control-btn"
+                                title="Play/Pause"
+                            >
+                                ▶️
+                            </button>
+                            <button
+                                id="queue-expand-btn"
+                                class="queue-control-btn"
+                                title="Expand/Collapse Queue"
+                            >
+                                ↕️
+                            </button>
+                            <button
+                                id="queue-shuffle-btn"
+                                class="queue-control-btn"
+                                title="Shuffle Queue"
+                            >
+                                🔀
+                            </button>
+                            <button
+                                id="queue-repeat-btn"
+                                class="queue-control-btn"
+                                title="Repeat Mode"
+                            >
+                                🔁 Off
+                            </button>
+                            <button
+                                id="queue-add-mode-btn"
+                                class="queue-control-btn"
+                                title="Add Mode: End"
+                            >
+                                ➕ End
+                            </button>
+                            <button
+                                id="queue-clear-btn"
+                                class="queue-control-btn"
+                                title="Clear Queue"
+                            >
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <div id="queue-list">
+                        <!-- Queue items will be injected here -->
+                    </div>
                 </div>
+                <div id="toolbar">
+                    <div id="du-toolbar" class="hidden">
+                        <button id="du-back-btn" class="category-btn" title="Go to parent directory">
+                            ⤴️
+                        </button>
+                        <input type="text" id="du-path-input" />
+                        <div id="du-breadcrumbs" class="du-breadcrumbs"></div>
+                    </div>
 
-                <div id="sort-group">
-                    <select id="sort-by">
-                        <option value="default" selected>Default</option>
-                        <option value="path">Path</option>
-                        <option value="size">Size</option>
-                        <option value="duration">Duration</option>
-                        <option value="play_count">Play Count</option>
-                        <option value="time_last_played">Last Played</option>
-                        <option value="progress">Progress</option>
-                        <option value="time_created">Created</option>
-                        <option value="time_modified">Modified</option>
-                        <option value="time_downloaded">Time Scanned</option>
-                        <option value="bitrate">Bitrate</option>                        <option value="extension">Extension</option>
-                        <option value="random">Random</option>
-                    </select>
-                    <button id="sort-reverse-btn" title="Reverse Sort">⇅</button>
-                </div>
-            </div>
+                    <div id="view-toggle">
+                        <button id="view-grid" class="active">Grid</button>
+                        <button id="view-group">Group</button>
+                        <button id="view-details">Details</button>
+                    </div>
 
-            <div id="results-container" class="grid">
-                <!-- Media items will be injected here -->
-            </div>
-
-            <div id="pagination-container" class="hidden">
-                <button id="prev-page" class="category-btn">Previous</button>
-                <span id="page-info">Page 1</span>
-                <button id="next-page" class="category-btn">Next</button>
-            </div>
-        </section>
-    </main>
-
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="close-modal" title="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-
-                <section>
-                    <h3>System</h3>
-                    <div class="setting-item">
-                        <label for="setting-theme">Theme:</label>
-                        <select id="setting-theme">
-                            <option value="auto">Auto (Browser)</option>
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
+                    <div id="sort-group">
+                        <select id="sort-by">
+                            <option value="default" selected>Default</option>
+                            <option value="path">Path</option>
+                            <option value="size">Size</option>
+                            <option value="duration">Duration</option>
+                            <option value="play_count">Play Count</option>
+                            <option value="time_last_played">Last Played</option>
+                            <option value="progress">Progress</option>
+                            <option value="time_created">Created</option>
+                            <option value="time_modified">Modified</option>
+                            <option value="time_downloaded">Time Scanned</option>
+                            <option value="bitrate">Bitrate</option>
+                            <option value="extension">Extension</option>
+                            <option value="random">Random</option>
                         </select>
+                        <button id="sort-reverse-btn" title="Reverse Sort">⇅</button>
                     </div>
-                </section>
+                </div>
 
-                <section>
-                    <h3>Playback</h3>
-                    <div class="setting-item">
-                        <label for="setting-default-view">Default View:</label>
-                        <select id="setting-default-view">
-                            <option value="pip">Picture-in-Picture</option>
-                            <option value="theatre">Theatre Mode</option>
-                        </select>
-                    </div>
+                <div id="results-container" class="grid">
+                    <!-- Media items will be injected here -->
+                </div>
 
-                    <div class="setting-item">
-                        <label for="setting-language">Preferred Subtitle Language(s):</label>
-                        <input type="text" id="setting-language" placeholder="e.g. eng, spa, jp" value="">
-                    </div>
+                <div id="pagination-container" class="hidden">
+                    <button id="prev-page" class="category-btn">Previous</button>
+                    <span id="page-info">Page 1</span>
+                    <button id="next-page" class="category-btn">Next</button>
+                </div>
+            </section>
+        </main>
 
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-local-resume" checked>
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Auto-resume</h3>
-                            <p>Remember and restore playback position</p>
-                        </div>
-                    </div>
-
-                    <div class="setting-item">
-                        <label for="setting-post-playback">After Playback:</label>
-                        <select id="setting-post-playback">
-                            <option value="nothing">Do nothing</option>
-                            <option value="delete">Delete file</option>
-                            <option value="ask">Ask to delete</option>
-                        </select>
-                    </div>
-
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-autoplay" checked>
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Autoplay Next</h3>
-                            <p>Automatically play the next item in the list</p>
-                        </div>
-                    </div>
-
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-enable-queue">
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Enable Queue</h3>
-                            <p>Manage a custom playback queue</p>
-                        </div>
-                    </div>
-
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-image-autoplay">
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Image Autoplay</h3>
-                            <p>Automatically advance through images</p>
-                        </div>
-                    </div>
-                    <div class="setting-item">
-                        <label for="setting-slideshow-delay">Image Autoplay Delay (seconds):</label>
-                        <input type="number" id="setting-slideshow-delay" value="5" min="1">
-                    </div>
-
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-show-pip-speed">
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Show Speed Button</h3>
-                            <p>Show the playback speed control in the player</p>
-                        </div>
-                    </div>
-
-                    <div class="setting-item">
-                        <label for="setting-default-video-rate">Default Video Rate:</label>
-                        <select id="setting-default-video-rate">
-                            <option value="0.5">0.5x</option>
-                            <option value="0.75">0.75x</option>
-                            <option value="1" selected>1.0x (Normal)</option>
-                            <option value="1.25">1.25x</option>
-                            <option value="1.5">1.5x</option>
-                            <option value="1.75">1.75x</option>
-                            <option value="2">2.0x</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label for="setting-default-audio-rate">Default Audio Rate:</label>
-                        <select id="setting-default-audio-rate">
-                            <option value="0.5">0.5x</option>
-                            <option value="0.75">0.75x</option>
-                            <option value="1" selected>1.0x (Normal)</option>
-                            <option value="1.25">1.25x</option>
-                            <option value="1.5">1.5x</option>
-                            <option value="1.75">1.75x</option>
-                            <option value="2">2.0x</option>
-                        </select>
-                    </div>
-
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-show-pip-stream">
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Show Stream Button</h3>
-                            <p>Show the HLS/Direct stream toggle button</p>
-                        </div>
-                    </div>
-
-                    <div class="full-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="setting-show-pip-surf">
-                            <span class="slider round"></span>
-                        </label>
-                        <div class="toggle-text">
-                            <h3>Show Random Button</h3>
-                            <p>Show a random clip button in the player</p>
-                        </div>
-                    </div>
-
-                    <div class="setting-item">
-                        <label for="setting-track-shuffle-duration">Track preview duration (seconds):</label>
-                        <input type="number" id="setting-track-shuffle-duration" value="0" min="0"
-                            placeholder="0 for full">
-                    </div>
-
-                    <details style="margin-top: 2rem; cursor: pointer;">
-                        <summary
-                            style="font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1rem;">
-                            Advanced Settings
-                        </summary>
-
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <button class="close-modal" title="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <section>
+                        <h3>System</h3>
                         <div class="setting-item">
-                            <label for="setting-player">Default Player:</label>
-                            <select id="setting-player">
-                                <option value="browser">Browser (Internal)</option>
-                                <option value="system">System (mpv)</option>
+                            <label for="setting-theme">Theme:</label>
+                            <select id="setting-theme">
+                                <option value="auto">Auto (Browser)</option>
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3>Playback</h3>
+                        <div class="setting-item">
+                            <label for="setting-default-view">Default View:</label>
+                            <select id="setting-default-view">
+                                <option value="pip">Picture-in-Picture</option>
+                                <option value="theatre">Theatre Mode</option>
                             </select>
                         </div>
 
-                        <div class="setting-item" style="margin-top: 1rem;">
-                            <label for="setting-auto-loop-max">Auto-Loop Max Duration (seconds):</label>
-                            <input type="number" id="setting-auto-loop-max" min="0" placeholder="0 to disable">
-                        </div>
-
                         <div class="setting-item">
-                            <label for="setting-rsvp-wpm">RSVP Speed (WPM):</label>
-                            <input type="number" id="setting-rsvp-wpm" min="50" max="1000" step="10">
+                            <label for="setting-language">Preferred Subtitle Language(s):</label>
+                            <input
+                                type="text"
+                                id="setting-language"
+                                placeholder="e.g. eng, spa, jp"
+                                value=""
+                            />
                         </div>
 
                         <div class="full-toggle">
                             <label class="switch">
-                                <input type="checkbox" id="setting-search-type">
+                                <input type="checkbox" id="setting-local-resume" checked />
                                 <span class="slider round"></span>
                             </label>
                             <div class="toggle-text">
-                                <h3>Full Text Search</h3>
-                                <p>Use FTS for searching (turn off for substring matching)</p>
+                                <h3>Auto-resume</h3>
+                                <p>Remember and restore playback position</p>
                             </div>
                         </div>
 
                         <div class="setting-item">
-                            <label for="limit">Search results limit:</label>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="number" id="limit" value="100" min="1">
-                                <label
-                                    style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer;">
-                                    <input type="checkbox" id="limit-all"> All
+                            <label for="setting-post-playback">After Playback:</label>
+                            <select id="setting-post-playback">
+                                <option value="nothing">Do nothing</option>
+                                <option value="delete">Delete file</option>
+                                <option value="ask">Ask to delete</option>
+                            </select>
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-autoplay" checked />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Autoplay Next</h3>
+                                <p>Automatically play the next item in the list</p>
+                            </div>
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-enable-queue" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Enable Queue</h3>
+                                <p>Manage a custom playback queue</p>
+                            </div>
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-image-autoplay" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Image Autoplay</h3>
+                                <p>Automatically advance through images</p>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <label for="setting-slideshow-delay"
+                                >Image Autoplay Delay (seconds):</label
+                            >
+                            <input type="number" id="setting-slideshow-delay" value="5" min="1" />
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-show-pip-speed" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Show Speed Button</h3>
+                                <p>Show the playback speed control in the player</p>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <label for="setting-default-video-rate">Default Video Rate:</label>
+                            <select id="setting-default-video-rate">
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1" selected>1.0x (Normal)</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="1.75">1.75x</option>
+                                <option value="2">2.0x</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label for="setting-default-audio-rate">Default Audio Rate:</label>
+                            <select id="setting-default-audio-rate">
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1" selected>1.0x (Normal)</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="1.75">1.75x</option>
+                                <option value="2">2.0x</option>
+                            </select>
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-show-pip-stream" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Show Stream Button</h3>
+                                <p>Show the HLS/Direct stream toggle button</p>
+                            </div>
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="setting-show-pip-surf" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Show Random Button</h3>
+                                <p>Show a random clip button in the player</p>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <label for="setting-track-shuffle-duration"
+                                >Track preview duration (seconds):</label
+                            >
+                            <input
+                                type="number"
+                                id="setting-track-shuffle-duration"
+                                value="0"
+                                min="0"
+                                placeholder="0 for full"
+                            />
+                        </div>
+
+                        <details style="margin-top: 2rem; cursor: pointer">
+                            <summary
+                                style="
+                                    font-size: 0.9rem;
+                                    font-weight: 600;
+                                    color: var(--text-muted);
+                                    margin-bottom: 1rem;
+                                "
+                            >
+                                Advanced Settings
+                            </summary>
+
+                            <div class="setting-item">
+                                <label for="setting-player">Default Player:</label>
+                                <select id="setting-player">
+                                    <option value="browser">Browser (Internal)</option>
+                                    <option value="system">System (mpv)</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-item" style="margin-top: 1rem">
+                                <label for="setting-auto-loop-max"
+                                    >Auto-Loop Max Duration (seconds):</label
+                                >
+                                <input
+                                    type="number"
+                                    id="setting-auto-loop-max"
+                                    min="0"
+                                    placeholder="0 to disable"
+                                />
+                            </div>
+
+                            <div class="setting-item">
+                                <label for="setting-rsvp-wpm">RSVP Speed (WPM):</label>
+                                <input
+                                    type="number"
+                                    id="setting-rsvp-wpm"
+                                    min="50"
+                                    max="1000"
+                                    step="10"
+                                />
+                            </div>
+
+                            <div class="full-toggle">
+                                <label class="switch">
+                                    <input type="checkbox" id="setting-search-type" />
+                                    <span class="slider round"></span>
                                 </label>
+                                <div class="toggle-text">
+                                    <h3>Full Text Search</h3>
+                                    <p>Use FTS for searching (turn off for substring matching)</p>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="full-toggle">
-                            <label class="switch">
-                                <input type="checkbox" id="setting-show-languages">
-                                <span class="slider round"></span>
-                            </label>
-                            <div class="toggle-text">
-                                <h3>Show Language Filter</h3>
-                                <p>Display language filter in sidebar</p>
+                            <div class="setting-item">
+                                <label for="limit">Search results limit:</label>
+                                <div style="display: flex; gap: 10px; align-items: center">
+                                    <input type="number" id="limit" value="100" min="1" />
+                                    <label
+                                        style="
+                                            font-size: 0.8rem;
+                                            display: flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            white-space: nowrap;
+                                            cursor: pointer;
+                                        "
+                                    >
+                                        <input type="checkbox" id="limit-all" /> All
+                                    </label>
+                                </div>
                             </div>
-                        </div>
 
-                        <section id="db-settings">
-                            <h3>Databases</h3>
-                            <div id="db-checkbox-list">
-                                <!-- Database checkboxes will be injected here -->
+                            <div class="full-toggle">
+                                <label class="switch">
+                                    <input type="checkbox" id="setting-show-languages" />
+                                    <span class="slider round"></span>
+                                </label>
+                                <div class="toggle-text">
+                                    <h3>Show Language Filter</h3>
+                                    <p>Display language filter in sidebar</p>
+                                </div>
+                            </div>
+
+                            <section id="db-settings">
+                                <h3>Databases</h3>
+                                <div id="db-checkbox-list">
+                                    <!-- Database checkboxes will be injected here -->
+                                </div>
+                            </section>
+
+                            <div class="setting-item">
+                                <span
+                                    >LocalStorage Data:
+                                    <small id="storage-size">Calculating...</small></span
+                                >
+                                <button
+                                    id="clear-storage-btn"
+                                    class="table-action-btn"
+                                    style="color: #e74c3c; border-color: #e74c3c"
+                                >
+                                    Clear Cache
+                                </button>
+                            </div>
+                        </details>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Delete Modal -->
+        <div id="confirm-modal" class="modal confirm-dialog hidden" role="alertdialog">
+            <div class="modal-content" style="max-width: 400px">
+                <div class="modal-header">
+                    <h2>Delete Item?</h2>
+                    <button class="close-modal" title="Close">&times;</button>
+                </div>
+                <div class="modal-body" style="text-align: center">
+                    <p id="confirm-msg">Playback finished. Move this file to trash?</p>
+                    <div style="display: flex; gap: 1rem; margin-top: 2rem; justify-content: center">
+                        <button
+                            id="confirm-no"
+                            class="category-btn"
+                            style="flex: 1; text-align: center; background: var(--bg-color)"
+                        >
+                            Keep
+                        </button>
+                        <button
+                            id="confirm-yes"
+                            class="category-btn"
+                            style="flex: 1; text-align: center; background: #e74c3c; color: white"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Media Player (PiP Style) -->
+        <div id="pip-player" class="pip-container hidden">
+            <div id="pip-loading" class="loading-overlay hidden">
+                <div class="spinner"></div>
+                <p style="margin-top: 1rem; font-weight: 500">Generating RSVP Video...</p>
+            </div>
+            <div id="pip-header">
+                <span id="media-title"></span>
+                <div id="pip-controls">
+                    <button id="pip-slideshow" title="Toggle Slideshow" class="hidden">▶️</button>
+                    <button
+                        id="pip-speed"
+                        title="Playback Speed"
+                        class="hidden"
+                        style="
+                            font-size: 0.75rem;
+                            font-weight: 600;
+                            padding: 2px 6px;
+                            background: var(--bg-color);
+                            border: 1px solid var(--border-color);
+                            border-radius: 4px;
+                        "
+                    >
+                        1.0x
+                    </button>
+                    <div
+                        id="pip-speed-menu"
+                        class="hidden"
+                        style="
+                            position: absolute;
+                            bottom: 100%;
+                            background: var(--sidebar-bg);
+                            border: 1px solid var(--border-color);
+                            border-radius: 5px;
+                            box-shadow: var(--shadow);
+                            padding: 0.7rem;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 0.2rem;
+                            z-index: 10000;
+                        "
+                    >
+                        <button class="speed-opt" data-speed="0.5">0.5x</button>
+                        <button class="speed-opt" data-speed="0.75">0.75x</button>
+                        <button class="speed-opt" data-speed="1.0">1.0x (Normal)</button>
+                        <button class="speed-opt" data-speed="1.25">1.25x</button>
+                        <button class="speed-opt" data-speed="1.5">1.5x</button>
+                        <button class="speed-opt" data-speed="1.75">1.75x</button>
+                        <button class="speed-opt" data-speed="2.0">2.0x</button>
+                    </div>
+                    <button id="channel-surf-btn" title="Random Clip" class="hidden">🔀</button>
+                    <button id="pip-stream-type" title="Switch Stream Type" class="hidden">
+                        🔄
+                    </button>
+                    <button id="pip-native" title="Native Picture-in-Picture" class="hidden">
+                        📺
+                    </button>
+                    <button id="pip-theatre" title="Theatre Mode">□</button>
+                    <button class="close-pip" title="Close">&times;</button>
+                </div>
+            </div>
+            <div id="pip-body">
+                <div id="media-viewer">
+                    <!-- Media tag (img, video, audio) will be injected here -->
+                </div>
+                <div id="seek-indicator" class="hidden"></div>
+            </div>
+        </div>
+
+        <!-- Metadata Modal -->
+        <div id="metadata-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Media Metadata</h2>
+                    <button class="close-modal" title="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="metadata-content" id="metadata-grid">
+                        <!-- Metadata will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Modal -->
+        <div id="help-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 500px">
+                <div class="modal-header">
+                    <h2>Keyboard Shortcuts</h2>
+                    <button class="close-modal" title="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="shortcut-list">
+                        <section>
+                            <h3>Navigation</h3>
+                            <div class="shortcut-item"><span>n</span> <span>Next Media</span></div>
+                            <div class="shortcut-item">
+                                <span>p</span> <span>Previous Media</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>&lt; / &gt;</span> <span>Prev / Next in Playlist</span>
+                            </div>
+                            <div class="shortcut-item"><span>t</span> <span>Focus Search</span></div>
+                            <div class="shortcut-item"><span>c</span> <span>Copy Path</span></div>
+                            <div class="shortcut-item"><span>i</span> <span>Media Info</span></div>
+                            <div class="shortcut-item">
+                                <span>?</span> <span>Show This Help</span>
                             </div>
                         </section>
-
-                        <div class="setting-item">
-                            <span>LocalStorage Data: <small id="storage-size">Calculating...</small></span>
-                            <button id="clear-storage-btn" class="table-action-btn"
-                                style="color: #e74c3c; border-color: #e74c3c;">Clear Cache</button>
-                        </div>
-                    </details>
-                </section>
+                        <section>
+                            <h3>Playback</h3>
+                            <div class="shortcut-item">
+                                <span>Space / k</span> <span>Play/Pause</span>
+                            </div>
+                            <div class="shortcut-item"><span>f</span> <span>Fullscreen</span></div>
+                            <div class="shortcut-item"><span>m</span> <span>Mute</span></div>
+                            <div class="shortcut-item"><span>r</span> <span>Random Clip</span></div>
+                            <div class="shortcut-item">
+                                <span>j / J</span> <span>Cycle / Reverse Subs</span>
+                            </div>
+                            <div class="shortcut-item"><span>l</span> <span>Toggle Loop</span></div>
+                            <div class="shortcut-item">
+                                <span>Shift + L</span> <span>Toggle Auto-Loop</span>
+                            </div>
+                        </section>
+                        <section>
+                            <h3>Seeking</h3>
+                            <div class="shortcut-item">
+                                <span>← / →</span> <span>Seek -5s / +5s</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>↑ / ↓</span> <span>Seek -1m / +1m</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Shift + ← / →</span> <span>Seek -1s / +1s</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Shift + ↑ / ↓</span> <span>Seek -5s / +5s</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Shift + PgUp / PgDn</span> <span>Seek -10m / +10m</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Ctrl + ← / →</span> <span>Prev / Next Subtitle</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Home</span> <span>Seek to Start</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>0-9</span> <span>Seek to 0%-90%</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Shift + 0-9</span> <span>Seek to 0%, 10%-100%</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Wheel ← / →</span> <span>Seek -10s / +10s</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>.</span> <span>Step Forward One Frame</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>,</span> <span>Step Backward One Frame</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>o</span> <span>Show Progress OSD</span>
+                            </div>
+                        </section>
+                        <section>
+                            <h3>Playback Speed</h3>
+                            <div class="shortcut-item">
+                                <span>[</span> <span>Decrease Speed 10%</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>]</span> <span>Increase Speed 10%</span>
+                            </div>
+                            <div class="shortcut-item"><span>{</span> <span>Halve Speed</span></div>
+                            <div class="shortcut-item"><span>}</span> <span>Double Speed</span></div>
+                            <div class="shortcut-item">
+                                <span>Backspace</span> <span>Reset Speed</span>
+                            </div>
+                        </section>
+                        <section>
+                            <h3>Volume</h3>
+                            <div class="shortcut-item">
+                                <span>Wheel ↑ / ↓</span> <span>Volume - / +</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Numpad 9 / 0</span> <span>Volume - / +</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Numpad / / *</span> <span>Volume - / +</span>
+                            </div>
+                            <div class="shortcut-item"><span>m</span> <span>Mute Toggle</span></div>
+                        </section>
+                        <section>
+                            <h3>Video Display</h3>
+                            <div class="shortcut-item"><span>s</span> <span>Screenshot</span></div>
+                            <div class="shortcut-item">
+                                <span>Shift + s</span> <span>Screenshot (No Subs)</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>a</span> <span>Cycle Aspect Ratio</span>
+                            </div>
+                        </section>
+                        <section>
+                            <h3>Seek History</h3>
+                            <div class="shortcut-item">
+                                <span>Shift + Backspace</span> <span>Undo Last Seek</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>Shift + Ctrl + Backspace</span> <span>Mark Position</span>
+                            </div>
+                        </section>
+                        <section>
+                            <h3>Actions</h3>
+                            <div class="shortcut-item">
+                                <span>1-5</span> <span>Rate 1-5 Stars</span>
+                            </div>
+                            <div class="shortcut-item"><span>`</span> <span>Unrate</span></div>
+                            <div class="shortcut-item">
+                                <span>Del</span> <span>Move to Trash</span>
+                            </div>
+                            <div class="shortcut-item">
+                                <span>q / w / Esc</span> <span>Close Player</span>
+                            </div>
+                        </section>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Confirm Delete Modal -->
-    <div id="confirm-modal" class="modal confirm-dialog hidden" role="alertdialog">
-        <div class="modal-content" style="max-width: 400px;">
+        <!-- Document Viewer Modal -->
+        <div
+            id="document-modal"
+            class="modal hidden"
+            style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                justify-content: flex-start;
+                background: var(--bg-color);
+                z-index: 3000;
+            "
+        >
             <div class="modal-header">
-                <h2>Delete Item?</h2>
-                <button class="close-modal" title="Close">&times;</button>
-            </div>
-            <div class="modal-body" style="text-align: center;">
-                <p id="confirm-msg">Playback finished. Move this file to trash?</p>
-                <div style="display: flex; gap: 1rem; margin-top: 2rem; justify-content: center;">
-                    <button id="confirm-no" class="category-btn"
-                        style="flex: 1; text-align: center; background: var(--bg-color);">Keep</button>
-                    <button id="confirm-yes" class="category-btn"
-                        style="flex: 1; text-align: center; background: #e74c3c; color: white;">Delete</button>
+                <h2 id="document-title">Document</h2>
+                <div id="doc-controls">
+                    <button
+                        id="doc-stream-type"
+                        class="category-btn hidden"
+                        title="Switch Stream Type"
+                    >
+                        🔄
+                    </button>
+                    <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
+                    <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen (F)">
+                        ⛶
+                    </button>
+                    <button class="close-modal" title="Close (Esc)">&times;</button>
                 </div>
             </div>
+            <div
+                id="document-container"
+                style="
+                    flex: 1 1 0;
+                    overflow: hidden;
+                    display: flex;
+                    width: 100%;
+                    height: calc(100vh - 50px);
+                "
+            ></div>
         </div>
-    </div>
+        <div id="toast" class="hidden"></div>
 
-
-    <!-- Media Player (PiP Style) -->
-    <div id="pip-player" class="pip-container hidden">
-        <div id="pip-loading" class="loading-overlay hidden">
-            <div class="spinner"></div>
-            <p style="margin-top: 1rem; font-weight: 500;">Generating RSVP Video...</p>
-        </div>
-        <div id="pip-header">
-            <span id="media-title"></span>
-            <div id="pip-controls">
-                <button id="pip-slideshow" title="Toggle Slideshow" class="hidden">▶️</button>
-                <button id="pip-speed" title="Playback Speed" class="hidden"
-                    style="font-size: 0.75rem; font-weight: 600; padding: 2px 6px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px;">1.0x</button>
-                <div id="pip-speed-menu" class="hidden"
-                    style="position: absolute; bottom: 100%; background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 5px; box-shadow: var(--shadow); padding: 0.7rem; display: flex; flex-direction: column; gap: 0.2rem; z-index: 10000;">
-                    <button class="speed-opt" data-speed="0.5">0.5x</button>
-                    <button class="speed-opt" data-speed="0.75">0.75x</button>
-                    <button class="speed-opt" data-speed="1.0">1.0x (Normal)</button>
-                    <button class="speed-opt" data-speed="1.25">1.25x</button>
-                    <button class="speed-opt" data-speed="1.5">1.5x</button>
-                    <button class="speed-opt" data-speed="1.75">1.75x</button>
-                    <button class="speed-opt" data-speed="2.0">2.0x</button>
-                </div>
-                <button id="channel-surf-btn" title="Random Clip" class="hidden">🔀</button>
-                <button id="pip-stream-type" title="Switch Stream Type" class="hidden">🔄</button> <button
-                    id="pip-native" title="Native Picture-in-Picture" class="hidden">📺</button>
-                <button id="pip-theatre" title="Theatre Mode">□</button>
-                <button class="close-pip" title="Close">&times;</button>
-            </div>
-        </div>
-        <div id="pip-body">
-            <div id="media-viewer">
-                <!-- Media tag (img, video, audio) will be injected here -->
-            </div>
-            <div id="seek-indicator" class="hidden"></div>
-        </div>
-    </div>
-
-    <!-- Metadata Modal -->
-    <div id="metadata-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Media Metadata</h2>
-                <button class="close-modal" title="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="metadata-content" id="metadata-grid">
-                    <!-- Metadata will be injected here -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Help Modal -->
-    <div id="help-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2>Keyboard Shortcuts</h2>
-                <button class="close-modal" title="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="shortcut-list">
-                    <section>
-                        <h3>Navigation</h3>
-                        <div class="shortcut-item"><span>n</span> <span>Next Media</span></div>
-                        <div class="shortcut-item"><span>p</span> <span>Previous Media</span></div>
-                        <div class="shortcut-item"><span>&lt; / &gt;</span> <span>Prev / Next in Playlist</span></div>
-                        <div class="shortcut-item"><span>t</span> <span>Focus Search</span></div>
-                        <div class="shortcut-item"><span>c</span> <span>Copy Path</span></div>
-                        <div class="shortcut-item"><span>i</span> <span>Media Info</span></div>
-                        <div class="shortcut-item"><span>?</span> <span>Show This Help</span></div>
-                    </section>
-                    <section>
-                        <h3>Playback</h3>
-                        <div class="shortcut-item"><span>Space / k</span> <span>Play/Pause</span></div>
-                        <div class="shortcut-item"><span>f</span> <span>Fullscreen</span></div>
-                        <div class="shortcut-item"><span>m</span> <span>Mute</span></div>
-                        <div class="shortcut-item"><span>r</span> <span>Random Clip</span></div>
-                        <div class="shortcut-item"><span>j / J</span> <span>Cycle / Reverse Subs</span></div>
-                        <div class="shortcut-item"><span>l</span> <span>Toggle Loop</span></div>
-                        <div class="shortcut-item"><span>Shift + L</span> <span>Toggle Auto-Loop</span></div>
-                    </section>
-                    <section>
-                        <h3>Seeking</h3>
-                        <div class="shortcut-item"><span>← / →</span> <span>Seek -5s / +5s</span></div>
-                        <div class="shortcut-item"><span>↑ / ↓</span> <span>Seek -1m / +1m</span></div>
-                        <div class="shortcut-item"><span>Shift + ← / →</span> <span>Seek -1s / +1s</span></div>
-                        <div class="shortcut-item"><span>Shift + ↑ / ↓</span> <span>Seek -5s / +5s</span></div>
-                        <div class="shortcut-item"><span>Shift + PgUp / PgDn</span> <span>Seek -10m / +10m</span></div>
-                        <div class="shortcut-item"><span>Ctrl + ← / →</span> <span>Prev / Next Subtitle</span></div>
-                        <div class="shortcut-item"><span>Home</span> <span>Seek to Start</span></div>
-                        <div class="shortcut-item"><span>0-9</span> <span>Seek to 0%-90%</span></div>
-                        <div class="shortcut-item"><span>Shift + 0-9</span> <span>Seek to 0%, 10%-100%</span></div>
-                        <div class="shortcut-item"><span>Wheel ← / →</span> <span>Seek -10s / +10s</span></div>
-                        <div class="shortcut-item"><span>.</span> <span>Step Forward One Frame</span></div>
-                        <div class="shortcut-item"><span>,</span> <span>Step Backward One Frame</span></div>
-                        <div class="shortcut-item"><span>o</span> <span>Show Progress OSD</span></div>
-                    </section>
-                    <section>
-                        <h3>Playback Speed</h3>
-                        <div class="shortcut-item"><span>[</span> <span>Decrease Speed 10%</span></div>
-                        <div class="shortcut-item"><span>]</span> <span>Increase Speed 10%</span></div>
-                        <div class="shortcut-item"><span>{</span> <span>Halve Speed</span></div>
-                        <div class="shortcut-item"><span>}</span> <span>Double Speed</span></div>
-                        <div class="shortcut-item"><span>Backspace</span> <span>Reset Speed</span></div>
-                    </section>
-                    <section>
-                        <h3>Volume</h3>
-                        <div class="shortcut-item"><span>Wheel ↑ / ↓</span> <span>Volume - / +</span></div>
-                        <div class="shortcut-item"><span>Numpad 9 / 0</span> <span>Volume - / +</span></div>
-                        <div class="shortcut-item"><span>Numpad / / *</span> <span>Volume - / +</span></div>
-                        <div class="shortcut-item"><span>m</span> <span>Mute Toggle</span></div>
-                    </section>
-                    <section>
-                        <h3>Video Display</h3>
-                        <div class="shortcut-item"><span>s</span> <span>Screenshot</span></div>
-                        <div class="shortcut-item"><span>Shift + s</span> <span>Screenshot (No Subs)</span></div>
-                        <div class="shortcut-item"><span>a</span> <span>Cycle Aspect Ratio</span></div>
-                    </section>
-                    <section>
-                        <h3>Seek History</h3>
-                        <div class="shortcut-item"><span>Shift + Backspace</span> <span>Undo Last Seek</span></div>
-                        <div class="shortcut-item"><span>Shift + Ctrl + Backspace</span> <span>Mark Position</span></div>
-                    </section>
-                    <section>
-                        <h3>Actions</h3>
-                        <div class="shortcut-item"><span>1-5</span> <span>Rate 1-5 Stars</span></div>
-                        <div class="shortcut-item"><span>`</span> <span>Unrate</span></div>
-                        <div class="shortcut-item"><span>Del</span> <span>Move to Trash</span></div>
-                        <div class="shortcut-item"><span>q / w / Esc</span> <span>Close Player</span></div>
-                    </section>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Document Viewer Modal -->
-    <div id="document-modal" class="modal hidden"
-        style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; background: var(--bg-color); z-index: 3000;">
-        <div class="modal-header">
-            <h2 id="document-title">Document</h2>
-            <div id="doc-controls">
-                <button id="doc-stream-type" class="category-btn hidden" title="Switch Stream Type">🔄</button>
-                <button id="doc-rsvp" class="category-btn" title="Play as RSVP Video">🕪</button>
-                <button id="doc-fullscreen" class="category-btn" title="Toggle Fullscreen (F)">⛶</button>
-                <button class="close-modal" title="Close (Esc)">&times;</button>
-            </div>
-        </div>
-        <div id="document-container"
-            style="flex: 1 1 0; overflow: hidden; display: flex; width: 100%; height: calc(100vh - 50px);"></div>
-    </div>
-    <div id="toast" class="hidden"></div>
-
-    <script type="module" src="/src/main.ts"></script>
-</body>
-
+        <script type="module" src="/src/main.ts"></script>
+    </body>
 </html>
