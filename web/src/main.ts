@@ -1,5 +1,7 @@
-import { fetchAPI, getCookie } from './api.js';
-import { state } from './state.js';
+import './style.css';
+import { fetchAPI, getCookie } from './api';
+import { state } from './state';
+import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
 import {
     formatSize,
     formatDuration,
@@ -8,16 +10,16 @@ import {
     truncateString,
     formatParents,
     getIcon
-} from './utils.js';
+} from './utils';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('search-input');
+    const searchInput = document.getElementById('search-input') as HTMLInputElement;
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
-    const sortBy = document.getElementById('sort-by');
+    const sortBy = document.getElementById('sort-by') as HTMLSelectElement;
     const sortReverseBtn = document.getElementById('sort-reverse-btn');
-    const limitInput = document.getElementById('limit');
-    const limitAll = document.getElementById('limit-all');
+    const limitInput = document.getElementById('limit') as HTMLInputElement;
+    const limitAll = document.getElementById('limit-all') as HTMLInputElement;
     const viewGrid = document.getElementById('view-grid');
     const viewDetails = document.getElementById('view-details');
     const categoryList = document.getElementById('category-list');
@@ -33,12 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebar = document.getElementById('sidebar');
 
     const duBtn = document.getElementById('du-btn');
-    const captionsBtn = document.getElementById('captions-btn');
+    const captionsBtn = document.getElementById('captions-btn') as HTMLInputElement;
     const curationBtn = document.getElementById('curation-btn');
     const channelSurfBtn = document.getElementById('channel-surf-btn');
-    const filterCaptions = document.getElementById('filter-captions');
+    const filterCaptions = document.getElementById('filter-captions') as HTMLInputElement;
 
-    const pipPlayer = document.getElementById('pip-player');
+    const pipPlayer = document.getElementById('pip-player') as HTMLVideoElement;
     const pipLoading = document.getElementById('pip-loading');
     const pipViewer = document.getElementById('media-viewer');
     const pipTitle = document.getElementById('media-title');
@@ -47,13 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const range = document.createRange();
             range.selectNodeContents(pipTitle);
             const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
+            selection?.removeAllRanges();
+            selection?.addRange(range);
         };
     }
     const searchSuggestions = document.getElementById('search-suggestions');
 
-    const viewGroup = document.getElementById('view-group');
+    const viewGroup = document.getElementById('view-group') as HTMLSelectElement;
 
     const historyInProgressBtn = document.getElementById('history-in-progress-btn');
     const historyUnplayedBtn = document.getElementById('history-unplayed-btn');
@@ -62,37 +64,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const allMediaBtn = document.getElementById('all-media-btn');
     const trashBtn = document.getElementById('trash-btn');
 
-    // Percentile Sliders
-    const episodesMinSlider = document.getElementById('episodes-min-slider');
-    const episodesMaxSlider = document.getElementById('episodes-max-slider');
-    const episodesLabel = document.getElementById('episodes-percentile-label');
+    // Percentile Sliders (Initialized via Sliders module)
 
-    const sizeMinSlider = document.getElementById('size-min-slider');
-    const sizeMaxSlider = document.getElementById('size-max-slider');
-    const sizeLabel = document.getElementById('size-percentile-label');
 
-    const durationMinSlider = document.getElementById('duration-min-slider');
-    const durationMaxSlider = document.getElementById('duration-max-slider');
-    const durationLabel = document.getElementById('duration-percentile-label');
-
-    const epMinLabel = document.getElementById('episodes-min-label');
-    const epMaxLabel = document.getElementById('episodes-max-label');
-    const sizeMinLabel = document.getElementById('size-min-label');
-    const sizeMaxLabel = document.getElementById('size-max-label');
-    const durMinLabel = document.getElementById('duration-min-label');
-    const durMaxLabel = document.getElementById('duration-max-label');
-
-    const settingTrackShuffleDuration = document.getElementById('setting-track-shuffle-duration');
+    const settingTrackShuffleDuration = document.getElementById('setting-track-shuffle-duration') as HTMLInputElement;
 
     const pipSpeedBtn = document.getElementById('pip-speed');
     const pipSpeedMenu = document.getElementById('pip-speed-menu');
 
-    const filterBrowseCol = document.getElementById('filter-browse-col');
-    const filterBrowseVal = document.getElementById('filter-browse-val');
+    const filterBrowseCol = document.getElementById('filter-browse-col') as HTMLSelectElement;
+    const filterBrowseVal = document.getElementById('filter-browse-val') as HTMLSelectElement;
     const filterBrowseValContainer = document.getElementById('filter-browse-val-container');
 
-    const settingSearchType = document.getElementById('setting-search-type');
-    const settingShowLanguages = document.getElementById('setting-show-languages');
+    const settingSearchType = document.getElementById('setting-search-type') as HTMLInputElement;
+    const settingShowLanguages = document.getElementById('setting-show-languages') as HTMLInputElement;
 
     let currentMedia = [];
     let allDatabases = [];
@@ -102,193 +87,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- State Management ---
 
-
-    function formatSliderValue(type, val) {
-        return Math.round(val).toString() + '%';
-    }
-
-    function updateSliderLabels() {
-        const updateRange = (minSlider, maxSlider, label, minF, maxF, type) => {
-            if (!minSlider || !state.filterBins) return;
-
-            const minP = parseInt(minSlider.value);
-            const maxP = parseInt(maxSlider.value);
-
-            const percentiles = state.filterBins[`${type}_percentiles`] || [];
-            const getVal = (p) => {
-                if (percentiles.length > p) return percentiles[p];
-
-                // Fallback to linear if percentiles missing
-                let minTotal = 0, maxTotal = 0;
-                if (type === 'episodes') { minTotal = state.filterBins.episodes_min; maxTotal = state.filterBins.episodes_max; }
-                else if (type === 'size') { minTotal = state.filterBins.size_min; maxTotal = state.filterBins.size_max; }
-                else if (type === 'duration') { minTotal = state.filterBins.duration_min; maxTotal = state.filterBins.duration_max; }
-                return minTotal + (maxTotal - minTotal) * (p / 100);
-            };
-
-            const valMin = getVal(minP);
-            const valMax = getVal(maxP);
-
-            const format = (v) => {
-                if (type === 'size') return formatSize(v);
-                if (type === 'duration') return formatDuration(v);
-                return Math.round(v).toString();
-            };
-
-            if (label) label.textContent = `${format(valMin)} - ${format(valMax)}`;
-
-            if (minF) minF.textContent = format(getVal(0));
-            if (maxF) maxF.textContent = format(getVal(100));
-
-            const track = minSlider.parentElement.querySelector('.range-track');
-            if (track) {
-                track.style.background = `linear-gradient(to right,
-                    var(--border-color) ${minP}%,
-                    var(--accent-color) ${minP}%,
-                    var(--accent-color) ${maxP}%,
-                    var(--border-color) ${maxP}%)`;
-            }
-        };
-
-        updateRange(episodesMinSlider, episodesMaxSlider, episodesLabel, epMinLabel, epMaxLabel, 'episodes');
-        updateRange(sizeMinSlider, sizeMaxSlider, sizeLabel, sizeMinLabel, sizeMaxLabel, 'size');
-        updateRange(durationMinSlider, durationMaxSlider, durationLabel, durMinLabel, durMaxLabel, 'duration');
-    }
-
-    function handleSliderChange(type, minP, maxP) {
-        let filterKey = '';
-        let lsKey = '';
-
-        if (!state.filterBins) return;
-
-        if (type === 'episodes') { filterKey = 'episodes'; lsKey = 'disco-filter-episodes'; }
-        else if (type === 'size') { filterKey = 'sizes'; lsKey = 'disco-filter-sizes'; }
-        else if (type === 'duration') { filterKey = 'durations'; lsKey = 'disco-filter-durations'; }
-
-        if (!filterKey) return;
-
-        // Use percentiles for population weighting and correct filtering
-        state.filters[filterKey] = [{
-            label: `${minP}-${maxP}%`,
-            value: `@p`,
-            min: parseInt(minP),
-            max: parseInt(maxP)
-        }];
-
-        localStorage.setItem(lsKey, JSON.stringify(state.filters[filterKey]));
-        updateSliderLabels();
-        performSearch();
-    }
-
-    const initSlider = (minSlider, maxSlider, type, filterKey, isEpisodes = false) => {
-        if (!minSlider) return;
-
-        // Restore from state
-        const filter = state.filters[filterKey] && state.filters[filterKey].find(f => f.value === '@p' || f.value === '@abs');
-        if (filter) {
-            if (filter.value === '@p') {
-                minSlider.value = filter.min;
-                maxSlider.value = filter.max;
-            }
-            // @abs is handled in fetchFilterBins because we need the current distribution
-        }
-
-        const onInput = (e) => {
-            let min = parseInt(minSlider.value);
-            let max = parseInt(maxSlider.value);
-
-            if (min > max) {
-                if (e.target === minSlider) {
-                    maxSlider.value = min;
-                } else {
-                    minSlider.value = max;
-                }
-            }
-            updateSliderLabels();
-        };
-
-        minSlider.oninput = onInput;
-        maxSlider.oninput = onInput;
-        minSlider.onchange = () => {
-            handleSliderChange(type, minSlider.value, maxSlider.value);
-        };
-        maxSlider.onchange = () => {
-            handleSliderChange(type, minSlider.value, maxSlider.value);
-        };
-    };
-
-    initSlider(episodesMinSlider, episodesMaxSlider, 'episodes', 'episodes', true);
-    initSlider(sizeMinSlider, sizeMaxSlider, 'size', 'sizes');
-    initSlider(durationMinSlider, durationMaxSlider, 'duration', 'durations');
-    updateSliderLabels();
+    initSliders(performSearch);
 
     // Initialize UI from state
-    document.getElementById('setting-player').value = state.player;
-    document.getElementById('setting-language').value = state.language;
-    document.getElementById('setting-theme').value = state.theme;
-    document.getElementById('setting-post-playback').value = state.postPlaybackAction;
-    document.getElementById('setting-default-view').value = state.defaultView;
+    (document.getElementById('setting-player') as HTMLSelectElement).value = state.player;
+    (document.getElementById('setting-language') as HTMLSelectElement).value = state.language;
+    (document.getElementById('setting-theme') as HTMLSelectElement).value = state.theme;
+    (document.getElementById('setting-post-playback') as HTMLSelectElement).value = state.postPlaybackAction;
+    (document.getElementById('setting-default-view') as HTMLSelectElement).value = state.defaultView;
 
-    document.getElementById('setting-autoplay').checked = state.autoplay;
-    const settingEnableQueue = document.getElementById('setting-enable-queue');
+    (document.getElementById('setting-autoplay') as HTMLInputElement).checked = state.autoplay;
+    const settingEnableQueue = document.getElementById('setting-enable-queue') as HTMLInputElement;
     if (settingEnableQueue) settingEnableQueue.checked = state.enableQueue;
 
-    const settingImageAutoplay = document.getElementById('setting-image-autoplay');
+    const settingImageAutoplay = document.getElementById('setting-image-autoplay') as HTMLInputElement;
     if (settingImageAutoplay) settingImageAutoplay.checked = state.imageAutoplay;
-    document.getElementById('setting-local-resume').checked = state.localResume;
-    document.getElementById('setting-default-video-rate').value = state.defaultVideoRate;
-    document.getElementById('setting-default-audio-rate').value = state.defaultAudioRate;
+    (document.getElementById('setting-local-resume') as HTMLInputElement).checked = state.localResume;
+    (document.getElementById('setting-default-video-rate') as HTMLSelectElement).value = state.defaultVideoRate;
+    (document.getElementById('setting-default-audio-rate') as HTMLSelectElement).value = state.defaultAudioRate;
 
-    const settingShowPipSpeed = document.getElementById('setting-show-pip-speed');
-    const settingShowPipSurf = document.getElementById('setting-show-pip-surf');
-    const settingShowPipStream = document.getElementById('setting-show-pip-stream');
+    const settingShowPipSpeed = document.getElementById('setting-show-pip-speed') as HTMLInputElement;
+    const settingShowPipSurf = document.getElementById('setting-show-pip-surf') as HTMLInputElement;
+    const settingShowPipStream = document.getElementById('setting-show-pip-stream') as HTMLInputElement;
 
     if (settingShowPipSpeed) {
         settingShowPipSpeed.checked = state.showPipSpeed;
         settingShowPipSpeed.onchange = (e) => {
-            state.showPipSpeed = e.target.checked;
-            localStorage.setItem('disco-show-pip-speed', state.showPipSpeed);
+            state.showPipSpeed = (e.target as HTMLInputElement).checked;
+            localStorage.setItem('disco-show-pip-speed', state.showPipSpeed.toString());
             updatePipVisibility();
         };
     }
     if (settingShowPipSurf) {
         settingShowPipSurf.checked = state.showPipSurf;
         settingShowPipSurf.onchange = (e) => {
-            state.showPipSurf = e.target.checked;
-            localStorage.setItem('disco-show-pip-surf', state.showPipSurf);
+            state.showPipSurf = (e.target as HTMLInputElement).checked;
+            localStorage.setItem('disco-show-pip-surf', state.showPipSurf.toString());
             updatePipVisibility();
         };
     }
     if (settingShowPipStream) {
         settingShowPipStream.checked = state.showPipStream;
         settingShowPipStream.onchange = (e) => {
-            state.showPipStream = e.target.checked;
-            localStorage.setItem('disco-show-pip-stream', state.showPipStream);
+            state.showPipStream = (e.target as HTMLInputElement).checked;
+            localStorage.setItem('disco-show-pip-stream', state.showPipStream.toString());
             updatePipVisibility();
         };
     }
 
     updatePipVisibility();
 
-    document.getElementById('setting-slideshow-delay').value = state.slideshowDelay;
-    if (settingTrackShuffleDuration) settingTrackShuffleDuration.value = state.trackShuffleDuration;
-    const settingAutoLoopMax = document.getElementById('setting-auto-loop-max');
+    (document.getElementById('setting-slideshow-delay') as HTMLInputElement).value = state.slideshowDelay.toString();
+    if (settingTrackShuffleDuration) settingTrackShuffleDuration.value = state.trackShuffleDuration.toString();
+    const settingAutoLoopMax = document.getElementById('setting-auto-loop-max') as HTMLInputElement;
     if (settingAutoLoopMax) {
-        settingAutoLoopMax.value = state.autoLoopMaxDuration;
+        settingAutoLoopMax.value = state.autoLoopMaxDuration.toString();
         settingAutoLoopMax.onchange = (e) => {
-            state.autoLoopMaxDuration = parseInt(e.target.value) || 0;
-            localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration);
+            state.autoLoopMaxDuration = parseInt((e.target as HTMLInputElement).value) || 0;
+            localStorage.setItem('disco-auto-loop-max-duration', state.autoLoopMaxDuration.toString());
         };
     }
-    if (limitInput) limitInput.value = state.filters.limit;
+    if (limitInput) limitInput.value = state.filters.limit.toString();
     if (limitAll) limitAll.checked = state.filters.all;
-    const initialUnplayedEl = document.getElementById('filter-unplayed');
+    const initialUnplayedEl = document.getElementById('filter-unplayed') as HTMLInputElement;
     if (initialUnplayedEl) initialUnplayedEl.checked = state.filters.unplayed;
     if (filterCaptions) {
         filterCaptions.checked = state.filters.captions;
         filterCaptions.onchange = (e) => {
-            state.filters.captions = e.target.checked;
-            localStorage.setItem('disco-captions', state.filters.captions);
+            state.filters.captions = (e.target as HTMLInputElement).checked;
+            localStorage.setItem('disco-captions', state.filters.captions.toString());
             performSearch();
         };
     }
@@ -297,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingSearchType) {
         settingSearchType.checked = state.filters.searchType === 'fts';
         settingSearchType.onchange = (e) => {
-            state.filters.searchType = e.target.checked ? 'fts' : 'substring';
+            state.filters.searchType = (e.target as HTMLInputElement).checked ? 'fts' : 'substring';
             localStorage.setItem('disco-search-type', state.filters.searchType);
             performSearch();
         };
@@ -311,8 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.add('advanced-enabled');
         }
         settingShowLanguages.onchange = (e) => {
-            const show = e.target.checked;
-            localStorage.setItem('disco-show-languages', show);
+            const show = (e.target as HTMLInputElement).checked;
+            localStorage.setItem('disco-show-languages', show.toString());
             if (show) {
                 document.body.classList.add('advanced-enabled');
             } else {
@@ -341,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Add duration param
                 const duration = state.trackShuffleDuration || 0;
-                params.append('duration', duration);
+                params.append('duration', duration.toString());
 
                 const resp = await fetchAPI(`/api/random-clip?${params.toString()}`);
                 if (!resp.ok) {
@@ -372,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Seek to the random start time
                 const media = pipViewer.querySelector('video, audio');
                 if (media && data.start !== undefined) {
-                    media.currentTime = data.start;
+                    (media as HTMLMediaElement).currentTime = data.start;
                 }
                 return; // Success, exit loop
             } catch (err) {
@@ -402,8 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingDefaultVideoRate = document.getElementById('setting-default-video-rate');
     if (settingDefaultVideoRate) {
         settingDefaultVideoRate.onchange = (e) => {
-            state.defaultVideoRate = parseFloat(e.target.value);
-            localStorage.setItem('disco-default-video-rate', state.defaultVideoRate);
+            state.defaultVideoRate = parseFloat((e.target as HTMLInputElement).value);
+            localStorage.setItem('disco-default-video-rate', state.defaultVideoRate.toString());
             if (state.playback.item && state.playback.item.type.includes('video')) {
                 setPlaybackRate(state.defaultVideoRate);
             }
@@ -413,8 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingDefaultAudioRate = document.getElementById('setting-default-audio-rate');
     if (settingDefaultAudioRate) {
         settingDefaultAudioRate.onchange = (e) => {
-            state.defaultAudioRate = parseFloat(e.target.value);
-            localStorage.setItem('disco-default-audio-rate', state.defaultAudioRate);
+            state.defaultAudioRate = parseFloat((e.target as HTMLInputElement).value);
+            localStorage.setItem('disco-default-audio-rate', state.defaultAudioRate.toString());
             if (state.playback.item && state.playback.item.type.includes('audio')) {
                 setPlaybackRate(state.defaultAudioRate);
             }
@@ -424,8 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingSlideshowDelay = document.getElementById('setting-slideshow-delay');
     if (settingSlideshowDelay) {
         settingSlideshowDelay.onchange = (e) => {
-            state.slideshowDelay = parseInt(e.target.value);
-            localStorage.setItem('disco-slideshow-delay', state.slideshowDelay);
+            state.slideshowDelay = parseInt((e.target as HTMLInputElement).value);
+            localStorage.setItem('disco-slideshow-delay', state.slideshowDelay.toString());
             if (state.playback.slideshowTimer) {
                 stopSlideshow();
                 startSlideshow();
@@ -435,8 +302,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (settingTrackShuffleDuration) {
         settingTrackShuffleDuration.onchange = (e) => {
-            state.trackShuffleDuration = parseInt(e.target.value);
-            localStorage.setItem('disco-track-shuffle-duration', state.trackShuffleDuration);
+            state.trackShuffleDuration = parseInt((e.target as HTMLInputElement).value);
+            localStorage.setItem('disco-track-shuffle-duration', state.trackShuffleDuration.toString());
         };
     }
 
@@ -457,31 +324,31 @@ document.addEventListener('DOMContentLoaded', () => {
     function initSidebarPersistence() {
         const details = document.querySelectorAll('#sidebar details');
         details.forEach(det => {
-            const id = det.id;
+            const id = (det as HTMLDetailsElement).id;
             if (!id) return;
 
             // Restore
             if (state.sidebarState[id] !== undefined) {
-                det.open = state.sidebarState[id];
+                (det as HTMLDetailsElement).open = state.sidebarState[id];
             }
 
             // Listen
             det.addEventListener('toggle', () => {
-                state.sidebarState[id] = det.open;
+                state.sidebarState[id] = (det as HTMLDetailsElement).open;
                 localStorage.setItem('disco-sidebar-state', JSON.stringify(state.sidebarState));
             });
 
             // Ctrl+click to toggle all
             const summary = det.querySelector('summary');
             if (summary) {
-                summary.onclick = (e) => {
+                (summary as HTMLElement).onclick = (e) => {
                     if (e.ctrlKey || e.metaKey) {
                         e.preventDefault();
-                        const newState = !det.open;
+                        const newState = !(det as HTMLDetailsElement).open;
                         document.querySelectorAll('#sidebar details').forEach(d => {
-                            d.open = newState;
-                            if (d.id) {
-                                state.sidebarState[d.id] = newState;
+                            (d as HTMLDetailsElement).open = newState;
+                            if ((d as HTMLDetailsElement).id) {
+                                state.sidebarState[(d as HTMLDetailsElement).id] = newState;
                             }
                         });
                         localStorage.setItem('disco-sidebar-state', JSON.stringify(state.sidebarState));
@@ -512,27 +379,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration_percentiles: data.duration_percentiles || []
             };
 
-            // Recalculate slider positions if we have absolute filters
-            const updateSliderPos = (type, filterKey, minSlider, maxSlider) => {
-                const filter = state.filters[filterKey] && state.filters[filterKey].find(f => f.value === '@abs');
-                if (filter && minSlider && state.filterBins) {
-                    let minTotal = 0, maxTotal = 0;
-                    if (type === 'episodes') { minTotal = state.filterBins.episodes_min; maxTotal = state.filterBins.episodes_max; }
-                    else if (type === 'size') { minTotal = state.filterBins.size_min; maxTotal = state.filterBins.size_max; }
-                    else if (type === 'duration') { minTotal = state.filterBins.duration_min; maxTotal = state.filterBins.duration_max; }
-
-                    if (maxTotal > minTotal) {
-                        const minP = Math.max(0, Math.min(100, ((filter.min - minTotal) / (maxTotal - minTotal)) * 100));
-                        const maxP = Math.max(0, Math.min(100, ((filter.max - minTotal) / (maxTotal - minTotal)) * 100));
-                        minSlider.value = Math.round(minP);
-                        maxSlider.value = Math.round(maxP);
-                    }
-                }
-            };
-
-            updateSliderPos('episodes', 'episodes', episodesMinSlider, episodesMaxSlider);
-            updateSliderPos('size', 'sizes', sizeMinSlider, sizeMaxSlider);
-            updateSliderPos('duration', 'durations', durationMinSlider, durationMaxSlider);
+            updateSlidersFromAbsolute('episodes', 'episodes');
+            updateSlidersFromAbsolute('size', 'sizes');
+            updateSlidersFromAbsolute('duration', 'durations');
 
             renderFilterBins();
             updateSliderLabels();
@@ -598,9 +447,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchInput) searchInput.value = '';
 
         details.forEach(det => {
-            const id = det.id;
+            const id = (det as HTMLDetailsElement).id;
             if (!id) return;
-            det.open = false;
+            (det as HTMLDetailsElement).open = false;
             state.sidebarState[id] = false;
         });
 
@@ -629,13 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Reset sliders to default
-        if (episodesMinSlider) episodesMinSlider.value = 0;
-        if (episodesMaxSlider) episodesMaxSlider.value = 100;
-        if (sizeMinSlider) sizeMinSlider.value = 0;
-        if (sizeMaxSlider) sizeMaxSlider.value = 100;
-        if (durationMinSlider) durationMinSlider.value = 0;
-        if (durationMaxSlider) durationMaxSlider.value = 100;
-        updateSliderLabels();
+        resetSliders();
 
         // Save to localStorage
         clearAllFilters();
@@ -1076,15 +919,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (state.filters.genre && filterBrowseCol) {
                 filterBrowseCol.value = 'genre';
-                filterBrowseCol.onchange();
+                filterBrowseCol.onchange(new Event('change'));
             } else if (state.filters.categories.length > 0 && filterBrowseCol) {
                 filterBrowseCol.value = 'category';
-                filterBrowseCol.onchange();
+                filterBrowseCol.onchange(new Event('change'));
             } else if (filterBrowseCol) {
                 filterBrowseCol.value = '';
                 filterBrowseValContainer.classList.add('hidden');
             }
         }
+
+        updateSlidersFromAbsolute('episodes', 'episodes');
+        updateSlidersFromAbsolute('size', 'sizes');
+        updateSlidersFromAbsolute('duration', 'durations');
     }
 
     // Helper function to parse filter bin values
@@ -1361,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playlistList.querySelectorAll('.playlist-drop-zone').forEach(zone => {
             zone.onclick = (e) => {
                 // Ignore clicks on the delete button
-                if (e.target.closest('.delete-playlist-btn')) return;
+                if ((e.target as HTMLElement).closest('.delete-playlist-btn')) return;
 
                 const title = zone.dataset.title;
                 state.page = 'playlist';
@@ -2376,7 +2223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelectorAll('.remove-kw').forEach(btn => {
             btn.onclick = async (e) => {
                 e.stopPropagation(); // prevent drag start if any
-                const tag = e.target.closest('.curation-tag');
+                const tag = (e.target as HTMLElement).closest('.curation-tag');
                 const kw = tag.dataset.keyword;
                 await deleteKeyword(cat.category, kw);
             };
@@ -4091,9 +3938,9 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             queueItem.onclick = (e) => {
-                if (e.target.closest('.queue-item-title') ||
-                    e.target.closest('.queue-item-handle') ||
-                    e.target.closest('.queue-item-actions')) {
+                if ((e.target as HTMLElement).closest('.queue-item-title') ||
+                    (e.target as HTMLElement).closest('.queue-item-handle') ||
+                    (e.target as HTMLElement).closest('.queue-item-actions')) {
                     return;
                 }
                 playMedia(item, true, index);
@@ -5149,7 +4996,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             card.onclick = (e) => {
-                if (e.target.closest('.media-actions') || e.target.closest('.media-action-btn')) return;
+                if ((e.target as HTMLElement).closest('.media-actions') || (e.target as HTMLElement).closest('.media-action-btn')) return;
 
                 if (item.is_dir) {
                     searchInput.value = item.path.endsWith('/') ? item.path : item.path + '/';
@@ -5162,7 +5009,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const isCaptionClick = e.target.closest('.caption-highlight');
+                const isCaptionClick = (e.target as HTMLElement).closest('.caption-highlight');
                 if (isCaptionClick && item.caption_time) {
                     playMedia(item).then(() => {
                         const media = pipViewer.querySelector('video, audio');
@@ -6007,7 +5854,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return false;
     }
 
-    function showToast(msg, customEmoji) {
+    function showToast(msg, customEmoji = null) {
         console.log('showToast:', msg, customEmoji);
         if (state.playback.toastTimer) {
             clearTimeout(state.playback.toastTimer);
@@ -6883,7 +6730,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.onclick = (e) => {
-            const modal = e.target.closest('.modal');
+            const modal = (e.target as HTMLElement).closest('.modal');
             if (modal) {
                 if (modal.id === 'document-modal') {
                     closeActivePlayer();
@@ -7044,7 +6891,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         pipPlayer.addEventListener('touchstart', (e) => {
-            if (e.target.closest('#pip-controls') || e.target.closest('button') || e.target.closest('select')) return;
+            if ((e.target as HTMLElement).closest('#pip-controls') || (e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('select')) return;
 
             const touch = e.changedTouches[0];
             touchStartX = touch.screenX;
@@ -7111,7 +6958,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pipPlayer.addEventListener('touchend', (e) => {
             if (touchStartTime === 0) return;
 
-            if (e.target.closest('#pip-controls') || e.target.closest('button') || e.target.closest('select')) {
+            if ((e.target as HTMLElement).closest('#pip-controls') || (e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('select')) {
                 touchStartTime = 0;
                 return;
             }
@@ -7289,30 +7136,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update Sliders
         const epFilter = state.filters.episodes.find(f => f.value === '@p');
-        if (epFilter && episodesMinSlider) {
-            episodesMinSlider.value = epFilter.min;
-            episodesMaxSlider.value = epFilter.max;
-        } else if (episodesMinSlider) {
-            episodesMinSlider.value = 0;
-            episodesMaxSlider.value = 100;
+        if (epFilter) {
+            setSliderValues('episodes', epFilter.min, epFilter.max);
+        } else {
+            setSliderValues('episodes', 0, 100);
         }
 
         const sizeFilter = state.filters.sizes.find(f => f.value === '@p');
-        if (sizeFilter && sizeMinSlider) {
-            sizeMinSlider.value = sizeFilter.min;
-            sizeMaxSlider.value = sizeFilter.max;
-        } else if (sizeMinSlider) {
-            sizeMinSlider.value = 0;
-            sizeMaxSlider.value = 100;
+        if (sizeFilter) {
+            setSliderValues('size', sizeFilter.min, sizeFilter.max);
+        } else {
+            setSliderValues('size', 0, 100);
         }
 
         const durFilter = state.filters.durations.find(f => f.value === '@p');
-        if (durFilter && durationMinSlider) {
-            durationMinSlider.value = durFilter.min;
-            durationMaxSlider.value = durFilter.max;
-        } else if (durationMinSlider) {
-            durationMinSlider.value = 0;
-            durationMaxSlider.value = 100;
+        if (durFilter) {
+            setSliderValues('duration', durFilter.min, durFilter.max);
+        } else {
+            setSliderValues('duration', 0, 100);
         }
         updateSliderLabels();
 
@@ -7770,7 +7611,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Close sidebar when clicking on a category, genre, rating or playlist on mobile
     // Also close on media selection to show the player/content
     document.addEventListener('click', (e) => {
-        const target = e.target;
+        const target = e.target as HTMLElement;
         const isClickable = target.closest('.category-btn') ||
             target.closest('.playlist-name') ||
             target.closest('#trash-btn') ||

@@ -1,12 +1,27 @@
-.PHONY: build test cover webtest webcover e2e clean fmt lint sql install all readme dev
+.PHONY: build build-fts5 build-bleve build-nofts test cover webtest webcover e2e clean fmt lint sql install all readme dev
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
 
-all: fmt lint sql test build webtest readme
+all: fmt lint sql test build webtest webbuild readme
 
-build:
+webbuild:
+	npm run build --prefix web
+
+build: webbuild
 	go build -tags "$(BUILD_TAGS)" -o $(BINARY_NAME) ./cmd/disco
+
+# Build with FTS5 support (default)
+build-fts5:
+	$(MAKE) BUILD_TAGS=fts5 build
+
+# Build with Bleve full-text search support
+build-bleve:
+	$(MAKE) BUILD_TAGS=bleve build
+
+# Build without any full-text search (LIKE only)
+build-nofts:
+	$(MAKE) BUILD_TAGS="" build
 
 dev:
 	(sleep 2 && xdg-open http://localhost:5555) &

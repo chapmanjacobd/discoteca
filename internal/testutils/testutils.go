@@ -91,7 +91,7 @@ func GetSchema() string {
 }
 
 // InitTestDB initializes a test database with the canonical schema
-func InitTestDB(sqlDB *sql.DB) error {
+func InitTestDB(tb testing.TB, sqlDB *sql.DB) error {
 	schema := db.GetSchema()
 	_, err := sqlDB.Exec(schema)
 	return err
@@ -127,6 +127,13 @@ func StripFTSFromSchema(schema string) string {
 // InitTestDBNoFTS initializes a test database with the schema minus FTS5 features
 func InitTestDBNoFTS(sqlDB *sql.DB) error {
 	schema := StripFTSFromSchema(db.GetSchema())
+	_, err := sqlDB.Exec(schema)
+	return err
+}
+
+// InitTestDBWithDB initializes a test database with the canonical schema using provided DB connection
+func InitTestDBWithDB(tb testing.TB, sqlDB *sql.DB) error {
+	schema := db.GetSchema()
 	_, err := sqlDB.Exec(schema)
 	return err
 }

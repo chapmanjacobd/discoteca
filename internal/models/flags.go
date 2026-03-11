@@ -171,6 +171,7 @@ type DedupeFlags struct {
 type FTSFlags struct {
 	FTS      bool   `help:"Use full-text search if available" group:"FTS"`
 	FTSTable string `default:"media_fts" help:"FTS table name" group:"FTS"`
+	UseBleve bool   `help:"Use Bleve full-text search index" group:"FTS"`
 	Related  int    `short:"R" help:"Find media related to the first result" group:"FTS"`
 }
 

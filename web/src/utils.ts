@@ -1,4 +1,4 @@
-export function formatRelativeDate(timestamp) {
+export function formatRelativeDate(timestamp: number | null): string {
     if (!timestamp || timestamp === 0) return '-';
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
@@ -11,19 +11,20 @@ export function formatRelativeDate(timestamp) {
     return `${Math.floor(diff / 31536000)}y ago`;
 }
 
-export function formatSize(bytes) {
-    if (!bytes) return '-';
+export function formatSize(bytes: number | undefined): string {
+    if (bytes === undefined || bytes === null) return '-';
+    let b = bytes;
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let i = 0;
-    while (bytes >= 1024 && i < units.length - 1) {
-        bytes /= 1024;
+    while (b >= 1024 && i < units.length - 1) {
+        b /= 1024;
         i++;
     }
-    return `${bytes.toFixed(1)} ${units[i]}`;
+    return `${b.toFixed(1)} ${units[i]}`;
 }
 
-export function formatDuration(seconds) {
-    if (!seconds && seconds !== 0) return '';
+export function formatDuration(seconds: number | undefined): string {
+    if (seconds === undefined || seconds === null) return '';
 
     const totalSeconds = Math.floor(seconds);
 
@@ -42,7 +43,7 @@ export function formatDuration(seconds) {
     return `${m}:${s < 10 ? '0' + s : s}`;
 }
 
-export function shortDuration(seconds) {
+export function shortDuration(seconds: number | undefined): string {
     if (!seconds) return '0s';
     const d = Math.floor(seconds / 86400);
     const h = Math.floor((seconds % 86400) / 3600);
@@ -57,14 +58,14 @@ export function shortDuration(seconds) {
     return parts.join(' ') || '0s';
 }
 
-export function truncateString(str) {
+export function truncateString(str: string | undefined): string {
     if (!str) return '';
     const limit = window.innerWidth <= 768 ? 35 : 55;
     if (str.length <= limit) return str;
     return str.substring(0, limit - 3) + '...';
 }
 
-export function formatParents(path) {
+export function formatParents(path: string | undefined): string {
     if (!path) return '';
     const parts = path.split('/');
     if (parts.length > 1) {
@@ -78,7 +79,7 @@ export function formatParents(path) {
     return '';
 }
 
-export function getIcon(type) {
+export function getIcon(type: string | undefined): string {
     if (!type) return '📄';
     if (type.includes('video')) return '🎬';
     if (type.includes('audio')) return '🎵';

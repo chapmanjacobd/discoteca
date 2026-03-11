@@ -56,9 +56,9 @@ func TestExtractText(t *testing.T) {
 		t.Error("expected error for non-existent file, got nil")
 	}
 
-	// Test malformed PDF (if pdftotext is available)
-	pdftotextPath, _ := exec.LookPath("pdftotext")
-	if pdftotextPath != "" {
+	// Test malformed PDF/EPUB (if ebook-convert is available)
+	ebookConvertPath, _ := exec.LookPath("ebook-convert")
+	if ebookConvertPath != "" {
 		badPdf, _ := os.CreateTemp("", "bad*.pdf")
 		defer os.Remove(badPdf.Name())
 		os.WriteFile(badPdf.Name(), []byte("not a pdf"), 0o644)
@@ -66,11 +66,7 @@ func TestExtractText(t *testing.T) {
 		if err == nil {
 			t.Error("expected error for malformed PDF, got nil")
 		}
-	}
 
-	// Test malformed EPUB (if unzip is available)
-	unzipPath, _ := exec.LookPath("unzip")
-	if unzipPath != "" {
 		badEpub, _ := os.CreateTemp("", "bad*.epub")
 		defer os.Remove(badEpub.Name())
 		os.WriteFile(badEpub.Name(), []byte("not a zip"), 0o644)

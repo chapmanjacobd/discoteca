@@ -114,7 +114,10 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			joinOp = " OR "
 		}
 
-		if fb.flags.FTS {
+		if fb.flags.UseBleve {
+			// Bleve search - handled separately, just mark for in-memory filtering
+			// Bleve search is executed before SQL query to get matching IDs
+		} else if fb.flags.FTS {
 			// FTS match syntax
 			var ftsTerms []string
 			for _, term := range allInclude {

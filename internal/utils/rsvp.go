@@ -5,12 +5,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
 
 // ExtractText extracts plain text from a given file path.
 // Supports .txt, .pdf, .epub and other text formats.
+// For ebook formats (PDF, EPUB, MOBI, etc.), it uses calibre's ebook-convert
+// to convert to HTML and then extracts text from the HTML files.
 func ExtractText(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
@@ -20,23 +24,28 @@ func ExtractText(path string) (string, error) {
 			return "", err
 		}
 		return string(content), nil
-	case ".pdf":
-		// pdftotext -layout input.pdf -
-		cmd := exec.Command("pdftotext", "-layout", path, "-")
-		out, err := cmd.Output()
+	case ".pdf", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".docx", ".odt", ".rtf", ".html", ".htm":
+		// Use calibre conversion for all ebook formats
+		htmlDir, err := ConvertEpubToOEB(path)
 		if err != nil {
-			return "", fmt.Errorf("pdftotext failed: %w", err)
+			return "", fmt.Errorf("conversion failed: %w", err)
 		}
-		return string(out), nil
-	case ".epub":
-		// Simple EPUB extraction: unzip html/xhtml files and strip tags
-		// We use sh -c to leverage globbing inside zip which unzip supports via arguments
-		cmd := exec.Command("bash", "-c", fmt.Sprintf("set -o pipefail; unzip -p %q '*.html' '*.xhtml' '*.htm' '*.xml' | sed -e 's/<[^>]*>/ /g'", path))
-		out, err := cmd.Output()
-		if err != nil {
-			return "", fmt.Errorf("epub extraction failed: %w", err)
+
+		// Get all HTML files in order
+		htmlFiles := GetHTMLFiles(htmlDir)
+		// GetHTMLFiles now returns sorted files
+
+		var fullText strings.Builder
+		for _, relPath := range htmlFiles {
+			absPath := filepath.Join(htmlDir, relPath)
+			text, err := extractTextFromHTMLFile(absPath)
+			if err != nil {
+				continue
+			}
+			fullText.WriteString(text)
+			fullText.WriteString(" ")
 		}
-		return string(out), nil
+		return fullText.String(), nil
 	default:
 		// Fallback: try reading as text
 		content, err := os.ReadFile(path)
@@ -45,6 +54,32 @@ func ExtractText(path string) (string, error) {
 		}
 		return "", fmt.Errorf("unsupported format: %s", ext)
 	}
+}
+
+// extractTextFromHTMLFile reads an HTML file and returns plain text
+func extractTextFromHTMLFile(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	// Simple regex-based HTML tag stripping
+	// This is not perfect but sufficient for RSVP/TTS purposes on calibre output
+	re := regexp.MustCompile(`<[^>]*>`)
+	text := re.ReplaceAllString(string(content), " ")
+
+	// Decode HTML entities (basic ones)
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&apos;", "'")
+
+	// Collapse whitespace
+	text = strings.Join(strings.Fields(text), " ")
+
+	return text, nil
 }
 
 // ConvertEpubToOEB converts EPUB/text documents to HTML format using calibre's ebook-convert.
@@ -223,4 +258,123 @@ func GenerateTTS(text string, outputPath string, wpm int) error {
 		return fmt.Errorf("espeak-ng failed: %s: %s", err, string(output))
 	}
 	return nil
+}
+
+// GetHTMLFiles returns a list of HTML files in the directory sorted by filename
+func GetHTMLFiles(dir string) []string {
+	var files []string
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() {
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
+				base := strings.ToLower(filepath.Base(path))
+				// Skip cover, titlepage, nav, and metadata files
+				if !strings.Contains(base, "cover") &&
+					!strings.Contains(base, "titlepage") &&
+					!strings.Contains(base, "title_page") &&
+					!strings.Contains(base, "nav.xhtml") &&
+					!strings.Contains(base, "content.opf") {
+					relPath, _ := filepath.Rel(dir, path)
+					files = append(files, relPath)
+				}
+			}
+		}
+		return nil
+	})
+
+	// Sort files for consistent ordering
+	sort.Strings(files)
+
+	return files
+}
+
+// FindMainContentFile finds the main HTML content file in a calibre output directory
+// Skips cover/metadata pages and finds the actual book content
+func FindMainContentFile(oebDir string) string {
+	// First, try to parse content.opf to find the actual content files
+	opfPath := filepath.Join(oebDir, "content.opf")
+	if content, err := os.ReadFile(opfPath); err == nil {
+		// Parse OPF to find content files (skip cover)
+		contentStr := string(content)
+		// Look for itemref elements that reference content files
+		// Skip items with idref containing "cover" or "title"
+		lines := strings.Split(contentStr, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			lowerLine := strings.ToLower(line)
+			if strings.Contains(line, "<itemref") &&
+				!strings.Contains(lowerLine, "cover") &&
+				!strings.Contains(lowerLine, "title") &&
+				!strings.Contains(lowerLine, "nav") {
+				// Extract idref value
+				idrefMatch := strings.Index(line, `idref="`)
+				if idrefMatch >= 0 {
+					idrefStart := idrefMatch + 7
+					idrefEnd := strings.Index(line[idrefStart:], `"`)
+					if idrefEnd > 0 {
+						idref := line[idrefStart : idrefStart+idrefEnd]
+						// Find corresponding item with this id
+						for _, itemLine := range lines {
+							if strings.Contains(itemLine, `id="`+idref+`"`) && strings.Contains(itemLine, `href="`) {
+								hrefStart := strings.Index(itemLine, `href="`) + 6
+								hrefEnd := strings.Index(itemLine[hrefStart:], `"`)
+								if hrefEnd > 0 {
+									href := itemLine[hrefStart : hrefStart+hrefEnd]
+									contentFile := filepath.Join(oebDir, href)
+									if _, err := os.Stat(contentFile); err == nil {
+										return contentFile
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: Find HTML files, preferring those that aren't cover/metadata
+	var firstContentHTML string
+	filepath.Walk(oebDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() {
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
+				base := strings.ToLower(filepath.Base(path))
+				// Skip cover, titlepage, and metadata files
+				if strings.Contains(base, "cover") ||
+					strings.Contains(base, "titlepage") ||
+					strings.Contains(base, "title_page") ||
+					strings.Contains(base, "nav.xhtml") {
+					return nil
+				}
+				if firstContentHTML == "" {
+					firstContentHTML = path
+				}
+				// Prefer files with chapter/content in the name
+				if strings.Contains(base, "chapter") || strings.Contains(base, "content") || strings.Contains(base, "ch0") || strings.Contains(base, "split_") {
+					firstContentHTML = path
+					return filepath.SkipAll
+				}
+			}
+		}
+		return nil
+	})
+
+	if firstContentHTML != "" {
+		return firstContentHTML
+	}
+
+	// Last resort: return index.html
+	indexHtml := filepath.Join(oebDir, "index.html")
+	if _, err := os.Stat(indexHtml); err == nil {
+		return indexHtml
+	}
+
+	return ""
 }

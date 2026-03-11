@@ -36,6 +36,7 @@ jobs:
             ffmpeg \
             pandoc \
             groff \
+            calibre \
             fonts-dejavu-core \
             sqlite3 \
             libnss3 \

@@ -125,11 +125,11 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 // serveHTMLWithTOC serves calibre HTML output with a sticky TOC header
 func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir string, originalPath string) {
 	// Get list of HTML files for TOC
-	htmlFiles := getHTMLFiles(htmlDir)
+	htmlFiles := utils.GetHTMLFiles(htmlDir)
 
 	// Find actual book content HTML for the main frame (relative to htmlDir)
 	initialSrc := ""
-	contentFile := findMainContentFile(htmlDir)
+	contentFile := utils.FindMainContentFile(htmlDir)
 	if contentFile != "" {
 		rel, err := filepath.Rel(htmlDir, contentFile)
 		if err == nil {
@@ -144,33 +144,6 @@ func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir string, or
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(wrapperHTML))
-}
-
-// getHTMLFiles returns a list of HTML files in the directory
-func getHTMLFiles(dir string) []string {
-	var files []string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path))
-			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
-				base := strings.ToLower(filepath.Base(path))
-				// Skip cover, titlepage, nav, and metadata files
-				if !strings.Contains(base, "cover") &&
-					!strings.Contains(base, "titlepage") &&
-					!strings.Contains(base, "title_page") &&
-					!strings.Contains(base, "nav.xhtml") &&
-					!strings.Contains(base, "content.opf") {
-					relPath, _ := filepath.Rel(dir, path)
-					files = append(files, relPath)
-				}
-			}
-		}
-		return nil
-	})
-	return files
 }
 
 // createWrapperHTML creates HTML with sticky TOC header
@@ -276,94 +249,6 @@ html, body { height: 100%%; overflow: hidden; }
 </html>`, title, title, tocOptions.String(), initialSrc)
 
 	return wrapper
-}
-
-// findMainContentFile finds the main HTML content file in a calibre output directory
-// Skips cover/metadata pages and finds the actual book content
-func findMainContentFile(oebDir string) string {
-	// First, try to parse content.opf to find the actual content files
-	opfPath := filepath.Join(oebDir, "content.opf")
-	if content, err := os.ReadFile(opfPath); err == nil {
-		// Parse OPF to find content files (skip cover)
-		contentStr := string(content)
-		// Look for itemref elements that reference content files
-		// Skip items with idref containing "cover" or "title"
-		lines := strings.Split(contentStr, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			lowerLine := strings.ToLower(line)
-			if strings.Contains(line, "<itemref") &&
-				!strings.Contains(lowerLine, "cover") &&
-				!strings.Contains(lowerLine, "title") &&
-				!strings.Contains(lowerLine, "nav") {
-				// Extract idref value
-				idrefMatch := strings.Index(line, `idref="`)
-				if idrefMatch >= 0 {
-					idrefStart := idrefMatch + 7
-					idrefEnd := strings.Index(line[idrefStart:], `"`)
-					if idrefEnd > 0 {
-						idref := line[idrefStart : idrefStart+idrefEnd]
-						// Find corresponding item with this id
-						for _, itemLine := range lines {
-							if strings.Contains(itemLine, `id="`+idref+`"`) && strings.Contains(itemLine, `href="`) {
-								hrefStart := strings.Index(itemLine, `href="`) + 6
-								hrefEnd := strings.Index(itemLine[hrefStart:], `"`)
-								if hrefEnd > 0 {
-									href := itemLine[hrefStart : hrefStart+hrefEnd]
-									contentFile := filepath.Join(oebDir, href)
-									if _, err := os.Stat(contentFile); err == nil {
-										return contentFile
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Fallback: Find HTML files, preferring those that aren't cover/metadata
-	var firstContentHTML string
-	filepath.Walk(oebDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path))
-			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
-				base := strings.ToLower(filepath.Base(path))
-				// Skip cover, titlepage, and metadata files
-				if strings.Contains(base, "cover") ||
-					strings.Contains(base, "titlepage") ||
-					strings.Contains(base, "title_page") ||
-					strings.Contains(base, "nav.xhtml") {
-					return nil
-				}
-				if firstContentHTML == "" {
-					firstContentHTML = path
-				}
-				// Prefer files with chapter/content in the name
-				if strings.Contains(base, "chapter") || strings.Contains(base, "content") || strings.Contains(base, "ch0") || strings.Contains(base, "split_") {
-					firstContentHTML = path
-					return filepath.SkipAll
-				}
-			}
-		}
-		return nil
-	})
-
-	if firstContentHTML != "" {
-		return firstContentHTML
-	}
-
-	// Last resort: return index.html
-	indexHtml := filepath.Join(oebDir, "index.html")
-	if _, err := os.Stat(indexHtml); err == nil {
-		return indexHtml
-	}
-
-	return ""
 }
 
 func unescapePath(path string) (string, error) {

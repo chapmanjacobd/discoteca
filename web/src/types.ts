@@ -1,0 +1,136 @@
+export interface MediaItem {
+    path: string;
+    name: string;
+    type: string;
+    is_dir: boolean;
+    size?: number;
+    duration?: number;
+    play_count?: number;
+    time_last_played?: string;
+    progress?: number;
+    time_created?: string;
+    time_modified?: string;
+    time_downloaded?: string;
+    bitrate?: number;
+    extension?: string;
+    score?: number;
+    categories?: string[];
+    languages?: string[];
+    rating?: number;
+    similarity?: number;
+    parent_path?: string;
+}
+
+export interface FilterBins {
+    episodes: any[];
+    size: any[];
+    duration: any[];
+    episodes_min: number;
+    episodes_max: number;
+    size_min: number;
+    size_max: number;
+    duration_min: number;
+    duration_max: number;
+    episodes_percentiles?: number[];
+    size_percentiles?: number[];
+    duration_percentiles?: number[];
+}
+
+export interface PlaybackState {
+    item: MediaItem | null;
+    queueIndex: number;
+    queue: MediaItem[];
+    repeatMode: 'off' | 'one' | 'all';
+    shuffle: boolean;
+    timer: any;
+    slideshowTimer: any;
+    startTime: number | null;
+    lastUpdate: number;
+    lastLocalUpdate: number;
+    lastPlayedIndex: number;
+    hasMarkedComplete: boolean;
+    pendingUpdate: any;
+    skipTimeout: any;
+    lastSkipTime: number;
+    hlsInstance: any;
+    toastTimer: any;
+    muted: boolean;
+    consecutiveErrors: number;
+    seekHistory: number[];
+    markedPosition: number | null;
+}
+
+export interface State {
+    view: string;
+    page: 'search' | 'trash' | 'history' | 'playlist' | 'du' | 'curation' | 'captions' | 'episodes';
+    currentPage: number;
+    totalCount: number;
+    filters: {
+        types: string[];
+        search: string;
+        categories: string[];
+        genre: string;
+        languages: string[];
+        ratings: string[];
+        playlist: string | null;
+        sort: string;
+        reverse: boolean;
+        limit: number;
+        all: boolean;
+        excludedDbs: string[];
+        sizes: any[];
+        durations: any[];
+        min_score: string;
+        max_score: string;
+        episodes: any[];
+        unplayed: boolean;
+        unfinished: boolean;
+        completed: boolean;
+        captions: boolean;
+        searchType: 'fts' | 'substring';
+        browseCol: string;
+        browseVal: string;
+    };
+    activeModal: string | null;
+    duPath: string;
+    draggedItem: MediaItem | null;
+    applicationStartTime: number | null;
+    lastActivity: number;
+    player: string;
+    language: string;
+    theme: string;
+    postPlaybackAction: string;
+    defaultView: 'pip' | 'theatre';
+    autoplay: boolean;
+    imageAutoplay: boolean;
+    localResume: boolean;
+    showPipSpeed: boolean;
+    showPipSurf: boolean;
+    showPipStream: boolean;
+    defaultVideoRate: number;
+    defaultAudioRate: number;
+    playbackRate: number;
+    slideshowDelay: number;
+    rsvpWpm: number;
+    trackShuffleDuration: number;
+    autoLoopMaxDuration: number;
+    enableQueue: boolean;
+    queueExpanded: boolean;
+    queueAddMode: 'end' | 'next';
+    playerMode: 'pip' | 'theatre';
+    trashcan: boolean;
+    readOnly: boolean;
+    dev: boolean;
+    databases: string[];
+    categories: string[];
+    genres: string[];
+    languages: string[];
+    ratings: string[];
+    filterBins: FilterBins;
+    playlists: string[];
+    newCategories: string[];
+    playlistItems: MediaItem[];
+    sidebarState: Record<string, boolean>;
+    lastSuggestions: MediaItem[];
+    playback: PlaybackState;
+}
