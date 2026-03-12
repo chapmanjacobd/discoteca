@@ -247,7 +247,14 @@ func CommonPath(paths []string) string {
 		}
 	}
 
-	return strings.Join(parts, "/")
+	// Preserve original separator style: if any input path has backslashes, use backslashes
+	result := strings.Join(parts, "/")
+	for _, p := range paths {
+		if strings.Contains(p, "\\") {
+			return filepath.FromSlash(result)
+		}
+	}
+	return result
 }
 
 // CommonPathFull returns a common path prefix.
