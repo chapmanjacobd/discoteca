@@ -96,9 +96,12 @@ func (m *Media) Extension() string {
 }
 
 func (m *Media) ParentAtDepth(depth int) string {
-	if depth <= 0 {
-		if strings.HasPrefix(m.Path, "/") || strings.HasPrefix(m.Path, "\\") || filepath.IsAbs(m.Path) {
-			// Return root or drive root
+	slashPath := filepath.ToSlash(m.Path)
+	isAbs := strings.HasPrefix(slashPath, "/") || (len(slashPath) >= 2 && slashPath[1] == ':')
+
+	dir := filepath.ToSlash(filepath.Dir(m.Path))
+	if dir == "." || dir == "" {
+		if depth <= 0 && isAbs {
 			vol := filepath.VolumeName(m.Path)
 			if vol != "" {
 				return vol + string(filepath.Separator)
@@ -108,35 +111,35 @@ func (m *Media) ParentAtDepth(depth int) string {
 		return "."
 	}
 
-	dir := filepath.Dir(filepath.Clean(m.Path))
-	if dir == "." || dir == string(filepath.Separator) || dir == "" {
-		return dir
+	if depth <= 0 {
+		if isAbs {
+			vol := filepath.VolumeName(m.Path)
+			if vol != "" {
+				return vol + string(filepath.Separator)
+			}
+			return string(filepath.Separator)
+		}
+		return "."
 	}
 
-	// Use forward slashes for consistent depth splitting
-	slashDir := filepath.ToSlash(dir)
-	vol := filepath.VolumeName(m.Path)
-
-	cleanSlashDir := strings.TrimPrefix(slashDir, filepath.ToSlash(vol))
-	isRootRelative := strings.HasPrefix(m.Path, "/") || strings.HasPrefix(m.Path, "\\")
-
-	cleanSlashDir = strings.TrimPrefix(cleanSlashDir, "/")
-
-	parts := strings.Split(cleanSlashDir, "/")
-	if parts[0] == "" {
-		parts = parts[1:]
-	}
+	vol := filepath.ToSlash(filepath.VolumeName(m.Path))
+	relDir := strings.TrimPrefix(dir, vol)
+	parts := strings.Split(strings.Trim(relDir, "/"), "/")
 
 	if depth > len(parts) {
 		depth = len(parts)
 	}
 
 	res := strings.Join(parts[:depth], "/")
-	if vol != "" || isRootRelative {
-		return filepath.FromSlash(filepath.ToSlash(vol) + "/" + res)
+	if vol != "" {
+		return filepath.FromSlash(vol + "/" + res)
+	}
+	if isAbs {
+		return filepath.FromSlash("/" + res)
 	}
 	return filepath.FromSlash(res)
 }
+
 // MediaWithDB wraps Media with the database path it came from
 type MediaWithDB struct {
 	Media

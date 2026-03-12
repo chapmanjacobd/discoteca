@@ -57,7 +57,6 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 			Args: []string{dbPath},
 		}
 		cmd.AfterApply()
-		defer cmd.Close()
 
 		// Capture stdout
 		oldStdout := os.Stdout
@@ -98,7 +97,6 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 			Args: []string{dbPath},
 		}
 		cmd.AfterApply()
-		defer cmd.Close()
 
 		oldStdout := os.Stdout
 		r, w, _ := os.Pipe()
@@ -192,7 +190,6 @@ func TestStatsWithFrequency(t *testing.T) {
 			JSON:      true,
 		},
 	}
-	defer cmd.Close()
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()

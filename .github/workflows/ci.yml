@@ -15,11 +15,12 @@ jobs:
   ci:
     name: Continuous Integration
     runs-on: ${{ matrix.os }}
+    env:
+      BUILD_TAGS: fts5
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
-        # os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     timeout-minutes: 60
     defaults:
       run:
@@ -61,7 +62,7 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             # Windows often has issues with parallel tests and file locking on SQLite DBs
-            go test -tags "$(BUILD_TAGS)" -parallel 1 ./...
+            go test -tags "${BUILD_TAGS}" -parallel 1 ./...
             make all
           else
             make all
