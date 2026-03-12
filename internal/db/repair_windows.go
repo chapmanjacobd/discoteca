@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build windows
 
 package db
 
@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"syscall"
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
@@ -22,21 +21,8 @@ func Repair(dbPath string) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 2. Cross-process lock
-	lockPath := dbPath + ".repair.lock"
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o666)
-	if err != nil {
-		return fmt.Errorf("failed to open lock file: %w", err)
-	}
-	defer func() {
-		lockFile.Close()
-		os.Remove(lockPath)
-	}()
-
-	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
-		return fmt.Errorf("failed to acquire flock: %w", err)
-	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	// 2. Cross-process lock - skip on Windows for now or implement via Win32 API if needed.
+	// For now, process-local lock is better than nothing.
 
 	waitDuration := time.Since(start)
 
@@ -80,7 +66,8 @@ func Repair(dbPath string) error {
 	// Fallback to .dump first as it preserves schema better if it works
 	repairStepSuccess := false
 	slog.Info("Trying recovery via .dump...")
-	cmdDump := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 %s \".dump\" | sqlite3 %s", quotedCorrupt, quotedDB))
+	// On Windows, use cmd /c and redirection instead of bash
+	cmdDump := exec.Command("cmd", "/c", fmt.Sprintf("sqlite3 %s \".dump\" | sqlite3 %s", quotedCorrupt, quotedDB))
 	out, err := cmdDump.CombinedOutput()
 	if err == nil {
 		slog.Info("Initial recovery step successful via .dump")
@@ -90,8 +77,7 @@ func Repair(dbPath string) error {
 		os.Remove(dbPath)
 
 		// Fallback to .recover
-		// We use .quit to ensure it doesn't hang if it somehow enters interactive mode
-		cmdRecover := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 %s \".recover\" \".quit\" | sqlite3 %s", quotedCorrupt, quotedDB))
+		cmdRecover := exec.Command("cmd", "/c", fmt.Sprintf("sqlite3 %s \".recover\" \".quit\" | sqlite3 %s", quotedCorrupt, quotedDB))
 		out, err = cmdRecover.CombinedOutput()
 		if err == nil {
 			slog.Info("Initial recovery step successful via .recover")

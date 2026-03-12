@@ -1,9 +1,6 @@
 package utils
 
 import (
-	"fmt"
-	"io"
-	"runtime"
 	"runtime/debug"
 )
 
@@ -38,23 +35,4 @@ func init() {
 	}
 
 	Deps = bi.Deps
-}
-
-func RenderVersion(w io.Writer) {
-	fmt.Fprintf(w, "discoteca built from %s on %s with %s\n",
-		Version, When, runtime.Version())
-
-	fmt.Fprintln(w, "Build Settings:")
-	for _, s := range BuildSettings {
-		fmt.Fprintf(w, "\t%s=%s\n", s.Key, s.Value)
-	}
-
-	fmt.Fprintln(w, "\nDeps:")
-	for _, dep := range Deps {
-		fmt.Fprintf(w, "\t%s@%s (%s)\n", dep.Path, dep.Version, dep.Sum)
-		if dep.Replace != nil {
-			r := dep.Replace
-			fmt.Fprintf(w, "   replaced by %s@%s (%s)\n", r.Path, r.Version, r.Sum)
-		}
-	}
 }
