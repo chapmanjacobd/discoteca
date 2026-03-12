@@ -81,7 +81,7 @@ func TestFilterBuilder_Build(t *testing.T) {
 		{
 			"FTS Search (Improved Join)",
 			models.GlobalFlags{
-				FTSFlags:     models.FTSFlags{FTS: true, FTSTable: "media_fts"},
+				FTSFlags:     models.FTSFlags{FTSFlagsBuildSpecific: models.FTSFlagsBuildSpecific{FTS: true, FTSTable: "media_fts"}},
 				FilterFlags:  models.FilterFlags{Search: []string{"term"}},
 				QueryFlags:   models.QueryFlags{Limit: 10},
 				DeletedFlags: models.DeletedFlags{HideDeleted: true},
@@ -91,7 +91,7 @@ func TestFilterBuilder_Build(t *testing.T) {
 		{
 			"FTS Search (Column specific)",
 			models.GlobalFlags{
-				FTSFlags:     models.FTSFlags{FTS: true, FTSTable: "media_fts"},
+				FTSFlags:     models.FTSFlags{FTSFlagsBuildSpecific: models.FTSFlagsBuildSpecific{FTS: true, FTSTable: "media_fts"}},
 				FilterFlags:  models.FilterFlags{Search: []string{"title:term"}},
 				QueryFlags:   models.QueryFlags{Limit: 10},
 				DeletedFlags: models.DeletedFlags{HideDeleted: true},
@@ -110,7 +110,7 @@ func TestFilterBuilder_Build(t *testing.T) {
 		{
 			"Mixed FTS and other filters",
 			models.GlobalFlags{
-				FTSFlags:         models.FTSFlags{FTS: true},
+				FTSFlags:         models.FTSFlags{FTSFlagsBuildSpecific: models.FTSFlagsBuildSpecific{FTS: true}},
 				FilterFlags:      models.FilterFlags{Search: []string{"term"}, Size: []string{">100MB"}},
 				MediaFilterFlags: models.MediaFilterFlags{VideoOnly: true},
 				QueryFlags:       models.QueryFlags{Limit: 10},

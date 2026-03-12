@@ -14,3 +14,7 @@
 !/e2e/fixtures/schema.sql
 /disco
 /discotheque
+/disco-bleve
+/disco-fts5
+/disco-nofts
+/discoteca

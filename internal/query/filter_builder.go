@@ -114,8 +114,8 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			joinOp = " OR "
 		}
 
-		// Determine search mode: --no-fts > --use-bleve > --fts > auto-detect
-		useBleve := fb.flags.UseBleve
+		// Determine search mode: --no-fts > --bleve > --fts > auto-detect
+		useBleve := fb.flags.Bleve
 		useFTS := fb.flags.FTS
 		noFTS := fb.flags.NoFTS
 
