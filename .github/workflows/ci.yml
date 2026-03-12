@@ -58,7 +58,14 @@ jobs:
           make web-install
 
       - name: Run checks and build
-        run: make all
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            # Windows often has issues with parallel tests and file locking on SQLite DBs
+            go test -tags "$(BUILD_TAGS)" -parallel 1 ./...
+            make all
+          else
+            make all
+          fi
 
       - name: Install E2E dependencies
         if: matrix.os == 'ubuntu-latest'

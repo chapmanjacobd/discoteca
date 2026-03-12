@@ -97,7 +97,7 @@ func (m *Media) Extension() string {
 
 func (m *Media) ParentAtDepth(depth int) string {
 	if depth <= 0 {
-		if filepath.IsAbs(m.Path) {
+		if strings.HasPrefix(m.Path, "/") || strings.HasPrefix(m.Path, "\\") || filepath.IsAbs(m.Path) {
 			// Return root or drive root
 			vol := filepath.VolumeName(m.Path)
 			if vol != "" {
@@ -115,10 +115,11 @@ func (m *Media) ParentAtDepth(depth int) string {
 
 	// Use forward slashes for consistent depth splitting
 	slashDir := filepath.ToSlash(dir)
-	isAbs := filepath.IsAbs(m.Path)
 	vol := filepath.VolumeName(m.Path)
 
 	cleanSlashDir := strings.TrimPrefix(slashDir, filepath.ToSlash(vol))
+	isRootRelative := strings.HasPrefix(m.Path, "/") || strings.HasPrefix(m.Path, "\\")
+
 	cleanSlashDir = strings.TrimPrefix(cleanSlashDir, "/")
 
 	parts := strings.Split(cleanSlashDir, "/")
@@ -131,12 +132,11 @@ func (m *Media) ParentAtDepth(depth int) string {
 	}
 
 	res := strings.Join(parts[:depth], "/")
-	if isAbs {
+	if vol != "" || isRootRelative {
 		return filepath.FromSlash(filepath.ToSlash(vol) + "/" + res)
 	}
 	return filepath.FromSlash(res)
 }
-
 // MediaWithDB wraps Media with the database path it came from
 type MediaWithDB struct {
 	Media

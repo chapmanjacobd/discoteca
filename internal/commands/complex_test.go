@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +21,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 	// We'll manually insert them into the DB to have controlled metadata
 	dbPath := fixture.DBPath
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	defer sqlDB.Close()
 	db.InitDB(sqlDB)
 
 	files := []struct {
@@ -28,17 +30,16 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 		duration int64
 		ext      string
 	}{
-		{"/root/dir1/video1.mp4", 100 * 1024 * 1024, 600, ".mp4"},   // 100MB, 10min
-		{"/root/dir1/video2.mkv", 500 * 1024 * 1024, 1200, ".mkv"},  // 500MB, 20min
-		{"/root/dir2/audio1.mp3", 10 * 1024 * 1024, 300, ".mp3"},    // 10MB, 5min
-		{"/root/dir2/video3.mp4", 1000 * 1024 * 1024, 3600, ".mp4"}, // 1GB, 60min
+		{filepath.FromSlash("/root/dir1/video1.mp4"), 100 * 1024 * 1024, 600, ".mp4"},   // 100MB, 10min
+		{filepath.FromSlash("/root/dir1/video2.mkv"), 500 * 1024 * 1024, 1200, ".mkv"},  // 500MB, 20min
+		{filepath.FromSlash("/root/dir2/audio1.mp3"), 10 * 1024 * 1024, 300, ".mp3"},    // 10MB, 5min
+		{filepath.FromSlash("/root/dir2/video3.mp4"), 1000 * 1024 * 1024, 3600, ".mp4"}, // 1GB, 60min
 	}
 
 	for _, f := range files {
 		sqlDB.Exec("INSERT INTO media (path, size, duration, type) VALUES (?, ?, ?, ?)",
 			f.path, f.size, f.duration, strings.TrimPrefix(f.ext, "."))
 	}
-	sqlDB.Close()
 
 	t.Run("CombineFilters", func(t *testing.T) {
 		// Filter: Size > 50MB, Duration < 30min, Extension .mp4
@@ -56,6 +57,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 			Args: []string{dbPath},
 		}
 		cmd.AfterApply()
+		defer cmd.Close()
 
 		// Capture stdout
 		oldStdout := os.Stdout
@@ -75,7 +77,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 
 		if len(results) != 1 {
 			t.Errorf("Expected 1 result, got %d", len(results))
-		} else if results[0].Path != "/root/dir1/video1.mp4" {
+		} else if filepath.ToSlash(results[0].Path) != "/root/dir1/video1.mp4" {
 			t.Errorf("Expected video1.mp4, got %s", results[0].Path)
 		}
 	})
@@ -96,6 +98,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 			Args: []string{dbPath},
 		}
 		cmd.AfterApply()
+		defer cmd.Close()
 
 		oldStdout := os.Stdout
 		r, w, _ := os.Pipe()
@@ -116,7 +119,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 			t.Errorf("Expected 2 folders, got %d", len(folders))
 		}
 		// /root/dir2 should be first (1GB + 10MB > 100MB + 500MB)
-		if !strings.Contains(folders[0].Path, "/root/dir2") {
+		if !strings.Contains(filepath.ToSlash(folders[0].Path), "/root/dir2") {
 			t.Errorf("Expected /root/dir2 to be first, got %s", folders[0].Path)
 		}
 	})
@@ -176,9 +179,9 @@ func TestStatsWithFrequency(t *testing.T) {
 
 	now := 1708358400 // 2024-02-19
 	sqlDB.Exec("INSERT INTO media (path, size, duration, time_last_played) VALUES (?, ?, ?, ?)",
-		"/path1", 100, 60, now)
+		filepath.FromSlash("/path1"), 100, 60, now)
 	sqlDB.Exec("INSERT INTO media (path, size, duration, time_last_played) VALUES (?, ?, ?, ?)",
-		"/path2", 200, 120, now-86400) // yesterday
+		filepath.FromSlash("/path2"), 200, 120, now-86400) // yesterday
 	sqlDB.Close()
 
 	cmd := &StatsCmd{
@@ -189,6 +192,7 @@ func TestStatsWithFrequency(t *testing.T) {
 			JSON:      true,
 		},
 	}
+	defer cmd.Close()
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()

@@ -128,7 +128,8 @@ func MpvLoadFile(socketPath string, path string, mode string) error {
 // PathToMpvWatchLaterMD5 returns the MD5 hash of the absolute path, which mpv uses for filenames
 func PathToMpvWatchLaterMD5(path string) string {
 	abs := path
-	if !filepath.IsAbs(path) {
+	isRootRelative := strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\")
+	if !isRootRelative && !filepath.IsAbs(path) {
 		if a, err := filepath.Abs(path); err == nil {
 			abs = a
 		}

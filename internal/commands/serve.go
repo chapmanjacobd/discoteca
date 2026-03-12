@@ -100,7 +100,7 @@ func (c *ServeCmd) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 // isPathBlacklisted checks if a path should be denied access
 func (c *ServeCmd) isPathBlacklisted(path string) bool {
-	p := strings.ToLower(path)
+	p := strings.ToLower(filepath.ToSlash(path))
 	blacklisted := []string{
 		"/etc/passwd",
 		"/etc/shadow",

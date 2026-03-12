@@ -54,15 +54,16 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 		if err != nil {
 			return err
 		}
-		defer sqlDB.Close()
 
 		if err := db.InitDB(sqlDB); err != nil {
+			sqlDB.Close()
 			return fmt.Errorf("failed to initialize database %s: %w", dbPath, err)
 		}
 
 		if c.Frequency != "" {
 			stats, err := query.HistoricalUsage(context.Background(), dbPath, c.Frequency, timeCol)
 			if err != nil {
+				sqlDB.Close()
 				return err
 			}
 
@@ -70,26 +71,32 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
 				if err := encoder.Encode(stats); err != nil {
+					sqlDB.Close()
 					return err
 				}
+				sqlDB.Close()
 				continue
 			}
 
 			fmt.Printf("%s media (%s) for %s:\n", utils.Title(c.Facet), c.Frequency, dbPath)
 			if err := PrintFrequencyStats(stats); err != nil {
+				sqlDB.Close()
 				return err
 			}
+			sqlDB.Close()
 			continue
 		}
 
 		queries := db.New(sqlDB)
 		stats, err := queries.GetStats(context.Background())
 		if err != nil {
+			sqlDB.Close()
 			return err
 		}
 
 		typeStats, err := queries.GetStatsByType(context.Background())
 		if err != nil {
+			sqlDB.Close()
 			return err
 		}
 
@@ -102,8 +109,10 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 			encoder := json.NewEncoder(os.Stdout)
 			encoder.SetIndent("", "  ")
 			if err := encoder.Encode(result); err != nil {
+				sqlDB.Close()
 				return err
 			}
+			sqlDB.Close()
 			continue
 		}
 
@@ -128,6 +137,7 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 			}
 		}
 		fmt.Println()
+		sqlDB.Close()
 	}
 	return nil
 }
