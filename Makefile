@@ -104,10 +104,10 @@ e2e-web: e2e-init
 
 fmt:
 	gofmt -s -w -e .
-	go fix -tags "$(BUILD_TAGS)" ./...
 	-goimports -w -e .
 	-gofumpt -w .
 	-gci write .
+	go fix -tags "$(BUILD_TAGS)" ./...
 
 lint:
 	-staticcheck -tags "$(BUILD_TAGS)" ./...

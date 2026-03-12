@@ -19,6 +19,7 @@ import (
 // This optimization prevents "Failed to convert subtitles" errors for files
 // without embedded subtitles.
 func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_subtitle_opt.db")
 
@@ -106,6 +107,7 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 // TestHandleSubtitles_WithEmbeddedSubtitles tests that the endpoint
 // proceeds with ffmpeg conversion when subtitle_count > 0
 func TestHandleSubtitles_WithEmbeddedSubtitles(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_with_subs.db")
 
@@ -168,6 +170,7 @@ func TestHandleSubtitles_WithEmbeddedSubtitles(t *testing.T) {
 // TestSubtitleCountDatabaseQuery tests that subtitle_count can be queried
 // efficiently from the database for optimization purposes
 func TestSubtitleCountDatabaseQuery(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_query.db")
 
@@ -232,6 +235,7 @@ func TestSubtitleCountDatabaseQuery(t *testing.T) {
 // TestHandleSubtitles_ExternalSubtitleFile tests that external subtitle files
 // (like .srt, .vtt) are still served correctly
 func TestHandleSubtitles_ExternalSubtitleFile(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_external.db")
 
@@ -286,6 +290,7 @@ Test subtitle line
 // TestHandleSubtitles_NoFFmpegCallForZeroCount verifies that ffmpeg binary
 // is not invoked when subtitle_count is 0
 func TestHandleSubtitles_NoFFmpegCallForZeroCount(t *testing.T) {
+	t.Parallel()
 	// Check if ffmpeg exists
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not installed, skipping ffmpeg invocation test")

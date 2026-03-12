@@ -405,11 +405,11 @@ Flags:
   --unique-only
         Filter for unique words (true/false)
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
 ```
@@ -566,11 +566,11 @@ Flags:
   --tui
         Interactive TUI mode
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
 ```
@@ -604,11 +604,11 @@ Flags:
   --offset
         Skip N results
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
   --category
@@ -2247,11 +2247,11 @@ Flags:
   --tui
         Interactive TUI mode
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
   -O, --play-in-order
@@ -2508,11 +2508,11 @@ Flags:
   --tui
         Interactive TUI mode
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
   -O, --play-in-order
@@ -3506,11 +3506,11 @@ Flags:
   --tui
         Interactive TUI mode
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
 ```
@@ -3760,11 +3760,11 @@ Flags:
   --dedupe-cmd
         Command to run for deduplication (rmlint-style: cmd duplicate keep)
   --fts
-        Use full-text search if available
+        Use FTS5 full-text search
   --fts-table
         FTS table name
-  --use-bleve
-        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
   -O, --play-in-order

@@ -3,32 +3,8 @@ package metadata
 import (
 	"context"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
 )
-
-func createMock(t *testing.T, tmpDir, name, content string) string {
-	fullName := name
-	if runtime.GOOS == "windows" {
-		fullName += ".bat"
-	}
-	path := filepath.Join(tmpDir, fullName)
-
-	actualContent := content
-	if runtime.GOOS == "windows" {
-		escaped := strings.ReplaceAll(content, "\"", "^\"")
-		actualContent = "@echo off\necho " + escaped
-	} else {
-		actualContent = "#!/bin/sh\n" + content
-	}
-
-	if err := os.WriteFile(path, []byte(actualContent), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
 
 func TestExtract_BasicInfo(t *testing.T) {
 	f, err := os.CreateTemp("", "meta-test-*.txt")

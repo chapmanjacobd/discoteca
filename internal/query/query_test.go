@@ -361,7 +361,6 @@ func TestSortMediaAdvanced(t *testing.T) {
 		{Media: models.Media{Path: filepath.FromSlash("dir2/file.mp4")}},
 		{Media: models.Media{Path: filepath.FromSlash("dir1/file.mp4")}},
 	}
-	}
 
 	NewSortBuilder(models.GlobalFlags{}).SortAdvanced(media, "natural_parent")
 	if !strings.Contains(media[0].Path, "dir1") {
