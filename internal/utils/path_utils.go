@@ -37,9 +37,11 @@ func TrimPathSegments(path string, desiredLength int) string {
 		return path
 	}
 
-	ext := filepath.Ext(path)
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
+	// Normalize to forward slashes for internal logic
+	workPath := filepath.ToSlash(path)
+	ext := filepath.Ext(workPath)
+	base := filepath.Base(workPath)
+	dir := filepath.Dir(workPath)
 
 	if dir == "." || dir == "/" || dir == "" {
 		if len(path) > desiredLength {
@@ -50,26 +52,25 @@ func TrimPathSegments(path string, desiredLength int) string {
 
 	pre := ""
 	if filepath.IsAbs(path) {
-		if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") {
-			pre = string(filepath.Separator)
-			dir = strings.TrimLeft(dir, "/\\")
-		} else if len(path) >= 2 && path[1] == ':' {
-			pre = path[:2] + string(filepath.Separator)
-			dir = path[2:]
-			if len(dir) > 0 && (dir[0] == '/' || dir[0] == '\\') {
-				dir = strings.TrimLeft(dir, "/\\")
-			}
+		if strings.HasPrefix(workPath, "/") {
+			pre = "/"
+			dir = strings.TrimPrefix(dir, "/")
+		} else if len(workPath) >= 2 && workPath[1] == ':' {
+			pre = workPath[:2] + "/"
+			dir = strings.TrimPrefix(dir, workPath[:2])
+			dir = strings.TrimLeft(dir, "/")
 		}
 	}
 
-	// Split on both separators for cross-platform support
-	segments := strings.FieldsFunc(dir, func(r rune) bool {
-		return r == '/' || r == '\\'
-	})
+	// Split on forward slash since we normalized above
+	segments := strings.Split(dir, "/")
+	if len(segments) == 1 && segments[0] == "" {
+		segments = []string{}
+	}
 
 	// Try shortening segments from left to right (grandparents first)
 	for i := range segments {
-		joined := pre + filepath.Join(append(segments, base)...)
+		joined := pre + strings.Join(append(segments, base), "/")
 		if len(joined) <= desiredLength {
 			break
 		}
@@ -78,20 +79,21 @@ func TrimPathSegments(path string, desiredLength int) string {
 		}
 	}
 
-	res := pre + filepath.Join(append(segments, base)...)
+	res := pre + strings.Join(append(segments, base), "/")
 	if len(res) > desiredLength {
 		// If still too long, shorten the base name
-		available := desiredLength - len(pre+filepath.Join(segments...)) - 1
+		available := desiredLength - len(pre+strings.Join(segments, "/")) - 1
 		if available > 3 {
 			stem := strings.TrimSuffix(base, ext)
 			shortenedBase := ShortenMiddle(stem, available-len(ext)) + ext
-			res = pre + filepath.Join(append(segments, shortenedBase)...)
+			res = pre + strings.Join(append(segments, shortenedBase), "/")
 		} else {
 			res = ShortenMiddle(res, desiredLength)
 		}
 	}
 
-	return res
+	// Convert back to OS-specific separators
+	return filepath.FromSlash(res)
 }
 
 // SafeJoin joins a base path with a user-provided path, preventing directory traversal

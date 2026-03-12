@@ -192,7 +192,7 @@ func TestAggregatePostFilteringExtra(t *testing.T) {
 
 	// Filter by FileCounts > 1
 	got := AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1, FileCounts: ">1"}})
-	if len(got) != 1 || got[0].Path != filepath.FromSlash("/dir1") {
+	if len(got) != 1 || filepath.ToSlash(got[0].Path) != filepath.ToSlash(filepath.FromSlash("/dir1")) {
 		t.Errorf("FileCounts filtering failed: %v", got)
 	}
 

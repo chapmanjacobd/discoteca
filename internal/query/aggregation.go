@@ -166,7 +166,6 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 		path := filepath.Clean(m.Path)
 		// Use pathutil for proper cross-platform path handling
 		parts, isAbs := pathutil.Split(path)
-		sep := string(filepath.Separator)
 
 		// 1. Add the file itself if it matches depth
 		if flags.Depth > 0 && len(parts) == flags.Depth {
@@ -184,10 +183,7 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 				if flags.MaxDepth > 0 && d+1 > flags.MaxDepth {
 					break
 				}
-				parent := filepath.Join(parts[:d+1]...)
-				if isAbs {
-					parent = sep + parent
-				}
+				parent := pathutil.Join(parts[:d+1], isAbs)
 				if _, ok := groups[parent]; !ok {
 					groups[parent] = &models.FolderStats{Path: parent}
 				}
@@ -203,20 +199,10 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 		} else if flags.Depth > 0 && len(parts) > flags.Depth {
 			// Group at depth (e.g., depth=1 -> "/media" or "media", depth=2 -> "/media/video")
 			var parent string
-			if isAbs {
-				// Absolute path: include the leading separator
-				if flags.Depth < len(parts) {
-					parent = sep + filepath.Join(parts[:flags.Depth]...)
-				} else {
-					parent = sep + filepath.Join(parts...)
-				}
+			if flags.Depth < len(parts) {
+				parent = pathutil.Join(parts[:flags.Depth], isAbs)
 			} else {
-				// Relative path: use exactly depth components
-				if flags.Depth <= len(parts) {
-					parent = filepath.Join(parts[:flags.Depth]...)
-				} else {
-					parent = filepath.Join(parts...)
-				}
+				parent = pathutil.Join(parts, isAbs)
 			}
 			if _, ok := groups[parent]; !ok {
 				groups[parent] = &models.FolderStats{Path: parent}
@@ -261,20 +247,22 @@ func updateStats(f *models.FolderStats, m models.MediaWithDB, isFolder bool) {
 func finalizeStats(groups map[string]*models.FolderStats) []models.FolderStats {
 	// Identify parents to count subdirectories
 	for path := range groups {
-		p := filepath.Dir(filepath.Clean(path))
-		for p != "." && p != "/" && p != "\\" {
-			if _, ok := groups[p]; ok {
-				groups[p].FolderCount++
+		parts, isAbs := pathutil.Split(path)
+		if len(parts) > 1 {
+			for i := len(parts) - 1; i > 0; i-- {
+				p := pathutil.Join(parts[:i], isAbs)
+				if _, ok := groups[p]; ok {
+					groups[p].FolderCount++
+				}
 			}
-			nextP := filepath.Dir(p)
-			if nextP == p {
-				break
-			}
-			p = nextP
 		}
-		if p == "/" || p == "\\" {
-			if _, ok := groups[p]; ok {
-				groups[p].FolderCount++
+		// Special case for root (isAbs with no components, or drive letter root)
+		if isAbs {
+			root := pathutil.Join(nil, true)
+			if path != root {
+				if _, ok := groups[root]; ok {
+					groups[root].FolderCount++
+				}
 			}
 		}
 	}

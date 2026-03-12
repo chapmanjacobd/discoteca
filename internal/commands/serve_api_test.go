@@ -32,6 +32,7 @@ func TestServeAPI_Query(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("ValidQuery", func(t *testing.T) {
@@ -78,6 +79,7 @@ func TestServeAPI_Metadata(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/api/metadata?db="+dbPath+"&path=/tmp/meta.mp4", nil)

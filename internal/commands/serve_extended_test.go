@@ -26,6 +26,7 @@ func TestServeExtended_Filters(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/api/filter-bins?db="+dbPath, nil)
