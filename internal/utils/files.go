@@ -247,7 +247,7 @@ func CommonPath(paths []string) string {
 		}
 	}
 
-	return filepath.FromSlash(strings.Join(parts, "/"))
+	return strings.Join(parts, "/")
 }
 
 // CommonPathFull returns a common path prefix.
