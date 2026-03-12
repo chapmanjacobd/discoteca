@@ -21,6 +21,9 @@ cd e2e && npm run test:debug
 cd e2e && npm run test:report
 ```
 
+> **Important:** All `npx playwright` commands must be run from within the `e2e/` directory.
+> The Playwright configuration and dependencies are located in `e2e/`, not the project root.
+
 ## Architecture
 
 ### Page Objects
@@ -105,7 +108,12 @@ npx playwright test --headed
 
 # Check for flakes (5 runs)
 for i in 1 2 3 4 5; do npx playwright test --project=desktop; done
+
+# Generate README screenshots (strips metadata for deterministic output)
+make screenshots
 ```
+
+> **Note:** Always run `npx playwright` commands from the `e2e/` directory.
 
 ## Test Database
 

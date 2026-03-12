@@ -83,6 +83,37 @@ jobs:
           DISCO_BASE_URL: http://localhost:8080
           CI: true
 
+      - name: Run benchmarks
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          go test -tags "${BUILD_TAGS}" -bench=. -benchmem -benchtime=1s ./... > benchmark-results.txt
+          cat benchmark-results.txt
+
+      - name: Upload benchmark results
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          path: benchmark-results.txt
+          retention-days: 30
+          archive: false
+
+      - name: Run benchmarks with CPU profiling
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          go test -tags "${BUILD_TAGS}" -bench=BenchmarkSearch -cpuprof=cpu.prof -memprof=mem.prof -benchtime=5s ./internal/commands/
+          go tool pprof -svg -output=cpu-profile.svg ./internal/commands/ cpu.prof
+          go tool pprof -svg -output=mem-profile.svg ./internal/commands/ mem.prof
+
+      - name: Upload profile data
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            cpu-profile.svg
+            mem-profile.svg
+          retention-days: 7
+          archive: false
+
       - name: Upload test results
         if: always() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v7

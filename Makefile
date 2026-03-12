@@ -1,4 +1,4 @@
-.PHONY: build build-fts5 build-bleve build-nofts test cover webtest webcover e2e clean fmt lint sql install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build
+.PHONY: build build-fts5 build-bleve build-nofts test cover webtest webcover e2e clean fmt lint sql install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build benchmark benchstat profiles screenshots
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
@@ -71,9 +71,6 @@ dev:
 	(sleep 2 && xdg-open http://localhost:5555) &
 	air -d
 
-readme: build
-	./$(BINARY_NAME)$(EXE) readme > README.md
-
 test:
 	go test -tags "$(BUILD_TAGS)" ./...
 
@@ -118,12 +115,6 @@ sql:
 	sqlc vet
 	-sqlc diff
 
-clean:
-	rm -f $(BINARY_NAME)
-	rm -f test.db
-	rm -f $(BINARY_NAME).exe
-	rm -f coverage.out
-
 # Install the binary to $GOPATH/bin
 install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco
@@ -131,3 +122,43 @@ install:
 release-build: webbuild
 	mkdir -p dist
 	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -tags "$(BUILD_TAGS)" -o dist/$(BINARY_NAME)-$(GOOS)-$(GOARCH)$(EXE) ./cmd/disco
+
+# Benchmark tests
+benchmark:
+	go test -tags "$(BUILD_TAGS)" -bench=. -benchmem -benchtime=2s ./...
+
+# Run benchmarks and save results
+benchmark-save:
+	go test -tags "$(BUILD_TAGS)" -bench=. -benchmem -benchtime=5s -count=5 ./... > benchmark-$(shell date +%Y%m%d-%H%M%S).txt
+
+# Compare benchmarks with benchstat
+benchstat:
+	@echo "Usage: make benchstat old=old-benchmarks.txt new=new-benchmarks.txt"
+	benchstat $(old) $(new)
+
+# Generate CPU and memory profiles
+profiles:
+	go test -tags "$(BUILD_TAGS)" -bench=BenchmarkSearch -benchtime=10s \
+		-cpuprof=cpu.prof -memprof=mem.prof -trace=trace.out ./internal/commands/
+	@echo "Profiles generated: cpu.prof, mem.prof, trace.out"
+	@echo "View with: go tool pprof -http=:8080 ./internal/commands/ cpu.prof"
+
+# Generate SVG profiles
+profiles-svg: profiles
+	go tool pprof -svg -output=cpu-profile.svg ./internal/commands/ cpu.prof
+	go tool pprof -svg -output=mem-profile.svg ./internal/commands/ mem.prof
+	@echo "SVG profiles generated: cpu-profile.svg, mem-profile.svg"
+
+screenshots: build
+	cd e2e && npx playwright test screenshots --project=desktop
+
+readme: clean build screenshots
+	./$(BINARY_NAME)$(EXE) readme > README.md
+
+clean:
+	rm -f $(BINARY_NAME)
+	rm -f test.db
+	rm -f $(BINARY_NAME).exe
+	rm -f coverage.out
+	rm -f *.prof *.out *.svg
+	rm -f benchmark-*.txt

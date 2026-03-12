@@ -13,6 +13,10 @@ import (
 )
 
 func main() {
+	// Setup profiling (only when built with -tags pyroscope)
+	cleanup := setupProfiling()
+	defer cleanup()
+
 	utils.AutoUpdate()
 	cli := &CLI{}
 	parser, err := kong.New(cli,

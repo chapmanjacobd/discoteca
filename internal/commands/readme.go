@@ -62,6 +62,24 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("go build -tags \"fts5\" -o disco ./cmd/disco\n")
 	sb.WriteString("```\n\n")
 
+	sb.WriteString("## Screenshots\n\n")
+	sb.WriteString("### Grid View\n\n")
+	sb.WriteString("![Grid View](docs/screenshots/home-grid-view.png)\n\n")
+	sb.WriteString("### Details View\n\n")
+	sb.WriteString("![Details View](docs/screenshots/home-details-view.png)\n\n")
+	sb.WriteString("### Video Player\n\n")
+	sb.WriteString("![Video Player](docs/screenshots/video-player.png)\n\n")
+	sb.WriteString("### EPUB Viewer\n\n")
+	sb.WriteString("![EPUB Viewer](docs/screenshots/epub-viewer.png)\n\n")
+	sb.WriteString("### Search Results\n\n")
+	sb.WriteString("![Search Results](docs/screenshots/search-results.png)\n\n")
+	sb.WriteString("### Filters Sidebar\n\n")
+	sb.WriteString("![Filters Sidebar](docs/screenshots/filters-sidebar.png)\n\n")
+	sb.WriteString("### Settings Modal\n\n")
+	sb.WriteString("![Settings Modal](docs/screenshots/settings-modal.png)\n\n")
+	sb.WriteString("### Group View\n\n")
+	sb.WriteString("![Group View](docs/screenshots/group-view.png)\n\n")
+
 	sb.WriteString("## Usage\n\n")
 
 	examples := map[string][]string{
@@ -142,6 +160,13 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 		sb.WriteString("```\n\n")
 		sb.WriteString("</details>\n\n")
 	}
+
+	sb.WriteString("## Documentation\n\n")
+	sb.WriteString("- [Installation Guide](INSTALL.md) - Platform-specific installation instructions\n")
+	sb.WriteString("- [Performance Tracking](PERFORMANCE.md) - Benchmarking and profiling guide\n")
+	sb.WriteString("- [Build Modes](BUILD_MODES.md) - Build configuration options\n\n")
+	sb.WriteString("## License\n\n")
+	sb.WriteString("See [LICENSE](LICENSE) file for details.\n")
 
 	fmt.Print(sb.String())
 	return nil

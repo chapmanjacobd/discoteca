@@ -11,6 +11,9 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/keyword"
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/standard"
+	_ "github.com/blevesearch/bleve/v2/analysis/analyzer/custom" // Register custom analyzer
+	_ "github.com/blevesearch/bleve/v2/analysis/token/lowercase" // Register lowercase filter
+	_ "github.com/blevesearch/bleve/v2/analysis/token/edgengram" // Register edge_ngram filter
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -107,10 +110,12 @@ func createIndex(path string) (bleve.Index, error) {
 	ftsPathField := bleve.NewTextFieldMapping()
 	ftsPathField.Analyzer = standard.Name // For full-text search
 
+	// Title field with edge_ngram for prefix/autocomplete search
 	titleField := bleve.NewTextFieldMapping()
-	titleField.Analyzer = standard.Name
+	titleField.Analyzer = "title_edge_ngram"
 	titleField.IncludeInAll = true
 
+	// Description with standard analyzer
 	descriptionField := bleve.NewTextFieldMapping()
 	descriptionField.Analyzer = standard.Name
 	descriptionField.IncludeInAll = true
@@ -130,6 +135,32 @@ func createIndex(path string) (bleve.Index, error) {
 	indexMapping := bleve.NewIndexMapping()
 	indexMapping.DefaultMapping = docMapping
 	indexMapping.DefaultAnalyzer = standard.Name
+
+	// Register custom edge_ngram analyzer for title autocomplete
+	// This creates tokens from the start of words: "matrix" → "m", "ma", "mat", "matr", "matri", "matrix"
+	// First register the edge_ngram token filter
+	err := indexMapping.AddCustomTokenFilter("title_edge_ngram", map[string]interface{}{
+		"type": "edge_ngram",
+		"min":  float64(1),
+		"max":  float64(20),
+		"back": false, // false = FRONT side (prefix)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register edge_ngram token filter: %w", err)
+	}
+
+	// Now create the analyzer using the custom filter
+	err = indexMapping.AddCustomAnalyzer("title_edge_ngram", map[string]interface{}{
+		"type":      "custom",
+		"tokenizer": "unicode",
+		"token_filters": []string{
+			"to_lower",
+			"title_edge_ngram",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register edge_ngram analyzer: %w", err)
+	}
 
 	// Create the index
 	return bleve.New(path, indexMapping)

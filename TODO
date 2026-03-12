@@ -1,9 +1,3 @@
-Lets add performance tracing in CI so we can keep track of what causes things to be slow
-something like:
-go tool trace
-benchstat
-pprof
-Pyroscope
 
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
@@ -53,7 +47,7 @@ lambda x: (
 
 non-fts build should have support for substring searches somehow... do an estimated performance benchmark comparison of the options
 
-test large database Web UI performance
+test large database Web UI performance, fts5 vs bleve
 
 Add Time Modified, Time Created, and Time Downloaded range slider filters
 

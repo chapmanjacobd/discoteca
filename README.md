@@ -35,6 +35,40 @@ cd discoteca
 go build -tags "fts5" -o disco ./cmd/disco
 ```
 
+## Screenshots
+
+### Grid View
+
+![Grid View](docs/screenshots/home-grid-view.png)
+
+### Details View
+
+![Details View](docs/screenshots/home-details-view.png)
+
+### Video Player
+
+![Video Player](docs/screenshots/video-player.png)
+
+### EPUB Viewer
+
+![EPUB Viewer](docs/screenshots/epub-viewer.png)
+
+### Search Results
+
+![Search Results](docs/screenshots/search-results.png)
+
+### Filters Sidebar
+
+![Filters Sidebar](docs/screenshots/filters-sidebar.png)
+
+### Settings Modal
+
+![Settings Modal](docs/screenshots/settings-modal.png)
+
+### Group View
+
+![Group View](docs/screenshots/group-view.png)
+
 ## Usage
 
 ### add
@@ -4509,3 +4543,12 @@ Flags:
 
 </details>
 
+## Documentation
+
+- [Installation Guide](INSTALL.md) - Platform-specific installation instructions
+- [Performance Tracking](PERFORMANCE.md) - Benchmarking and profiling guide
+- [Build Modes](BUILD_MODES.md) - Build configuration options
+
+## License
+
+See [LICENSE](LICENSE) file for details.
