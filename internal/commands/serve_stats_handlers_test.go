@@ -22,9 +22,12 @@ func TestHandleCategories(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, categories, time_deleted) VALUES 
-		('/tmp/test1.mp4', 'Test1', 'video', 'comedy;action', 0),
-		('/tmp/test2.mp4', 'Test2', 'video', 'comedy', 0),
-		('/tmp/test3.mp4', 'Test3', 'video', '', 0)`)
+		(?, 'Test1', 'video', 'comedy;action', 0),
+		(?, 'Test2', 'video', 'comedy', 0),
+		(?, 'Test3', 'video', '', 0)`,
+		filepath.FromSlash("/tmp/test1.mp4"),
+		filepath.FromSlash("/tmp/test2.mp4"),
+		filepath.FromSlash("/tmp/test3.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,6 +36,7 @@ func TestHandleCategories(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/api/categories", nil)
@@ -73,9 +77,12 @@ func TestHandleGenres(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, genre, time_deleted) VALUES 
-		('/tmp/test1.mp4', 'Test1', 'video', 'Action', 0),
-		('/tmp/test2.mp4', 'Test2', 'video', 'Action', 0),
-		('/tmp/test3.mp4', 'Test3', 'video', 'Comedy', 0)`)
+		(?, 'Test1', 'video', 'Action', 0),
+		(?, 'Test2', 'video', 'Action', 0),
+		(?, 'Test3', 'video', 'Comedy', 0)`,
+		filepath.FromSlash("/tmp/test1.mp4"),
+		filepath.FromSlash("/tmp/test2.mp4"),
+		filepath.FromSlash("/tmp/test3.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +91,7 @@ func TestHandleGenres(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/api/genres", nil)
@@ -124,9 +132,12 @@ func TestHandleRatings(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, score, time_deleted) VALUES 
-		('/tmp/test1.mp4', 'Test1', 'video', 5.0, 0),
-		('/tmp/test2.mp4', 'Test2', 'video', 5.0, 0),
-		('/tmp/test3.mp4', 'Test3', 'video', 3.0, 0)`)
+		(?, 'Test1', 'video', 5.0, 0),
+		(?, 'Test2', 'video', 5.0, 0),
+		(?, 'Test3', 'video', 3.0, 0)`,
+		filepath.FromSlash("/tmp/test1.mp4"),
+		filepath.FromSlash("/tmp/test2.mp4"),
+		filepath.FromSlash("/tmp/test3.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +146,7 @@ func TestHandleRatings(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/api/ratings", nil)

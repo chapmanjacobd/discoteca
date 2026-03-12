@@ -98,9 +98,9 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 
 	var filteredInclude []string
 	for _, term := range allInclude {
-		if strings.HasPrefix(term, "./") {
-			pathContains = append(pathContains, term[1:]) // Strip . keep /
-		} else if strings.HasPrefix(term, "/") {
+		if strings.HasPrefix(term, "./") || strings.HasPrefix(term, ".\\") {
+			pathContains = append(pathContains, term[2:])
+		} else if strings.HasPrefix(term, "/") || strings.HasPrefix(term, "\\") {
 			pathContains = append(pathContains, term)
 		} else {
 			filteredInclude = append(filteredInclude, term)
@@ -1252,7 +1252,10 @@ func (qe *QueryExecutor) FetchSiblings(ctx context.Context, media []models.Media
 
 	parentToFiles := make(map[string][]models.MediaWithDB)
 	for _, m := range media {
-		dir := m.Parent() + "/"
+		dir := m.Parent()
+		if !strings.HasSuffix(dir, string(filepath.Separator)) {
+			dir += string(filepath.Separator)
+		}
 		parentToFiles[dir] = append(parentToFiles[dir], m)
 	}
 

@@ -111,12 +111,14 @@ func TestMpvWatchLaterValue(t *testing.T) {
 }
 
 func TestPathToMpvWatchLaterMD5(t *testing.T) {
-	path := filepath.FromSlash("/home/xk/github/xk/lb/tests/data/test.mp4")
-	expected := "E1E0D0E3F0D2CB748303FDA43224B7E7"
-
-	actual := PathToMpvWatchLaterMD5(path)
-	if actual != expected {
-		t.Errorf("PathToMpvWatchLaterMD5(%s) = %s; want %s", path, actual, expected)
+	// We want to test that it produces the SAME hash as mpv would for this path.
+	// mpv uses forward slashes for the hash even on Windows.
+	path := "/home/xk/github/xk/lb/tests/data/test.mp4"
+	// The function internals should NOT use filepath.Abs if we provide an absolute-looking path starting with "/"
+	got := PathToMpvWatchLaterMD5(path)
+	want := "E1E0D0E3F0D2CB748303FDA43224B7E7"
+	if got != want {
+		t.Errorf("PathToMpvWatchLaterMD5(%s) = %s; want %s", path, got, want)
 	}
 }
 

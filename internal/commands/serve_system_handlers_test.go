@@ -23,6 +23,7 @@ func TestServeHandlers_Health(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -41,6 +42,7 @@ func TestServeHandlers_Health(t *testing.T) {
 func TestServeHandlers_Favicon(t *testing.T) {
 	t.Parallel()
 	cmd := &ServeCmd{}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest("GET", "/favicon.ico", nil)

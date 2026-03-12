@@ -22,10 +22,11 @@ func TestRawNotFound(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("MediaNotFound", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/raw?db="+dbPath+"&path=/nonexistent.mp4", nil)
+		req := httptest.NewRequest("GET", "/api/raw?db="+dbPath+"&path="+filepath.FromSlash("/nonexistent.mp4"), nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -36,7 +37,7 @@ func TestRawNotFound(t *testing.T) {
 	})
 
 	t.Run("DatabaseNotFound", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/raw?db=missing.db&path=/some.mp4", nil)
+		req := httptest.NewRequest("GET", "/api/raw?db=missing.db&path="+filepath.FromSlash("/some.mp4"), nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)

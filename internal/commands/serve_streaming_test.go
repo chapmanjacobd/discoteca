@@ -40,6 +40,7 @@ Test subtitle
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("ValidVTTSubtitle", func(t *testing.T) {
@@ -105,6 +106,7 @@ func TestHandleThumbnail(t *testing.T) {
 		cmd := &ServeCmd{
 			Databases: []string{dbPath},
 		}
+		defer cmd.Close()
 		mux := cmd.Mux()
 
 		req := httptest.NewRequest("GET", "/api/thumbnail?path="+imgPath, nil)
@@ -126,6 +128,7 @@ func TestHandleThumbnail(t *testing.T) {
 		cmd := &ServeCmd{
 			Databases: []string{dbPath},
 		}
+		defer cmd.Close()
 		mux := cmd.Mux()
 
 		req := httptest.NewRequest("GET", "/api/thumbnail", nil)
@@ -142,6 +145,7 @@ func TestHandleThumbnail(t *testing.T) {
 		cmd := &ServeCmd{
 			Databases: []string{dbPath},
 		}
+		defer cmd.Close()
 		mux := cmd.Mux()
 
 		req := httptest.NewRequest("GET", "/api/thumbnail?path=/etc/passwd", nil)
@@ -168,6 +172,7 @@ func TestHandleThumbnail(t *testing.T) {
 		cmd := &ServeCmd{
 			Databases: []string{dbPath},
 		}
+		defer cmd.Close()
 		mux := cmd.Mux()
 
 		req := httptest.NewRequest("GET", "/api/thumbnail?path="+txtPath, nil)
@@ -209,6 +214,7 @@ func TestHandleDU(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("RootLevel", func(t *testing.T) {
@@ -260,6 +266,7 @@ func TestHandleEpisodes(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("GroupEpisodes", func(t *testing.T) {

@@ -1,43 +1,47 @@
 package metadata
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 )
 
 func createMock(t *testing.T, tmpDir, name, content string) string {
 	fullName := name
 	if runtime.GOOS == "windows" {
-		fullName += ".bat"
+		fullName += ".exe"
 	}
-	path := filepath.Join(tmpDir, fullName)
+	binPath := filepath.Join(tmpDir, fullName)
 
-	actualContent := content
-	if runtime.GOOS == "windows" {
-		if name == "ffmpeg" {
-			actualContent = `@echo off
-for %%a in (%*) do (
-    if "%%a"=="20.00" exit /b 1
-)
-exit /b 0`
-		} else {
-			// On Windows, escaping JSON for echo in a .bat is painful.
-			escaped := strings.ReplaceAll(content, "\"", "^\"")
-			actualContent = "@echo off\necho " + escaped
+	// Create a small Go program that prints the content
+	goFile := filepath.Join(tmpDir, name+".go")
+	goSource := fmt.Sprintf(`package main
+import "fmt"
+import "os"
+func main() {
+	if "%s" == "ffmpeg" {
+		for _, arg := range os.Args {
+			if arg == "20.00" {
+				os.Exit(1)
+			}
 		}
-	} else {
-		if name == "ffmpeg" {
-			actualContent = "#!/bin/sh\n" + content
-		} else {
-			actualContent = "#!/bin/sh\necho '" + strings.ReplaceAll(content, "'", "'\\''") + "'"
-		}
+		os.Exit(0)
 	}
+	fmt.Print(`+"`"+`%s`+"`"+`)
+}
+`, name, content)
 
-	if err := os.WriteFile(path, []byte(actualContent), 0o755); err != nil {
+	if err := os.WriteFile(goFile, []byte(goSource), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return path
+
+	cmd := exec.Command("go", "build", "-o", binPath, goFile)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to build mock %s: %v\nOutput: %s", name, err, string(out))
+	}
+
+	return binPath
 }

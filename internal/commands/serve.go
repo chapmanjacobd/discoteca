@@ -287,8 +287,27 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 	return lastErr
 }
 
+// Close closes all cached database connections
+func (c *ServeCmd) Close() error {
+	var errs []error
+	c.dbCache.Range(func(key, value any) bool {
+		if sqlDB, ok := value.(*sql.DB); ok {
+			if err := sqlDB.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		c.dbCache.Delete(key)
+		return true
+	})
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to close some databases: %v", errs)
+	}
+	return nil
+}
+
 // Run starts the HTTP server
 func (c *ServeCmd) Run(ctx *kong.Context) error {
+	defer c.Close()
 	models.SetupLogging(c.Verbose)
 	c.ApplicationStartTime = time.Now().UnixNano()
 

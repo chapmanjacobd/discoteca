@@ -3,6 +3,7 @@ package commands
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -15,15 +16,16 @@ func TestSecurity_Blacklist(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
+	defer cmd.Close()
 	cmd.APIToken = "test-token"
 
 	testCases := []struct {
 		path     string
 		expected int
 	}{
-		{"/etc/passwd", http.StatusForbidden},
-		{"/home/user/.ssh/id_rsa", http.StatusForbidden},
-		{"/media/video.mp4", http.StatusNotFound}, // Returns 404 when not in DB
+		{filepath.FromSlash("/etc/passwd"), http.StatusForbidden},
+		{filepath.FromSlash("/home/user/.ssh/id_rsa"), http.StatusForbidden},
+		{filepath.FromSlash("/media/video.mp4"), http.StatusNotFound}, // Returns 404 when not in DB
 	}
 
 	for _, tc := range testCases {

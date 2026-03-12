@@ -96,56 +96,45 @@ func (m *Media) Extension() string {
 }
 
 func (m *Media) ParentAtDepth(depth int) string {
-	dir := filepath.Clean(m.Path)
-	if !filepath.IsAbs(dir) {
-		// For relative paths, we might want to handle them differently or just use Dir
-		dir = filepath.Dir(dir)
-	} else {
-		dir = filepath.Dir(dir)
-	}
-
-	if dir == "." || dir == string(filepath.Separator) || dir == "" {
-		return string(filepath.Separator)
-	}
-
-	// Split by system separator
-	parts := strings.Split(dir, string(filepath.Separator))
-
-	// Handle leading separator for absolute paths
-	isAbs := filepath.IsAbs(dir)
-	if isAbs && len(parts) > 0 && parts[0] == "" {
-		// Unix-like absolute path /dir/sub
-		if depth <= 0 {
+	if depth <= 0 {
+		if filepath.IsAbs(m.Path) {
+			// Return root or drive root
+			vol := filepath.VolumeName(m.Path)
+			if vol != "" {
+				return vol + string(filepath.Separator)
+			}
 			return string(filepath.Separator)
 		}
-		if depth >= len(parts) {
-			return dir
-		}
-		return strings.Join(parts[:depth+1], string(filepath.Separator))
+		return "."
 	}
 
-	if !isAbs {
-		if depth <= 0 {
-			return "."
-		}
-		if depth >= len(parts) {
-			return dir
-		}
-		return strings.Join(parts[:depth], string(filepath.Separator))
-	}
-
-	// Windows absolute path C:\dir\sub
-	if depth <= 0 {
-		// Drive root
-		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			return parts[0] + string(filepath.Separator)
-		}
-		return string(filepath.Separator)
-	}
-	if depth >= len(parts) {
+	dir := filepath.Dir(filepath.Clean(m.Path))
+	if dir == "." || dir == string(filepath.Separator) || dir == "" {
 		return dir
 	}
-	return strings.Join(parts[:depth+1], string(filepath.Separator))
+
+	// Use forward slashes for consistent depth splitting
+	slashDir := filepath.ToSlash(dir)
+	isAbs := filepath.IsAbs(m.Path)
+	vol := filepath.VolumeName(m.Path)
+
+	cleanSlashDir := strings.TrimPrefix(slashDir, filepath.ToSlash(vol))
+	cleanSlashDir = strings.TrimPrefix(cleanSlashDir, "/")
+
+	parts := strings.Split(cleanSlashDir, "/")
+	if parts[0] == "" {
+		parts = parts[1:]
+	}
+
+	if depth > len(parts) {
+		depth = len(parts)
+	}
+
+	res := strings.Join(parts[:depth], "/")
+	if isAbs {
+		return filepath.FromSlash(filepath.ToSlash(vol) + "/" + res)
+	}
+	return filepath.FromSlash(res)
 }
 
 // MediaWithDB wraps Media with the database path it came from

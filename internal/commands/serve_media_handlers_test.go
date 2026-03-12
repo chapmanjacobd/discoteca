@@ -22,7 +22,7 @@ func TestHandleRate(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, score, time_deleted) VALUES 
-		('/tmp/test1.mp4', 'Test1', 'video', 0, 0)`)
+		(?, 'Test1', 'video', 0, 0)`, filepath.FromSlash("/tmp/test1.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,11 +32,12 @@ func TestHandleRate(t *testing.T) {
 		Databases: []string{dbPath},
 		ReadOnly:  false,
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("ValidRate", func(t *testing.T) {
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":  "/tmp/test1.mp4",
+			"path":  filepath.FromSlash("/tmp/test1.mp4"),
 			"score": 4.5,
 		})
 		req := httptest.NewRequest("POST", "/api/rate", bytes.NewBuffer(reqBody))
@@ -52,7 +53,7 @@ func TestHandleRate(t *testing.T) {
 		sqlDB, _ := sql.Open("sqlite3", dbPath)
 		defer sqlDB.Close()
 		var score float64
-		sqlDB.QueryRow("SELECT score FROM media WHERE path = ?", "/tmp/test1.mp4").Scan(&score)
+		sqlDB.QueryRow("SELECT score FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&score)
 		if score != 4.5 {
 			t.Errorf("Expected score 4.5, got %f", score)
 		}
@@ -61,7 +62,7 @@ func TestHandleRate(t *testing.T) {
 	t.Run("ReadOnlyMode", func(t *testing.T) {
 		cmd.ReadOnly = true
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":  "/tmp/test1.mp4",
+			"path":  filepath.FromSlash("/tmp/test1.mp4"),
 			"score": 3.0,
 		})
 		req := httptest.NewRequest("POST", "/api/rate", bytes.NewBuffer(reqBody))
@@ -96,7 +97,7 @@ func TestHandleDelete(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, time_deleted) VALUES 
-		('/tmp/test1.mp4', 'Test1', 'video', 0)`)
+		(?, 'Test1', 'video', 0)`, filepath.FromSlash("/tmp/test1.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,11 +107,12 @@ func TestHandleDelete(t *testing.T) {
 		Databases: []string{dbPath},
 		ReadOnly:  false,
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("MarkAsDeleted", func(t *testing.T) {
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":    "/tmp/test1.mp4",
+			"path":    filepath.FromSlash("/tmp/test1.mp4"),
 			"restore": false,
 		})
 		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
@@ -126,7 +128,7 @@ func TestHandleDelete(t *testing.T) {
 		sqlDB, _ := sql.Open("sqlite3", dbPath)
 		defer sqlDB.Close()
 		var timeDeleted int64
-		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", "/tmp/test1.mp4").Scan(&timeDeleted)
+		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&timeDeleted)
 		if timeDeleted == 0 {
 			t.Error("Expected time_deleted to be set")
 		}
@@ -134,7 +136,7 @@ func TestHandleDelete(t *testing.T) {
 
 	t.Run("Restore", func(t *testing.T) {
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":    "/tmp/test1.mp4",
+			"path":    filepath.FromSlash("/tmp/test1.mp4"),
 			"restore": true,
 		})
 		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
@@ -150,7 +152,7 @@ func TestHandleDelete(t *testing.T) {
 		sqlDB, _ := sql.Open("sqlite3", dbPath)
 		defer sqlDB.Close()
 		var timeDeleted int64
-		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", "/tmp/test1.mp4").Scan(&timeDeleted)
+		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&timeDeleted)
 		if timeDeleted != 0 {
 			t.Error("Expected time_deleted to be 0 after restore")
 		}
@@ -159,7 +161,7 @@ func TestHandleDelete(t *testing.T) {
 	t.Run("ReadOnlyMode", func(t *testing.T) {
 		cmd.ReadOnly = true
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":    "/tmp/test1.mp4",
+			"path":    filepath.FromSlash("/tmp/test1.mp4"),
 			"restore": false,
 		})
 		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
@@ -183,7 +185,7 @@ func TestHandleProgress(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, playhead, play_count, time_deleted) VALUES 
-		('/tmp/test1.mp4', 'Test1', 'video', 0, 0, 0)`)
+		(?, 'Test1', 'video', 0, 0, 0)`, filepath.FromSlash("/tmp/test1.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,11 +195,12 @@ func TestHandleProgress(t *testing.T) {
 		Databases: []string{dbPath},
 		ReadOnly:  false,
 	}
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("UpdateProgress", func(t *testing.T) {
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":      "/tmp/test1.mp4",
+			"path":      filepath.FromSlash("/tmp/test1.mp4"),
 			"playhead":  120,
 			"completed": false,
 		})
@@ -215,7 +218,7 @@ func TestHandleProgress(t *testing.T) {
 		defer sqlDB.Close()
 		var playhead int64
 		var playCount int64
-		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", "/tmp/test1.mp4").Scan(&playhead, &playCount)
+		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&playhead, &playCount)
 		if playhead != 120 {
 			t.Errorf("Expected playhead 120, got %d", playhead)
 		}
@@ -226,7 +229,7 @@ func TestHandleProgress(t *testing.T) {
 
 	t.Run("CompletePlayback", func(t *testing.T) {
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":      "/tmp/test1.mp4",
+			"path":      filepath.FromSlash("/tmp/test1.mp4"),
 			"playhead":  600,
 			"completed": true,
 		})
@@ -244,7 +247,7 @@ func TestHandleProgress(t *testing.T) {
 		defer sqlDB.Close()
 		var playhead int64
 		var playCount int64
-		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", "/tmp/test1.mp4").Scan(&playhead, &playCount)
+		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&playhead, &playCount)
 		if playCount != 1 {
 			t.Errorf("Expected play_count 1 after completion, got %d", playCount)
 		}
@@ -253,7 +256,7 @@ func TestHandleProgress(t *testing.T) {
 	t.Run("ReadOnlyMode", func(t *testing.T) {
 		cmd.ReadOnly = true
 		reqBody, _ := json.Marshal(map[string]any{
-			"path":      "/tmp/test1.mp4",
+			"path":      filepath.FromSlash("/tmp/test1.mp4"),
 			"playhead":  50,
 			"completed": false,
 		})

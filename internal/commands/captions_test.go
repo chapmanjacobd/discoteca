@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -52,10 +53,12 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	// Insert test media
 	_, err = db.Exec(`
 		INSERT INTO media (path, title, type, size, duration) VALUES
-			('/videos/test1.mp4', 'Test Video 1', 'video/mp4', 1024, 120),
-			('/videos/test2.mp4', 'Test Video 2', 'video/mp4', 2048, 180),
-			('/videos/test3.mp4', 'Test Video 3', 'video/mp4', 512, 90);
-	`)
+			(?, 'Test Video 1', 'video/mp4', 1024, 120),
+			(?, 'Test Video 2', 'video/mp4', 2048, 180),
+			(?, 'Test Video 3', 'video/mp4', 512, 90)`,
+		filepath.FromSlash("/videos/test1.mp4"),
+		filepath.FromSlash("/videos/test2.mp4"),
+		filepath.FromSlash("/videos/test3.mp4"))
 	if err != nil {
 		t.Fatalf("Failed to insert media: %v", err)
 	}
@@ -63,12 +66,16 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	// Insert test captions
 	_, err = db.Exec(`
 		INSERT INTO captions (media_path, time, text) VALUES
-			('/videos/test1.mp4', 10.5, 'Hello world from video 1'),
-			('/videos/test1.mp4', 20.3, 'Another caption in video 1'),
-			('/videos/test2.mp4', 15.0, 'Caption from video 2'),
-			('/videos/test3.mp4', 5.0, 'First caption in video 3'),
-			('/videos/test3.mp4', 25.0, 'Second caption in video 3');
-	`)
+			(?, 10.5, 'Hello world from video 1'),
+			(?, 20.3, 'Another caption in video 1'),
+			(?, 15.0, 'Caption from video 2'),
+			(?, 5.0, 'First caption in video 3'),
+			(?, 25.0, 'Second caption in video 3')`,
+		filepath.FromSlash("/videos/test1.mp4"),
+		filepath.FromSlash("/videos/test1.mp4"),
+		filepath.FromSlash("/videos/test2.mp4"),
+		filepath.FromSlash("/videos/test3.mp4"),
+		filepath.FromSlash("/videos/test3.mp4"))
 	if err != nil {
 		t.Fatalf("Failed to insert captions: %v", err)
 	}
@@ -79,6 +86,7 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
+	defer cmd.Close()
 
 	t.Run("GetAllCaptions returns all captions", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=100", nil)
@@ -209,6 +217,7 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
+	defer cmd.Close()
 
 	t.Run("GetAllCaptions with no captions returns empty array", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=100", nil)
@@ -256,9 +265,9 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 	_, err = db1.Exec(`
 		CREATE TABLE media (path TEXT PRIMARY KEY, title TEXT, type TEXT, size INTEGER, duration INTEGER, time_deleted INTEGER DEFAULT 0);
 		CREATE TABLE captions (rowid INTEGER PRIMARY KEY AUTOINCREMENT, media_path TEXT, time REAL, text TEXT);
-		INSERT INTO media (path, title, type, size, duration) VALUES ('/db1/video1.mp4', 'DB1 Video', 'video/mp4', 1024, 120);
-		INSERT INTO captions (media_path, time, text) VALUES ('/db1/video1.mp4', 10.0, 'Caption from DB1');
-	`)
+		INSERT INTO media (path, title, type, size, duration) VALUES (?, 'DB1 Video', 'video/mp4', 1024, 120);
+		INSERT INTO captions (media_path, time, text) VALUES (?, 10.0, 'Caption from DB1');
+	`, filepath.FromSlash("/db1/video1.mp4"), filepath.FromSlash("/db1/video1.mp4"))
 	if err != nil {
 		t.Fatalf("Failed to setup db1: %v", err)
 	}
@@ -272,9 +281,9 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 	_, err = db2.Exec(`
 		CREATE TABLE media (path TEXT PRIMARY KEY, title TEXT, type TEXT, size INTEGER, duration INTEGER, time_deleted INTEGER DEFAULT 0);
 		CREATE TABLE captions (rowid INTEGER PRIMARY KEY AUTOINCREMENT, media_path TEXT, time REAL, text TEXT);
-		INSERT INTO media (path, title, type, size, duration) VALUES ('/db2/video1.mp4', 'DB2 Video', 'video/mp4', 2048, 180);
-		INSERT INTO captions (media_path, time, text) VALUES ('/db2/video1.mp4', 20.0, 'Caption from DB2');
-	`)
+		INSERT INTO media (path, title, type, size, duration) VALUES (?, 'DB2 Video', 'video/mp4', 2048, 180);
+		INSERT INTO captions (media_path, time, text) VALUES (?, 20.0, 'Caption from DB2');
+	`, filepath.FromSlash("/db2/video1.mp4"), filepath.FromSlash("/db2/video1.mp4"))
 	if err != nil {
 		t.Fatalf("Failed to setup db2: %v", err)
 	}
@@ -283,6 +292,7 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{tmpDB1.Name(), tmpDB2.Name()},
 	}
+	defer cmd.Close()
 
 	t.Run("GetAllCaptions merges results from multiple databases", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=100", nil)
@@ -308,10 +318,10 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 		hasDB1 := false
 		hasDB2 := false
 		for _, m := range media {
-			if m.Path == "/db1/video1.mp4" {
+			if m.Path == filepath.FromSlash("/db1/video1.mp4") {
 				hasDB1 = true
 			}
-			if m.Path == "/db2/video1.mp4" {
+			if m.Path == filepath.FromSlash("/db2/video1.mp4") {
 				hasDB2 = true
 			}
 		}

@@ -57,6 +57,7 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 
 	t.Run("Returns404ForVideoWithoutSubtitles", func(t *testing.T) {
 		// Request subtitles for a video with subtitle_count = 0
@@ -143,6 +144,7 @@ func TestHandleSubtitles_WithEmbeddedSubtitles(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 
 	t.Run("AttemptsFFmpegForVideoWithSubtitles", func(t *testing.T) {
 		// Request subtitles for a video with subtitle_count > 0
@@ -187,11 +189,11 @@ func TestSubtitleCountDatabaseQuery(t *testing.T) {
 		path          string
 		subtitleCount int64
 	}{
-		{"/videos/no_subs1.mp4", 0},
-		{"/videos/no_subs2.mp4", 0},
-		{"/videos/has_subs1.mp4", 1},
-		{"/videos/has_subs2.mp4", 3},
-		{"/videos/has_subs3.mp4", 2},
+		{filepath.FromSlash("/videos/no_subs1.mp4"), 0},
+		{filepath.FromSlash("/videos/no_subs2.mp4"), 0},
+		{filepath.FromSlash("/videos/has_subs1.mp4"), 1},
+		{filepath.FromSlash("/videos/has_subs2.mp4"), 3},
+		{filepath.FromSlash("/videos/has_subs3.mp4"), 2},
 	}
 
 	for _, f := range files {
@@ -269,6 +271,7 @@ Test subtitle line
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 
 	t.Run("ServesExternalSubtitleFile", func(t *testing.T) {
 		// External subtitle files should be served (possibly via ffmpeg conversion to VTT)
@@ -325,6 +328,7 @@ func TestHandleSubtitles_NoFFmpegCallForZeroCount(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 	}
+	defer cmd.Close()
 
 	// Make request
 	req := httptest.NewRequest("GET", "/api/subtitles?path="+videoPath, nil)

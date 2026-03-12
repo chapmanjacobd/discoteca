@@ -35,8 +35,9 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
 
-	// 3. Setup ServeCmd
+	// Setup ServeCmd
 	cmd := setupTestServeCmd(fixture.DBPath)
+	defer cmd.Close()
 
 	// 4. Create request
 	reqBody, _ := json.Marshal(map[string]string{"path": f1})
@@ -81,8 +82,9 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
 
-	// 3. Setup ServeCmd
+	// Setup ServeCmd
 	cmd := setupTestServeCmd(fixture.DBPath)
+	defer cmd.Close()
 
 	// 4. Create request
 	req := httptest.NewRequest(http.MethodGet, "/api/hls/segment?path="+f1+"&index=0", nil)
@@ -126,8 +128,9 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
 
-	// 3. Setup ServeCmd
+	// Setup ServeCmd
 	cmd := setupTestServeCmd(fixture.DBPath)
+	defer cmd.Close()
 
 	// 4. Create request
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+f1+"&index=0", nil)
