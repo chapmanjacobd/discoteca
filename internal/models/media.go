@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
 )
 
 type Media struct {
@@ -96,60 +97,51 @@ func (m *Media) Extension() string {
 }
 
 func (m *Media) ParentAtDepth(depth int) string {
-	// Check if path is absolute (Unix or Windows)
-	isAbs := strings.HasPrefix(m.Path, "/") || (len(m.Path) >= 2 && m.Path[1] == ':')
-
-	dir := filepath.Dir(m.Path)
-	if dir == "." || dir == "" {
-		if depth <= 0 && isAbs {
-			vol := filepath.VolumeName(m.Path)
-			if vol != "" {
-				return vol + string(filepath.Separator)
-			}
-			return string(filepath.Separator)
-		}
+	parts, isAbs := pathutil.Split(m.Path)
+	
+	if len(parts) == 0 {
 		return "."
 	}
-
+	
+	// Check if first part is a drive letter
+	hasDrive := len(parts) > 0 && len(parts[0]) == 2 && parts[0][1] == ':'
+	
 	if depth <= 0 {
 		if isAbs {
-			vol := filepath.VolumeName(m.Path)
-			if vol != "" {
-				return vol + string(filepath.Separator)
-			}
-			return string(filepath.Separator)
+			return pathutil.Prefix(m.Path)
 		}
 		return "."
 	}
-
-	vol := filepath.VolumeName(m.Path)
-	relDir := strings.TrimPrefix(dir, vol)
-	// Split on both separators for cross-platform support
-	parts := strings.FieldsFunc(relDir, func(r rune) bool {
-		return r == '/' || r == '\\'
-	})
-
-	if depth > len(parts) {
-		depth = len(parts)
+	
+	// Calculate how many parts to include
+	// For paths with drive: depth 1 = drive + 1 dir = 2 parts
+	// For paths without drive: depth 1 = 1 part
+	numParts := depth
+	if hasDrive {
+		numParts = depth + 1 // Include drive letter
 	}
-
-	// Use filepath.Join to reconstruct properly
-	if depth == 0 {
-		if vol != "" {
-			return vol + string(filepath.Separator)
-		}
+	
+	// Cap at available parts (excluding file if depth doesn't reach it)
+	// If numParts would include the file, cap at the parent
+	maxParts := len(parts)
+	if numParts >= maxParts {
+		numParts = maxParts - 1 // Don't include the file itself
+	}
+	
+	if numParts <= 0 {
 		if isAbs {
-			return string(filepath.Separator)
+			return pathutil.Prefix(m.Path)
 		}
 		return "."
 	}
-	result := filepath.Join(parts[:depth]...)
-	if vol != "" {
-		return vol + string(filepath.Separator) + result
+	
+	// For paths with drive, use Join without leading separator (drive provides it)
+	if hasDrive {
+		result := pathutil.Join(parts[:numParts], false)
+		return result
 	}
-	if isAbs {
-		return string(filepath.Separator) + result
-	}
+	
+	result := pathutil.Join(parts[:numParts], isAbs)
 	return result
 }
 

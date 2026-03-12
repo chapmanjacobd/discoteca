@@ -2,7 +2,9 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -103,18 +105,29 @@ func TestMedia_ParentAtDepth(t *testing.T) {
 		depth int
 		want  string
 	}{
-		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 0, filepath.FromSlash("/")},
-		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 1, filepath.FromSlash("/dir1")},
-		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 2, filepath.FromSlash("/dir1/dir2")},
-		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 3, filepath.FromSlash("/dir1/dir2/dir3")},
-		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 4, filepath.FromSlash("/dir1/dir2/dir3")},
-		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 10, filepath.FromSlash("/dir1/dir2/dir3")},
+		// Unix absolute paths
+		{"/dir1/dir2/dir3/file.mp4", 0, "/"},
+		{"/dir1/dir2/dir3/file.mp4", 1, "/dir1"},
+		{"/dir1/dir2/dir3/file.mp4", 2, "/dir1/dir2"},
+		{"/dir1/dir2/dir3/file.mp4", 3, "/dir1/dir2/dir3"},
+		{"/dir1/dir2/dir3/file.mp4", 4, "/dir1/dir2/dir3"},
+		{"/dir1/dir2/dir3/file.mp4", 10, "/dir1/dir2/dir3"},
+		
+		// Windows absolute paths (with drive letter)
+		{"C:\\dir1\\dir2\\dir3\\file.mp4", 0, "C:\\"},
+		{"C:\\dir1\\dir2\\dir3\\file.mp4", 1, "C:\\dir1"},
+		{"C:\\dir1\\dir2\\dir3\\file.mp4", 2, "C:\\dir1\\dir2"},
+		{"C:\\dir1\\dir2\\dir3\\file.mp4", 3, "C:\\dir1\\dir2\\dir3"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s_depth_%d", tt.path, tt.depth), func(t *testing.T) {
 			m := &Media{Path: tt.path}
-			if got := m.ParentAtDepth(tt.depth); got != tt.want {
-				t.Errorf("Media.ParentAtDepth(%v) = %v, want %v", tt.depth, got, tt.want)
+			got := m.ParentAtDepth(tt.depth)
+			// Normalize separators for cross-platform comparison
+			gotNorm := strings.ReplaceAll(got, "\\", "/")
+			wantNorm := strings.ReplaceAll(tt.want, "\\", "/")
+			if gotNorm != wantNorm {
+				t.Errorf("Media.ParentAtDepth(%v) = %v (normalized: %q), want %v (normalized: %q)", tt.depth, got, gotNorm, tt.want, wantNorm)
 			}
 		})
 	}
