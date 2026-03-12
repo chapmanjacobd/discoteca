@@ -70,8 +70,8 @@ func TestPlaylistFromDB(t *testing.T) {
 }
 
 func TestMedia_Parent(t *testing.T) {
-	m := Media{Path: "/dir/sub/file.mp4"}
-	if got := m.Parent(); got != "/dir/sub" {
+	m := Media{Path: filepath.FromSlash("/dir/sub/file.mp4")}
+	if got := m.Parent(); got != filepath.FromSlash("/dir/sub") {
 		t.Errorf("Parent() = %v, want /dir/sub", got)
 	}
 }
@@ -81,10 +81,10 @@ func TestMedia_Stem(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/dir/file.mp4", "file"},
+		{filepath.FromSlash("/dir/file.mp4"), "file"},
 		{"file.mp4", "file"},
-		{"/dir/.hidden", ".hidden"},
-		{"/dir/file.tar.gz", "file.tar"},
+		{filepath.FromSlash("/dir/.hidden"), ".hidden"},
+		{filepath.FromSlash("/dir/file.tar.gz"), "file.tar"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
@@ -102,12 +102,12 @@ func TestMedia_ParentAtDepth(t *testing.T) {
 		depth int
 		want  string
 	}{
-		{"/dir1/dir2/dir3/file.mp4", 0, "/"},
-		{"/dir1/dir2/dir3/file.mp4", 1, "/dir1"},
-		{"/dir1/dir2/dir3/file.mp4", 2, "/dir1/dir2"},
-		{"/dir1/dir2/dir3/file.mp4", 3, "/dir1/dir2/dir3"},
-		{"/dir1/dir2/dir3/file.mp4", 4, "/dir1/dir2/dir3"},
-		{"/dir1/dir2/dir3/file.mp4", 10, "/dir1/dir2/dir3"},
+		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 0, filepath.FromSlash("/")},
+		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 1, filepath.FromSlash("/dir1")},
+		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 2, filepath.FromSlash("/dir1/dir2")},
+		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 3, filepath.FromSlash("/dir1/dir2/dir3")},
+		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 4, filepath.FromSlash("/dir1/dir2/dir3")},
+		{filepath.FromSlash("/dir1/dir2/dir3/file.mp4"), 10, filepath.FromSlash("/dir1/dir2/dir3")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {

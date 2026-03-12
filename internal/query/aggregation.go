@@ -162,15 +162,16 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 	groups := make(map[string]*models.FolderStats)
 
 	for _, m := range media {
-		path := filepath.Clean(m.Path)
-		parts := strings.Split(path, string(filepath.Separator))
+		// Boundary: Path coming in. Use ToSlash internally.
+		path := filepath.ToSlash(filepath.Clean(m.Path))
+		parts := strings.Split(path, "/")
 
 		// 1. Add the file itself if it matches depth
 		if flags.Depth > 0 && len(parts) == flags.Depth {
-			if _, ok := groups[m.Path]; !ok {
-				groups[m.Path] = &models.FolderStats{Path: m.Path}
+			if _, ok := groups[path]; !ok {
+				groups[path] = &models.FolderStats{Path: path}
 			}
-			updateStats(groups[m.Path], m, false)
+			updateStats(groups[path], m, false)
 		}
 
 		// 2. Add folders
@@ -180,9 +181,9 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 				if flags.MaxDepth > 0 && d > flags.MaxDepth {
 					break
 				}
-				parent := strings.Join(parts[:d+1], string(filepath.Separator))
+				parent := strings.Join(parts[:d+1], "/")
 				if parent == "" {
-					parent = string(filepath.Separator)
+					parent = "/"
 				}
 				if _, ok := groups[parent]; !ok {
 					groups[parent] = &models.FolderStats{Path: parent}
@@ -204,16 +205,16 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 			if parts[0] == "" {
 				// Absolute path: include the leading "/"
 				if flags.Depth < len(parts) {
-					parent = strings.Join(parts[:flags.Depth+1], string(filepath.Separator))
+					parent = strings.Join(parts[:flags.Depth+1], "/")
 				} else {
-					parent = strings.Join(parts, string(filepath.Separator))
+					parent = strings.Join(parts, "/")
 				}
 			} else {
 				// Relative path: use exactly depth components
 				if flags.Depth <= len(parts) {
-					parent = strings.Join(parts[:flags.Depth], string(filepath.Separator))
+					parent = strings.Join(parts[:flags.Depth], "/")
 				} else {
-					parent = strings.Join(parts, string(filepath.Separator))
+					parent = strings.Join(parts, "/")
 				}
 			}
 			if _, ok := groups[parent]; !ok {
@@ -230,7 +231,12 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags) []mo
 		}
 	}
 
-	return finalizeStats(groups)
+	results := finalizeStats(groups)
+	// Boundary: Convert back to system slashes
+	for i := range results {
+		results[i].Path = filepath.FromSlash(results[i].Path)
+	}
+	return results
 }
 
 func updateStats(f *models.FolderStats, m models.MediaWithDB, isFolder bool) {
@@ -264,7 +270,11 @@ func finalizeStats(groups map[string]*models.FolderStats) []models.FolderStats {
 			if _, ok := groups[p]; ok {
 				groups[p].FolderCount++
 			}
-			p = filepath.ToSlash(filepath.Dir(filepath.FromSlash(p)))
+			nextP := filepath.ToSlash(filepath.Dir(filepath.FromSlash(p)))
+			if nextP == p {
+				break
+			}
+			p = nextP
 		}
 		if p == "/" {
 			if _, ok := groups[p]; ok {

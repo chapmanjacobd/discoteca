@@ -48,6 +48,8 @@ jobs:
             make ubuntu-deps
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
             make macos-deps
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+            choco install sqlite ffmpeg
           fi
 
       - name: Install Go and Web dependencies

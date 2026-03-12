@@ -79,7 +79,7 @@ func PlaylistFromDB(p db.Playlists, dbPath string) Playlist {
 }
 
 func (m *Media) Parent() string {
-	return filepath.Dir(m.Path)
+	return filepath.ToSlash(filepath.Dir(m.Path))
 }
 
 func (m *Media) Stem() string {
@@ -96,14 +96,23 @@ func (m *Media) Extension() string {
 }
 
 func (m *Media) ParentAtDepth(depth int) string {
-	parts := strings.Split(filepath.Dir(m.Path), string(filepath.Separator))
+	dir := filepath.ToSlash(filepath.Dir(m.Path))
+	if dir == "." || dir == "/" || dir == "" {
+		return "/"
+	}
+
+	parts := strings.Split(strings.TrimPrefix(dir, "/"), "/")
 	if depth <= 0 {
-		return string(filepath.Separator)
+		return "/"
 	}
-	if depth >= len(parts) {
-		return filepath.Dir(m.Path)
+	if depth > len(parts) {
+		depth = len(parts)
 	}
-	return strings.Join(parts[:depth+1], string(filepath.Separator))
+	res := "/" + strings.Join(parts[:depth], "/")
+	if res == "//" {
+		return "/"
+	}
+	return res
 }
 
 // MediaWithDB wraps Media with the database path it came from

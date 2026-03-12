@@ -110,7 +110,7 @@ func TestRandomFilename(t *testing.T) {
 }
 
 func TestStripMountSyntax(t *testing.T) {
-	if got := StripMountSyntax("/home/user"); got != "home/user" {
+	if got := StripMountSyntax(filepath.FromSlash("/home/user")); got != filepath.FromSlash("home/user") {
 		t.Errorf("StripMountSyntax failed: %s", got)
 	}
 }

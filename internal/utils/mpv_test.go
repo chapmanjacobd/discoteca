@@ -111,7 +111,7 @@ func TestMpvWatchLaterValue(t *testing.T) {
 }
 
 func TestPathToMpvWatchLaterMD5(t *testing.T) {
-	path := "/home/xk/github/xk/lb/tests/data/test.mp4"
+	path := filepath.FromSlash("/home/xk/github/xk/lb/tests/data/test.mp4")
 	expected := "E1E0D0E3F0D2CB748303FDA43224B7E7"
 
 	actual := PathToMpvWatchLaterMD5(path)
