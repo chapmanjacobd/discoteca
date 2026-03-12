@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"syscall"
 )
 
 // CmdResult wraps the output of a command execution
@@ -40,19 +39,6 @@ func Cmd(name string, args ...string) (CmdResult, error) {
 	}
 
 	return res, nil
-}
-
-// CmdDetach runs a command in the background, detached from the current process
-func CmdDetach(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	cmd.Stdin = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-
-	return cmd.Start()
 }
 
 // CmdInteractive runs a command connected to the current process's terminal

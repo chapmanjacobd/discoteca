@@ -36,7 +36,8 @@ ubuntu-deps:
 		libcairo2
 
 macos-deps:
-	brew install ffmpeg pandoc calibre sqlite
+	-brew install --formula ffmpeg pandoc sqlite
+	-brew install --cask calibre
 
 go-deps:
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
