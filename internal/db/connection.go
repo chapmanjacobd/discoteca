@@ -23,6 +23,7 @@ func Connect(dbPath string) (*sql.DB, error) {
 		"PRAGMA cache_size=-64000",
 		"PRAGMA temp_store=MEMORY",
 		"PRAGMA foreign_keys=ON",
+		"PRAGMA mmap_size=268435456",
 	}
 
 	for _, pragma := range tuning {

@@ -31,16 +31,125 @@ func NewFilterBuilder(flags models.GlobalFlags) *FilterBuilder {
 }
 
 // BuildWhereClauses builds WHERE clauses and arguments for SQL queries
+// Order matters for performance: selective indexed filters come before expensive substring searches
+// Based on benchmark: indexed equality (~277μs) << LIKE prefix (~500μs) << LIKE substring (~1ms)
 func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	var whereClauses []string
 	var args []any
 
-	// Deleted status
+	// === PHASE 1: Highly selective indexed equality filters (fastest ~277μs) ===
+
+	// Deleted status (indexed column)
 	if fb.flags.OnlyDeleted {
 		whereClauses = append(whereClauses, "COALESCE(time_deleted, 0) > 0")
 	} else if fb.flags.HideDeleted {
 		whereClauses = append(whereClauses, "COALESCE(time_deleted, 0) = 0")
 	}
+
+	// Content type filters (indexed column - should come before expensive searches)
+	var typeClauses []string
+	if fb.flags.VideoOnly {
+		typeClauses = append(typeClauses, "type = 'video'")
+	}
+	if fb.flags.AudioOnly {
+		typeClauses = append(typeClauses, "type = 'audio'", "type = 'audiobook'")
+	}
+	if fb.flags.ImageOnly {
+		typeClauses = append(typeClauses, "type = 'image'")
+	}
+	if fb.flags.TextOnly {
+		typeClauses = append(typeClauses, "type = 'text'")
+	}
+	if len(typeClauses) > 0 {
+		whereClauses = append(whereClauses, "("+strings.Join(typeClauses, " OR ")+")")
+	}
+
+	// Genre filter (equality match)
+	if fb.flags.Genre != "" {
+		whereClauses = append(whereClauses, "genre = ?")
+		args = append(args, fb.flags.Genre)
+	}
+
+	// Language filter (equality match)
+	if len(fb.flags.Language) > 0 {
+		var langClauses []string
+		for _, lang := range fb.flags.Language {
+			langClauses = append(langClauses, "language = ?")
+			args = append(args, lang)
+		}
+		if len(langClauses) > 0 {
+			whereClauses = append(whereClauses, "("+strings.Join(langClauses, " OR ")+")")
+		}
+	}
+
+	// Exact path filters (IN clause - very selective)
+	if len(fb.flags.Paths) > 0 {
+		var inPaths []string
+		for _, p := range fb.flags.Paths {
+			if strings.Contains(p, "%") {
+				whereClauses = append(whereClauses, "path LIKE ?")
+				args = append(args, p)
+			} else {
+				inPaths = append(inPaths, p)
+			}
+		}
+		if len(inPaths) > 0 {
+			placeholders := make([]string, len(inPaths))
+			for i := range inPaths {
+				placeholders[i] = "?"
+				args = append(args, inPaths[i])
+			}
+			whereClauses = append(whereClauses, fmt.Sprintf("path IN (%s)", strings.Join(placeholders, ", ")))
+		}
+	}
+
+	// Size filters (indexed column)
+	for _, s := range fb.flags.Size {
+		if r, err := utils.ParseRange(s, utils.HumanToBytes); err == nil {
+			if r.Value != nil {
+				whereClauses = append(whereClauses, "size = ?")
+				args = append(args, *r.Value)
+			}
+			if r.Min != nil {
+				whereClauses = append(whereClauses, "size >= ?")
+				args = append(args, *r.Min)
+			}
+			if r.Max != nil {
+				whereClauses = append(whereClauses, "size <= ?")
+				args = append(args, *r.Max)
+			}
+		}
+	}
+
+	// Duration filters (indexed column)
+	for _, s := range fb.flags.Duration {
+		if r, err := utils.ParseRange(s, utils.HumanToSeconds); err == nil {
+			if r.Value != nil {
+				whereClauses = append(whereClauses, "duration = ?")
+				args = append(args, *r.Value)
+			}
+			if r.Min != nil {
+				whereClauses = append(whereClauses, "duration >= ?")
+				args = append(args, *r.Min)
+			}
+			if r.Max != nil {
+				whereClauses = append(whereClauses, "duration <= ?")
+				args = append(args, *r.Max)
+			}
+		}
+	}
+
+	// Play count filters (indexed column)
+	if fb.flags.PlayCountMin > 0 {
+		whereClauses = append(whereClauses, "play_count >= ?")
+		args = append(args, fb.flags.PlayCountMin)
+	}
+	if fb.flags.PlayCountMax > 0 {
+		whereClauses = append(whereClauses, "play_count <= ?")
+		args = append(args, fb.flags.PlayCountMax)
+	}
+
+	// === PHASE 2: Time-based filters (indexed columns) ===
 
 	if fb.flags.DeletedAfter != "" {
 		if ts := utils.ParseDateOrRelative(fb.flags.DeletedAfter); ts > 0 {
@@ -54,8 +163,89 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			args = append(args, ts)
 		}
 	}
+	if fb.flags.CreatedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.CreatedAfter); ts > 0 {
+			whereClauses = append(whereClauses, "time_created >= ?")
+			args = append(args, ts)
+		}
+	}
+	if fb.flags.CreatedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.CreatedBefore); ts > 0 {
+			whereClauses = append(whereClauses, "time_created <= ?")
+			args = append(args, ts)
+		}
+	}
+	if fb.flags.ModifiedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.ModifiedAfter); ts > 0 {
+			whereClauses = append(whereClauses, "time_modified >= ?")
+			args = append(args, ts)
+		}
+	}
+	if fb.flags.ModifiedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.ModifiedBefore); ts > 0 {
+			whereClauses = append(whereClauses, "time_modified <= ?")
+			args = append(args, ts)
+		}
+	}
+	if fb.flags.PlayedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.PlayedAfter); ts > 0 {
+			whereClauses = append(whereClauses, "time_last_played >= ?")
+			args = append(args, ts)
+		}
+	}
+	if fb.flags.PlayedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.PlayedBefore); ts > 0 {
+			whereClauses = append(whereClauses, "time_last_played <= ?")
+			args = append(args, ts)
+		}
+	}
 
-	// Category filter
+	// Watched/unwatched status (indexed via time_last_played)
+	if fb.flags.Watched != nil {
+		if *fb.flags.Watched {
+			whereClauses = append(whereClauses, "time_last_played > 0")
+		} else {
+			whereClauses = append(whereClauses, "COALESCE(time_last_played, 0) = 0")
+		}
+	}
+
+	// Playhead/playback status
+	if fb.flags.Unfinished || fb.flags.InProgress {
+		whereClauses = append(whereClauses, "COALESCE(playhead, 0) > 0")
+	}
+	if fb.flags.Partial != "" {
+		if strings.Contains(fb.flags.Partial, "s") {
+			whereClauses = append(whereClauses, "COALESCE(time_first_played, 0) = 0")
+		} else {
+			whereClauses = append(whereClauses, "time_first_played > 0")
+		}
+	}
+	if fb.flags.Completed {
+		whereClauses = append(whereClauses, "COALESCE(play_count, 0) > 0")
+	}
+
+	// === PHASE 3: LIKE prefix searches (can use index ~500μs) ===
+
+	if fb.flags.OnlineMediaOnly {
+		whereClauses = append(whereClauses, "path LIKE 'http%'")
+	}
+	if fb.flags.LocalMediaOnly {
+		whereClauses = append(whereClauses, "path NOT LIKE 'http%'")
+	}
+
+	// Extension filters (EndsWith pattern - surprisingly fast ~660μs per benchmark)
+	if len(fb.flags.Ext) > 0 {
+		var extClauses []string
+		for _, ext := range fb.flags.Ext {
+			extClauses = append(extClauses, "path LIKE ?")
+			args = append(args, "%"+ext)
+		}
+		whereClauses = append(whereClauses, "("+strings.Join(extClauses, " OR ")+")")
+	}
+
+	// === PHASE 4: Expensive substring searches (full table scan ~1ms+) ===
+
+	// Category filter (LIKE with wildcards - expensive)
 	if len(fb.flags.Category) > 0 {
 		var catClauses []string
 		for _, cat := range fb.flags.Category {
@@ -71,25 +261,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 		}
 	}
 
-	// Genre filter
-	if fb.flags.Genre != "" {
-		whereClauses = append(whereClauses, "genre = ?")
-		args = append(args, fb.flags.Genre)
-	}
-
-	// Language filter
-	if len(fb.flags.Language) > 0 {
-		var langClauses []string
-		for _, lang := range fb.flags.Language {
-			langClauses = append(langClauses, "language = ?")
-			args = append(args, lang)
-		}
-		if len(langClauses) > 0 {
-			whereClauses = append(whereClauses, "("+strings.Join(langClauses, " OR ")+")")
-		}
-	}
-
-	// Search terms (FTS or LIKE)
+	// Search terms (FTS or LIKE - most expensive operation)
 	allInclude := append([]string{}, fb.flags.Search...)
 	allInclude = append(allInclude, fb.flags.Include...)
 
@@ -171,6 +343,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 		}
 	}
 
+	// Exclude patterns (expensive NOT LIKE)
 	for _, exc := range fb.flags.Exclude {
 		whereClauses = append(whereClauses, "path NOT LIKE ? AND title NOT LIKE ?")
 		pattern := "%" + exc + "%"
@@ -183,188 +356,24 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 		args = append(args, fb.flags.Regex)
 	}
 
-	// Path contains filters
+	// Path contains filters (substring search - expensive)
 	for _, contain := range pathContains {
 		whereClauses = append(whereClauses, "path LIKE ?")
 		args = append(args, "%"+contain+"%")
 	}
 
-	// Exact path filters
-	if len(fb.flags.Paths) > 0 {
-		var inPaths []string
-		for _, p := range fb.flags.Paths {
-			if strings.Contains(p, "%") {
-				whereClauses = append(whereClauses, "path LIKE ?")
-				args = append(args, p)
-			} else {
-				inPaths = append(inPaths, p)
-			}
-		}
-		if len(inPaths) > 0 {
-			placeholders := make([]string, len(inPaths))
-			for i := range inPaths {
-				placeholders[i] = "?"
-				args = append(args, inPaths[i])
-			}
-			whereClauses = append(whereClauses, fmt.Sprintf("path IN (%s)", strings.Join(placeholders, ", ")))
-		}
-	}
+	// === PHASE 5: Other filters ===
 
-	// Size filters
-	for _, s := range fb.flags.Size {
-		if r, err := utils.ParseRange(s, utils.HumanToBytes); err == nil {
-			if r.Value != nil {
-				whereClauses = append(whereClauses, "size = ?")
-				args = append(args, *r.Value)
-			}
-			if r.Min != nil {
-				whereClauses = append(whereClauses, "size >= ?")
-				args = append(args, *r.Min)
-			}
-			if r.Max != nil {
-				whereClauses = append(whereClauses, "size <= ?")
-				args = append(args, *r.Max)
-			}
-		}
-	}
-
-	// Duration filters
-	for _, s := range fb.flags.Duration {
-		if r, err := utils.ParseRange(s, utils.HumanToSeconds); err == nil {
-			if r.Value != nil {
-				whereClauses = append(whereClauses, "duration = ?")
-				args = append(args, *r.Value)
-			}
-			if r.Min != nil {
-				whereClauses = append(whereClauses, "duration >= ?")
-				args = append(args, *r.Min)
-			}
-			if r.Max != nil {
-				whereClauses = append(whereClauses, "duration <= ?")
-				args = append(args, *r.Max)
-			}
-		}
-	}
-
-	// Time filters
-	if fb.flags.CreatedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.CreatedAfter); ts > 0 {
-			whereClauses = append(whereClauses, "time_created >= ?")
-			args = append(args, ts)
-		}
-	}
-	if fb.flags.CreatedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.CreatedBefore); ts > 0 {
-			whereClauses = append(whereClauses, "time_created <= ?")
-			args = append(args, ts)
-		}
-	}
-	if fb.flags.ModifiedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.ModifiedAfter); ts > 0 {
-			whereClauses = append(whereClauses, "time_modified >= ?")
-			args = append(args, ts)
-		}
-	}
-	if fb.flags.ModifiedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.ModifiedBefore); ts > 0 {
-			whereClauses = append(whereClauses, "time_modified <= ?")
-			args = append(args, ts)
-		}
-	}
-	if fb.flags.PlayedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.PlayedAfter); ts > 0 {
-			whereClauses = append(whereClauses, "time_last_played >= ?")
-			args = append(args, ts)
-		}
-	}
-	if fb.flags.PlayedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.PlayedBefore); ts > 0 {
-			whereClauses = append(whereClauses, "time_last_played <= ?")
-			args = append(args, ts)
-		}
-	}
-
-	// Watched status
-	if fb.flags.Watched != nil {
-		if *fb.flags.Watched {
-			whereClauses = append(whereClauses, "time_last_played > 0")
-		} else {
-			whereClauses = append(whereClauses, "COALESCE(time_last_played, 0) = 0")
-		}
-	}
-
-	// Unfinished (has playhead but presumably not done)
-	if fb.flags.Unfinished || fb.flags.InProgress {
-		whereClauses = append(whereClauses, "COALESCE(playhead, 0) > 0")
-	}
-
-	if fb.flags.Partial != "" {
-		if strings.Contains(fb.flags.Partial, "s") {
-			whereClauses = append(whereClauses, "COALESCE(time_first_played, 0) = 0")
-		} else {
-			whereClauses = append(whereClauses, "time_first_played > 0")
-		}
-	}
-
-	if fb.flags.Completed {
-		whereClauses = append(whereClauses, "COALESCE(play_count, 0) > 0")
+	if fb.flags.Portrait {
+		whereClauses = append(whereClauses, "width < height")
 	}
 
 	if fb.flags.WithCaptions {
 		whereClauses = append(whereClauses, "path IN (SELECT DISTINCT media_path FROM captions)")
 	}
 
-	// Play count filters
-	if fb.flags.PlayCountMin > 0 {
-		whereClauses = append(whereClauses, "play_count >= ?")
-		args = append(args, fb.flags.PlayCountMin)
-	}
-	if fb.flags.PlayCountMax > 0 {
-		whereClauses = append(whereClauses, "play_count <= ?")
-		args = append(args, fb.flags.PlayCountMax)
-	}
-
-	// Content type filters
-	var typeClauses []string
-	if fb.flags.VideoOnly {
-		typeClauses = append(typeClauses, "type = 'video'")
-	}
-	if fb.flags.AudioOnly {
-		typeClauses = append(typeClauses, "type = 'audio'", "type = 'audiobook'")
-	}
-	if fb.flags.ImageOnly {
-		typeClauses = append(typeClauses, "type = 'image'")
-	}
-	if fb.flags.TextOnly {
-		typeClauses = append(typeClauses, "type = 'text'")
-	}
-	if len(typeClauses) > 0 {
-		whereClauses = append(whereClauses, "("+strings.Join(typeClauses, " OR ")+")")
-	}
-
-	if fb.flags.Portrait {
-		whereClauses = append(whereClauses, "width < height")
-	}
-
-	if fb.flags.OnlineMediaOnly {
-		whereClauses = append(whereClauses, "path LIKE 'http%'")
-	}
-	if fb.flags.LocalMediaOnly {
-		whereClauses = append(whereClauses, "path NOT LIKE 'http%'")
-	}
-
 	// Custom WHERE clauses
 	whereClauses = append(whereClauses, fb.flags.Where...)
-
-	// Extension filters
-	if len(fb.flags.Ext) > 0 {
-		var extClauses []string
-		for _, ext := range fb.flags.Ext {
-			extClauses = append(extClauses, "path LIKE ?")
-			args = append(args, "%"+ext)
-		}
-		whereClauses = append(whereClauses, "("+strings.Join(extClauses, " OR ")+")")
-	}
 
 	if fb.flags.DurationFromSize != "" {
 		if r, err := utils.ParseRange(fb.flags.DurationFromSize, utils.HumanToBytes); err == nil {
