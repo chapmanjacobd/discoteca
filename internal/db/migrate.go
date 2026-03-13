@@ -74,6 +74,19 @@ func migrateToStrict(db *sql.DB, tableName string, createSql string) error {
 		return nil
 	}
 
+	// Disable foreign key checks during migration to avoid constraint violations
+	// when copying data that may reference deleted entries
+	if _, err := db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("failed to disable foreign keys: %w", err)
+	}
+	defer func() {
+		// Re-enable foreign key checks after migration
+		if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+			// Log but don't fail on this error
+			fmt.Printf("Warning: failed to re-enable foreign keys: %v\n", err)
+		}
+	}()
+
 	tx, err := db.Begin()
 	if err != nil {
 		return err

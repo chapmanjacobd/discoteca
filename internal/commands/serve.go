@@ -452,6 +452,45 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 			flags.Random = true
 		}
 	}
+	// Support complex sorting with sort_fields array (JSON) or comma-separated string
+	if sortFields := q.Get("sort_fields"); sortFields != "" {
+		// If it starts with '[', treat as JSON array
+		if strings.HasPrefix(sortFields, "[") {
+			var fieldList []string
+			if err := json.Unmarshal([]byte(sortFields), &fieldList); err == nil {
+				// Convert array to comma-separated format
+				flags.PlayInOrder = strings.Join(fieldList, ",")
+			}
+		} else {
+			// Already comma-separated or single field
+			flags.PlayInOrder = sortFields
+		}
+	}
+	// Also support sort_order for explicit direction (overrides individual field directions)
+	if sortDesc := q.Get("sort_desc"); sortDesc != "" {
+		// Comma-separated list of fields to sort descending
+		descFields := make(map[string]bool)
+		for _, f := range strings.Split(sortDesc, ",") {
+			descFields[strings.TrimSpace(f)] = true
+		}
+		// If PlayInOrder is set, prepend '-' to descending fields
+		if flags.PlayInOrder != "" {
+			var newOrder []string
+			for _, f := range strings.Split(flags.PlayInOrder, ",") {
+				f = strings.TrimSpace(f)
+				// Remove existing direction prefix
+				f = strings.TrimPrefix(f, "-")
+				f = strings.TrimSuffix(f, " desc")
+				f = strings.TrimSuffix(f, " asc")
+				if descFields[f] {
+					newOrder = append(newOrder, "-"+f)
+				} else {
+					newOrder = append(newOrder, f)
+				}
+			}
+			flags.PlayInOrder = strings.Join(newOrder, ",")
+		}
+	}
 	if reverse := q.Get("reverse"); reverse == "true" {
 		flags.Reverse = true
 	}

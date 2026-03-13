@@ -662,15 +662,44 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 		return
 	}
 
-	// If the user explicitly requested a specific sort field other than "path",
-	// we should respect it and skip the default play-in-order.
-	if sb.flags.SortBy != "" && sb.flags.SortBy != "path" {
+	// If the user explicitly requested a specific sort field (and it's not the default "path" or "default"),
+	// respect it and use basic sorting - this takes precedence over PlayInOrder
+	if sb.flags.SortBy != "" && sb.flags.SortBy != "path" && sb.flags.SortBy != "default" {
 		sb.SortBasic(media)
 		return
 	}
 
+	// If the user explicitly requested "default", use xklb sorting (with optional reverse)
+	if sb.flags.SortBy == "default" {
+		if sb.flags.Reverse {
+			sb.SortAdvanced(media, "reverse_xklb")
+		} else {
+			sb.SortAdvanced(media, "xklb")
+		}
+		return
+	}
+
+	// If PlayInOrder is explicitly set (and SortBy is default), use it
 	if sb.flags.PlayInOrder != "" {
-		sb.SortAdvanced(media, sb.flags.PlayInOrder)
+		if sb.flags.Reverse {
+			// Prepend "reverse_" to the PlayInOrder config
+			sb.SortAdvanced(media, "reverse_"+sb.flags.PlayInOrder)
+		} else {
+			sb.SortAdvanced(media, sb.flags.PlayInOrder)
+		}
+		return
+	}
+
+	// If SortBy is "path" (the default) with Reverse or NatSort flags, use basic sorting
+	if sb.flags.Reverse || sb.flags.NatSort {
+		sb.SortBasic(media)
+		return
+	}
+
+	// Fall back to xklb default sorting when SortBy is "path" (the default)
+	// This provides xklb-style sorting as the default behavior
+	if sb.flags.SortBy == "path" || sb.flags.SortBy == "" {
+		sb.SortAdvanced(media, "xklb")
 		return
 	}
 
@@ -799,65 +828,358 @@ func (sb *SortBuilder) SortBasic(media []models.MediaWithDB) {
 	}
 }
 
+// SortField represents a single field in a multi-field sort
+type SortField struct {
+	Field   string
+	Reverse bool
+}
+
+// parseSortConfig parses a sort configuration string into SortField slices
+// Supports:
+//   - Simple: "path", "title"
+//   - Prefixed: "natural_path", "python_title"
+//   - Reversed: "-path", "reverse_path"
+//   - Multi-field: "video_count desc,audio_count desc,path asc"
+//   - Complex: "natural_path,title desc"
+//   - Array notation: "field1,field2,field3" (comma-separated)
+func parseSortConfig(config string) ([]SortField, string) {
+	if config == "" {
+		return []SortField{{Field: "ps", Reverse: false}}, "natural"
+	}
+
+	// Check if this is a simple algorithm-only config (not field names)
+	knownAlgs := map[string]bool{
+		"natural": true, "ignorecase": true,
+		"lowercase": true, "human": true, "locale": true,
+		"signed": true, "os": true, "python": true,
+	}
+
+	// If it's a known algorithm without underscores, use default sort key
+	if knownAlgs[config] {
+		return []SortField{{Field: "ps", Reverse: false}}, config
+	}
+
+	var sortFields []SortField
+	alg := "natural"
+
+	// Split by comma for multi-field sorting
+	parts := strings.Split(config, ",")
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		reverse := false
+		field := part
+
+		// Check for "desc" / "asc" suffix
+		if strings.HasSuffix(part, " desc") {
+			reverse = true
+			field = strings.TrimSpace(strings.TrimSuffix(part, " desc"))
+		} else if strings.HasSuffix(part, " asc") {
+			field = strings.TrimSpace(strings.TrimSuffix(part, " asc"))
+		}
+
+		// Check for "reverse_" prefix
+		if after, ok := strings.CutPrefix(field, "reverse_"); ok {
+			reverse = !reverse
+			field = after
+		}
+
+		// Check for "-" prefix
+		if strings.HasPrefix(field, "-") {
+			reverse = !reverse
+			field = field[1:]
+		}
+
+		// Check for algorithm prefix (alg_field)
+		if strings.Contains(field, "_") {
+			potentialParts := strings.SplitN(field, "_", 2)
+			if knownAlgs[potentialParts[0]] {
+				alg = potentialParts[0]
+				field = potentialParts[1]
+			}
+		}
+
+		sortFields = append(sortFields, SortField{Field: field, Reverse: reverse})
+	}
+
+	if len(sortFields) == 0 {
+		return []SortField{{Field: "ps", Reverse: false}}, alg
+	}
+
+	return sortFields, alg
+}
+
+// getSortValueFloat64 returns a numeric sort value for a field
+func getSortValueFloat64(m models.MediaWithDB, field string) float64 {
+	switch field {
+	case "video_count":
+		return float64(utils.Int64Value(m.VideoCount))
+	case "audio_count":
+		return float64(utils.Int64Value(m.AudioCount))
+	case "subtitle_count":
+		return float64(utils.Int64Value(m.SubtitleCount))
+	case "play_count":
+		return float64(utils.Int64Value(m.PlayCount))
+	case "playhead":
+		return float64(utils.Int64Value(m.Playhead))
+	case "time_last_played":
+		return float64(utils.Int64Value(m.TimeLastPlayed))
+	case "time_created":
+		return float64(utils.Int64Value(m.TimeCreated))
+	case "time_modified":
+		return float64(utils.Int64Value(m.TimeModified))
+	case "time_downloaded":
+		return float64(utils.Int64Value(m.TimeDownloaded))
+	case "time_deleted":
+		return float64(utils.Int64Value(m.TimeDeleted))
+	case "duration":
+		return float64(utils.Int64Value(m.Duration))
+	case "size":
+		return float64(utils.Int64Value(m.Size))
+	case "width":
+		return float64(utils.Int64Value(m.Width))
+	case "height":
+		return float64(utils.Int64Value(m.Height))
+	case "fps":
+		return utils.Float64Value(m.Fps)
+	case "score":
+		return utils.Float64Value(m.Score)
+	case "track_number":
+		return float64(utils.Int64Value(m.TrackNumber))
+	case "count":
+		// For folder stats compatibility
+		return float64(utils.Int64Value(m.Size))
+	default:
+		return 0
+	}
+}
+
+// getSortValueString returns a string sort value for a field
+func getSortValueString(m models.MediaWithDB, field string) string {
+	switch field {
+	case "path":
+		return m.Path
+	case "title":
+		return utils.StringValue(m.Title)
+	case "parent":
+		return m.Parent()
+	case "stem":
+		return m.Stem()
+	case "ps":
+		return m.Parent() + " " + m.Stem()
+	case "pts":
+		return m.Parent() + " " + utils.StringValue(m.Title) + " " + m.Stem()
+	case "type":
+		return utils.StringValue(m.Type)
+	case "genre":
+		return utils.StringValue(m.Genre)
+	case "artist":
+		return utils.StringValue(m.Artist)
+	case "album":
+		return utils.StringValue(m.Album)
+	case "language":
+		return utils.StringValue(m.Language)
+	case "categories":
+		return utils.StringValue(m.Categories)
+	case "video_codecs":
+		return utils.StringValue(m.VideoCodecs)
+	case "audio_codecs":
+		return utils.StringValue(m.AudioCodecs)
+	case "extension":
+		return strings.ToLower(filepath.Ext(m.Path))
+	default:
+		return m.Path
+	}
+}
+
+// hasField checks if a field is numeric (float64) or string
+func isNumericField(field string) bool {
+	numericFields := map[string]bool{
+		"video_count": true, "audio_count": true, "subtitle_count": true,
+		"play_count": true, "playhead": true, "time_last_played": true,
+		"time_created": true, "time_modified": true, "time_downloaded": true,
+		"time_deleted": true, "duration": true, "size": true,
+		"width": true, "height": true, "fps": true, "score": true,
+		"track_number": true, "count": true,
+	}
+	return numericFields[field]
+}
+
+// xklbDefaultSort returns the xklb-style default sort fields
+// This matches the lambda sorting from xklb:
+// - video_count desc (videos before audio-only)
+// - audio_count desc (files with audio before silent ones)
+// - path like "http%" asc (local files before remote URLs)
+// - subtitle_count desc
+// - play_count asc (unplayed/least-played first)
+// - playhead desc (furthest along first)
+// - time_last_played asc (least-recently played first)
+// - title is not null desc (titled entries before untitled)
+// - path asc (alphabetical tiebreak)
+func xklbDefaultSort() []SortField {
+	return []SortField{
+		{Field: "video_count", Reverse: true},
+		{Field: "audio_count", Reverse: true},
+		{Field: "path_is_remote", Reverse: false}, // local before remote
+		{Field: "subtitle_count", Reverse: true},
+		{Field: "play_count", Reverse: false},
+		{Field: "playhead", Reverse: true},
+		{Field: "time_last_played", Reverse: false},
+		{Field: "title_is_null", Reverse: false}, // titled before untitled
+		{Field: "path", Reverse: false},
+	}
+}
+
+// duDefaultSort returns the default sort for DU mode
+// lambda x: ((size/count), size, count, folders, reverse(path))
+func duDefaultSort() []SortField {
+	return []SortField{
+		{Field: "size_per_count", Reverse: true}, // size/count desc
+		{Field: "size", Reverse: true},
+		{Field: "count", Reverse: true},
+		{Field: "folders", Reverse: true},
+		{Field: "path", Reverse: true}, // reverse path
+	}
+}
+
+// compareSortFields compares two media items using multiple sort fields
+func compareSortFields(media []models.MediaWithDB, i, j int, sortFields []SortField, alg string) int {
+	for _, sf := range sortFields {
+		var cmp int
+
+		if isNumericField(sf.Field) {
+			// Special handling for computed fields
+			var valI, valJ float64
+
+			if sf.Field == "path_is_remote" {
+				// 1 if remote (http), 0 if local
+				pathI := media[i].Path
+				pathJ := media[j].Path
+				valI = 0
+				valJ = 0
+				if strings.HasPrefix(pathI, "http") {
+					valI = 1
+				}
+				if strings.HasPrefix(pathJ, "http") {
+					valJ = 1
+				}
+			} else if sf.Field == "title_is_null" {
+				// 1 if null/empty, 0 if has title
+				titleI := media[i].Title
+				titleJ := media[j].Title
+				valI = 0
+				valJ = 0
+				if titleI == nil || *titleI == "" {
+					valI = 1
+				}
+				if titleJ == nil || *titleJ == "" {
+					valJ = 1
+				}
+			} else if sf.Field == "size_per_count" {
+				// size / count (for folder stats)
+				sizeI := float64(utils.Int64Value(media[i].Size))
+				sizeJ := float64(utils.Int64Value(media[j].Size))
+				countI := float64(utils.Int64Value(media[i].Size)) // fallback to size if count not available
+				countJ := float64(utils.Int64Value(media[j].Size))
+				// For media items, just use size
+				valI = sizeI / utils.Max(1.0, countI)
+				valJ = sizeJ / utils.Max(1.0, countJ)
+			} else {
+				valI = getSortValueFloat64(media[i], sf.Field)
+				valJ = getSortValueFloat64(media[j], sf.Field)
+			}
+
+			if valI < valJ {
+				cmp = -1
+			} else if valI > valJ {
+				cmp = 1
+			} else {
+				cmp = 0
+			}
+		} else {
+			// String comparison
+			valI := getSortValueString(media[i], sf.Field)
+			valJ := getSortValueString(media[j], sf.Field)
+
+			var res bool
+			if alg == "python" {
+				res = valI < valJ
+			} else {
+				res = utils.NaturalLess(valI, valJ)
+			}
+
+			if valI == valJ {
+				cmp = 0
+			} else if res {
+				cmp = -1
+			} else {
+				cmp = 1
+			}
+		}
+
+		if cmp != 0 {
+			if sf.Reverse {
+				return -cmp
+			}
+			return cmp
+		}
+	}
+	return 0
+}
+
 func (sb *SortBuilder) SortAdvanced(media []models.MediaWithDB, config string) {
-	reverse := false
-	if after, ok := strings.CutPrefix(config, "reverse_"); ok {
-		config = after
-		reverse = true
+	if config == "" {
+		sb.SortBasic(media)
+		return
 	}
 
-	var alg, sortKey string
-	if strings.Contains(config, "_") {
-		parts := strings.SplitN(config, "_", 2)
-		alg, sortKey = parts[0], parts[1]
-	} else {
-		knownAlgs := map[string]bool{"natural": true, "path": true, "ignorecase": true, "lowercase": true, "human": true, "locale": true, "signed": true, "os": true, "python": true}
-		if knownAlgs[config] {
-			alg = config
-			sortKey = "ps"
-		} else {
-			alg = "natural"
-			sortKey = config
-		}
+	// Special keywords for preset sorts
+	if config == "xklb" || config == "xklb_default" {
+		config = "video_count desc,audio_count desc,path_is_remote asc,subtitle_count desc,play_count asc,playhead desc,time_last_played asc,title_is_null asc,path asc"
+	} else if config == "reverse_xklb" || config == "reverse_xklb_default" {
+		// Reverse of xklb: prioritize audio, remote URLs, no subtitles, most played, etc.
+		config = "video_count asc,audio_count asc,path_is_remote desc,subtitle_count asc,play_count desc,playhead asc,time_last_played desc,title_is_null desc,path desc"
+	} else if config == "du" || config == "du_default" {
+		config = "size_per_count desc,size desc,count desc,folders desc,path desc"
+	} else if config == "reverse_du" || config == "reverse_du_default" {
+		// Reverse of du: smallest folders first, alphabetical path
+		config = "size_per_count asc,size asc,count asc,folders asc,path asc"
 	}
 
-	getSortValue := func(m models.MediaWithDB, key string) string {
-		switch key {
-		case "parent":
-			return m.Parent()
-		case "stem":
-			return m.Stem()
-		case "ps":
-			return m.Parent() + " " + m.Stem()
-		case "pts":
-			return m.Parent() + " " + utils.StringValue(m.Title) + " " + m.Stem()
-		case "path":
-			return m.Path
-		case "title":
-			return utils.StringValue(m.Title)
-		default:
-			return m.Path
+	sortFields, alg := parseSortConfig(config)
+
+	if len(sortFields) == 1 && sortFields[0].Field == "ps" {
+		// Legacy single-field sorting
+		reverse := sortFields[0].Reverse
+		less := func(i, j int) bool {
+			valI := getSortValueString(media[i], "ps")
+			valJ := getSortValueString(media[j], "ps")
+
+			var res bool
+			if alg == "python" {
+				res = valI < valJ
+			} else {
+				res = utils.NaturalLess(valI, valJ)
+			}
+
+			if reverse {
+				return !res
+			}
+			return res
 		}
+		sort.Slice(media, less)
+		return
 	}
 
-	less := func(i, j int) bool {
-		valI := getSortValue(media[i], sortKey)
-		valJ := getSortValue(media[j], sortKey)
-
-		var res bool
-		if alg == "python" {
-			res = valI < valJ
-		} else {
-			res = utils.NaturalLess(valI, valJ)
-		}
-
-		if reverse {
-			return !res
-		}
-		return res
-	}
-
-	sort.Slice(media, less)
+	// Multi-field sorting
+	sort.SliceStable(media, func(i, j int) bool {
+		cmp := compareSortFields(media, i, j, sortFields, alg)
+		return cmp < 0
+	})
 }
 
 // QueryExecutor executes queries against databases

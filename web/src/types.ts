@@ -91,6 +91,7 @@ export interface State {
         searchType: 'fts' | 'substring';
         browseCol: string;
         browseVal: string;
+        customSortFields?: string;
     };
     activeModal: string | null;
     duPath: string;
@@ -113,7 +114,6 @@ export interface State {
     playbackRate: number;
     slideshowDelay: number;
     rsvpWpm: number;
-    trackShuffleDuration: number;
     autoLoopMaxDuration: number;
     enableQueue: boolean;
     queueExpanded: boolean;

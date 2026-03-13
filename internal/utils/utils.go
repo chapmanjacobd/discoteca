@@ -66,6 +66,13 @@ func Int64Value(i *int64) int64 {
 	return *i
 }
 
+func Float64Value(f *float64) float64 {
+	if f == nil {
+		return 0
+	}
+	return *f
+}
+
 type Range struct {
 	Min   *int64
 	Max   *int64

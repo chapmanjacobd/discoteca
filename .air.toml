@@ -4,9 +4,9 @@ tmp_dir = "tmp"
 
 [build]
   cmd = "go build -tags fts5,noassets -o ./tmp/main ./cmd/disco"
-  entrypoint = ["./tmp/main", "serve", "-v", "--dev", "--trashcan", "video.db", "audio.db", "images.db", "books.db"]
+  entrypoint = ["./tmp/main", "serve", "-v", "--no-browser", "--dev", "--trashcan", "video.db", "audio.db", "images.db", "books.db"]
   delay = 1000
-  exclude_dir = ["web/node_modules", "web/coverage", "web/tests", "e2e", "tmp", ".git", ".github"]
+  exclude_dir = ["web/node_modules", "web/coverage", "web/tests", "web/src", "e2e", "tmp", ".git", ".github"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false

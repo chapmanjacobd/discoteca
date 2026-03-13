@@ -2321,3 +2321,114 @@ body.has-pip #content {
         display: none;
     }
 }
+
+/* -------------------------------------------------------------------------- */
+/*                         COMPLEX SORTING MODAL STYLES                       */
+/* -------------------------------------------------------------------------- */
+
+#sort-complex-btn {
+    padding: 0.5rem 0.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+}
+
+#sort-complex-btn:hover {
+    background: var(--hover-color);
+    border-color: var(--accent-color);
+}
+
+.sort-field-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: grab;
+    transition: all 0.2s;
+}
+
+.sort-field-item:hover {
+    border-color: var(--accent-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sort-field-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.sort-field-item .drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    user-select: none;
+}
+
+.sort-field-item .drag-handle:active {
+    cursor: grabbing;
+}
+
+.sort-field-item select {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.sort-field-item .direction-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.sort-field-item .remove-field {
+    padding: 0.25rem 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.sort-field-item .remove-field:hover {
+    background: #ff4444;
+    color: white;
+}
+
+.preset-btn {
+    padding: 0.5rem 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    transition: all 0.2s;
+}
+
+.preset-btn:hover {
+    background: var(--hover-color);
+    border-color: var(--accent-color);
+}
+
+.preset-btn.active {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}

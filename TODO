@@ -3,8 +3,8 @@
 - Captions mode: Media Type should filter the caption media
 - Search filtering should work across all modes without exiting that mode--but you could hide the searchbox on the Categorization page as that one doesn't really need it
 
-Search mode should also use xklb sorting, but wrapped in PlayInOrder():
-lambda x: (
+Search mode should use xklb sorting for "Default" sort option:
+PlayInOrder(lambda x: (
     # "video_count > 0 desc" — videos before audio-only
     -(int(bool(x.get("video_count")))),
 
@@ -30,9 +30,10 @@ lambda x: (
 
     # m.path ASC — alphabetical tiebreak
     x.get("path") or "",
+  )
 )
 
-Or maybe accept an array for complex sorting with drag-and-drop reordering? The functionality should expose a level of completeness which allows for the above to be default for default
+Or rather accept an array for complex sorting with drag-and-drop reordering. The functionality should expose a level of completeness which allows for the above
 
 DU mode Default sort should be similar to xklb:
 lambda x: (

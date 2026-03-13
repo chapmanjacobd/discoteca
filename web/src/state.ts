@@ -43,7 +43,8 @@ export const state: State = {
         captions: false,
         searchType: (getLocalStorageItem('disco-search-type', 'fts') as 'fts' | 'substring'),
         browseCol: '',
-        browseVal: ''
+        browseVal: '',
+        customSortFields: getLocalStorageItem('disco-custom-sort-fields', '')
     },
     activeModal: null,
     duPath: '',
@@ -71,7 +72,6 @@ export const state: State = {
     playbackRate: parseFloat(getLocalStorageItem('disco-playback-rate', '1.0')!),
     slideshowDelay: parseInt(getLocalStorageItem('disco-slideshow-delay', '5')!),
     rsvpWpm: parseInt(getLocalStorageItem('disco-rsvp-wpm', '250')!),
-    trackShuffleDuration: parseInt(getLocalStorageItem('disco-track-shuffle-duration', '0')!),
     autoLoopMaxDuration: parseInt(getLocalStorageItem('disco-auto-loop-max-duration', '30')!),
 
     enableQueue: getLocalStorageItem('disco-enable-queue') === 'true',

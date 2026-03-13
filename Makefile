@@ -69,6 +69,7 @@ build-nofts:
 	$(MAKE) BUILD_TAGS="" build
 
 dev:
+	(sleep 2 && xdg-open http://localhost:5555) &
 	air -d
 
 test:

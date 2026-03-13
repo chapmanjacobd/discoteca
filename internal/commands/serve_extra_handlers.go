@@ -257,27 +257,11 @@ func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
 
 	item := playable[utils.RandomInt(0, len(playable)-1)]
 
-	duration := 0
-	if item.Duration != nil {
-		duration = int(*item.Duration)
-	}
-
-	cableDuration := 15 // Default 15s clips
-	if q := r.URL.Query().Get("duration"); q != "" {
-		if d, err := strconv.Atoi(q); err == nil {
-			cableDuration = d
-		}
-	}
-
-	// If 0, play the whole thing (start at 0, end at duration)
+	// Play full content (no duration clipping)
 	start := 0
-	end := duration
-
-	if cableDuration > 0 {
-		if duration > cableDuration {
-			start = utils.RandomInt(0, duration-cableDuration)
-		}
-		end = start + cableDuration
+	end := 0
+	if item.Duration != nil {
+		end = int(*item.Duration)
 	}
 
 	// Support fields parameter to limit response size

@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import { fetchAPI, getCookie } from './api';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
+import { initComplexSorting } from './complex-sort';
 import {
     formatSize,
     formatDuration,
@@ -67,9 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Percentile Sliders (Initialized via Sliders module)
 
-
-    const settingTrackShuffleDuration = document.getElementById('setting-track-shuffle-duration') as HTMLInputElement;
-
     const pipSpeedBtn = document.getElementById('pip-speed');
     const pipSpeedMenu = document.getElementById('pip-speed-menu');
 
@@ -89,6 +87,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- State Management ---
 
     initSliders(performSearch);
+    initComplexSorting();
+    
+    // Listen for complex sort applied event
+    window.addEventListener('complex-sort-applied', () => {
+        if (state.page === 'du') {
+            window.location.reload();
+        } else {
+            state.currentPage = 1;
+            performSearch();
+        }
+    });
 
     // Initialize UI from state
     (document.getElementById('setting-player') as HTMLSelectElement).value = state.player;
@@ -139,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePipVisibility();
 
     (document.getElementById('setting-slideshow-delay') as HTMLInputElement).value = state.slideshowDelay.toString().toString();
-    if (settingTrackShuffleDuration) settingTrackShuffleDuration.value = state.trackShuffleDuration.toString().toString();
     const settingAutoLoopMax = document.getElementById('setting-auto-loop-max') as HTMLInputElement;
     if (settingAutoLoopMax) {
         (settingAutoLoopMax as HTMLInputElement).value = state.autoLoopMaxDuration.toString().toString();
@@ -206,10 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const params = new URLSearchParams();
                 if (type) params.append('type', String(type));
-
-                // Add duration param
-                const duration = state.trackShuffleDuration || 0;
-                params.append('duration', String(duration.toString()));
 
                 const resp = await fetchAPI(`/api/random-clip?${params.toString()}`);
                 if (!resp.ok) {
@@ -298,13 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopSlideshow();
                 startSlideshow();
             }
-        };
-    }
-
-    if (settingTrackShuffleDuration) {
-        settingTrackShuffleDuration.onchange = (e) => {
-            state.trackShuffleDuration = parseInt((e.target as HTMLInputElement).value);
-            localStorage.setItem('disco-track-shuffle-duration', String(state.trackShuffleDuration.toString()));
         };
     }
 
@@ -686,7 +683,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add sort parameters
         if (state.filters.sort && state.filters.sort !== 'default') {
-            params.append('sort', String(state.filters.sort));
+            if (state.filters.sort === 'custom' && state.filters.customSortFields) {
+                // Use complex sorting
+                params.append('sort_fields', state.filters.customSortFields);
+            } else {
+                params.append('sort', String(state.filters.sort));
+            }
         }
         if (state.filters.reverse) {
             params.append('reverse', String('true'));
@@ -2651,15 +2653,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             appendFilterParams(params);
-            
+
             // Sidebar captions filter (when not in full captions mode)
             if (state.filters.captions && state.page !== 'captions') {
                 params.append('captions', String('true'));
                 params.append('aggregate', String('true'));
             }
 
-            params.append('sort', String(state.filters.sort));
-            if (state.filters.reverse) params.append('reverse', String('true'));
+            // Add sort parameters
+            if (state.filters.sort === 'custom' && state.filters.customSortFields) {
+                params.append('sort_fields', state.filters.customSortFields);
+            } else {
+                params.append('sort', String(state.filters.sort));
+                if (state.filters.reverse) params.append('reverse', String('true'));
+            }
 
             if (state.filters.all) {
                 params.append('all', String('true'));
