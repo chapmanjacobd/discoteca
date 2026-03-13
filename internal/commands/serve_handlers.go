@@ -261,6 +261,9 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					return err
 				}
+				
+				// Apply in-memory ranking for better relevance
+				database.RankCaptionsResults(rows, queryStr)
 
 				mediaMap := make(map[string]int)
 				for i, m := range media {

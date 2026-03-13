@@ -289,6 +289,9 @@ func (c *ServeCmd) getCaptionsWithContext(ctx context.Context, queries *database
 	if err != nil {
 		return nil, err
 	}
+	
+	// Apply in-memory ranking for better relevance
+	database.RankCaptionsResults(matches, queryStr)
 
 	if len(matches) == 0 {
 		return matches, nil

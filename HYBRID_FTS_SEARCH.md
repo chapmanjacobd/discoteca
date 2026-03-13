@@ -75,12 +75,13 @@ The trigram index filters candidates efficiently before LIKE verification.
 ### FTS Terms (Trigram Filter)
 - **Speed**: Very fast - loose trigram filtering
 - **Accuracy**: Approximate - finds documents containing the trigrams
-- **Ranking**: `bm25()` and `rank` work but **provide limited differentiation** with trigram tokenizer
-  - All matching documents get similar BM25 scores regardless of term frequency
-  - Trigram matching is binary: either the 3-char sequence exists or it doesn't
-  - **Recommendation**: Use rank for basic ordering, but don't expect strong relevance sorting
-  - For better relevance: combine with other signals (play_count, recency, etc.)
-- **Use case**: Fast candidate filtering, not precise relevance ranking
+- **Ranking**: FTS5 BM25 with trigram provides **limited differentiation**
+  - **Solution**: In-memory Go ranking with field-weighted scoring
+  - Title matches: 10 points per occurrence
+  - Path matches: 5 points per occurrence
+  - Description matches: 1 point per occurrence
+  - Exact title match bonus: +5 points
+- **Use case**: Fast candidate filtering, with meaningful relevance ranking in Go
 
 ### Phrase Searches (LIKE)
 - **Speed**: Fast - trigram index filters before LIKE verification
@@ -126,11 +127,14 @@ flags.PlayInOrder = "play_count desc,_related_media,title asc"
 ## Files Changed
 
 - `internal/utils/fts_hybrid.go` - Hybrid query parsing and building
-- `internal/query/filter_builder.go` - Integration with filter builder + related media expansion with BM25 ranking
-- `internal/db/fts_queries.go` - Manual FTS query implementations **with rank column**
+- `internal/query/filter_builder.go` - Integration with filter builder + related media expansion
+- `internal/db/fts_queries.go` - Manual FTS queries with **in-memory Go ranking**
+  - `RankSearchResults()` - Field-weighted ranking for media search
+  - `RankCaptionsResults()` - Field-weighted ranking for caption search
 - `internal/db/schema.sql` - FTS table definitions with `detail=none`
 - `internal/db/migrate.go` - Migration to upgrade existing FTS tables
-- `internal/commands/serve_handlers.go` - Updated to handle rank field in SearchCaptionsRow
+- `internal/commands/serve_handlers.go` - Apply in-memory ranking to caption results
+- `internal/commands/serve_metadata.go` - Apply in-memory ranking to caption results
 - `queries.sql` - Commented out FTS queries (now implemented manually)
 
 ## Testing

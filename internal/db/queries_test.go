@@ -273,11 +273,12 @@ func TestQueries(t *testing.T) {
 		if len(res) == 0 {
 			t.Error("SearchMediaFTS returned no results")
 		}
-		// Verify rank is populated
+		// Apply in-memory ranking
+		RankSearchResults(res, "Unique")
 		if res[0].Rank == 0 {
-			t.Logf("Warning: FTS rank is 0 (may be expected with trigram)")
+			t.Logf("Warning: Search rank is 0")
 		} else {
-			t.Logf("FTS rank: %f", res[0].Rank)
+			t.Logf("Search rank: %f", res[0].Rank)
 		}
 
 		// Captions
