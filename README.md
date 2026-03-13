@@ -14,26 +14,12 @@ go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
 **Optional:**
 - `ffmpeg` - Media transcoding, streaming, duration detection
-- `calibre` - Ebook conversion (EPUB, MOBI, PDF)
+- `calibre` - Ebook conversion (ePub, mobi, PDF)
+- `kiwix-serve` - ZIM files proxy
 - `espeak-ng` - Text-to-speech generation
 - `mpv` - Playback control
 
 See [INSTALL.md](INSTALL.md) for installation instructions on your platform.
-
-## Pre-built Binaries
-
-Download from [GitHub Releases](https://github.com/chapmanjacobd/discoteca/releases) for:
-- **Linux**: amd64, arm64
-- **Windows**: amd64
-- **macOS**: amd64, arm64 (Apple Silicon)
-
-## Build from Source
-
-```bash
-git clone https://github.com/chapmanjacobd/discoteca.git
-cd discoteca
-go build -tags "fts5" -o disco ./cmd/disco
-```
 
 ## Screenshots
 
@@ -68,6 +54,21 @@ go build -tags "fts5" -o disco ./cmd/disco
 ### Group View
 
 ![Group View](docs/screenshots/group-view.png)
+
+## Pre-built Binaries
+
+Download from [GitHub Releases](https://github.com/chapmanjacobd/discoteca/releases) for:
+- **Linux**: amd64, arm64
+- **Windows**: amd64
+- **macOS**: amd64, arm64 (Apple Silicon)
+
+## Build from Source
+
+```bash
+git clone https://github.com/chapmanjacobd/discoteca.git
+cd discoteca
+go build -tags "fts5" -o disco ./cmd/disco
+```
 
 ## Usage
 
@@ -4545,12 +4546,3 @@ Flags:
 
 </details>
 
-## Documentation
-
-- [Installation Guide](INSTALL.md) - Platform-specific installation instructions
-- [Performance Tracking](PERFORMANCE.md) - Benchmarking and profiling guide
-- [Build Modes](BUILD_MODES.md) - Build configuration options
-
-## License
-
-See [LICENSE](LICENSE) file for details.

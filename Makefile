@@ -13,31 +13,31 @@ all: clean sql webbuild fmt lint build test webtest readme
 
 ubuntu-deps:
 	sudo apt-get update && sudo apt-get install -y \
-		ffmpeg \
-		pandoc \
-		groff \
-		calibre \
 		fonts-dejavu-core \
 		sqlite3 \
-		libnss3 \
-		libnspr4 \
+		libcairo2 \
+		libpango-1.0-0 \
+		libasound2t64 \
+		libdrm2 \
+		libgbm1 \
+		libxkbcommon0 \
 		libatk1.0-0 \
 		libatk-bridge2.0-0 \
 		libcups2 \
-		libdrm2 \
-		libxkbcommon0 \
 		libxcomposite1 \
 		libxdamage1 \
 		libxfixes3 \
 		libxrandr2 \
-		libgbm1 \
-		libasound2t64 \
-		libpango-1.0-0 \
+		libnspr4 \
+		libnss3 \
+		calibre \
+		ffmpeg \
 		graphviz \
-		libcairo2
+		groff \
+		pandoc
 
 macos-deps:
-	-brew install --formula ffmpeg pandoc sqlite
+	-brew install --formula ffmpeg pandoc sqlite || true
 	-brew install --cask calibre
 
 go-deps:

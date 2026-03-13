@@ -45,22 +45,11 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("**Required:** None (SQLite is embedded via CGO)\n\n")
 	sb.WriteString("**Optional:**\n")
 	sb.WriteString("- `ffmpeg` - Media transcoding, streaming, duration detection\n")
-	sb.WriteString("- `calibre` - Ebook conversion (EPUB, MOBI, PDF)\n")
+	sb.WriteString("- `calibre` - Ebook conversion (ePub, mobi, PDF)\n")
+	sb.WriteString("- `kiwix-serve` - ZIM files proxy\n")
 	sb.WriteString("- `espeak-ng` - Text-to-speech generation\n")
 	sb.WriteString("- `mpv` - Playback control\n\n")
 	sb.WriteString("See [INSTALL.md](INSTALL.md) for installation instructions on your platform.\n\n")
-
-	sb.WriteString("## Pre-built Binaries\n\n")
-	sb.WriteString("Download from [GitHub Releases](https://github.com/chapmanjacobd/discoteca/releases) for:\n")
-	sb.WriteString("- **Linux**: amd64, arm64\n")
-	sb.WriteString("- **Windows**: amd64\n")
-	sb.WriteString("- **macOS**: amd64, arm64 (Apple Silicon)\n\n")
-	sb.WriteString("## Build from Source\n\n")
-	sb.WriteString("```bash\n")
-	sb.WriteString("git clone https://github.com/chapmanjacobd/discoteca.git\n")
-	sb.WriteString("cd discoteca\n")
-	sb.WriteString("go build -tags \"fts5\" -o disco ./cmd/disco\n")
-	sb.WriteString("```\n\n")
 
 	sb.WriteString("## Screenshots\n\n")
 	sb.WriteString("### Grid View\n\n")
@@ -79,6 +68,18 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("![Settings Modal](docs/screenshots/settings-modal.png)\n\n")
 	sb.WriteString("### Group View\n\n")
 	sb.WriteString("![Group View](docs/screenshots/group-view.png)\n\n")
+
+	sb.WriteString("## Pre-built Binaries\n\n")
+	sb.WriteString("Download from [GitHub Releases](https://github.com/chapmanjacobd/discoteca/releases) for:\n")
+	sb.WriteString("- **Linux**: amd64, arm64\n")
+	sb.WriteString("- **Windows**: amd64\n")
+	sb.WriteString("- **macOS**: amd64, arm64 (Apple Silicon)\n\n")
+	sb.WriteString("## Build from Source\n\n")
+	sb.WriteString("```bash\n")
+	sb.WriteString("git clone https://github.com/chapmanjacobd/discoteca.git\n")
+	sb.WriteString("cd discoteca\n")
+	sb.WriteString("go build -tags \"fts5\" -o disco ./cmd/disco\n")
+	sb.WriteString("```\n\n")
 
 	sb.WriteString("## Usage\n\n")
 
@@ -160,13 +161,6 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 		sb.WriteString("```\n\n")
 		sb.WriteString("</details>\n\n")
 	}
-
-	sb.WriteString("## Documentation\n\n")
-	sb.WriteString("- [Installation Guide](INSTALL.md) - Platform-specific installation instructions\n")
-	sb.WriteString("- [Performance Tracking](PERFORMANCE.md) - Benchmarking and profiling guide\n")
-	sb.WriteString("- [Build Modes](BUILD_MODES.md) - Build configuration options\n\n")
-	sb.WriteString("## License\n\n")
-	sb.WriteString("See [LICENSE](LICENSE) file for details.\n")
 
 	fmt.Print(sb.String())
 	return nil
