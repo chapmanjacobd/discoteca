@@ -136,24 +136,26 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			// Bleve search - handled separately, just mark for in-memory filtering
 			// Bleve search is executed before SQL query to get matching IDs
 		} else if useFTS {
-			// FTS match syntax
-			var ftsTerms []string
-			for _, term := range allInclude {
-				if strings.Contains(term, ":") {
-					parts := strings.SplitN(term, ":", 2)
-					col, val := parts[0], parts[1]
-					// Validate column name to prevent injection
-					validCols := map[string]bool{"title": true, "path": true, "text": true}
-					if validCols[strings.ToLower(col)] {
-						ftsTerms = append(ftsTerms, fmt.Sprintf("%s:%s", col, utils.FtsQuote([]string{val})[0]))
-						continue
-					}
+			// Hybrid FTS + LIKE search for phrase support with detail=none
+			// Combine all terms into a single query string for parsing
+			queryStr := strings.Join(allInclude, " ")
+			hybrid := utils.ParseHybridSearchQuery(queryStr)
+
+			// FTS terms (works with detail=none)
+			if hybrid.HasFTSTerms() {
+				ftsQuery := hybrid.BuildFTSQuery(joinOp)
+				if ftsQuery != "" {
+					whereClauses = append(whereClauses, fmt.Sprintf("%s MATCH ?", fb.getFTSTable()))
+					args = append(args, ftsQuery)
 				}
-				ftsTerms = append(ftsTerms, utils.FtsQuote([]string{term})[0])
 			}
-			searchTerm := strings.Join(ftsTerms, joinOp)
-			whereClauses = append(whereClauses, fmt.Sprintf("%s MATCH ?", fb.getFTSTable()))
-			args = append(args, searchTerm)
+
+			// Phrase searches via LIKE (trigram-optimized)
+			for _, phrase := range hybrid.Phrases {
+				whereClauses = append(whereClauses, "(path LIKE ? OR title LIKE ? OR description LIKE ?)")
+				pattern := "%" + phrase + "%"
+				args = append(args, pattern, pattern, pattern)
+			}
 		} else {
 			// Regular LIKE search
 			var searchParts []string

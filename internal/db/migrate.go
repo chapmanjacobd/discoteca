@@ -560,14 +560,16 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
                     description,
 					content='media',
 					content_rowid='rowid',
-					tokenize = 'trigram'
+					tokenize = 'trigram',
+					detail = 'none'
 				);`
 			} else if tableName == "captions_fts" {
 				createSql = `CREATE VIRTUAL TABLE captions_fts USING fts5(
 					media_path UNINDEXED,
 					text,
 					content='captions',
-					tokenize = 'trigram'
+					tokenize = 'trigram',
+					detail = 'none'
 				);`
 			}
 
