@@ -1,11 +1,6 @@
+should/could we use bleve instead of SQLite completely? pros/cons ?
 
-lets add "Priority" (or find a better name? lets brainstorm) search preset that is ntile(1000) over (order by size/duration) desc
-
-
-
-should/could we use bleve instead of SQLite completely?
-
-lets read docs/SORTING_EXAMPLES.md and docs/COMPLEX_SORTING.md and delete docs/
+lets read docs/SORTING_EXAMPLES.md and docs/COMPLEX_SORTING.md and delete docs
 
 
 Search queries can match many documents. Pagination lets you fetch and display results in chunks, keeping responses small and fast.

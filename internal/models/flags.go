@@ -3,6 +3,8 @@ package models
 import (
 	"log/slog"
 	"strings"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 // CoreFlags are essential flags shared across most binaries/commands
@@ -319,6 +321,7 @@ var LogLevel = &slog.LevelVar{}
 func SetupLogging(verbose bool) {
 	if verbose {
 		LogLevel.Set(slog.LevelDebug)
+		db.SetDebugMode(true)
 	} else {
 		LogLevel.Set(slog.LevelInfo)
 	}
