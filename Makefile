@@ -46,6 +46,10 @@ go-deps:
 	go install mvdan.cc/gofumpt@latest
 	go install github.com/daixiang0/gci@latest
 
+deps-update:
+	go get -u ./...
+	go mod tidy
+
 web-install:
 	cd web && npm install
 

@@ -1,3 +1,125 @@
+remove all mentions of sqlc
+
+Add PRAGMA mmap_size=268435456 (256MB) to connection.go for memory-mapped I/O
+Optimize GetCategoryStats query - use indexed equality filters before LIKE patterns
+Review WHERE clause ordering in filter_builder.go to put selective filters before expensive substring searches
+Consider adding index on type column for better filtering performance
+
+Based on the benchmark document and codebase review, here are the key optimization opportunities:
+
+1. FTS5 JOIN pattern is faster than subquery (~677μs vs ~707μs)
+    - Current code in filter_builder.go:148 uses JOIN pattern ✅ (already optimal)
+
+2. LIKE substring search is faster than FTS5 for simple searches (~1ms vs ~4-5ms)
+    - For non-FTS builds, LIKE is being used correctly ✅
+
+3. INSTR performs similarly to LIKE (~950μs vs ~1ms)
+    - No INSTR usage found - LIKE is preferred ✅
+
+4. EndsWith patterns are surprisingly fast (~660μs)
+    - Could optimize extension filtering in some places
+
+5. Filter first, search second - selective filters should come before expensive substring searches
+    - Current WHERE clause ordering could be improved
+
+6. FTS5 phrase/OR/AND queries are significantly slower (4-5.5ms)
+    - The hybrid approach being used is already addressing this ✅
+
+7. LIKE is ~2x faster than FTS5 for fetching results
+    - Consider using LIKE for simple searches even when FTS is available
+
+8. PRAGMA optimizations - Not seen in the codebase
+    - Could add WAL mode, cache size, mmap settings
+
+Now I understand the structure. The benchmark recommends putting selective filters (like type = 'video') BEFORE expensive substring searches. Currently, the order is:
+
+     1. Deleted status ✅ (selective)
+     2. Category (LIKE - expensive)
+     3. Genre (equality - selective)
+     4. Language (equality - selective)
+     5. Search terms (LIKE/FTS - expensive)
+     6. ... other filters
+     7. Type filters (equality - selective) - comes too late!
+
+    According to the benchmark, selective filters should come first. Let me optimize this:
+
+  ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ ✓  TodoWrite Create todos                                                                                                                                                         │
+  │                                                                                                                                                                                   │
+  │    ●  Add PRAGMA mmap_size=268435456 (256MB) to connection.go for memory-mapped I/O                                                                                               │
+  │    ○  Optimize GetCategoryStats query - use indexed equality filters before LIKE patterns                                                                                         │
+  │    ◐  Review WHERE clause ordering in filter_builder.go to put selective filters before expensive substring searches                                                              │
+  │    ○  Consider adding index on type column for better filtering performance                                                                                                       │
+  │    ○  Delete SUBSTRING_SEARCH_BENCHMARK.md file                                                                                                                                   │
+  │                                                                                                                                                                                   │
+  │ ✓  ReadFile internal/query/filter_builder.go (lines 31-280)                                                                                                                       │
+  │                                                                                                                                                                                   │
+  │    Read lines 31-280 of 2287 from internal/query/filter_builder.go                                                                                                                │
+  ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ✦ Now I'll reorder the WHERE clauses to put selective equality filters (type, genre, language) before expensive substring searches, following the benchmark's 'filter first, search
+    second' recommendation.
+
+  ✦ Now I'll reorder the WHERE clauses to put selective filters first. The key insight from the benchmark is that indexed equality filters should come before expensive LIKE substring
+    searches. Let me make this optimization:
+
+
+
+GetCategoryStatsRow should be Category, Count
+
+in dev mode lets trace each db query and print it if it takes longer than 50ms
+
+
+
+lets add "Priority" (or find a better name? lets brainstorm) search preset that is ntile(1000) over (order by size/duration) desc
+
+
+
+should/could we use bleve instead of SQLite completely?
+
+lets read docs/SORTING_EXAMPLES.md and docs/COMPLEX_SORTING.md and delete docs/
+
+
+Search queries can match many documents. Pagination lets you fetch and display results in chunks, keeping responses small and fast.
+
+By default, Bleve returns the first 10 hits sorted by relevance (score), highest first.
+Two pagination modes
+
+    From/Size: simple and stateless; cost grows with page depth.
+    SearchAfter/SearchBefore: efficient for deep paging; requires passing sort keys from the previous page.
+
+Both modes can be used with any valid sort.
+Size/From
+
+Offset-based pagination uses Size (page length) and From (number of hits to skip). Bleve collects at least Size + From ordered results, then returns the Size slice starting at From.
+
+JSON example:
+
+{
+  "query": { "match": "California" },
+  "sort": ["-_score"],
+  "size": 5,
+  "from": 10
+}
+
+The result would be 5 hits starting from the 5th hit.
+
+Total Sort Order
+
+Pagination is deterministic. Ensure your Sort defines a total order, so that documents with the same sort keys are not left out:
+
+    Sort strings can be field names (prefix with - for descending), "_score", or "_id".
+    Always include a stable tie-breaker as the last key, typically "_id".
+    Examples:
+        ["country", "-age", "_id"]
+        ["-_score", "_id"] (default score desc with a tie-breaker)
+
+Performance guidance
+
+    Offset pagination cost grows with From (collects at least Size + From results before slicing).
+
+
+
 
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media

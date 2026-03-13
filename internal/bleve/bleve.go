@@ -135,6 +135,7 @@ func createIndex(path string) (bleve.Index, error) {
 	indexMapping := bleve.NewIndexMapping()
 	indexMapping.DefaultMapping = docMapping
 	indexMapping.DefaultAnalyzer = standard.Name
+	indexMapping.ScoringModel = "bm25"
 
 	// Register custom edge_ngram analyzer for title autocomplete
 	// This creates tokens from the start of words: "matrix" → "m", "ma", "mat", "matr", "matri", "matrix"
