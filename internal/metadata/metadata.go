@@ -99,9 +99,16 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 
 	if mediaType == "text" && utils.TextExtensionMap[strings.ToLower(filepath.Ext(path))] {
 		if params.Duration.Int64 == 0 {
-			// Basic duration estimate for text
-			d := int64(float64(stat.Size())/4.2/220*60) + 10
-			params.Duration = utils.ToNullInt64(d)
+			// Fast word count for duration estimation on ingest
+			wordCount, err := utils.QuickWordCount(path, stat.Size())
+			if err != nil || wordCount <= 0 {
+				// Fallback to size-based estimate if word count fails
+				d := int64(float64(stat.Size())/4.2/220*60) + 10
+				params.Duration = utils.ToNullInt64(d)
+			} else {
+				// Calculate duration from word count (220 wpm average reading speed)
+				params.Duration = utils.ToNullInt64(utils.EstimateReadingDuration(wordCount))
+			}
 		}
 		result.Media = params
 		return result, nil

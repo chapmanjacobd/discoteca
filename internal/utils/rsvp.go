@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +13,199 @@ import (
 	"strings"
 	"time"
 )
+
+// CountWordsFast estimates word count by counting spaces.
+// This is much faster than strings.Fields() and sufficient for duration estimation.
+func CountWordsFast(b []byte) int {
+	return bytes.Count(b, []byte{' '}) + bytes.Count(b, []byte{'\n'}) + bytes.Count(b, []byte{'\t'}) + 1
+}
+
+// QuickWordCount extracts text and counts words for duration estimation.
+// Optimized for speed over accuracy - suitable for ingest-time processing.
+// Returns word count and error.
+// For files with very low word counts (<300), falls back to size-based estimation
+// to avoid false positives from sparse or image-heavy files.
+func QuickWordCount(path string, size int64) (int, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+
+	switch ext {
+	case ".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".text":
+		// Plain text: read and count spaces
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return 0, err
+		}
+		count := CountWordsFast(content)
+		// For very short files, use size-based estimate if it's higher
+		if count < 300 {
+			estimated := EstimateWordCountFromSize(path, size)
+			if estimated > count {
+				return estimated, nil
+			}
+		}
+		return count, nil
+
+	case ".html", ".htm":
+		// HTML: strip tags and count
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return 0, err
+		}
+		// Quick HTML tag removal
+		text := regexp.MustCompile(`<[^>]*>`).ReplaceAll(content, []byte{' '})
+		count := CountWordsFast(text)
+		// For short HTML files, use size-based estimate
+		if count < 300 {
+			estimated := EstimateWordCountFromSize(path, size)
+			if estimated > count {
+				return estimated, nil
+			}
+		}
+		return count, nil
+
+	case ".epub", ".mobi", ".azw3", ".docx", ".odt":
+		// ZIP-based formats: extract HTML content without full conversion
+		r, err := zip.OpenReader(path)
+		if err != nil {
+			return 0, err
+		}
+		defer r.Close()
+
+		wordCount := 0
+		for _, f := range r.File {
+			name := strings.ToLower(f.Name)
+			// Skip metadata, covers, and non-content files
+			if strings.Contains(name, "cover") ||
+				strings.Contains(name, "titlepage") ||
+				strings.Contains(name, "metadata") ||
+				strings.Contains(name, "nav.") {
+				continue
+			}
+
+			if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".xhtml") ||
+				strings.HasSuffix(name, ".htm") || strings.HasSuffix(name, ".xml") {
+				rc, err := f.Open()
+				if err != nil {
+					continue
+				}
+				content, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					continue
+				}
+				// Strip HTML tags
+				text := regexp.MustCompile(`<[^>]*>`).ReplaceAll(content, []byte{' '})
+				wordCount += CountWordsFast(text)
+			}
+		}
+
+		// For ebooks with low extracted word count, use size-based estimate
+		// This handles image-heavy ebooks or those with DRM/complex formatting
+		if wordCount < 300 {
+			estimated := EstimateWordCountFromSize(path, size)
+			if estimated > wordCount {
+				return estimated, nil
+			}
+		}
+		return wordCount, nil
+
+	case ".pdf":
+		// Use pdftotext if available (much faster than calibre)
+		cmd := exec.Command("pdftotext", "-raw", "-eol", "unix", path, "-")
+		output, err := cmd.Output()
+		if err == nil && len(output) > 0 {
+			count := CountWordsFast(output)
+			// For PDFs with low text extraction, use size-based estimate
+			// This handles image-heavy or scanned PDFs
+			if count < 300 {
+				estimated := EstimateWordCountFromSize(path, size)
+				if estimated > count {
+					return estimated, nil
+				}
+			}
+			return count, nil
+		}
+		// Fallback: use size-based estimation for PDFs
+		return EstimateWordCountFromSize(path, size), nil
+
+	default:
+		// Try reading as plain text
+		content, err := os.ReadFile(path)
+		if err == nil {
+			count := CountWordsFast(content)
+			if count < 300 {
+				estimated := EstimateWordCountFromSize(path, size)
+				if estimated > count {
+					return estimated, nil
+				}
+			}
+			return count, nil
+		}
+		// Final fallback: pure size-based estimation
+		return EstimateWordCountFromSize(path, size), nil
+	}
+}
+
+// EstimateReadingDuration calculates reading duration in seconds from word count.
+// Uses average reading speed of 220 words per minute.
+func EstimateReadingDuration(wordCount int) int64 {
+	if wordCount <= 0 {
+		return 0
+	}
+	// 220 words per minute = 3.67 words per second
+	// duration = wordCount / 3.67
+	return int64(float64(wordCount) / 3.67)
+}
+
+// EstimateWordCountFromSize estimates word count from file size.
+// Uses format-specific ratios to account for images, formatting, etc.
+// Returns estimated word count.
+func EstimateWordCountFromSize(path string, size int64) int {
+	ext := strings.ToLower(filepath.Ext(path))
+
+	// Bytes per word varies by format due to images, formatting, fonts, etc.
+	// Lower ratio = more overhead per word (images, formatting)
+	var bytesPerWord float64
+
+	switch ext {
+	case ".pdf":
+		// PDFs often have images, fonts, complex formatting
+		// Assume 6-8 bytes per word average
+		bytesPerWord = 7.0
+	case ".epub", ".mobi", ".azw3":
+		// Ebooks have HTML markup, CSS, embedded fonts
+		// Assume 5-6 bytes per word
+		bytesPerWord = 5.5
+	case ".docx", ".odt":
+		// Office documents have XML overhead, styles, metadata
+		// Assume 6-7 bytes per word
+		bytesPerWord = 6.5
+	case ".html", ".htm":
+		// HTML has tags but usually less embedded content
+		// Assume 4-5 bytes per word
+		bytesPerWord = 4.5
+	case ".cbz", ".cbr":
+		// Comics are mostly images, text is minimal
+		// Very high bytes per word
+		bytesPerWord = 50.0
+	case ".djvu":
+		// DjVu is image-based, often scanned documents
+		bytesPerWord = 15.0
+	default:
+		// Plain text: ~4.2 bytes per word (average English word + space)
+		bytesPerWord = 4.2
+	}
+
+	// Calculate word count from size
+	estimatedWords := int(float64(size) / bytesPerWord)
+
+	// Sanity check: minimum 10 words for any file
+	if estimatedWords < 10 {
+		estimatedWords = 10
+	}
+
+	return estimatedWords
+}
 
 // ExtractText extracts plain text from a given file path.
 // Supports .txt, .pdf, .epub and other text formats.
