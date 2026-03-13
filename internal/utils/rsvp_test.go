@@ -121,7 +121,7 @@ func TestQuickWordCount(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	// Create content with >300 words to avoid size-based fallback
 	var content strings.Builder
-	for i := 0; i < 35; i++ {
+	for range 35 {
 		content.WriteString("The quick brown fox jumps over the lazy dog. ")
 	}
 	os.WriteFile(tmpFile.Name(), []byte(content.String()), 0o644)
@@ -141,7 +141,7 @@ func TestQuickWordCount(t *testing.T) {
 	defer os.Remove(htmlFile.Name())
 	var htmlContent strings.Builder
 	htmlContent.WriteString("<html><body>")
-	for i := 0; i < 35; i++ {
+	for i := range 35 {
 		htmlContent.WriteString("<p>Hello world test paragraph number ")
 		htmlContent.WriteString(fmt.Sprintf("%d", i))
 		htmlContent.WriteString("</p>")
@@ -199,15 +199,15 @@ func TestEstimateWordCountFromSize(t *testing.T) {
 		minWords int
 		maxWords int
 	}{
-		{"plain text", ".txt", 4200, 900, 1100},     // ~1000 words
-		{"markdown", ".md", 4200, 900, 1100},        // ~1000 words
-		{"pdf", ".pdf", 7000, 800, 1200},            // ~1000 words with images
-		{"epub", ".epub", 5500, 850, 1150},          // ~1000 words with markup
-		{"html", ".html", 4500, 850, 1150},          // ~1000 words with tags
-		{"docx", ".docx", 6500, 850, 1150},          // ~1000 words with XML
-		{"comic", ".cbz", 50000, 800, 1200},         // mostly images
-		{"djvu", ".djvu", 15000, 800, 1200},         // scanned document
-		{"small file", ".txt", 42, 10, 20},          // minimum threshold
+		{"plain text", ".txt", 4200, 900, 1100}, // ~1000 words
+		{"markdown", ".md", 4200, 900, 1100},    // ~1000 words
+		{"pdf", ".pdf", 7000, 800, 1200},        // ~1000 words with images
+		{"epub", ".epub", 5500, 850, 1150},      // ~1000 words with markup
+		{"html", ".html", 4500, 850, 1150},      // ~1000 words with tags
+		{"docx", ".docx", 6500, 850, 1150},      // ~1000 words with XML
+		{"comic", ".cbz", 50000, 800, 1200},     // mostly images
+		{"djvu", ".djvu", 15000, 800, 1200},     // scanned document
+		{"small file", ".txt", 42, 10, 20},      // minimum threshold
 	}
 
 	for _, tt := range tests {
@@ -238,7 +238,7 @@ func BenchmarkQuickWordCount_PlainText(b *testing.B) {
 	defer os.Remove(tmpFile.Name())
 
 	var content strings.Builder
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		content.WriteString("The quick brown fox jumps over the lazy dog. ")
 		content.WriteString("Lorem ipsum dolor sit amet, consectetur adipiscing elit. ")
 	}
@@ -258,7 +258,7 @@ func BenchmarkQuickWordCount_HTML(b *testing.B) {
 
 	var content strings.Builder
 	content.WriteString("<html><body>")
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		content.WriteString("<p>The quick brown fox jumps over the lazy dog. ")
 		content.WriteString("Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>")
 	}

@@ -863,9 +863,9 @@ func parseSortConfig(config string) ([]SortField, string) {
 	alg := "natural"
 
 	// Split by comma for multi-field sorting
-	parts := strings.Split(config, ",")
+	parts := strings.SplitSeq(config, ",")
 
-	for _, part := range parts {
+	for part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
@@ -878,8 +878,8 @@ func parseSortConfig(config string) ([]SortField, string) {
 		if strings.HasSuffix(part, " desc") {
 			reverse = true
 			field = strings.TrimSpace(strings.TrimSuffix(part, " desc"))
-		} else if strings.HasSuffix(part, " asc") {
-			field = strings.TrimSpace(strings.TrimSuffix(part, " asc"))
+		} else if before, ok := strings.CutSuffix(part, " asc"); ok {
+			field = strings.TrimSpace(before)
 		}
 
 		// Check for "reverse_" prefix

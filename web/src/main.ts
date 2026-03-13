@@ -3,7 +3,7 @@ import Hls from 'hls.js';
 import { fetchAPI, getCookie } from './api';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
-import { initComplexSorting } from './complex-sort';
+import { initComplexSorting, loadConfigFromCurrentSort } from './complex-sort';
 import {
     formatSize,
     formatDuration,
@@ -88,9 +88,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initSliders(performSearch);
     initComplexSorting();
-    
+
     // Listen for complex sort applied event
     window.addEventListener('complex-sort-applied', () => {
+        // Update sort-by dropdown to reflect custom or preset selection
+        const sortByEl = document.getElementById('sort-by') as HTMLSelectElement;
+        if (sortByEl && state.filters.sort) {
+            sortByEl.value = state.filters.sort;
+        }
+        
         if (state.page === 'du') {
             window.location.reload();
         } else {
@@ -305,7 +311,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    if (sortBy) sortBy.value = state.filters.sort;
+    if (sortBy) {
+        // Set sort-by value, using "custom" if we have custom sort configuration
+        if (state.filters.customSortFields && state.filters.sort === 'custom') {
+            sortBy.value = 'custom';
+        } else {
+            sortBy.value = state.filters.sort || 'default';
+        }
+    }
     if (sortReverseBtn && state.filters.reverse) sortReverseBtn.classList.add('active');
 
     if (viewGrid && viewDetails) {
@@ -7409,9 +7422,26 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    if (sortBy) sortBy.onchange = () => {
+    if (sortBy) sortBy.onchange = async () => {
+        // If "Custom" is selected, open the custom sorting modal instead of querying
+        if (sortBy.value === 'custom') {
+            const modal = document.getElementById('sort-complex-modal');
+            if (modal) {
+                loadConfigFromCurrentSort();
+                modal.classList.remove('hidden');
+            }
+            return;
+        }
+
         state.filters.sort = sortBy.value;
         localStorage.setItem('disco-sort', String(state.filters.sort));
+
+        // Clear custom sort fields when selecting a preset
+        if (sortBy.value !== 'custom') {
+            state.filters.customSortFields = '';
+            localStorage.removeItem('disco-custom-sort-fields');
+        }
+
         if (state.page === 'playlist') {
             sortPlaylistItems();
             renderResults();

@@ -8,10 +8,10 @@ import (
 
 func TestParseSortConfig(t *testing.T) {
 	tests := []struct {
-		name      string
-		config    string
+		name       string
+		config     string
 		wantFields []SortField
-		wantAlg   string
+		wantAlg    string
 	}{
 		{
 			name:   "simple field",
@@ -197,12 +197,12 @@ func TestGetSortValueFloat64(t *testing.T) {
 
 	m := models.MediaWithDB{
 		Media: models.Media{
-			VideoCount:   &videoCount,
-			AudioCount:   &audioCount,
-			PlayCount:    &playCount,
-			Playhead:     &playhead,
-			Duration:     &duration,
-			Size:         &size,
+			VideoCount:     &videoCount,
+			AudioCount:     &audioCount,
+			PlayCount:      &playCount,
+			Playhead:       &playhead,
+			Duration:       &duration,
+			Size:           &size,
 			TimeLastPlayed: nil,
 		},
 	}
@@ -366,21 +366,21 @@ func TestSortAdvanced(t *testing.T) {
 		wantPath []string // expected order of paths
 	}{
 		{
-			name:   "video_count desc",
-			config: "video_count desc",
-			media:  []models.MediaWithDB{m3, m2, m1},
+			name:     "video_count desc",
+			config:   "video_count desc",
+			media:    []models.MediaWithDB{m3, m2, m1},
 			wantPath: []string{"/path/c.mp4", "/path/a.mp4", "/path/b.mp4"},
 		},
 		{
-			name:   "path asc",
-			config: "path asc",
-			media:  []models.MediaWithDB{m3, m1, m2},
+			name:     "path asc",
+			config:   "path asc",
+			media:    []models.MediaWithDB{m3, m1, m2},
 			wantPath: []string{"/path/a.mp4", "/path/b.mp4", "/path/c.mp4"},
 		},
 		{
-			name:   "xklb default",
-			config: "xklb",
-			media:  []models.MediaWithDB{m3, m2, m1},
+			name:     "xklb default",
+			config:   "xklb",
+			media:    []models.MediaWithDB{m3, m2, m1},
 			wantPath: []string{"/path/c.mp4", "/path/a.mp4", "/path/b.mp4"},
 		},
 	}

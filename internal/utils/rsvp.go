@@ -197,12 +197,9 @@ func EstimateWordCountFromSize(path string, size int64) int {
 	}
 
 	// Calculate word count from size
-	estimatedWords := int(float64(size) / bytesPerWord)
-
-	// Sanity check: minimum 10 words for any file
-	if estimatedWords < 10 {
-		estimatedWords = 10
-	}
+	estimatedWords := max(
+		// Sanity check: minimum 10 words for any file
+		int(float64(size)/bytesPerWord), 10)
 
 	return estimatedWords
 }

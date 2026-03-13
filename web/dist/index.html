@@ -301,9 +301,10 @@
                             <option value="bitrate">Bitrate</option>
                             <option value="extension">Extension</option>
                             <option value="random">Random</option>
+                            <option value="custom">Custom</option>
                         </select>
                         <button id="sort-reverse-btn" title="Reverse Sort">⇅</button>
-                        <button id="sort-complex-btn" title="Configure Complex Sorting">⚙️</button>
+                        <button id="sort-complex-btn" title="Custom Sorting">🛠️</button>
                     </div>
                 </div>
 
@@ -893,11 +894,11 @@
             ></div>
         </div>
         
-        <!-- Complex Sorting Modal -->
+        <!-- Custom Sorting Modal -->
         <div id="sort-complex-modal" class="modal hidden">
             <div class="modal-content" style="max-width: 600px;">
                 <div class="modal-header">
-                    <h2>Complex Sorting</h2>
+                    <h2>Custom Sorting</h2>
                     <button class="close-modal" title="Close">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -905,19 +906,10 @@
                         Drag and drop to reorder sort fields. Fields are applied in order from top to bottom.
                     </p>
                     
-                    <div style="margin-bottom: 1rem;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="sort-complex-reverse" />
-                            <span>Reverse entire sort order</span>
-                        </label>
-                    </div>
-                    
                     <div id="sort-fields-list" style="
                         display: flex;
                         flex-direction: column;
                         gap: 0.5rem;
-                        max-height: 400px;
-                        overflow-y: auto;
                         padding: 0.5rem;
                         border: 1px solid var(--border-color);
                         border-radius: 8px;
@@ -926,25 +918,16 @@
                         <!-- Sort field items will be injected here -->
                     </div>
                     
-                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <div style="margin-top: 1rem;">
                         <button id="sort-add-field-btn" class="primary-btn" style="flex: 1;">+ Add Field</button>
-                        <button id="sort-reset-btn" class="secondary-btn" style="flex: 1;">Reset to Default</button>
-                    </div>
-                    
-                    <div style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
-                        <h4 style="margin: 0 0 0.5rem 0;">Preset Configurations</h4>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button class="preset-btn" data-preset="xklb">Default (xklb)</button>
-                            <button class="preset-btn" data-preset="du">Disk Usage</button>
-                            <button class="preset-btn" data-preset="unplayed">Unplayed First</button>
-                            <button class="preset-btn" data-preset="resume">Resume Progress</button>
-                            <button class="preset-btn" data-preset="recent">Recently Added</button>
-                        </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button id="sort-cancel-btn" class="secondary-btn">Cancel</button>
-                    <button id="sort-apply-btn" class="primary-btn">Apply Sorting</button>
+                <div class="modal-footer" style="display: flex; gap: 0.5rem; justify-content: space-between;">
+                    <button id="sort-reset-btn" class="secondary-btn">Reset to Default</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="sort-cancel-btn" class="secondary-btn">Cancel</button>
+                        <button id="sort-apply-btn" class="primary-btn">Apply Sorting</button>
+                    </div>
                 </div>
             </div>
         </div>

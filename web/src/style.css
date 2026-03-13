@@ -1125,6 +1125,15 @@ header {
     overflow-y: auto;
 }
 
+.modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .close-modal {
     background: transparent;
     border: none;
@@ -2368,6 +2377,7 @@ body.has-pip #content {
     color: var(--text-muted);
     font-size: 1.2rem;
     user-select: none;
+    margin-left: 0.8rem;
 }
 
 .sort-field-item .drag-handle:active {
@@ -2409,26 +2419,4 @@ body.has-pip #content {
 .sort-field-item .remove-field:hover {
     background: #ff4444;
     color: white;
-}
-
-.preset-btn {
-    padding: 0.5rem 1rem;
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    color: var(--text-color);
-    transition: all 0.2s;
-}
-
-.preset-btn:hover {
-    background: var(--hover-color);
-    border-color: var(--accent-color);
-}
-
-.preset-btn.active {
-    background: var(--accent-color);
-    color: white;
-    border-color: var(--accent-color);
 }

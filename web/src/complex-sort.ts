@@ -16,6 +16,7 @@ export const SORT_FIELDS: { value: string; label: string }[] = [
     { value: 'time_last_played', label: 'Last Played' },
     { value: 'time_created', label: 'Created' },
     { value: 'time_modified', label: 'Modified' },
+    { value: 'time_downloaded', label: 'Time Scanned' },
     { value: 'size', label: 'Size' },
     { value: 'duration', label: 'Duration' },
     { value: 'path', label: 'Path' },
@@ -23,11 +24,13 @@ export const SORT_FIELDS: { value: string; label: string }[] = [
     { value: 'path_is_remote', label: 'Local vs Remote' },
     { value: 'title_is_null', label: 'Has Title' },
     { value: 'score', label: 'Rating' },
+    { value: 'extension', label: 'Extension' },
+    { value: 'random', label: 'Random' },
 ];
 
-// Preset configurations
+// Preset configurations mapped to sort-by values
 export const SORT_PRESETS: Record<string, SortField[]> = {
-    xklb: [
+    default: [
         { field: 'video_count', reverse: true },
         { field: 'audio_count', reverse: true },
         { field: 'path_is_remote', reverse: false },
@@ -38,25 +41,43 @@ export const SORT_PRESETS: Record<string, SortField[]> = {
         { field: 'title_is_null', reverse: false },
         { field: 'path', reverse: false },
     ],
-    du: [
-        { field: 'size', reverse: true },
-        { field: 'duration', reverse: true },
-        { field: 'path', reverse: true },
+    path: [
+        { field: 'path', reverse: false },
     ],
-    unplayed: [
+    size: [
+        { field: 'size', reverse: false },
+    ],
+    duration: [
+        { field: 'duration', reverse: false },
+    ],
+    play_count: [
         { field: 'play_count', reverse: false },
+    ],
+    time_last_played: [
         { field: 'time_last_played', reverse: false },
-        { field: 'path', reverse: false },
     ],
-    resume: [
+    progress: [
         { field: 'playhead', reverse: true },
-        { field: 'play_count', reverse: false },
-        { field: 'path', reverse: false },
+        { field: 'duration', reverse: false },
     ],
-    recent: [
-        { field: 'time_created', reverse: true },
-        { field: 'time_modified', reverse: true },
-        { field: 'path', reverse: false },
+    time_created: [
+        { field: 'time_created', reverse: false },
+    ],
+    time_modified: [
+        { field: 'time_modified', reverse: false },
+    ],
+    time_downloaded: [
+        { field: 'time_downloaded', reverse: false },
+    ],
+    bitrate: [
+        { field: 'size', reverse: false },
+        { field: 'duration', reverse: true },
+    ],
+    extension: [
+        { field: 'extension', reverse: false },
+    ],
+    random: [
+        { field: 'random', reverse: false },
     ],
 };
 
@@ -71,20 +92,15 @@ export function initComplexSorting() {
     const applyBtn = document.getElementById('sort-apply-btn');
     const resetBtn = document.getElementById('sort-reset-btn');
     const addFieldBtn = document.getElementById('sort-add-field-btn');
-    const reverseCheckbox = document.getElementById('sort-complex-reverse') as HTMLInputElement;
     const fieldsList = document.getElementById('sort-fields-list');
-    const presetBtns = document.querySelectorAll('.preset-btn');
 
     if (!modal || !openBtn || !fieldsList) return;
 
-    // Load current sort configuration
-    loadCurrentConfig();
-
-    // Open modal
-    openBtn.onclick = () => {
-        loadCurrentConfig();
+    // Open modal - load config based on current sort-by
+    openBtn.addEventListener('click', () => {
+        loadConfigFromCurrentSort();
         modal.classList.remove('hidden');
-    };
+    });
 
     // Close modal
     const closeModal = () => {
@@ -104,11 +120,11 @@ export function initComplexSorting() {
         });
     }
 
-    // Reset to default
+    // Reset to default (xklb)
     if (resetBtn) {
         resetBtn.addEventListener('click', () => {
-            currentFields = [...SORT_PRESETS.xklb];
-            if (reverseCheckbox) reverseCheckbox.checked = false;
+            currentFields = [...SORT_PRESETS.default];
+            state.filters.reverse = false;
             renderFieldsList();
         });
     }
@@ -120,62 +136,87 @@ export function initComplexSorting() {
             renderFieldsList();
         });
     }
-
-    // Preset buttons
-    presetBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const preset = btn.getAttribute('data-preset');
-            if (preset && SORT_PRESETS[preset]) {
-                currentFields = [...SORT_PRESETS[preset]];
-                if (reverseCheckbox) reverseCheckbox.checked = false;
-                renderFieldsList();
-
-                // Highlight active preset
-                presetBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            }
-        });
-    });
-
-    // Reverse checkbox
-    if (reverseCheckbox) {
-        reverseCheckbox.onchange = () => {
-            // This will be applied when saving
-        };
-    }
 }
 
-function loadCurrentConfig() {
-    // Check if we have a complex sort config in localStorage
-    const saved = localStorage.getItem('disco-complex-sort');
-    if (saved) {
+// Load configuration based on current sort-by selection
+export function loadConfigFromCurrentSort() {
+    const sortBy = state.filters.sort || 'default';
+    const reverse = state.filters.reverse;
+    
+    // Get base config for current sort-by
+    if (SORT_PRESETS[sortBy]) {
+        currentFields = [...SORT_PRESETS[sortBy]];
+    } else if (state.filters.customSortFields) {
+        // Parse existing custom sort fields
         try {
-            currentFields = JSON.parse(saved);
+            const parts = state.filters.customSortFields.split(',');
+            currentFields = parts.map(p => {
+                const trimmed = p.trim();
+                const reverseMatch = trimmed.match(/^(.+?)\s+(asc|desc)$/i);
+                if (reverseMatch) {
+                    return {
+                        field: reverseMatch[1].trim(),
+                        reverse: reverseMatch[2].toLowerCase() === 'desc'
+                    };
+                }
+                return { field: trimmed, reverse: false };
+            });
         } catch {
-            currentFields = [...SORT_PRESETS.xklb];
+            currentFields = [...SORT_PRESETS.default];
         }
     } else {
-        // Default to xklb
-        currentFields = [...SORT_PRESETS.xklb];
+        currentFields = [...SORT_PRESETS.default];
     }
+    
+    // Apply reverse flag to all fields if set
+    if (reverse) {
+        currentFields = currentFields.map(f => ({ ...f, reverse: !f.reverse }));
+    }
+    
+    renderFieldsList();
+}
+
+// Check if current fields match a preset
+export function matchesPreset(fields: SortField[]): string | null {
+    for (const [presetName, presetFields] of Object.entries(SORT_PRESETS)) {
+        if (fields.length !== presetFields.length) continue;
+        
+        const allMatch = fields.every((f, i) => 
+            f.field === presetFields[i].field && f.reverse === presetFields[i].reverse
+        );
+        
+        if (allMatch) return presetName;
+    }
+    return null;
 }
 
 function saveConfig() {
     localStorage.setItem('disco-complex-sort', JSON.stringify(currentFields));
-    
+
     // Update state filters
-    const reverse = (document.getElementById('sort-complex-reverse') as HTMLInputElement)?.checked;
-    state.filters.reverse = reverse;
+    state.filters.reverse = false; // Reverse is now handled per-field
     
     // Convert fields to comma-separated string for API
     const sortFieldsStr = currentFields
         .map(f => `${f.field} ${f.reverse ? 'desc' : 'asc'}`)
         .join(',');
     
-    state.filters.sort = 'custom';
-    state.filters.customSortFields = sortFieldsStr;
-    localStorage.setItem('disco-sort', 'custom');
-    localStorage.setItem('disco-custom-sort-fields', sortFieldsStr);
+    // Check if this matches a preset
+    const matchedPreset = matchesPreset(currentFields);
+    
+    if (matchedPreset) {
+        // Set sort-by to match the preset
+        state.filters.sort = matchedPreset;
+        state.filters.customSortFields = '';
+        localStorage.setItem('disco-sort', matchedPreset);
+        localStorage.removeItem('disco-custom-sort-fields');
+    } else {
+        // Custom configuration - set sort to "custom"
+        state.filters.sort = 'custom';
+        state.filters.customSortFields = sortFieldsStr;
+        localStorage.setItem('disco-sort', 'custom');
+        localStorage.setItem('disco-custom-sort-fields', sortFieldsStr);
+    }
 }
 
 function renderFieldsList() {
@@ -199,7 +240,7 @@ function createFieldItem(field: SortField, index: number): HTMLElement {
     // Drag handle
     const handle = document.createElement('span');
     handle.className = 'drag-handle';
-    handle.textContent = '⋮⋮';
+    handle.textContent = '☰';
     item.appendChild(handle);
 
     // Field selector

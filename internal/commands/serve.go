@@ -470,13 +470,13 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 	if sortDesc := q.Get("sort_desc"); sortDesc != "" {
 		// Comma-separated list of fields to sort descending
 		descFields := make(map[string]bool)
-		for _, f := range strings.Split(sortDesc, ",") {
+		for f := range strings.SplitSeq(sortDesc, ",") {
 			descFields[strings.TrimSpace(f)] = true
 		}
 		// If PlayInOrder is set, prepend '-' to descending fields
 		if flags.PlayInOrder != "" {
 			var newOrder []string
-			for _, f := range strings.Split(flags.PlayInOrder, ",") {
+			for f := range strings.SplitSeq(flags.PlayInOrder, ",") {
 				f = strings.TrimSpace(f)
 				// Remove existing direction prefix
 				f = strings.TrimPrefix(f, "-")
