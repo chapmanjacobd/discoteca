@@ -1,10 +1,9 @@
 package commands
 
 import (
-	"bytes"
+	"context"
 	"database/sql"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,13 +30,15 @@ func setupTestDB(b *testing.B, count int) (*sql.DB, string) {
 	}
 
 	// Insert sample data
+	queries := db.New(sqlDB)
+	ctx := context.Background()
 	for i := 0; i < count; i++ {
-		_, err := db.InsertMedia(sqlDB, db.Media{
+		err := queries.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:     fmt.Sprintf("/media/video_%d.mp4", i),
-			Title:    fmt.Sprintf("Sample Video Title %d", i),
-			Type:     "video",
-			Size:     int64(1000000 * (i%100)),
-			Duration: float64(i % 3600),
+			Title:    sql.NullString{String: fmt.Sprintf("Sample Video Title %d", i), Valid: true},
+			Type:     sql.NullString{String: "video", Valid: true},
+			Size:     sql.NullInt64{Int64: int64(1000000 * (i % 100)), Valid: true},
+			Duration: sql.NullInt64{Int64: int64(i % 3600), Valid: true},
 		})
 		if err != nil {
 			b.Fatalf("Insert failed: %v", err)
@@ -52,24 +53,18 @@ func BenchmarkSearch(b *testing.B) {
 	sqlDB, _ := setupTestDB(b, 100)
 	defer sqlDB.Close()
 
-	queries := []string{
-		"test",
-		"video",
-		"mp4",
-		"2024",
-		"sample",
-	}
+	queries := db.New(sqlDB)
+	ctx := context.Background()
 
-	for _, query := range queries {
-		b.Run(fmt.Sprintf("query_%s", query), func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, err := db.SearchMedia(sqlDB, query, nil)
-				if err != nil {
-					b.Fatalf("Search failed: %v", err)
-				}
-			}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := queries.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
+			Query: "video",
+			Limit: 10,
 		})
+		if err != nil {
+			b.Fatalf("Search failed: %v", err)
+		}
 	}
 }
 
@@ -78,11 +73,18 @@ func BenchmarkAddMedia(b *testing.B) {
 	tmpDir := b.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	testDB, err := testutils.CreateTestDatabase(dbPath)
+	sqlDB, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		b.Fatalf("Failed to create test database: %v", err)
+		b.Fatalf("Failed to open database: %v", err)
 	}
-	defer os.Remove(dbPath)
+	defer sqlDB.Close()
+
+	if err := testutils.InitTestDB(b, sqlDB); err != nil {
+		b.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	queries := db.New(sqlDB)
+	ctx := context.Background()
 
 	// Create test media files
 	mediaDir := filepath.Join(tmpDir, "media")
@@ -101,10 +103,10 @@ func BenchmarkAddMedia(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Simulate adding media
-		_, err := db.InsertMedia(testDB.DB, db.Media{
+		err := queries.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:  filepath.Join(mediaDir, fmt.Sprintf("video_%d.mp4", i%10)),
-			Title: fmt.Sprintf("Video %d", i%10),
-			Type:  "video",
+			Title: sql.NullString{String: fmt.Sprintf("Video %d", i%10), Valid: true},
+			Type:  sql.NullString{String: "video", Valid: true},
 		})
 		if err != nil {
 			b.Fatalf("Insert failed: %v", err)
@@ -117,9 +119,15 @@ func BenchmarkFTSSearch(b *testing.B) {
 	sqlDB, _ := setupTestDB(b, 100)
 	defer sqlDB.Close()
 
+	queries := db.New(sqlDB)
+	ctx := context.Background()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := db.FTSSearch(sqlDB, "Sample")
+		_, err := queries.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
+			Query: "Sample",
+			Limit: 10,
+		})
 		if err != nil {
 			b.Fatalf("FTS search failed: %v", err)
 		}
@@ -131,9 +139,12 @@ func BenchmarkAggregateStats(b *testing.B) {
 	sqlDB, _ := setupTestDB(b, 1000)
 	defer sqlDB.Close()
 
+	queries := db.New(sqlDB)
+	ctx := context.Background()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := db.GetStats(sqlDB)
+		_, err := queries.GetStats(ctx)
 		if err != nil {
 			b.Fatalf("GetStats failed: %v", err)
 		}
@@ -155,97 +166,57 @@ func BenchmarkHistoryQueries(b *testing.B) {
 		b.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	queries := db.New(sqlDB)
+	ctx := context.Background()
+
 	// Insert sample data with history
 	for i := 0; i < 500; i++ {
-		mediaID, err := db.InsertMedia(sqlDB, db.Media{
+		err := queries.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:  fmt.Sprintf("/media/video_%d.mp4", i),
-			Title: fmt.Sprintf("Video %d", i),
-			Type:  "video",
+			Title: sql.NullString{String: fmt.Sprintf("Video %d", i), Valid: true},
+			Type:  sql.NullString{String: "video", Valid: true},
 		})
 		if err != nil {
 			b.Fatalf("Insert failed: %v", err)
 		}
 
 		// Add play history
-		_, err = db.InsertPlayHistory(sqlDB, db.PlayHistory{
-			MediaID:  mediaID,
-			Position: float64(i % 1000),
+		err = queries.InsertHistory(ctx, db.InsertHistoryParams{
+			MediaPath: fmt.Sprintf("/media/video_%d.mp4", i),
+			Playhead:  sql.NullInt64{Int64: int64(i % 1000), Valid: true},
 		})
 		if err != nil {
 			b.Fatalf("InsertPlayHistory failed: %v", err)
 		}
 	}
 
-	b.Run("GetInProgress", func(b *testing.B) {
+	b.Run("GetUnfinished", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := db.GetInProgress(sqlDB, nil)
+			_, err := queries.GetUnfinishedMedia(ctx, 10)
 			if err != nil {
-				b.Fatalf("GetInProgress failed: %v", err)
+				b.Fatalf("GetUnfinishedMedia failed: %v", err)
 			}
 		}
 	})
 
-	b.Run("GetUnplayed", func(b *testing.B) {
+	b.Run("GetUnwatched", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := db.GetUnplayed(sqlDB, nil)
+			_, err := queries.GetUnwatchedMedia(ctx, 10)
 			if err != nil {
-				b.Fatalf("GetUnplayed failed: %v", err)
+				b.Fatalf("GetUnwatchedMedia failed: %v", err)
 			}
 		}
 	})
 
-	b.Run("GetCompleted", func(b *testing.B) {
+	b.Run("GetWatched", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := db.GetCompleted(sqlDB, nil)
+			_, err := queries.GetWatchedMedia(ctx, 10)
 			if err != nil {
-				b.Fatalf("GetCompleted failed: %v", err)
+				b.Fatalf("GetWatchedMedia failed: %v", err)
 			}
 		}
 	})
-}
-
-// BenchmarkMetadataExtraction measures metadata extraction performance
-func BenchmarkMetadataExtraction(b *testing.B) {
-	tmpDir := b.TempDir()
-	mediaDir := filepath.Join(tmpDir, "media")
-
-	if err := os.MkdirAll(mediaDir, 0755); err != nil {
-		b.Fatalf("Failed to create media directory: %v", err)
-	}
-
-	// Create dummy media files
-	for i := 0; i < 10; i++ {
-		path := filepath.Join(mediaDir, fmt.Sprintf("video_%d.mp4", i))
-		if err := os.WriteFile(path, bytes.Repeat([]byte{0x00}, 1024), 0644); err != nil {
-			b.Fatalf("Failed to create test file: %v", err)
-		}
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		path := filepath.Join(mediaDir, fmt.Sprintf("video_%d.mp4", i%10))
-		_, err := extractMetadata(path)
-		if err != nil && err != io.EOF {
-			// Ignore EOF errors from dummy files
-			b.Logf("Metadata extraction warning: %v", err)
-		}
-	}
-}
-
-// extractMetadata is a helper to extract metadata from a file
-func extractMetadata(path string) (interface{}, error) {
-	// This would call the actual metadata extraction logic
-	// For now, just read the file
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	buf := make([]byte, 512)
-	_, err = f.Read(buf)
-	return buf, err
 }

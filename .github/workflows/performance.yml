@@ -18,6 +18,11 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  GO_VERSION: '1.26.0'
+  BENCHTIME: 2s
+  BENCH_COUNT: 5
+
 jobs:
   benchmark:
     name: Benchmark Comparison
@@ -31,21 +36,20 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.0'
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: make ubuntu-deps
 
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest
 
-      - name: Run benchmarks on current branch
+      - name: Run benchmarks (current)
         run: |
-          go test -tags "fts5" -bench=. -benchmem -benchtime=2s -count=5 ./... > new-benchmarks.txt
-          cat new-benchmarks.txt
+          go test -tags "fts5" -bench=. -benchmem -benchtime=${{ env.BENCHTIME }} -count=${{ env.BENCH_COUNT }} ./... > new-benchmarks.txt
 
-      - name: Get base branch name
+      - name: Get base branch
         id: base_branch
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -54,22 +58,18 @@ jobs:
             echo "branch=main" >> $GITHUB_OUTPUT
           fi
 
-      - name: Checkout base branch and run benchmarks
+      - name: Run benchmarks (base)
         run: |
           git stash
           git checkout ${{ steps.base_branch.outputs.branch }}
-          go test -tags "fts5" -bench=. -benchmem -benchtime=2s -count=5 ./... > old-benchmarks.txt
+          go test -tags "fts5" -bench=. -benchmem -benchtime=${{ env.BENCHTIME }} -count=${{ env.BENCH_COUNT }} ./... > old-benchmarks.txt
 
-      - name: Compare benchmarks with benchstat
+      - name: Compare benchmarks
         id: benchstat
         run: |
-          echo "## Benchmark Comparison" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           benchstat old-benchmarks.txt new-benchmarks.txt | tee benchstat-output.txt
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload benchmark data
+      - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v7
         with:
           path: |
@@ -77,9 +77,8 @@ jobs:
             new-benchmarks.txt
             benchstat-output.txt
           retention-days: 30
-          archive: false
 
-      - name: Comment PR with benchmark results
+      - name: Comment PR with results
         if: github.event_name == 'pull_request'
         uses: thollander/actions-comment-pull-request@v2
         with:
@@ -90,35 +89,29 @@ jobs:
     name: Generate Profiles
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: benchmark
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.0'
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: make ubuntu-deps
 
-      - name: Run benchmarks with profiling
+      - name: Generate profiles
         run: |
           go test -tags "fts5" -bench=BenchmarkSearch -benchtime=10s \
             -cpuprof=cpu.prof -memprof=mem.prof -trace=trace.out \
             ./internal/commands/
 
-      - name: Generate CPU profile SVG
+      - name: Generate profile SVGs
         run: |
           go tool pprof -svg -output=cpu-profile.svg ./internal/commands/ cpu.prof
-
-      - name: Generate Memory profile SVG
-        run: |
           go tool pprof -svg -output=mem-profile.svg ./internal/commands/ mem.prof
-
-      - name: Generate trace visualization
-        run: |
-          go tool trace -json trace.out > trace.json
 
       - name: Upload profile artifacts
         uses: actions/upload-artifact@v7
@@ -126,6 +119,5 @@ jobs:
           path: |
             cpu-profile.svg
             mem-profile.svg
-            trace.json
+            trace.out
           retention-days: 14
-          archive: false
