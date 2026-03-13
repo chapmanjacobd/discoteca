@@ -1,6 +1,7 @@
 package query
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -249,7 +250,7 @@ func TestGetSortValueString(t *testing.T) {
 		{"path", path},
 		{"title", title},
 		{"type", mtype},
-		{"parent", "/path/to"},
+		{"parent", filepath.FromSlash("/path/to")},
 		{"stem", "file"},
 		{"extension", ".mp4"},
 	}
