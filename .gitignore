@@ -18,3 +18,7 @@
 /disco-fts5
 /disco-nofts
 /discoteca
+*.test
+*.prof
+*.out
+*.svg

@@ -32,7 +32,7 @@ func setupTestDB(b *testing.B, count int) (*sql.DB, string) {
 	// Insert sample data
 	queries := db.New(sqlDB)
 	ctx := context.Background()
-	for i := 0; i < count; i++ {
+	for i := range count {
 		err := queries.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:     fmt.Sprintf("/media/video_%d.mp4", i),
 			Title:    sql.NullString{String: fmt.Sprintf("Sample Video Title %d", i), Valid: true},
@@ -88,14 +88,14 @@ func BenchmarkAddMedia(b *testing.B) {
 
 	// Create test media files
 	mediaDir := filepath.Join(tmpDir, "media")
-	if err := os.MkdirAll(mediaDir, 0755); err != nil {
+	if err := os.MkdirAll(mediaDir, 0o755); err != nil {
 		b.Fatalf("Failed to create media directory: %v", err)
 	}
 
 	// Create dummy media files
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		path := filepath.Join(mediaDir, fmt.Sprintf("video_%d.mp4", i))
-		if err := os.WriteFile(path, []byte("dummy content"), 0644); err != nil {
+		if err := os.WriteFile(path, []byte("dummy content"), 0o644); err != nil {
 			b.Fatalf("Failed to create test file: %v", err)
 		}
 	}
@@ -170,7 +170,7 @@ func BenchmarkHistoryQueries(b *testing.B) {
 	ctx := context.Background()
 
 	// Insert sample data with history
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		err := queries.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:  fmt.Sprintf("/media/video_%d.mp4", i),
 			Title: sql.NullString{String: fmt.Sprintf("Video %d", i), Valid: true},

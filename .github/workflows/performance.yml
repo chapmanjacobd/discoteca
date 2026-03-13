@@ -104,14 +104,12 @@ jobs:
 
       - name: Generate profiles
         run: |
-          go test -tags "fts5" -bench=BenchmarkSearch -benchtime=10s \
-            -cpuprof=cpu.prof -memprof=mem.prof -trace=trace.out \
-            ./internal/commands/
+          go test -tags "fts5" -bench=BenchmarkSearch -benchtime=10s -cpuprofile=cpu.prof -memprofile=mem.prof -trace=trace.out -o commands.test ./internal/commands/
 
       - name: Generate profile SVGs
         run: |
-          go tool pprof -svg -output=cpu-profile.svg ./internal/commands/ cpu.prof
-          go tool pprof -svg -output=mem-profile.svg ./internal/commands/ mem.prof
+          go tool pprof -svg -output=cpu-profile.svg commands.test cpu.prof
+          go tool pprof -svg -output=mem-profile.svg commands.test mem.prof
 
       - name: Upload profile artifacts
         uses: actions/upload-artifact@v7

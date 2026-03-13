@@ -3343,6 +3343,8 @@ Flags:
         Enable trash/recycle page and empty bin functionality
   --read-only
         Disable server-side progress tracking and playlist modifications
+  --no-browser
+        Don't open browser on startup
 ```
 
 </details>

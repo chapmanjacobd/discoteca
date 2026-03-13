@@ -9,11 +9,11 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
+	_ "github.com/blevesearch/bleve/v2/analysis/analyzer/custom" // Register custom analyzer
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/keyword"
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/standard"
-	_ "github.com/blevesearch/bleve/v2/analysis/analyzer/custom" // Register custom analyzer
-	_ "github.com/blevesearch/bleve/v2/analysis/token/lowercase" // Register lowercase filter
 	_ "github.com/blevesearch/bleve/v2/analysis/token/edgengram" // Register edge_ngram filter
+	_ "github.com/blevesearch/bleve/v2/analysis/token/lowercase" // Register lowercase filter
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 

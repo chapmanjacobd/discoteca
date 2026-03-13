@@ -215,7 +215,9 @@ func isPortAvailable(port int) bool {
 	return true
 }
 
-func waitForKiwixReady(port int, timeout time.Duration) error {
+var waitForKiwixReady = defaultWaitForKiwixReady
+
+func defaultWaitForKiwixReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	urlRoot := fmt.Sprintf("/api/zim/proxy/%d/", port)
 	checkURL := fmt.Sprintf("http://127.0.0.1:%d%s", port, urlRoot)

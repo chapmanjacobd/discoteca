@@ -94,7 +94,7 @@ var ImageExtensions = []string{
 }
 
 var TextExtensions = []string{
-	"epub", "mobi", "pdf", "azw", "azw3", "fb2", "djvu", "cbz", "cbr",
+	"epub", "mobi", "pdf", "azw", "azw3", "fb2", "djvu", "cbz", "cbr", "zim",
 }
 
 var (

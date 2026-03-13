@@ -9,7 +9,7 @@ else
 	EXE=
 endif
 
-all: clean fmt lint sql test webtest webbuild build readme
+all: clean sql webbuild fmt lint build test webtest readme
 
 ubuntu-deps:
 	sudo apt-get update && sudo apt-get install -y \
@@ -33,6 +33,7 @@ ubuntu-deps:
 		libgbm1 \
 		libasound2t64 \
 		libpango-1.0-0 \
+		graphviz \
 		libcairo2
 
 macos-deps:
@@ -133,14 +134,13 @@ benchstat:
 	benchstat $(old) $(new)
 
 profiles:
-	go test -tags "$(BUILD_TAGS)" -bench=BenchmarkSearch -benchtime=10s \
-		-cpuprof=cpu.prof -memprof=mem.prof -trace=trace.out ./internal/commands/
+	go test -tags "$(BUILD_TAGS)" -bench=BenchmarkSearch -benchtime=10s -cpuprofile=cpu.prof -memprofile=mem.prof -trace=trace.out -o commands.test ./internal/commands/
 	@echo "Profiles generated: cpu.prof, mem.prof, trace.out"
-	@echo "View with: go tool pprof -http=:8080 ./internal/commands/ cpu.prof"
+	@echo "View with: go tool pprof -http=:8080 commands.test cpu.prof"
 
 profiles-svg: profiles
-	go tool pprof -svg -output=cpu-profile.svg ./internal/commands/ cpu.prof
-	go tool pprof -svg -output=mem-profile.svg ./internal/commands/ mem.prof
+	go tool pprof -svg -output=cpu-profile.svg commands.test cpu.prof
+	go tool pprof -svg -output=mem-profile.svg commands.test mem.prof
 	@echo "SVG profiles generated: cpu-profile.svg, mem-profile.svg"
 
 screenshots: build
@@ -156,4 +156,4 @@ clean:
 	rm -f coverage.out
 	rm -f *.prof *.out *.svg
 	rm -f benchmark-*.txt
-    rm -rf web/dist
+	rm -rf web/dist/*
