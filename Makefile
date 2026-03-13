@@ -9,7 +9,7 @@ else
 	EXE=
 endif
 
-all: fmt lint sql test webtest webbuild build readme
+all: clean fmt lint sql test webtest webbuild build readme
 
 ubuntu-deps:
 	sudo apt-get update && sudo apt-get install -y \
@@ -68,7 +68,6 @@ build-nofts:
 	$(MAKE) BUILD_TAGS="" build
 
 dev:
-	(sleep 2 && xdg-open http://localhost:5555) &
 	air -d
 
 test:
@@ -83,21 +82,6 @@ webtest:
 
 webcover:
 	cd web && npm run cover
-
-e2e-install:
-	cd e2e && npm install && npx playwright install --with-deps
-
-e2e-init: build
-	./e2e/fixtures/init-db.sh $(BINARY_NAME)$(EXE)
-
-e2e: e2e-init
-	cd e2e && npx playwright test
-
-e2e-cli: e2e-init
-	cd e2e && npx playwright test --grep 'cli-'
-
-e2e-web: e2e-init
-	cd e2e && npx playwright test --grep-invert 'cli-'
 
 fmt:
 	gofmt -s -w -e .
@@ -115,35 +99,45 @@ sql:
 	sqlc vet
 	-sqlc diff
 
-# Install the binary to $GOPATH/bin
 install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco
+
+e2e-install:
+	cd e2e && npm install && npx playwright install --with-deps
+
+e2e-init: build
+	./e2e/fixtures/init-db.sh $(BINARY_NAME)$(EXE)
+
+e2e: e2e-init
+	cd e2e && npx playwright test
+
+e2e-cli: e2e-init
+	cd e2e && npx playwright test --grep 'cli-'
+
+e2e-web: e2e-init
+	cd e2e && npx playwright test --grep-invert 'cli-'
+
 
 release-build: webbuild
 	mkdir -p dist
 	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -tags "$(BUILD_TAGS)" -o dist/$(BINARY_NAME)-$(GOOS)-$(GOARCH)$(EXE) ./cmd/disco
 
-# Benchmark tests
 benchmark:
 	go test -tags "$(BUILD_TAGS)" -bench=. -benchmem -benchtime=2s ./...
 
-# Run benchmarks and save results
 benchmark-save:
 	go test -tags "$(BUILD_TAGS)" -bench=. -benchmem -benchtime=5s -count=5 ./... > benchmark-$(shell date +%Y%m%d-%H%M%S).txt
 
-# Compare benchmarks with benchstat
 benchstat:
 	@echo "Usage: make benchstat old=old-benchmarks.txt new=new-benchmarks.txt"
 	benchstat $(old) $(new)
 
-# Generate CPU and memory profiles
 profiles:
 	go test -tags "$(BUILD_TAGS)" -bench=BenchmarkSearch -benchtime=10s \
 		-cpuprof=cpu.prof -memprof=mem.prof -trace=trace.out ./internal/commands/
 	@echo "Profiles generated: cpu.prof, mem.prof, trace.out"
 	@echo "View with: go tool pprof -http=:8080 ./internal/commands/ cpu.prof"
 
-# Generate SVG profiles
 profiles-svg: profiles
 	go tool pprof -svg -output=cpu-profile.svg ./internal/commands/ cpu.prof
 	go tool pprof -svg -output=mem-profile.svg ./internal/commands/ mem.prof
@@ -152,7 +146,7 @@ profiles-svg: profiles
 screenshots: build
 	cd e2e && npx playwright test screenshots --project=desktop
 
-readme: clean build screenshots
+readme: build
 	./$(BINARY_NAME)$(EXE) readme > README.md
 
 clean:
@@ -162,3 +156,4 @@ clean:
 	rm -f coverage.out
 	rm -f *.prof *.out *.svg
 	rm -f benchmark-*.txt
+    rm -rf web/dist

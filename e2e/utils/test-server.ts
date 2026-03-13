@@ -93,6 +93,7 @@ export class TestServer {
       const args = [
         'serve',
         this.databasePath,
+        '--no-browser',
         '--port', this.port.toString(),
         '--dev',
         '--public-dir', path.resolve(__dirname, '../../web/dist'),

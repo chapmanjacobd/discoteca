@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,6 +73,7 @@ type ServeCmd struct {
 	Dev                  bool     `help:"Enable development mode (auto-reload)"`
 	Trashcan             bool     `help:"Enable trash/recycle page and empty bin functionality"`
 	ReadOnly             bool     `help:"Disable server-side progress tracking and playlist modifications"`
+	NoBrowser            bool     `help:"Don't open browser on startup"`
 	ApplicationStartTime int64    `kong:"-"`
 	APIToken             string   `kong:"-"`
 	thumbnailCache       sync.Map `kong:"-"`
@@ -344,7 +346,36 @@ func (c *ServeCmd) Run(ctx *kong.Context) error {
 
 	handler := c.Mux()
 	addr := fmt.Sprintf(":%d", c.Port)
-	slog.Info("Server starting", "addr", addr)
+	baseURL := fmt.Sprintf("http://localhost:%d", c.Port)
+	slog.Info("Server starting", "addr", baseURL)
+
+	// Open browser unless --no-browser is passed
+	if !c.NoBrowser {
+		go func() {
+			// Give server time to start
+			time.Sleep(500 * time.Millisecond)
+			var openCmd string
+			var openArgs []string
+
+			switch runtime.GOOS {
+			case "linux":
+				openCmd = "xdg-open"
+			case "darwin":
+				openCmd = "open"
+			case "windows":
+				openCmd = "cmd"
+				openArgs = []string{"/c", "start"}
+			}
+
+			if openCmd != "" {
+				openArgs = append(openArgs, baseURL)
+				cmd := exec.Command(openCmd, openArgs...)
+				if err := cmd.Start(); err != nil {
+					slog.Debug("Failed to open browser", "error", err)
+				}
+			}
+		}()
+	}
 
 	server := &http.Server{
 		Addr:         addr,
