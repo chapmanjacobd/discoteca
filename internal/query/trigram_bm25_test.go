@@ -44,21 +44,21 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 		// High relevance: "python" appears 5+ times
 		{"/a", "Python Tutorial", "Python Python Python Python Python"},
 		{"/b", "Learn Python", "Python programming Python course Python tutorial"},
-		
+
 		// Medium relevance: "python" appears 2-3 times
 		{"/c", "Python Intro", "Introduction to Python programming"},
 		{"/d", "Python Basics", "Learn Python basics Python"},
 		{"/e", "Advanced Python", "Advanced Python topics"},
-		
+
 		// Low relevance: "python" appears 1 time
 		{"/f", "Programming", "Covers Python language"},
 		{"/g", "Tutorial Video", "Python content here"},
 		{"/h", "Course", "Study Python"},
-		
+
 		// False positives: has "pyt" trigram but not "python"
 		{"/i", "Pyrotechnics", "Fire display show"},
 		{"/j", "Python History", "About the Python language created by Guido van Rossum"},
-		
+
 		// More varied content
 		{"/k", "Python vs Go", "Comparing Python with Go programming languages"},
 		{"/l", "Machine Learning", "Python for ML Python data science Python AI"},
@@ -109,7 +109,7 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 		t.Logf("\n%s:\n", tc.name)
 		t.Logf("%-6s %-25s %-12s %s\n", "Rank", "Path", "Python#", "BM25 Score")
 		t.Log(strings.Repeat("-", 60))
-		
+
 		rank := 0
 		for rows.Next() {
 			var path, title string
@@ -137,7 +137,7 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 
 	t.Logf("\n%-6s %-8s %-12s %s\n", "Rank", "Python#", "BM25", "Path")
 	t.Log(strings.Repeat("-", 65))
-	
+
 	rank := 0
 	totalDocs := 0
 	correctOrder := 0
@@ -149,17 +149,17 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 		rows.Scan(&path, &bm25, &pythonCount)
 		rank++
 		totalDocs++
-		
+
 		// Check if ranking respects term frequency
 		if pythonCount <= lastCount {
 			correctOrder++
 		}
 		lastCount = pythonCount
-		
+
 		t.Logf("%-6d %-8d %-12.6f %s\n", rank, pythonCount, bm25, path)
 	}
-	
-	t.Logf("\nCorrelation: %d/%d documents ranked in term-frequency order (%.1f%%)", 
+
+	t.Logf("\nCorrelation: %d/%d documents ranked in term-frequency order (%.1f%%)",
 		correctOrder, totalDocs, float64(correctOrder)/float64(totalDocs)*100)
 }
 
@@ -187,11 +187,11 @@ func TestFirstTrigramOnly(t *testing.T) {
 
 	// Documents with different trigram coverage
 	docs := []struct{ path, title string }{
-		{"/a", "Video Tutorial"},      // vid ide deo o_t tut utu tor
-		{"/b", "Video"},               // vid ide deo
-		{"/c", "Tutorial"},            // tut utu tor
-		{"/d", "Vid"},                 // vid (too short, may not match)
-		{"/e", "Tutorial Videos"},     // tut utu tor vid ide deo os_
+		{"/a", "Video Tutorial"},  // vid ide deo o_t tut utu tor
+		{"/b", "Video"},           // vid ide deo
+		{"/c", "Tutorial"},        // tut utu tor
+		{"/d", "Vid"},             // vid (too short, may not match)
+		{"/e", "Tutorial Videos"}, // tut utu tor vid ide deo os_
 	}
 
 	for _, d := range docs {
@@ -220,7 +220,7 @@ func TestFirstTrigramOnly(t *testing.T) {
 			t.Logf("%-35s ERROR: %v", tc.name, err)
 			continue
 		}
-		
+
 		var results []string
 		for rows.Next() {
 			var path, title string
@@ -229,7 +229,7 @@ func TestFirstTrigramOnly(t *testing.T) {
 			results = append(results, fmt.Sprintf("%s(%.0f)", path, rank*1000000))
 		}
 		rows.Close()
-		
+
 		t.Logf("%-35s -> %v", tc.name, results)
 	}
 }

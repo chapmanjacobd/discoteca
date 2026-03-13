@@ -1275,7 +1275,7 @@ func (sb *SortBuilder) SortAdvanced(media []models.MediaWithDB, config string) {
 
 	// Check for meta-field markers and use grouped sorting
 	groups := parseSortConfigWithGroups(config)
-	
+
 	if len(groups) > 1 {
 		// Multiple groups - apply each group's sorting in sequence
 		for _, group := range groups {
@@ -1443,26 +1443,26 @@ func ExpandRelatedMedia(ctx context.Context, sqlDB *sql.DB, media *[]models.Medi
 		// Use the original search query terms
 		queryStr := strings.Join(flags.Search, " ")
 		hybrid := utils.ParseHybridSearchQuery(queryStr)
-		
+
 		// Use FTS terms from the search
 		words = append(words, hybrid.FTSTerms...)
-		
+
 		// Also include phrases as individual words
 		for _, phrase := range hybrid.Phrases {
-			phraseWords := strings.Fields(phrase)
-			for _, w := range phraseWords {
+			phraseWords := strings.FieldsSeq(phrase)
+			for w := range phraseWords {
 				if len(w) > 2 {
 					words = append(words, w)
 				}
 			}
 		}
 	}
-	
+
 	// If no search terms from flags, extract from media item
 	if len(words) == 0 {
 		words = extractSearchWords(first)
 	}
-	
+
 	if len(words) == 0 {
 		return nil
 	}
@@ -1532,7 +1532,7 @@ func ExpandRelatedMedia(ctx context.Context, sqlDB *sql.DB, media *[]models.Medi
 // extractSearchWords extracts searchable words from a media item
 func extractSearchWords(m models.MediaWithDB) []string {
 	words := make(map[string]bool)
-	
+
 	// Extract from path
 	pathWords := strings.FieldsFunc(m.Path, func(r rune) bool {
 		return r == '/' || r == '\\' || r == '.' || r == '-' || r == '_' || r == ' '
@@ -1543,7 +1543,7 @@ func extractSearchWords(m models.MediaWithDB) []string {
 			words[strings.ToLower(w)] = true
 		}
 	}
-	
+
 	// Extract from title if available
 	if m.Title != nil && *m.Title != "" {
 		titleWords := strings.FieldsFunc(*m.Title, func(r rune) bool {
@@ -1556,7 +1556,7 @@ func extractSearchWords(m models.MediaWithDB) []string {
 			}
 		}
 	}
-	
+
 	// Extract from stem (filename without extension)
 	stem := m.Stem()
 	stemWords := strings.FieldsFunc(stem, func(r rune) bool {
@@ -1568,7 +1568,7 @@ func extractSearchWords(m models.MediaWithDB) []string {
 			words[strings.ToLower(w)] = true
 		}
 	}
-	
+
 	result := make([]string, 0, len(words))
 	for w := range words {
 		result = append(result, w)
@@ -1581,8 +1581,8 @@ func detectFTSTable(ctx context.Context, sqlDB *sql.DB) string {
 	tables := []string{"media_fts", "media_fts5", "media_search"}
 	for _, table := range tables {
 		var exists int
-		err := sqlDB.QueryRowContext(ctx, 
-			"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", 
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
 			table,
 		).Scan(&exists)
 		if err == nil && exists == 1 {

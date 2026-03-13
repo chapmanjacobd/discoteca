@@ -49,24 +49,24 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 	}{
 		// Rank 1: Multiple title matches (highest score)
 		{"/doc1.mp4", "Python Python Python Tutorial", "Learn coding", 1, "3 title matches"},
-		
+
 		// Rank 2-3: Single title match + path match
 		{"/python/doc2.mp4", "Python Tutorial", "Learn coding", 2, "1 title + 1 path match"},
 		{"/python/doc3.mp4", "Python Guide", "Learn coding", 3, "1 title + 1 path match"},
-		
+
 		// Rank 4-5: Title match only
 		{"/doc4.mp4", "Python Tutorial", "Learn coding", 4, "1 title match"},
 		{"/doc5.mp4", "Python Guide", "Learn coding", 5, "1 title match"},
-		
+
 		// Rank 6-7: Path match only
 		{"/python/doc6.mp4", "Tutorial Video", "Learn coding", 6, "1 path match"},
 		{"/python/doc7.mp4", "Guide Video", "Learn coding", 7, "1 path match"},
-		
+
 		// Rank 8-10: Description matches only (lowest score)
 		{"/doc8.mp4", "Tutorial Video", "Learn Python coding Python", 8, "2 desc matches"},
 		{"/doc9.mp4", "Tutorial Video", "Learn Python coding", 9, "1 desc match"},
 		{"/doc10.mp4", "Tutorial Video", "Python introduction", 10, "1 desc match"},
-		
+
 		// Rank 11+: False positives (has "pyt" trigram but not "python")
 		{"/doc11.mp4", "PyT Tutorial", "Fire display", 11, "False positive - has pyt trigram"},
 	}
@@ -163,7 +163,7 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		// Verify ranking order
 		t.Logf("\n%-6s %-8s %-30s %s\n", "Rank", "Score", "Path", "Title")
 		t.Log("----------------------------------------------------------------------")
-		
+
 		for i, r := range results {
 			actualRank := i + 1
 			title := ""
@@ -215,21 +215,21 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		// Fetch results using simple query
 		query := `SELECT m.path, m.title, m.description FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH 'pyt' AND m.time_deleted = 0`
 		rows, _ := sqlDB.QueryContext(ctx, query)
-		
+
 		var results []SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
 			rows.Scan(&path, &title, &desc)
 			results = append(results, SearchMediaFTSResult{
 				Media: Media{
-					Path: path,
-					Title: sql.NullString{String: title, Valid: true},
+					Path:        path,
+					Title:       sql.NullString{String: title, Valid: true},
 					Description: sql.NullString{String: desc, Valid: true},
 				},
 			})
 		}
 		rows.Close()
-		
+
 		RankSearchResults(results, "python")
 
 		// Find specific test cases
@@ -269,7 +269,7 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 			t.Errorf("Path match (%.0f) should score higher than description match (%.0f)",
 				pathOnly.Rank, descOnly.Rank)
 		}
-		
+
 		// Verify exact title match bonus is applied
 		if titleOnly.Rank != 15 {
 			t.Logf("Note: Title-only score is %.0f (includes +5 exact match bonus)", titleOnly.Rank)
@@ -280,7 +280,7 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 	t.Run("False positives rank lowest", func(t *testing.T) {
 		query := `SELECT m.path, m.title, m.description FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH 'pyt' AND m.time_deleted = 0`
 		rows, _ := sqlDB.QueryContext(ctx, query)
-		
+
 		var results []SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
@@ -290,7 +290,7 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 			})
 		}
 		rows.Close()
-		
+
 		RankSearchResults(results, "python")
 
 		// Find the pyrotechnics document (false positive)
@@ -416,12 +416,12 @@ func TestRankingReorderAmount(t *testing.T) {
 		title string
 		desc  string
 	}{
-		{"/a.mp4", "Tutorial", "Python introduction"},           // Would rank 1 by path, but desc-only
-		{"/b.mp4", "Python Guide", "Learn coding"},              // Would rank 2 by path, title match
-		{"/c.mp4", "Tutorial", "Learn Python Python Python"},    // Would rank 3 by path, 3x desc
-		{"/d.mp4", "Python", "Learn coding"},                    // Would rank 4 by path, title only
-		{"/e.mp4", "Python Python", "Python Python Python"},     // Would rank 5 by path, best match
-		{"/f.mp4", "Guide", "Introduction"},                     // Would rank 6 by path, no match
+		{"/a.mp4", "Tutorial", "Python introduction"},        // Would rank 1 by path, but desc-only
+		{"/b.mp4", "Python Guide", "Learn coding"},           // Would rank 2 by path, title match
+		{"/c.mp4", "Tutorial", "Learn Python Python Python"}, // Would rank 3 by path, 3x desc
+		{"/d.mp4", "Python", "Learn coding"},                 // Would rank 4 by path, title only
+		{"/e.mp4", "Python Python", "Python Python Python"},  // Would rank 5 by path, best match
+		{"/f.mp4", "Guide", "Introduction"},                  // Would rank 6 by path, no match
 	}
 
 	ctx := context.Background()
@@ -452,8 +452,8 @@ func TestRankingReorderAmount(t *testing.T) {
 		rows.Scan(&path, &title, &desc)
 		dbOrder = append(dbOrder, SearchMediaFTSResult{
 			Media: Media{
-				Path: path,
-				Title: sql.NullString{String: title, Valid: true},
+				Path:        path,
+				Title:       sql.NullString{String: title, Valid: true},
 				Description: sql.NullString{String: desc, Valid: true},
 			},
 		})
@@ -493,7 +493,7 @@ func TestRankingReorderAmount(t *testing.T) {
 		rows2.Scan(&path, &title, &desc)
 		results = append(results, trackedResult{
 			result: SearchMediaFTSResult{
-				Media:       Media{Path: path, Title: sql.NullString{String: title, Valid: true}, Description: sql.NullString{String: desc, Valid: true}},
+				Media: Media{Path: path, Title: sql.NullString{String: title, Valid: true}, Description: sql.NullString{String: desc, Valid: true}},
 			},
 			origPos: idx,
 		})

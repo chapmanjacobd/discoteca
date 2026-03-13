@@ -110,7 +110,7 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 		{
 			Media: models.Media{
 				Path:  "/videos/python_tutorial.mp4",
-				Title: ptr("Python Tutorial"),
+				Title: new("Python Tutorial"),
 			},
 		},
 	}
@@ -259,7 +259,7 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 		{
 			Media: models.Media{
 				Path:  "/videos/machine_learning_intro.mp4",
-				Title: ptr("Machine Learning Intro"),
+				Title: new("Machine Learning Intro"),
 			},
 		},
 	}
@@ -380,7 +380,7 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 		{
 			Media: models.Media{
 				Path:  "/videos/test.mp4",
-				Title: ptr("Test Video"),
+				Title: new("Test Video"),
 			},
 		},
 	}
@@ -405,6 +405,8 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 }
 
 // Helper function
+//
+//go:fix inline
 func ptr(s string) *string {
-	return &s
+	return new(s)
 }

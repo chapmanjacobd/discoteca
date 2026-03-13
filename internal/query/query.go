@@ -46,14 +46,14 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 	if sortConfig == "" && flags.SortBy != "" {
 		sortConfig = flags.SortBy
 	}
-	
+
 	// Expand related media if requested
 	if strings.Contains(sortConfig, "_related_media") {
 		if err := ExpandRelatedMedia(ctx, sqlDB, media, flags); err != nil {
 			slog.Warn("Related media expansion failed", "error", err)
 		}
 	}
-	
+
 	// Sort with the full config (including expansion markers)
 	NewSortBuilder(flags).SortAdvanced(*media, sortConfig)
 }

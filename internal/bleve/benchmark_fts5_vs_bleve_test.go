@@ -185,12 +185,12 @@ func BenchmarkFTS5vsBleve_200k(b *testing.B) {
 		query string
 		limit int
 	}{
-		{"SingleTerm_Common", "vid", 100},      // Matches "video" type
-		{"SingleTerm_Rare", "edu", 100},        // Matches "educational" in description
-		{"MultiTerm", "sam vid", 100},          // Matches "sample" + "video"
-		{"TitleSearch", "ama", 100},            // Matches "amazing" in title
-		{"TypeSearch", "mov", 100},             // Matches "movie" type
-		{"SampleTitle", "sam", 100},            // Matches "sample" in title/desc
+		{"SingleTerm_Common", "vid", 100}, // Matches "video" type
+		{"SingleTerm_Rare", "edu", 100},   // Matches "educational" in description
+		{"MultiTerm", "sam vid", 100},     // Matches "sample" + "video"
+		{"TitleSearch", "ama", 100},       // Matches "amazing" in title
+		{"TypeSearch", "mov", 100},        // Matches "movie" type
+		{"SampleTitle", "sam", 100},       // Matches "sample" in title/desc
 	}
 
 	b.Logf("\n=== Starting FTS5 vs Bleve Benchmark (%d rows) ===", rowCount)

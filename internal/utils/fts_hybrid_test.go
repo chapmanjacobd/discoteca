@@ -6,10 +6,10 @@ import (
 
 func TestParseHybridSearchQuery(t *testing.T) {
 	tests := []struct {
-		name          string
-		query         string
-		wantFTSTerms  []string
-		wantPhrases   []string
+		name         string
+		query        string
+		wantFTSTerms []string
+		wantPhrases  []string
 	}{
 		{
 			name:         "simple term search",
@@ -86,9 +86,9 @@ func TestParseHybridSearchQuery(t *testing.T) {
 
 func TestHybridSearchQuery_BuildFTSQuery(t *testing.T) {
 	tests := []struct {
-		name     string
-		terms    []string
-		joinOp   string
+		name      string
+		terms     []string
+		joinOp    string
 		wantQuery string
 	}{
 		{

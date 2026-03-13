@@ -424,7 +424,7 @@ func populatePathTokenized(db *sql.DB) error {
 	defer rows.Close()
 
 	var updates []struct {
-		path    string
+		path      string
 		tokenized string
 	}
 	for rows.Next() {
@@ -433,7 +433,7 @@ func populatePathTokenized(db *sql.DB) error {
 			return err
 		}
 		updates = append(updates, struct {
-			path    string
+			path      string
 			tokenized string
 		}{path, pathToTokenized(path)})
 	}

@@ -261,7 +261,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					return err
 				}
-				
+
 				// Apply in-memory ranking for better relevance
 				database.RankCaptionsResults(rows, queryStr)
 
@@ -303,7 +303,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	if sortConfig == "" {
 		sortConfig = flags.SortBy
 	}
-	
+
 	if strings.Contains(sortConfig, "_related_media") && len(dbs) > 0 {
 		// Use expansion-aware sorting with first database
 		err := c.execDB(ctx, dbs[0], func(sqlDB *sql.DB) error {

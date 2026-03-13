@@ -89,32 +89,32 @@ func RankSearchResults(results []SearchMediaFTSResult, query string) {
 	}
 
 	queryLower := strings.ToLower(query)
-	
+
 	for i := range results {
 		score := 0.0
-		
+
 		title := strings.ToLower(results[i].Media.Title.String)
 		desc := strings.ToLower(results[i].Media.Description.String)
 		path := strings.ToLower(results[i].Media.Path)
-		
+
 		// Count query occurrences in each field
 		titleCount := float64(strings.Count(title, queryLower))
 		descCount := float64(strings.Count(desc, queryLower))
 		pathCount := float64(strings.Count(path, queryLower))
-		
+
 		// Weighted scoring: title > path > description
 		score += titleCount * 10.0
 		score += pathCount * 5.0
 		score += descCount * 1.0
-		
+
 		// Bonus for exact title match
 		if strings.Contains(title, queryLower) && titleCount > 0 {
 			score += 5.0
 		}
-		
+
 		results[i].Rank = score
 	}
-	
+
 	// Sort by rank descending
 	sort.SliceStable(results, func(i, j int) bool {
 		if results[i].Rank != results[j].Rank {
@@ -205,29 +205,29 @@ func RankCaptionsResults(results []SearchCaptionsRow, query string) {
 	}
 
 	queryLower := strings.ToLower(query)
-	
+
 	for i := range results {
 		score := 0.0
-		
+
 		text := strings.ToLower(results[i].Text.String)
 		title := strings.ToLower(results[i].Title.String)
-		
+
 		// Count query occurrences
 		textCount := float64(strings.Count(text, queryLower))
 		titleCount := float64(strings.Count(title, queryLower))
-		
+
 		// Weighted scoring: exact text match > title match
 		score += textCount * 10.0
 		score += titleCount * 5.0
-		
+
 		// Bonus for exact phrase match in text
 		if strings.Contains(text, queryLower) {
 			score += 5.0
 		}
-		
+
 		results[i].Rank = score
 	}
-	
+
 	// Sort by rank descending
 	sort.SliceStable(results, func(i, j int) bool {
 		if results[i].Rank != results[j].Rank {

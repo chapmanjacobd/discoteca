@@ -25,7 +25,7 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 
 	// Match quoted phrases: "..." or '...'
 	phraseRegex := regexp.MustCompile(`["']([^"']+)["']`)
-	
+
 	// Extract all phrases first
 	matches := phraseRegex.FindAllStringSubmatch(query, -1)
 	for _, match := range matches {
@@ -40,31 +40,31 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 
 	// Remove phrases from query to get remaining terms
 	remaining := phraseRegex.ReplaceAllString(query, " ")
-	
+
 	// Clean up FTS operators that won't work with detail=none
 	// Keep: OR, AND, NOT (basic boolean)
 	// Remove: NEAR, phrase quotes, column filters
 	remaining = strings.ReplaceAll(remaining, "(", " ")
 	remaining = strings.ReplaceAll(remaining, ")", " ")
 	remaining = strings.ReplaceAll(remaining, ":", " ")
-	
+
 	// Split into individual terms
-	terms := strings.Fields(remaining)
-	for _, term := range terms {
+	terms := strings.FieldsSeq(remaining)
+	for term := range terms {
 		term = strings.TrimSpace(term)
 		upper := strings.ToUpper(term)
-		
+
 		// Keep boolean operators regardless of length
 		if upper == "OR" || upper == "AND" || upper == "NOT" {
 			result.FTSTerms = append(result.FTSTerms, upper)
 			continue
 		}
-		
+
 		// Skip very short terms (trigram needs 3+ chars)
 		if len(term) < 3 {
 			continue
 		}
-		
+
 		result.FTSTerms = append(result.FTSTerms, term)
 	}
 
@@ -85,7 +85,7 @@ func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
 		if term == "OR" || term == "AND" || term == "NOT" {
 			continue
 		}
-		
+
 		// Use first 3 chars as trigram filter
 		if len(term) >= 3 {
 			trigrams = append(trigrams, term[:3])

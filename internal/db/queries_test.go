@@ -264,7 +264,7 @@ func TestQueries(t *testing.T) {
 
 		// SearchMediaFTS - use 3-char terms for detail=none compatibility
 		res, err := q.SearchMediaFTS(ctx, SearchMediaFTSParams{
-			Query: "Uni",  // First 3 chars of "Unique"
+			Query: "Uni", // First 3 chars of "Unique"
 			Limit: 10,
 		})
 		if err != nil {
@@ -292,7 +292,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		resCaptions, err := q.SearchCaptions(ctx, SearchCaptionsParams{
-			Query:     "Hel",  // First 3 chars of "Hello"
+			Query:     "Hel", // First 3 chars of "Hello"
 			VideoOnly: false,
 			AudioOnly: false,
 			ImageOnly: false,

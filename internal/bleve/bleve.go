@@ -25,14 +25,14 @@ var (
 
 // MediaDocument represents a document to be indexed in Bleve
 type MediaDocument struct {
-	ID          string `json:"id"`
-	Path        string `json:"path"`
+	ID            string `json:"id"`
+	Path          string `json:"path"`
 	PathTokenized string `json:"path_tokenized"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Type        string `json:"type"`
-	Size        int64  `json:"size"`
-	Duration    int64  `json:"duration"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	Type          string `json:"type"`
+	Size          int64  `json:"size"`
+	Duration      int64  `json:"duration"`
 }
 
 // ToBleveDoc converts a Media model to a BleveDocument

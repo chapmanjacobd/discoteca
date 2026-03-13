@@ -36,7 +36,7 @@ func setupBenchmarkData(b *testing.B, rowCount int) (*sql.DB, string) {
 
 	b.Logf("Inserting %d rows...", rowCount)
 	insertStart := time.Now()
-	
+
 	// Batch insert for better performance
 	batchSize := 1000
 	for i := 0; i < rowCount; i += batchSize {
@@ -61,13 +61,13 @@ func setupBenchmarkData(b *testing.B, rowCount int) (*sql.DB, string) {
 			b.Logf("  Inserted %d/%d rows", batchEnd, rowCount)
 		}
 	}
-	
+
 	insertDuration := time.Since(insertStart)
 	b.Logf("Insert completed in %v (%.2f rows/sec)", insertDuration, float64(rowCount)/insertDuration.Seconds())
 
 	b.Logf("Indexing %d documents into Bleve...", rowCount)
 	indexStart := time.Now()
-	
+
 	for i := 0; i < rowCount; i++ {
 		path := filepath.Join("/home/user/videos", fmt.Sprintf("media_%d.mp4", i))
 		title := fmt.Sprintf("Sample Video Title %d", i)
@@ -94,7 +94,7 @@ func setupBenchmarkData(b *testing.B, rowCount int) (*sql.DB, string) {
 			b.Logf("  Indexed %d/%d documents", i+1, rowCount)
 		}
 	}
-	
+
 	indexDuration := time.Since(indexStart)
 	b.Logf("Bleve indexing completed in %v (%.2f docs/sec)", indexDuration, float64(rowCount)/indexDuration.Seconds())
 
