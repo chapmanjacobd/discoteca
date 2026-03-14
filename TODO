@@ -1,5 +1,11 @@
 lets fix the document modal header title to be more like the PiP Player header title where clicking will select the full file name and the ellipses is visual but not selected
 
+thumbnails for text files, pdfs
+
+Track progress of eBook reading and resume back to the epub chapter (page [and scroll if the browser does not automatically adjust within 1s])
+
+show a toast with "Server not started with --trashcan" if trash isn't active instead of showing that a delete was made and hiding the media card
+
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
 - Search filtering should work across all modes without exiting that mode--but you could hide the searchbox on the Categorization page as that one doesn't really need it

@@ -4618,16 +4618,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         openModal('document-modal');
 
-        title.textContent = truncateString(item.path.split('/').pop());
+        title.textContent = item.path.split('/').pop(); // Use the full filename directly
         title.title = item.path;
 
+        // Add explicit text selection on click for the title
+        title.onclick = () => {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(title);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        };
         // Set playback state for keyboard shortcuts (delete, etc.)
         state.playback.item = item;
         state.playback.lastPlayedIndex = currentMedia.findIndex(m => m.path === item.path);
 
         // Clear previous viewer content
         container.innerHTML = '';
-
         // Setup fullscreen button
         const fsBtn = document.getElementById('doc-fullscreen');
         if (fsBtn) {
