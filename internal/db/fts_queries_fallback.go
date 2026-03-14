@@ -5,7 +5,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
 )
 
 // SearchMediaFTSParams are parameters for FTS media search
@@ -20,9 +19,11 @@ type SearchMediaFTSResult struct {
 	Rank  float64
 }
 
-// SearchMediaFTS returns an error when FTS is not enabled
+// SearchMediaFTS returns empty results when FTS is not enabled
+// This allows bleve-only builds to fall back gracefully
 func (q *Queries) SearchMediaFTS(ctx context.Context, arg SearchMediaFTSParams) ([]SearchMediaFTSResult, error) {
-	return nil, fmt.Errorf("FTS search not enabled in this build")
+	// Return empty slice instead of error to allow graceful fallback
+	return []SearchMediaFTSResult{}, nil
 }
 
 // RankSearchResults does nothing when FTS is not enabled
@@ -51,9 +52,11 @@ type SearchCaptionsRow struct {
 	Rank      float64
 }
 
-// SearchCaptions returns an error when FTS is not enabled
+// SearchCaptions returns empty results when FTS is not enabled
+// This allows bleve-only builds to fall back gracefully
 func (q *Queries) SearchCaptions(ctx context.Context, arg SearchCaptionsParams) ([]SearchCaptionsRow, error) {
-	return nil, fmt.Errorf("FTS caption search not enabled in this build")
+	// Return empty slice instead of error to allow graceful fallback
+	return []SearchCaptionsRow{}, nil
 }
 
 // RankCaptionsResults does nothing when FTS is not enabled

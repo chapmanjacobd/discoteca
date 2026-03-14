@@ -4,6 +4,7 @@ package db
 
 import (
 	"database/sql"
+	"log/slog"
 	"strings"
 )
 
@@ -42,6 +43,18 @@ func InitDB(sqlDB *sql.DB) error {
 
 	if _, err := tx.Exec(filteredSchema.String()); err != nil {
 		return err
+	}
+
+	// Drop FTS5 virtual tables if they exist (from previous fts5 build)
+	// This prevents "no such module: fts5" errors when opening existing databases
+	dropFTSTables := []string{
+		"DROP TABLE IF EXISTS media_fts",
+		"DROP TABLE IF EXISTS captions_fts",
+	}
+	for _, dropSQL := range dropFTSTables {
+		if _, err := tx.Exec(dropSQL); err != nil {
+			slog.Warn("Failed to drop FTS table", "error", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

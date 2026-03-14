@@ -23,3 +23,5 @@
 *.prof
 *.out
 *.svg
+/disco-both
+/disco-fts
