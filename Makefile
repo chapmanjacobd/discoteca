@@ -73,7 +73,7 @@ build-nofts:
 
 dev:
 	(sleep 2 && xdg-open http://localhost:5555) &
-	air -d
+	go run -tags bleve ./cmd/disco serve -v --dev --trashcan audio.db books.db images.db video.db --bleve
 
 test:
 	go test -tags "$(BUILD_TAGS)" ./...
