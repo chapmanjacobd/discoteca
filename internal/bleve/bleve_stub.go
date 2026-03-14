@@ -217,3 +217,17 @@ func MultiFieldSearch(query string, limit int, fieldBoosts map[string]float64) (
 func PrefixSearch(prefix string, limit int) ([]string, uint64, error) {
 	return nil, 0, fmt.Errorf("bleve support not enabled in this build")
 }
+
+// DirectoryStats holds disk usage statistics for a directory
+type DirectoryStats struct {
+	Path          string  `json:"path"`
+	Count         int     `json:"count"`
+	TotalSize     int64   `json:"total_size"`
+	AvgSize       int64   `json:"avg_size"`
+	TotalDuration int64   `json:"total_duration"`
+}
+
+// DiskUsageByDirectory aggregates disk usage by parent directory using Bleve facets
+func DiskUsageByDirectory(prefix string, limit int) (map[string]*DirectoryStats, error) {
+	return nil, fmt.Errorf("bleve support not enabled in this build")
+}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	"github.com/chapmanjacobd/discoteca/internal/bleve"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -26,6 +27,7 @@ type DiskUsageCmd struct {
 	models.SortFlags        `embed:""`
 	models.DisplayFlags     `embed:""`
 	models.AggregateFlags   `embed:""`
+	models.FTSFlags         `embed:""`
 
 	Args []string `arg:"" required:"" help:"Database file(s) or files/directories to scan"`
 
@@ -62,17 +64,56 @@ func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
 		SortFlags:        c.SortFlags,
 		DisplayFlags:     c.DisplayFlags,
 		AggregateFlags:   c.AggregateFlags,
+		FTSFlags:         c.FTSFlags,
 	}
 
 	var allMedia []models.MediaWithDB
 
 	// Handle databases
 	if len(c.Databases) > 0 {
-		dbMedia, err := query.MediaQuery(context.Background(), c.Databases, flags)
-		if err != nil {
-			return err
+		// If --bleve flag is set, use Bleve for disk usage aggregation
+		if c.Bleve && len(c.Databases) == 1 {
+			dbPath := c.Databases[0]
+			if err := bleve.InitIndex(dbPath); err != nil {
+				// Fall back to regular query if Bleve init fails
+				dbMedia, err := query.MediaQuery(context.Background(), c.Databases, flags)
+				if err != nil {
+					return err
+				}
+				allMedia = append(allMedia, dbMedia...)
+			} else {
+				defer bleve.CloseIndex()
+				
+				// Use Bleve for disk usage aggregation
+				dirStats, err := bleve.DiskUsageByDirectory("", 10000)
+				if err != nil {
+					// Fall back to regular query
+					dbMedia, err := query.MediaQuery(context.Background(), c.Databases, flags)
+					if err != nil {
+						return err
+					}
+					allMedia = append(allMedia, dbMedia...)
+				} else {
+					// Convert Bleve DirectoryStats to MediaWithDB for display
+					for dir, stats := range dirStats {
+						title := fmt.Sprintf("%s (%d files)", dir, stats.Count)
+						allMedia = append(allMedia, models.MediaWithDB{
+							Media: models.Media{
+								Path:  dir,
+								Size:  &stats.TotalSize,
+								Title: &title,
+							},
+						})
+					}
+				}
+			}
+		} else {
+			dbMedia, err := query.MediaQuery(context.Background(), c.Databases, flags)
+			if err != nil {
+				return err
+			}
+			allMedia = append(allMedia, dbMedia...)
 		}
-		allMedia = append(allMedia, dbMedia...)
 	}
 
 	// Handle paths

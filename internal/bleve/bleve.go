@@ -1151,3 +1151,78 @@ func PrefixSearch(prefix string, limit int) ([]string, uint64, error) {
 
 	return ids, results.Total, nil
 }
+
+// DiskUsageByDirectory aggregates disk usage by parent directory using Bleve facets
+// Returns directory paths with their total size and count
+func DiskUsageByDirectory(prefix string, limit int) (map[string]*DirectoryStats, error) {
+	indexMutex.RLock()
+	defer indexMutex.RUnlock()
+
+	if indexInstance == nil {
+		return nil, fmt.Errorf("bleve index not initialized")
+	}
+
+	// Get all documents (or filtered by prefix)
+	var bleveQuery query.Query
+	if prefix != "" {
+		bleveQuery = query.NewPrefixQuery(prefix)
+		bleveQuery.(*query.PrefixQuery).SetField("path")
+	} else {
+		bleveQuery = query.NewMatchAllQuery()
+	}
+
+	searchRequest := bleve.NewSearchRequest(bleveQuery)
+	searchRequest.Size = 10000 // Get up to 10k results
+	searchRequest.Fields = []string{"id", "path", "size"}
+
+	results, err := indexInstance.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Aggregate by directory client-side
+	dirStats := make(map[string]*DirectoryStats)
+	for _, hit := range results.Hits {
+		// Extract path from fields
+		var path string
+		var size int64
+
+		if fields, ok := hit.Fields["path"]; ok {
+			if pathStr, ok := fields.(string); ok {
+				path = pathStr
+			}
+		}
+		if fields, ok := hit.Fields["size"]; ok {
+			switch v := fields.(type) {
+			case float64:
+				size = int64(v)
+			case int64:
+				size = v
+			}
+		}
+
+		if path == "" {
+			continue
+		}
+
+		dir := filepath.Dir(path)
+		if _, exists := dirStats[dir]; !exists {
+			dirStats[dir] = &DirectoryStats{
+				Path: dir,
+			}
+		}
+		dirStats[dir].Count++
+		dirStats[dir].TotalSize += size
+	}
+
+	return dirStats, nil
+}
+
+// DirectoryStats holds disk usage statistics for a directory
+type DirectoryStats struct {
+	Path          string  `json:"path"`
+	Count         int     `json:"count"`
+	TotalSize     int64   `json:"total_size"`
+	AvgSize       int64   `json:"avg_size"`
+	TotalDuration int64   `json:"total_duration"`
+}
