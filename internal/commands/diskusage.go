@@ -83,7 +83,7 @@ func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
 				allMedia = append(allMedia, dbMedia...)
 			} else {
 				defer bleve.CloseIndex()
-				
+
 				// Use Bleve for disk usage aggregation
 				dirStats, err := bleve.DiskUsageByDirectory("", 10000)
 				if err != nil {

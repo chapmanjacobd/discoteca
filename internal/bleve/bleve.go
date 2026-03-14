@@ -29,30 +29,30 @@ var (
 
 // MediaDocument represents a document to be indexed in Bleve
 type MediaDocument struct {
-	ID              string  `json:"id"`
-	Path            string  `json:"path"`
-	PathTokenized   string  `json:"path_tokenized"`
-	Title           string  `json:"title"`
-	Description     string  `json:"description"`
-	Type            string  `json:"type"`
-	Size            int64   `json:"size"`
-	Duration        int64   `json:"duration"`
-	TimeCreated     int64   `json:"time_created"`
-	TimeModified    int64   `json:"time_modified"`
-	TimeDownloaded  int64   `json:"time_downloaded"`
-	TimeLastPlayed  int64   `json:"time_last_played"`
-	PlayCount       int64   `json:"play_count"`
-	Genre           string  `json:"genre"`
-	Artist          string  `json:"artist"`
-	Album           string  `json:"album"`
-	Language        string  `json:"language"`
-	Categories      string  `json:"categories"`
-	VideoCount      int64   `json:"video_count"`
-	AudioCount      int64   `json:"audio_count"`
-	SubtitleCount   int64   `json:"subtitle_count"`
-	Width           int64   `json:"width"`
-	Height          int64   `json:"height"`
-	Score           float64 `json:"score"`
+	ID             string  `json:"id"`
+	Path           string  `json:"path"`
+	PathTokenized  string  `json:"path_tokenized"`
+	Title          string  `json:"title"`
+	Description    string  `json:"description"`
+	Type           string  `json:"type"`
+	Size           int64   `json:"size"`
+	Duration       int64   `json:"duration"`
+	TimeCreated    int64   `json:"time_created"`
+	TimeModified   int64   `json:"time_modified"`
+	TimeDownloaded int64   `json:"time_downloaded"`
+	TimeLastPlayed int64   `json:"time_last_played"`
+	PlayCount      int64   `json:"play_count"`
+	Genre          string  `json:"genre"`
+	Artist         string  `json:"artist"`
+	Album          string  `json:"album"`
+	Language       string  `json:"language"`
+	Categories     string  `json:"categories"`
+	VideoCount     int64   `json:"video_count"`
+	AudioCount     int64   `json:"audio_count"`
+	SubtitleCount  int64   `json:"subtitle_count"`
+	Width          int64   `json:"width"`
+	Height         int64   `json:"height"`
+	Score          float64 `json:"score"`
 }
 
 // ToBleveDoc converts a Media model to a BleveDocument
@@ -577,10 +577,10 @@ func NewBatch() *bleve.Batch {
 
 // FacetResult holds the results of a facet query
 type FacetResult struct {
-	Name  string            `json:"name"`
-	Terms map[string]int64  `json:"terms,omitempty"`
+	Name   string           `json:"name"`
+	Terms  map[string]int64 `json:"terms,omitempty"`
 	Ranges map[string]int64 `json:"ranges,omitempty"`
-	Total int64             `json:"total"`
+	Total  int64            `json:"total"`
 }
 
 // SearchWithFacets performs a search with faceting support
@@ -662,7 +662,8 @@ func NewNumericRangeFacetRequest(field string, ranges []struct {
 	Name string
 	Min  *float64
 	Max  *float64
-}) *bleve.FacetRequest {
+},
+) *bleve.FacetRequest {
 	facet := bleve.NewFacetRequest(field, len(ranges))
 	for _, r := range ranges {
 		facet.AddNumericRange(r.Name, r.Min, r.Max)
@@ -675,7 +676,8 @@ func NewDateRangeFacetRequest(field string, ranges []struct {
 	Name  string
 	Start int64
 	End   int64
-}) *bleve.FacetRequest {
+},
+) *bleve.FacetRequest {
 	facet := bleve.NewFacetRequest(field, len(ranges))
 	for _, r := range ranges {
 		start := time.Unix(r.Start, 0)
@@ -687,9 +689,9 @@ func NewDateRangeFacetRequest(field string, ranges []struct {
 
 // SortField represents a field to sort by
 type SortField struct {
-	Field     string
+	Field      string
 	Descending bool
-	Missing   string // "first", "last", or empty
+	Missing    string // "first", "last", or empty
 }
 
 // SearchWithSort performs a search with custom sorting using docValues
@@ -864,10 +866,7 @@ func BatchIndexDocuments(docs []*MediaDocument, batchSize int) error {
 	for i := 0; i < totalDocs; i += batchSize {
 		batch := indexInstance.NewBatch()
 
-		end := i + batchSize
-		if end > totalDocs {
-			end = totalDocs
-		}
+		end := min(i+batchSize, totalDocs)
 
 		for j := i; j < end; j++ {
 			if err := batch.Index(docs[j].ID, docs[j]); err != nil {
@@ -897,10 +896,7 @@ func BatchIndexDocumentsWithProgress(docs []*MediaDocument, batchSize int, progr
 	for i := 0; i < totalDocs; i += batchSize {
 		batch := indexInstance.NewBatch()
 
-		end := i + batchSize
-		if end > totalDocs {
-			end = totalDocs
-		}
+		end := min(i+batchSize, totalDocs)
 
 		for j := i; j < end; j++ {
 			if err := batch.Index(docs[j].ID, docs[j]); err != nil {
@@ -964,8 +960,8 @@ func GetIndexStats() (*IndexStats, error) {
 
 	return &IndexStats{
 		DocCount:     docCount,
-		IndexSize:    0, // Would need filesystem access to calculate
-		Fields:       0, // Bleve doesn't expose field count directly
+		IndexSize:    0,    // Would need filesystem access to calculate
+		Fields:       0,    // Bleve doesn't expose field count directly
 		HasDocValues: true, // We enable docValues by default in our mapping
 	}, nil
 }
@@ -1220,11 +1216,11 @@ func DiskUsageByDirectory(prefix string, limit int) (map[string]*DirectoryStats,
 
 // DirectoryStats holds disk usage statistics for a directory
 type DirectoryStats struct {
-	Path          string  `json:"path"`
-	Count         int     `json:"count"`
-	TotalSize     int64   `json:"total_size"`
-	AvgSize       int64   `json:"avg_size"`
-	TotalDuration int64   `json:"total_duration"`
+	Path          string `json:"path"`
+	Count         int    `json:"count"`
+	TotalSize     int64  `json:"total_size"`
+	AvgSize       int64  `json:"avg_size"`
+	TotalDuration int64  `json:"total_duration"`
 }
 
 // GetTermFacetCounts returns term facet counts for a categorical field

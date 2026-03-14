@@ -255,35 +255,35 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 						if err == nil {
 							media = append(media, models.MediaWithDB{
 								Media: models.Media{
-									Path:           row.Path,
-									Title:          models.NullStringPtr(row.Title),
-									Duration:       models.NullInt64Ptr(row.Duration),
-									Size:           models.NullInt64Ptr(row.Size),
-									TimeCreated:    models.NullInt64Ptr(row.TimeCreated),
-									TimeModified:   models.NullInt64Ptr(row.TimeModified),
-									TimeDeleted:    models.NullInt64Ptr(row.TimeDeleted),
+									Path:            row.Path,
+									Title:           models.NullStringPtr(row.Title),
+									Duration:        models.NullInt64Ptr(row.Duration),
+									Size:            models.NullInt64Ptr(row.Size),
+									TimeCreated:     models.NullInt64Ptr(row.TimeCreated),
+									TimeModified:    models.NullInt64Ptr(row.TimeModified),
+									TimeDeleted:     models.NullInt64Ptr(row.TimeDeleted),
 									TimeFirstPlayed: models.NullInt64Ptr(row.TimeFirstPlayed),
-									TimeLastPlayed: models.NullInt64Ptr(row.TimeLastPlayed),
-									PlayCount:      models.NullInt64Ptr(row.PlayCount),
-									Playhead:       models.NullInt64Ptr(row.Playhead),
-									Type:           models.NullStringPtr(row.Type),
-									Width:          models.NullInt64Ptr(row.Width),
-									Height:         models.NullInt64Ptr(row.Height),
-									Fps:            models.NullFloat64Ptr(row.Fps),
-									VideoCodecs:    models.NullStringPtr(row.VideoCodecs),
-									AudioCodecs:    models.NullStringPtr(row.AudioCodecs),
-									SubtitleCodecs: models.NullStringPtr(row.SubtitleCodecs),
-									VideoCount:     models.NullInt64Ptr(row.VideoCount),
-									AudioCount:     models.NullInt64Ptr(row.AudioCount),
-									SubtitleCount:  models.NullInt64Ptr(row.SubtitleCount),
-									Album:          models.NullStringPtr(row.Album),
-									Artist:         models.NullStringPtr(row.Artist),
-									Genre:          models.NullStringPtr(row.Genre),
-									Categories:     models.NullStringPtr(row.Categories),
-									Description:    models.NullStringPtr(row.Description),
-									Language:       models.NullStringPtr(row.Language),
-									TimeDownloaded: models.NullInt64Ptr(row.TimeDownloaded),
-									Score:          models.NullFloat64Ptr(row.Score),
+									TimeLastPlayed:  models.NullInt64Ptr(row.TimeLastPlayed),
+									PlayCount:       models.NullInt64Ptr(row.PlayCount),
+									Playhead:        models.NullInt64Ptr(row.Playhead),
+									Type:            models.NullStringPtr(row.Type),
+									Width:           models.NullInt64Ptr(row.Width),
+									Height:          models.NullInt64Ptr(row.Height),
+									Fps:             models.NullFloat64Ptr(row.Fps),
+									VideoCodecs:     models.NullStringPtr(row.VideoCodecs),
+									AudioCodecs:     models.NullStringPtr(row.AudioCodecs),
+									SubtitleCodecs:  models.NullStringPtr(row.SubtitleCodecs),
+									VideoCount:      models.NullInt64Ptr(row.VideoCount),
+									AudioCount:      models.NullInt64Ptr(row.AudioCount),
+									SubtitleCount:   models.NullInt64Ptr(row.SubtitleCount),
+									Album:           models.NullStringPtr(row.Album),
+									Artist:          models.NullStringPtr(row.Artist),
+									Genre:           models.NullStringPtr(row.Genre),
+									Categories:      models.NullStringPtr(row.Categories),
+									Description:     models.NullStringPtr(row.Description),
+									Language:        models.NullStringPtr(row.Language),
+									TimeDownloaded:  models.NullInt64Ptr(row.TimeDownloaded),
+									Score:           models.NullFloat64Ptr(row.Score),
 								},
 								DB: dbPath,
 							})
@@ -814,6 +814,46 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Try Bleve first if --bleve flag is set
+	if c.Bleve && searchBase != "" {
+		// Use Bleve prefix search for path autocomplete
+		prefix := searchBase
+		if searchDir != "" {
+			prefix = searchDir + searchBase
+		}
+
+		ids, _, err := bleve.PrefixSearch(prefix, 500)
+		if err == nil && len(ids) > 0 {
+			resultsMap := make(map[string]LsEntry)
+			counts := make(map[string]int)
+
+			for _, id := range ids {
+				// Extract path components for grouping
+				dir := filepath.Dir(id)
+				base := filepath.Base(id)
+				key := dir + "/" + base
+
+				if _, exists := resultsMap[key]; !exists {
+					resultsMap[key] = LsEntry{
+						Name: base,
+						Path: id,
+					}
+					counts[dir]++
+				}
+			}
+
+			var results []LsEntry
+			for _, entry := range resultsMap {
+				results = append(results, entry)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(results)
+			return
+		}
+		// Fall through to SQL if Bleve failed
+	}
+
 	resultsMap := make(map[string]LsEntry)
 	counts := make(map[string]int)
 
@@ -1200,6 +1240,29 @@ func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
 	if flags.Limit <= 0 {
 		flags.All = true
 		flags.Limit = 1000000
+	}
+
+	// Try Bleve first if --bleve flag is set
+	if c.Bleve && len(c.Databases) == 1 {
+		dirStats, err := bleve.DiskUsageByDirectory("", 10000)
+		if err == nil && len(dirStats) > 0 {
+			// Convert Bleve DirectoryStats to FolderStats
+			results := make([]models.FolderStats, 0, len(dirStats))
+			for _, stats := range dirStats {
+				results = append(results, models.FolderStats{
+					Path:          stats.Path,
+					Count:         stats.Count,
+					TotalSize:     stats.TotalSize,
+					TotalDuration: stats.TotalDuration,
+				})
+			}
+
+			w.Header().Set("X-Total-Count", strconv.Itoa(len(results)))
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(results)
+			return
+		}
+		// Fall through to SQL if Bleve failed
 	}
 
 	allMedia, err := query.MediaQuery(r.Context(), c.Databases, flags)

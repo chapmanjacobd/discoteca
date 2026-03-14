@@ -26,7 +26,7 @@ func generateTestDocuments(count int) []*MediaDocument {
 
 	now := time.Now().Unix()
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		docs[i] = &MediaDocument{
 			ID:             fmt.Sprintf("doc%d", i),
 			Path:           filepath.FromSlash(fmt.Sprintf("/media/%s/file%d.mp4", types[i%4], i)),
@@ -101,7 +101,7 @@ func setupSQLiteFTS5Benchmark(b *testing.B, docCount int) (*sql.DB, func()) {
 	}
 	defer stmt.Close()
 
-	for i := 0; i < docCount; i++ {
+	for i := range docCount {
 		_, err := stmt.Exec(
 			filepath.FromSlash(fmt.Sprintf("/media/%s/file%d.mp4", types[i%4], i)),
 			fmt.Sprintf("media file%d", i),

@@ -33,11 +33,6 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	}
 }
 
-// writeError writes a JSON error response
-func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, models.ErrorResponse{Error: message})
-}
-
 func init() {
 	_ = mime.AddExtensionType(".js", "text/javascript")
 	_ = mime.AddExtensionType(".mjs", "text/javascript")
@@ -309,14 +304,14 @@ func (c *ServeCmd) Close() error {
 		c.dbCache.Delete(key)
 		return true
 	})
-	
+
 	// Close Bleve index if it was initialized
 	if c.Bleve {
 		if err := bleve.CloseIndex(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	
+
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to close some resources: %v", errs)
 	}
@@ -345,7 +340,7 @@ func (c *ServeCmd) Run(ctx *kong.Context) error {
 			slog.Error("Failed to initialize database", "db", dbPath, "error", err)
 		}
 		c.dbCache.Store(dbPath, sqlDB)
-		
+
 		// Initialize Bleve index if --bleve flag is set
 		if c.Bleve {
 			if err := bleve.InitIndex(dbPath); err != nil {

@@ -1379,6 +1379,16 @@ Flags:
         Filter folders by total size
   --folder-counts
         Filter folders by number of subfolders
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
+  -R, --related
+        Find media related to the first result
 ```
 
 </details>
@@ -3510,6 +3520,16 @@ Flags:
         Stop after N bytes (e.g., 10GB)
   --track-history
         Track playback history
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
+  --no-fts
+        Disable full-text search, use substring search only
+  -R, --related
+        Find media related to the first result
   -p, --port
         Port to listen on
   --public-dir

@@ -16,7 +16,7 @@ import (
 // TestMediaDocumentWithAllFields tests that MediaDocument can hold all fields
 func TestMediaDocumentWithAllFields(t *testing.T) {
 	var size int64 = 1024 * 1024 * 100 // 100MB
-	var duration int64 = 3600           // 1 hour
+	var duration int64 = 3600          // 1 hour
 	var timeCreated int64 = time.Now().Unix()
 	var timeModified int64 = time.Now().Unix()
 	var timeDownloaded int64 = time.Now().Unix() - 86400 // 1 day ago
@@ -39,30 +39,30 @@ func TestMediaDocumentWithAllFields(t *testing.T) {
 	categories := "action,movie"
 
 	media := MediaDocument{
-		ID:              filepath.FromSlash("/test/path/video.mp4"),
-		Path:            filepath.FromSlash("/test/path/video.mp4"),
-		PathTokenized:   filepath.FromSlash("/test/path"),
-		Title:           title,
-		Description:     description,
-		Type:            mediaType,
-		Size:            size,
-		Duration:        duration,
-		TimeCreated:     timeCreated,
-		TimeModified:    timeModified,
-		TimeDownloaded:  timeDownloaded,
-		TimeLastPlayed:  timeLastPlayed,
-		PlayCount:       playCount,
-		Genre:           genre,
-		Artist:          artist,
-		Album:           album,
-		Language:        language,
-		Categories:      categories,
-		VideoCount:      videoCount,
-		AudioCount:      audioCount,
-		SubtitleCount:   subtitleCount,
-		Width:           width,
-		Height:          height,
-		Score:           score,
+		ID:             filepath.FromSlash("/test/path/video.mp4"),
+		Path:           filepath.FromSlash("/test/path/video.mp4"),
+		PathTokenized:  filepath.FromSlash("/test/path"),
+		Title:          title,
+		Description:    description,
+		Type:           mediaType,
+		Size:           size,
+		Duration:       duration,
+		TimeCreated:    timeCreated,
+		TimeModified:   timeModified,
+		TimeDownloaded: timeDownloaded,
+		TimeLastPlayed: timeLastPlayed,
+		PlayCount:      playCount,
+		Genre:          genre,
+		Artist:         artist,
+		Album:          album,
+		Language:       language,
+		Categories:     categories,
+		VideoCount:     videoCount,
+		AudioCount:     audioCount,
+		SubtitleCount:  subtitleCount,
+		Width:          width,
+		Height:         height,
+		Score:          score,
 	}
 
 	// Verify all fields are set correctly
@@ -129,6 +129,9 @@ func TestSearchWithExactMatch(t *testing.T) {
 	}
 	if total < 1 {
 		t.Errorf("Expected at least 1 fuzzy match, got %d", total)
+	}
+	if len(ids) < 1 {
+		t.Errorf("Expected at least 1 fuzzy result, got %d", len(ids))
 	}
 }
 
@@ -270,10 +273,10 @@ func TestNumericRangeFacet(t *testing.T) {
 
 	// Index documents with different sizes
 	docs := []*MediaDocument{
-		{ID: "doc1", PathTokenized: "test", Size: 50},   // Small: 0-100
-		{ID: "doc2", PathTokenized: "test", Size: 150},  // Medium: 100-200
-		{ID: "doc3", PathTokenized: "test", Size: 250},  // Large: 200+
-		{ID: "doc4", PathTokenized: "test", Size: 75},   // Small: 0-100
+		{ID: "doc1", PathTokenized: "test", Size: 50},  // Small: 0-100
+		{ID: "doc2", PathTokenized: "test", Size: 150}, // Medium: 100-200
+		{ID: "doc3", PathTokenized: "test", Size: 250}, // Large: 200+
+		{ID: "doc4", PathTokenized: "test", Size: 75},  // Small: 0-100
 	}
 
 	for _, doc := range docs {
@@ -322,12 +325,12 @@ func TestNumericRangeFacet(t *testing.T) {
 }
 
 // TestDateRangeFacet tests date range faceting
-// Note: This test is currently skipped because Bleve date range facets require 
+// Note: This test is currently skipped because Bleve date range facets require
 // special date time field mapping. The functionality is implemented but needs
 // proper date field configuration in the index mapping.
 func TestDateRangeFacet(t *testing.T) {
 	t.Skip("Date range facets require DateTime field mapping - implementation pending")
-	
+
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
@@ -344,8 +347,8 @@ func TestDateRangeFacet(t *testing.T) {
 
 	// Index documents with different timestamps
 	docs := []*MediaDocument{
-		{ID: "doc1", PathTokenized: "test", TimeCreated: now - (3 * day)}, // 3 days ago
-		{ID: "doc2", PathTokenized: "test", TimeCreated: now - (1 * day)}, // 1 day ago
+		{ID: "doc1", PathTokenized: "test", TimeCreated: now - (3 * day)},  // 3 days ago
+		{ID: "doc2", PathTokenized: "test", TimeCreated: now - (1 * day)},  // 1 day ago
 		{ID: "doc3", PathTokenized: "test", TimeCreated: now - (10 * day)}, // 10 days ago
 	}
 
@@ -404,7 +407,7 @@ func TestBatchIndexDocuments(t *testing.T) {
 
 	// Create 100 documents for batch indexing
 	docs := make([]*MediaDocument, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		docs[i] = &MediaDocument{
 			ID:   fmt.Sprintf("doc%d", i),
 			Path: filepath.FromSlash(fmt.Sprintf("/path/doc%d.mp4", i)),
@@ -442,7 +445,7 @@ func TestBatchIndexDocumentsWithProgress(t *testing.T) {
 
 	// Create 50 documents
 	docs := make([]*MediaDocument, 50)
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		docs[i] = &MediaDocument{
 			ID: fmt.Sprintf("doc%d", i),
 		}
@@ -602,7 +605,7 @@ func TestMultiFieldSearch(t *testing.T) {
 
 	// Search with title boost
 	fieldBoosts := map[string]float64{
-		"title": 2.0,
+		"title":       2.0,
 		"description": 1.0,
 	}
 
@@ -673,9 +676,9 @@ func TestSearchWithExactMatchPagination(t *testing.T) {
 	defer CloseIndex()
 
 	// Index multiple documents
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		doc := &MediaDocument{
-			ID: fmt.Sprintf("doc%d", i),
+			ID:            fmt.Sprintf("doc%d", i),
 			PathTokenized: "test",
 		}
 		if err := IndexDocument(doc); err != nil {
