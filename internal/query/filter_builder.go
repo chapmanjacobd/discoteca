@@ -2165,7 +2165,31 @@ func (qe *QueryExecutor) ResolvePercentileFlags(ctx context.Context, dbs []strin
 		hasPEpisodes = true
 	}
 
-	if !hasPSize && !hasPDuration && !hasPEpisodes {
+	hasPModified := false
+	for _, m := range flags.Modified {
+		if _, _, ok := utils.ParsePercentileRange(m); ok {
+			hasPModified = true
+			break
+		}
+	}
+
+	hasPCreated := false
+	for _, c := range flags.Created {
+		if _, _, ok := utils.ParsePercentileRange(c); ok {
+			hasPCreated = true
+			break
+		}
+	}
+
+	hasPDownloaded := false
+	for _, d := range flags.Downloaded {
+		if _, _, ok := utils.ParsePercentileRange(d); ok {
+			hasPDownloaded = true
+			break
+		}
+	}
+
+	if !hasPSize && !hasPDuration && !hasPEpisodes && !hasPModified && !hasPCreated && !hasPDownloaded {
 		return flags, nil
 	}
 
@@ -2186,6 +2210,30 @@ func (qe *QueryExecutor) ResolvePercentileFlags(ctx context.Context, dbs []strin
 			}
 		}
 		tempFlags.Duration = cleanDuration
+
+		var cleanModified []string
+		for _, m := range flags.Modified {
+			if _, _, ok := utils.ParsePercentileRange(m); !ok {
+				cleanModified = append(cleanModified, m)
+			}
+		}
+		tempFlags.Modified = cleanModified
+
+		var cleanCreated []string
+		for _, c := range flags.Created {
+			if _, _, ok := utils.ParsePercentileRange(c); !ok {
+				cleanCreated = append(cleanCreated, c)
+			}
+		}
+		tempFlags.Created = cleanCreated
+
+		var cleanDownloaded []string
+		for _, d := range flags.Downloaded {
+			if _, _, ok := utils.ParsePercentileRange(d); !ok {
+				cleanDownloaded = append(cleanDownloaded, d)
+			}
+		}
+		tempFlags.Downloaded = cleanDownloaded
 
 		if _, _, ok := utils.ParsePercentileRange(flags.FileCounts); ok {
 			tempFlags.FileCounts = ""
@@ -2288,6 +2336,51 @@ func (qe *QueryExecutor) ResolvePercentileFlags(ctx context.Context, dbs []strin
 				}
 			}
 			flags.Duration = newDuration
+		}
+	}
+
+	if hasPModified {
+		values, err := getValues("time_modified")
+		if err == nil && len(values) > 0 {
+			mapping := utils.CalculatePercentiles(values)
+			for _, m := range flags.Modified {
+				if min, max, ok := utils.ParsePercentileRange(m); ok {
+					minVal := mapping[int(min)]
+					maxVal := mapping[int(max)]
+					flags.ModifiedAfter = strconv.FormatInt(minVal, 10)
+					flags.ModifiedBefore = strconv.FormatInt(maxVal, 10)
+				}
+			}
+		}
+	}
+
+	if hasPCreated {
+		values, err := getValues("time_created")
+		if err == nil && len(values) > 0 {
+			mapping := utils.CalculatePercentiles(values)
+			for _, c := range flags.Created {
+				if min, max, ok := utils.ParsePercentileRange(c); ok {
+					minVal := mapping[int(min)]
+					maxVal := mapping[int(max)]
+					flags.CreatedAfter = strconv.FormatInt(minVal, 10)
+					flags.CreatedBefore = strconv.FormatInt(maxVal, 10)
+				}
+			}
+		}
+	}
+
+	if hasPDownloaded {
+		values, err := getValues("time_downloaded")
+		if err == nil && len(values) > 0 {
+			mapping := utils.CalculatePercentiles(values)
+			for _, d := range flags.Downloaded {
+				if min, max, ok := utils.ParsePercentileRange(d); ok {
+					minVal := mapping[int(min)]
+					maxVal := mapping[int(max)]
+					flags.DownloadedAfter = strconv.FormatInt(minVal, 10)
+					flags.DownloadedBefore = strconv.FormatInt(maxVal, 10)
+				}
+			}
 		}
 	}
 

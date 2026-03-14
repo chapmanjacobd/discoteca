@@ -542,6 +542,16 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 		flags.DownloadedBefore = maxDownloaded
 	}
 
+	if modified := q["modified"]; len(modified) > 0 {
+		flags.Modified = append(flags.Modified, modified...)
+	}
+	if created := q["created"]; len(created) > 0 {
+		flags.Created = append(flags.Created, created...)
+	}
+	if downloaded := q["downloaded"]; len(downloaded) > 0 {
+		flags.Downloaded = append(flags.Downloaded, downloaded...)
+	}
+
 	for _, m := range q["modified"] {
 		for part := range strings.SplitSeq(m, ",") {
 			if strings.HasPrefix(part, "+") {

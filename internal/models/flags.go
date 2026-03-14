@@ -37,6 +37,9 @@ type FilterFlags struct {
 	Search           []string `help:"Search terms (space-separated for AND, | for OR)" group:"Filter"`
 	Size             []string `short:"S" help:"Size range (e.g., >100MB, 1GB%10)" group:"Filter"`
 	Duration         []string `short:"d" help:"Duration range (e.g., >1hour, 30min%10)" group:"Filter"`
+	Modified         []string `help:"Filter by modification time" group:"Filter"`
+	Created          []string `help:"Filter by creation time" group:"Filter"`
+	Downloaded       []string `help:"Filter by download time" group:"Filter"`
 	DurationFromSize string   `help:"Constrain media to duration of videos which match any size constraints" group:"Filter"`
 	Watched          *bool    `help:"Filter by watched status (true/false)" group:"Filter"`
 	Unfinished       bool     `help:"Has playhead but not finished" group:"Filter"`
