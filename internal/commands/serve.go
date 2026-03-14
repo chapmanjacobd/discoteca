@@ -522,6 +522,54 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 	if durations := q["duration"]; len(durations) > 0 {
 		flags.Duration = append(flags.Duration, durations...)
 	}
+
+	if minModified := q.Get("min_modified"); minModified != "" {
+		flags.ModifiedAfter = minModified
+	}
+	if maxModified := q.Get("max_modified"); maxModified != "" {
+		flags.ModifiedBefore = maxModified
+	}
+	if minCreated := q.Get("min_created"); minCreated != "" {
+		flags.CreatedAfter = minCreated
+	}
+	if maxCreated := q.Get("max_created"); maxCreated != "" {
+		flags.CreatedBefore = maxCreated
+	}
+	if minDownloaded := q.Get("min_downloaded"); minDownloaded != "" {
+		flags.DownloadedAfter = minDownloaded
+	}
+	if maxDownloaded := q.Get("max_downloaded"); maxDownloaded != "" {
+		flags.DownloadedBefore = maxDownloaded
+	}
+
+	for _, m := range q["modified"] {
+		for part := range strings.SplitSeq(m, ",") {
+			if strings.HasPrefix(part, "+") {
+				flags.ModifiedAfter = part[1:]
+			} else if strings.HasPrefix(part, "-") {
+				flags.ModifiedBefore = part[1:]
+			}
+		}
+	}
+	for _, m := range q["created"] {
+		for part := range strings.SplitSeq(m, ",") {
+			if strings.HasPrefix(part, "+") {
+				flags.CreatedAfter = part[1:]
+			} else if strings.HasPrefix(part, "-") {
+				flags.CreatedBefore = part[1:]
+			}
+		}
+	}
+	for _, m := range q["downloaded"] {
+		for part := range strings.SplitSeq(m, ",") {
+			if strings.HasPrefix(part, "+") {
+				flags.DownloadedAfter = part[1:]
+			} else if strings.HasPrefix(part, "-") {
+				flags.DownloadedBefore = part[1:]
+			}
+		}
+	}
+
 	if episodes := q.Get("episodes"); episodes != "" {
 		flags.FileCounts = episodes
 	}

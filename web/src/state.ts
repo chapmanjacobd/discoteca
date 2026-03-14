@@ -34,6 +34,9 @@ export const state: State = {
         excludedDbs: getJSONLocalStorageItem('disco-excluded-dbs', []),
         sizes: getJSONLocalStorageItem('disco-filter-sizes', []),
         durations: getJSONLocalStorageItem('disco-filter-durations', []),
+        modified: getJSONLocalStorageItem('disco-filter-modified', []),
+        created: getJSONLocalStorageItem('disco-filter-created', []),
+        downloaded: getJSONLocalStorageItem('disco-filter-downloaded', []),
         min_score: '',
         max_score: '',
         episodes: getJSONLocalStorageItem('disco-filter-episodes', []),
@@ -89,9 +92,13 @@ export const state: State = {
     ratings: [],
     filterBins: {
         episodes: [], size: [], duration: [],
+        modified: [], created: [], downloaded: [],
         episodes_min: 0, episodes_max: 100,
         size_min: 0, size_max: 100 * 1024 * 1024,
-        duration_min: 0, duration_max: 3600
+        duration_min: 0, duration_max: 3600,
+        modified_min: 0, modified_max: 100,
+        created_min: 0, created_max: 100,
+        downloaded_min: 0, downloaded_max: 100
     },
     playlists: [],
     newCategories: [],

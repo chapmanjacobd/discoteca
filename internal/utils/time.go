@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 
 // ParseDate parses a date string into a Unix timestamp using a fixed set of layouts
 func ParseDate(dateStr string) int64 {
+	// Try parsing as unix timestamp first
+	if ts, err := strconv.ParseInt(dateStr, 10, 64); err == nil && ts > 0 {
+		return ts
+	}
+
 	layouts := []string{
 		"2006-01-02",
 		"2006-01-02 15:04:05",

@@ -379,20 +379,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 episodes: data.episodes || [],
                 size: data.size || [],
                 duration: data.duration || [],
+                modified: data.modified || [],
+                created: data.created || [],
+                downloaded: data.downloaded || [],
                 episodes_min: data.episodes_min !== undefined && data.episodes_min !== null ? data.episodes_min : 0,
                 episodes_max: data.episodes_max !== undefined && data.episodes_max !== null ? data.episodes_max : 100,
                 size_min: data.size_min !== undefined && data.size_min !== null ? data.size_min : 0,
                 size_max: data.size_max !== undefined && data.size_max !== null ? data.size_max : (100 * 1024 * 1024),
                 duration_min: data.duration_min !== undefined && data.duration_min !== null ? data.duration_min : 0,
                 duration_max: data.duration_max !== undefined && data.duration_max !== null ? data.duration_max : 3600,
+                modified_min: data.modified_min !== undefined && data.modified_min !== null ? data.modified_min : 0,
+                modified_max: data.modified_max !== undefined && data.modified_max !== null ? data.modified_max : 100,
+                created_min: data.created_min !== undefined && data.created_min !== null ? data.created_min : 0,
+                created_max: data.created_max !== undefined && data.created_max !== null ? data.created_max : 100,
+                downloaded_min: data.downloaded_min !== undefined && data.downloaded_min !== null ? data.downloaded_min : 0,
+                downloaded_max: data.downloaded_max !== undefined && data.downloaded_max !== null ? data.downloaded_max : 100,
                 episodes_percentiles: data.episodes_percentiles || [],
                 size_percentiles: data.size_percentiles || [],
-                duration_percentiles: data.duration_percentiles || []
+                duration_percentiles: data.duration_percentiles || [],
+                modified_percentiles: data.modified_percentiles || [],
+                created_percentiles: data.created_percentiles || [],
+                downloaded_percentiles: data.downloaded_percentiles || []
             };
 
             updateSlidersFromAbsolute('episodes', 'episodes');
             updateSlidersFromAbsolute('size', 'sizes');
             updateSlidersFromAbsolute('duration', 'durations');
+            updateSlidersFromAbsolute('modified', 'modified');
+            updateSlidersFromAbsolute('created', 'created');
+            updateSlidersFromAbsolute('downloaded', 'downloaded');
 
             renderFilterBins();
             updateSliderLabels();
@@ -450,6 +465,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.sizes = [];
         state.filters.durations = [];
         state.filters.episodes = [];
+        state.filters.modified = [];
+        state.filters.created = [];
+        state.filters.downloaded = [];
         state.filters.types = [];
         state.filters.search = '';
         state.filters.unplayed = false;
@@ -467,6 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('disco-sidebar-state', String(JSON.stringify(state.sidebarState)));
         clearAllFilters();
         updateNavActiveStates();
+        resetSliders();
     }
 
     function resetFilters() {
@@ -478,6 +497,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.sizes = [];
         state.filters.durations = [];
         state.filters.episodes = [];
+        state.filters.modified = [];
+        state.filters.created = [];
+        state.filters.downloaded = [];
         state.filters.types = [];
         state.filters.unplayed = false;
         state.filters.unfinished = false;
@@ -535,6 +557,9 @@ document.addEventListener('DOMContentLoaded', () => {
             'disco-filter-sizes',
             'disco-filter-durations',
             'disco-filter-episodes',
+            'disco-filter-modified',
+            'disco-filter-created',
+            'disco-filter-downloaded',
             'disco-types'
         ];
         filterKeys.forEach(key => localStorage.setItem(key, String('[]')));
@@ -685,6 +710,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.episodes.forEach(b => params.append('episodes', String(getBinQueryParam(b))));
         state.filters.sizes.forEach(b => params.append('size', String(getBinQueryParam(b))));
         state.filters.durations.forEach(b => params.append('duration', String(getBinQueryParam(b))));
+        state.filters.modified.forEach(b => params.append('modified', String(getBinQueryParam(b))));
+        state.filters.created.forEach(b => params.append('created', String(getBinQueryParam(b))));
+        state.filters.downloaded.forEach(b => params.append('downloaded', String(getBinQueryParam(b))));
 
         state.filters.types.forEach(t => params.append('type', String(t)));
 

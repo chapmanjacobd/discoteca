@@ -187,6 +187,18 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			args = append(args, ts)
 		}
 	}
+	if fb.flags.DownloadedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.DownloadedAfter); ts > 0 {
+			whereClauses = append(whereClauses, "time_downloaded >= ?")
+			args = append(args, ts)
+		}
+	}
+	if fb.flags.DownloadedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.flags.DownloadedBefore); ts > 0 {
+			whereClauses = append(whereClauses, "time_downloaded <= ?")
+			args = append(args, ts)
+		}
+	}
 	if fb.flags.PlayedAfter != "" {
 		if ts := utils.ParseDateOrRelative(fb.flags.PlayedAfter); ts > 0 {
 			whereClauses = append(whereClauses, "time_last_played >= ?")

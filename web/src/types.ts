@@ -26,15 +26,27 @@ export interface FilterBins {
     episodes: any[];
     size: any[];
     duration: any[];
+    modified: any[];
+    created: any[];
+    downloaded: any[];
     episodes_min: number;
     episodes_max: number;
     size_min: number;
     size_max: number;
     duration_min: number;
     duration_max: number;
+    modified_min: number;
+    modified_max: number;
+    created_min: number;
+    created_max: number;
+    downloaded_min: number;
+    downloaded_max: number;
     episodes_percentiles?: number[];
     size_percentiles?: number[];
     duration_percentiles?: number[];
+    modified_percentiles?: number[];
+    created_percentiles?: number[];
+    downloaded_percentiles?: number[];
 }
 
 export interface PlaybackState {
@@ -81,6 +93,9 @@ export interface State {
         excludedDbs: string[];
         sizes: any[];
         durations: any[];
+        modified: any[];
+        created: any[];
+        downloaded: any[];
         min_score: string;
         max_score: string;
         episodes: any[];

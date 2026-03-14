@@ -347,9 +347,10 @@ func SearchWithSort(queryStr string, limit, offset int, sortFields []string) (*b
 
 ## Phase 4: Pagination Implementation
 
-### 4.1 Offset-Based Pagination (Simple)
+user note: Let's just implement Offset-Based Pagination for now--not searchBefore/searchAfter
 
-For shallow pages (first 100-1000 results):
+
+### 4.1 Offset-Based Pagination (Simple)
 
 ```go
 func SearchPaginated(queryStr string, page, pageSize int) (*SearchResponse, error) {
@@ -372,59 +373,6 @@ func SearchPaginated(queryStr string, page, pageSize int) (*SearchResponse, erro
         Page:   page,
         Pages:  (results.Total + int64(pageSize) - 1) / int64(pageSize),
     }, nil
-}
-```
-
-### 4.2 SearchAfter Pagination (Deep Paging)
-
-For deep pagination without performance degradation:
-
-```go
-func SearchWithCursor(queryStr string, pageSize int, searchAfter []string) (*SearchResponse, error) {
-    bleveQuery := bleve.NewMatchQuery(queryStr)
-    searchRequest := bleve.NewSearchRequest(bleveQuery)
-    searchRequest.Size = pageSize
-    searchRequest.Sort = search.ParseSortOrderStrings([]string{"-_score", "id"})
-    
-    if len(searchAfter) > 0 {
-        searchRequest.SearchAfter = searchAfter
-    }
-    
-    results, err := GetIndex().Search(searchRequest)
-    if err != nil {
-        return nil, err
-    }
-    
-    var nextSearchAfter []string
-    if len(results.Hits) > 0 {
-        nextSearchAfter = results.Hits[len(results.Hits)-1].Sort
-    }
-    
-    return &SearchResponse{
-        Hits:        extractHits(results),
-        Total:       results.Total,
-        SearchAfter: nextSearchAfter,
-        HasMore:     len(results.Hits) == pageSize,
-    }, nil
-}
-```
-
-### 4.3 Pagination Mode Selection
-
-```go
-type PaginationMode int
-
-const (
-    OffsetPagination PaginationMode = iota
-    CursorPagination
-)
-
-func SelectPaginationMode(total uint64, currentPage int) PaginationMode {
-    // Use cursor pagination for deep pages
-    if currentPage > 10 || (currentPage-1)*10 > 1000 {
-        return CursorPagination
-    }
-    return OffsetPagination
 }
 ```
 
@@ -527,42 +475,34 @@ func AddMedia(dbPath string, paths []string, options AddOptions) error {
 - [ ] Numeric range faceting (size, duration)
 - [ ] Date range faceting (time_created, time_modified, time_downloaded)
 - [ ] Sorting by all docValues-enabled fields
-- [ ] Cursor-based pagination (SearchAfter)
 
 ### 6.2 Features Requiring Hybrid Approach
 
-These features may need SQLite + Bleve combination:
+These features may need SQLite + Bleve combination to work well (investigation and experimentation is needed):
 
-- [ ] `--big-dirs` (directory aggregation with size/count)
+- [ ] `--big-dirs` (directory aggregation with size and count)
 - [ ] `--group-by-extensions`
 - [ ] `--group-by-mime-types`
 - [ ] `--group-by-size` (bucketed aggregation)
 - [ ] `--frequency` (time-based grouping)
 - [ ] Complex re-ranking with multiple weights
+- [ ] Sibling fetching (requires relational queries)
 
 **Hybrid Strategy**:
-1. Use Bleve for filtering and initial result set
-2. Fetch full records from SQLite using IDs
-3. Perform complex aggregations in Go or SQL
+1. Use Bleve for filtering and sorting and initial result set
+2. Perform complex aggregations and sorting in Go (if not possible with Bleve)
+3. Compare speed, memory usage, and results with the existing SQLite implementation
 
 ### 6.3 Features SQLite-Only
 
 - [ ] Playback history tracking
 - [ ] Watched/unwatched filtering (requires history JOIN)
-- [ ] Sibling fetching (requires relational queries)
 - [ ] Custom keyword categories
 - [ ] Playlist management
 
 ---
 
 ## Phase 7: Web UI Integration
-
-### 7.1 Filter Components
-
-Add range slider filters for:
-- **Time Modified**: Date range picker
-- **Time Created**: Date range picker
-- **Time Downloaded**: Date range picker
 
 ### 7.2 Facet Sidebar
 
@@ -578,7 +518,6 @@ Display facet counts in filters sidebar:
 
 - Implement xklb default sort order
 - Add facet-based filtering
-- Support cursor pagination for deep results
 
 ### 7.4 DU Mode Enhancements
 
@@ -671,46 +610,14 @@ func BenchmarkBleveBatchIndex(b *testing.B) {
 
 ## Phase 9: Migration Strategy
 
-### 9.1 Gradual Migration
+### 9.1 Performance driven Migration
 
 1. **Phase 1**: Run Bleve alongside FTS5 (dual indexing)
 2. **Phase 2**: Migrate read queries to Bleve
-3. **Phase 3**: Deprecate FTS5 for supported features
+3. **Phase 3**: Compare scaling performance across many metrics (5000 rows, 500000 rows)
 4. **Phase 4**: Remove FTS5 dependency (optional)
 
-### 9.2 Data Migration Script
-
-```go
-// cmd/disco/migrate-bleve.go
-
-func MigrateToBleve(dbPath string) error {
-    // Initialize Bleve index
-    if err := bleve.InitIndex(dbPath); err != nil {
-        return err
-    }
-    defer bleve.CloseIndex()
-    
-    // Fetch all media records from SQLite
-    mediaList, err := db.GetAllMedia(dbPath)
-    if err != nil {
-        return err
-    }
-    
-    // Convert and batch index
-    var docs []*bleve.MediaDocument
-    for _, m := range mediaList {
-        docs = append(docs, bleve.ToBleveDoc(m))
-    }
-    
-    return bleve.BatchIndexDocuments(docs, 1000)
-}
-```
-
-### 9.3 Rollback Plan
-
-- Keep FTS5 triggers active during migration
-- Feature flag to switch between FTS5 and Bleve
-- Automatic fallback on Bleve errors
+Data and schema migration is not necessary but it would be helpful to have a --bleve feature flag
 
 ---
 
@@ -718,9 +625,7 @@ func MigrateToBleve(dbPath string) error {
 
 ### 10.1 User Documentation
 
-- Update README with Bleve features
-- Document new faceting capabilities
-- Explain pagination modes
+- Update README.go with Bleve capabilities
 - Add troubleshooting guide
 
 ### 10.2 Developer Documentation
@@ -762,29 +667,23 @@ Based on empirical analysis from the background document:
 
 ### Medium Priority (Feature Enhancements)
 
-1. Web UI filter components
-2. DU mode implementation
-3. Hybrid aggregation approach
-4. Performance benchmarking
+1. DU mode implementation
+2. Hybrid aggregation approach
+3. Performance benchmarking
 
 ### Low Priority (Optimization)
 
 1. Force merge strategies
 2. Advanced caching
 3. Custom aggregators
-4. FTS5 deprecation
 
 ---
 
 ## Appendix C: Known Limitations
 
-1. **Complex Aggregations**: Bleve facets don't support custom calculations (e.g., size/count ratio). Requires hybrid approach.
+1. **Complex Aggregations**: Bleve facets don't support custom calculations (e.g., size/count ratio). May require hybrid approach (Bleve + Go).
 
 2. **Categorization Mode**: Web UI categorization may not benefit from Bleve. Keep SQLite-based.
-
-3. **Caption Search**: Caption FTS should remain in SQLite (trigram tokenizer optimized for substring search).
-
-4. **Real-time Sync**: Dual indexing (SQLite + Bleve) requires careful transaction management.
 
 ---
 

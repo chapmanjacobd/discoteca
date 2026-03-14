@@ -73,14 +73,16 @@ type MediaFilterFlags struct {
 }
 
 type TimeFilterFlags struct {
-	CreatedAfter   string `help:"Created after date (YYYY-MM-DD)" group:"Time"`
-	CreatedBefore  string `help:"Created before date (YYYY-MM-DD)" group:"Time"`
-	ModifiedAfter  string `help:"Modified after date (YYYY-MM-DD)" group:"Time"`
-	ModifiedBefore string `help:"Modified before date (YYYY-MM-DD)" group:"Time"`
-	DeletedAfter   string `help:"Deleted after date (YYYY-MM-DD)" group:"Time"`
-	DeletedBefore  string `help:"Deleted before date (YYYY-MM-DD)" group:"Time"`
-	PlayedAfter    string `help:"Last played after date (YYYY-MM-DD)" group:"Time"`
-	PlayedBefore   string `help:"Last played before date (YYYY-MM-DD)" group:"Time"`
+	CreatedAfter     string `help:"Created after date (YYYY-MM-DD)" group:"Time"`
+	CreatedBefore    string `help:"Created before date (YYYY-MM-DD)" group:"Time"`
+	ModifiedAfter    string `help:"Modified after date (YYYY-MM-DD)" group:"Time"`
+	ModifiedBefore   string `help:"Modified before date (YYYY-MM-DD)" group:"Time"`
+	DownloadedAfter  string `help:"Downloaded after date (YYYY-MM-DD)" group:"Time"`
+	DownloadedBefore string `help:"Downloaded before date (YYYY-MM-DD)" group:"Time"`
+	DeletedAfter     string `help:"Deleted after date (YYYY-MM-DD)" group:"Time"`
+	DeletedBefore    string `help:"Deleted before date (YYYY-MM-DD)" group:"Time"`
+	PlayedAfter      string `help:"Last played after date (YYYY-MM-DD)" group:"Time"`
+	PlayedBefore     string `help:"Last played before date (YYYY-MM-DD)" group:"Time"`
 }
 
 type DatabaseFlags struct {

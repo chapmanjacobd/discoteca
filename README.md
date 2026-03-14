@@ -361,6 +361,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -570,6 +574,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -874,6 +882,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -1096,6 +1108,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -1257,6 +1273,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -1423,6 +1443,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -1587,6 +1611,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -1761,6 +1789,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -1903,6 +1935,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -2071,6 +2107,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -2255,6 +2295,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -2518,6 +2562,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -2766,6 +2814,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -2901,6 +2953,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -3047,6 +3103,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -3222,6 +3282,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -3520,6 +3584,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
@@ -3676,6 +3744,10 @@ Flags:
         Modified after date (YYYY-MM-DD)
   --modified-before
         Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
   --deleted-after
         Deleted after date (YYYY-MM-DD)
   --deleted-before
