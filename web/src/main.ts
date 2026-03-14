@@ -634,6 +634,35 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close Document Modal if open
         const docModal = document.getElementById('document-modal');
         if (!docModal.classList.contains('hidden')) {
+            // Save document reading progress before closing
+            const docContainer = document.getElementById('document-container');
+            const iframe = docContainer?.querySelector('iframe');
+            if (iframe && state.playback.item) {
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                    const iframeWin = iframe.contentWindow;
+                    
+                    if (iframeDoc && iframeWin) {
+                        const scrollTop = iframeWin.scrollY || iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop;
+                        const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
+                        const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
+                        
+                        if (scrollHeight > clientHeight) {
+                            const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+                            saveDocumentProgress(state.playback.item.path, scrollPercent);
+                        }
+                    }
+                } catch (e) {
+                    // Cross-origin or other error - silently fail
+                }
+                
+                // Clear progress timer
+                if (documentProgressTimer !== null) {
+                    window.clearInterval(documentProgressTimer);
+                    documentProgressTimer = null;
+                }
+            }
+            
             docModal.classList.add('hidden');
             if (state.activeModal === 'document-modal') {
                 state.activeModal = null;
@@ -4611,6 +4640,118 @@ document.addEventListener('DOMContentLoaded', () => {
         pipViewer.appendChild(el);
     }
 
+    // Document reading progress tracking
+    let documentProgressTimer: number | null = null;
+    const DOCUMENT_PROGRESS_INTERVAL = 5000; // Save progress every 5 seconds
+
+    function saveDocumentProgress(path: string, scrollPercent: number, chapter?: string) {
+        if (!state.localResume) return;
+        
+        const progress = getLocalStorageItem('disco-progress', {});
+        const now = Date.now();
+        
+        // Store document-specific progress with scroll position and optional chapter
+        progress[path] = {
+            pos: Math.floor(scrollPercent * 100), // Store as percentage (0-100)
+            chapter: chapter || '',
+            last: now
+        };
+        
+        setLocalStorageItem('disco-progress', progress);
+    }
+
+    function restoreDocumentProgress(path: string): { scrollPercent: number; chapter: string } | null {
+        if (!state.localResume) return null;
+        
+        const progress = getLocalStorageItem('disco-progress', {});
+        const entry = progress[path];
+        
+        if (!entry || typeof entry !== 'object') return null;
+        
+        const scrollPercent = (entry.pos || 0) / 100;
+        const chapter = entry.chapter || '';
+        
+        return { scrollPercent, chapter };
+    }
+
+    function trackDocumentProgress(iframe: HTMLIFrameElement, path: string) {
+        // Clear existing timer
+        if (documentProgressTimer !== null) {
+            window.clearInterval(documentProgressTimer);
+        }
+
+        // Try to access iframe content (works for same-origin or calibre-converted content)
+        const tryTrackScroll = () => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) return;
+
+                const iframeWin = iframe.contentWindow;
+                if (!iframeWin) return;
+
+                // Get scroll position from iframe
+                const scrollTop = iframeWin.scrollY || iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop;
+                const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
+                const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
+
+                if (scrollHeight > clientHeight) {
+                    const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+                    saveDocumentProgress(path, scrollPercent);
+                }
+            } catch (e) {
+                // Cross-origin restriction - can't access iframe content
+                // Progress will only be saved when document is closed
+            }
+        };
+
+        // Track periodically while reading
+        documentProgressTimer = window.setInterval(tryTrackScroll, DOCUMENT_PROGRESS_INTERVAL);
+
+        // Also save on unload
+        iframe.addEventListener('beforeunload', () => {
+            tryTrackScroll();
+        });
+    }
+
+    function applyDocumentProgress(iframe: HTMLIFrameElement, path: string) {
+        const saved = restoreDocumentProgress(path);
+        if (!saved) return;
+
+        const { scrollPercent, chapter } = saved;
+        
+        // Wait for iframe to load, then restore position
+        iframe.addEventListener('load', () => {
+            // Give browser 1 second to stabilize layout
+            setTimeout(() => {
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                    const iframeWin = iframe.contentWindow;
+                    
+                    if (!iframeDoc || !iframeWin) return;
+
+                    const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
+                    const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
+                    
+                    if (scrollHeight > clientHeight) {
+                        const targetScroll = scrollPercent * (scrollHeight - clientHeight);
+                        iframeWin.scrollTo({ top: targetScroll, behavior: 'smooth' });
+                        
+                        // Show toast with resume position
+                        if (scrollPercent > 0.05) { // Only show if > 5% progress
+                            const percent = Math.round(scrollPercent * 100);
+                            const msg = chapter 
+                                ? `Resumed at chapter: ${chapter} (${percent}%)`
+                                : `Resumed at ${percent}%`;
+                            showToast(msg, '📖');
+                        }
+                    }
+                } catch (e) {
+                    // Cross-origin or other error - silently fail
+                }
+            }, 1000); // 1 second delay for browser to adjust
+        });
+    }
+
     function openInDocumentViewer(item) {
         const modal = document.getElementById('document-modal');
         const title = document.getElementById('document-title');
@@ -4692,6 +4833,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 container.appendChild(iframe);
+                
+                // Track and restore reading progress
+                trackDocumentProgress(iframe, item.path);
+                applyDocumentProgress(iframe, item.path);
             } else {
                 // Serve raw file directly (e.g. PDF or raw text/markdown)
                 const rawUrl = `/api/raw?path=${encodeURIComponent(item.path)}`;
@@ -4701,6 +4846,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 iframe.style.height = '100%';
                 iframe.style.border = 'none';
                 container.appendChild(iframe);
+                
+                // For raw files, try to restore progress (works for same-origin)
+                applyDocumentProgress(iframe, item.path);
             }
         }
         else {
@@ -4718,6 +4866,9 @@ document.addEventListener('DOMContentLoaded', () => {
             iframe.style.height = '100%';
             iframe.style.border = 'none';
             container.appendChild(iframe);
+            
+            // Try to restore progress
+            applyDocumentProgress(iframe, item.path);
         }
     }
 

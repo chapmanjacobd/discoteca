@@ -106,6 +106,7 @@ func TestHandleDelete(t *testing.T) {
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
 		ReadOnly:  false,
+		Trashcan:  true,
 	}
 	defer cmd.Close()
 	mux := cmd.Mux()
@@ -173,6 +174,28 @@ func TestHandleDelete(t *testing.T) {
 			t.Errorf("Expected 403, got %d", w.Code)
 		}
 		cmd.ReadOnly = false
+	})
+
+	t.Run("TrashcanDisabled", func(t *testing.T) {
+		cmd.Trashcan = false
+		reqBody, _ := json.Marshal(map[string]any{
+			"path":    filepath.FromSlash("/tmp/test1.mp4"),
+			"restore": false,
+		})
+		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected 403, got %d", w.Code)
+		}
+		var resp map[string]string
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp["error"] != "Server not started with --trashcan" {
+			t.Errorf("Expected trashcan error message, got: %s", resp["error"])
+		}
+		cmd.Trashcan = true
 	})
 }
 
