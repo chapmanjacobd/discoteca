@@ -30,7 +30,7 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 	schema := `
 	CREATE TABLE media (
 		path TEXT PRIMARY KEY,
-		fts_path TEXT,
+		path_tokenized TEXT,
 		title TEXT,
 		description TEXT,
 		type TEXT,
@@ -49,24 +49,24 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 		score REAL
 	);
 	CREATE VIRTUAL TABLE media_fts USING fts5(
-		path, fts_path, title, description,
+		path, path_tokenized, title, description,
 		content='media',
 		content_rowid='rowid',
 		tokenize='trigram',
 		detail='none'
 	);
 	CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
-		INSERT INTO media_fts(rowid, path, fts_path, title, description)
-		VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+		VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 	END;
 	CREATE TRIGGER media_ad AFTER DELETE ON media BEGIN
 		DELETE FROM media_fts WHERE rowid = old.rowid;
 	END;
 	CREATE TRIGGER media_au AFTER UPDATE ON media BEGIN
-		INSERT INTO media_fts(media_fts, rowid, path, fts_path, title, description) 
-		VALUES('delete', old.rowid, old.path, old.fts_path, old.title, old.description);
-		INSERT INTO media_fts(rowid, path, fts_path, title, description) 
-		VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+		INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description)
+		VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description);
+		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+		VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 	END;
 	`
 	_, err = sqlDB.Exec(schema)
@@ -91,7 +91,7 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 
 	for _, td := range testData {
 		_, err := sqlDB.Exec(`
-			INSERT INTO media (path, fts_path, title, description, type)
+			INSERT INTO media (path, path_tokenized, title, description, type)
 			VALUES (?, ?, ?, ?, 'video')
 		`, td.path, td.path, td.title, td.desc)
 		if err != nil {
@@ -180,7 +180,7 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 	schema := `
 	CREATE TABLE media (
 		path TEXT PRIMARY KEY,
-		fts_path TEXT,
+		path_tokenized TEXT,
 		title TEXT,
 		description TEXT,
 		type TEXT,
@@ -199,24 +199,24 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 		score REAL
 	);
 	CREATE VIRTUAL TABLE media_fts USING fts5(
-		path, fts_path, title, description,
+		path, path_tokenized, title, description,
 		content='media',
 		content_rowid='rowid',
 		tokenize='trigram',
 		detail='none'
 	);
 	CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
-		INSERT INTO media_fts(rowid, path, fts_path, title, description)
-		VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+		VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 	END;
 	CREATE TRIGGER media_ad AFTER DELETE ON media BEGIN
 		DELETE FROM media_fts WHERE rowid = old.rowid;
 	END;
 	CREATE TRIGGER media_au AFTER UPDATE ON media BEGIN
-		INSERT INTO media_fts(media_fts, rowid, path, fts_path, title, description) 
-		VALUES('delete', old.rowid, old.path, old.fts_path, old.title, old.description);
-		INSERT INTO media_fts(rowid, path, fts_path, title, description) 
-		VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+		INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description)
+		VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description);
+		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+		VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 	END;
 	`
 	_, err = sqlDB.Exec(schema)
@@ -240,7 +240,7 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 
 	for _, td := range testData {
 		_, err := sqlDB.Exec(`
-			INSERT INTO media (path, fts_path, title, description, type)
+			INSERT INTO media (path, path_tokenized, title, description, type)
 			VALUES (?, ?, ?, ?, 'video')
 		`, td.path, td.path, td.title, td.desc)
 		if err != nil {
@@ -323,7 +323,7 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 	schema := `
 	CREATE TABLE media (
 		path TEXT PRIMARY KEY,
-		fts_path TEXT,
+		path_tokenized TEXT,
 		title TEXT,
 		description TEXT,
 		type TEXT,
@@ -342,15 +342,15 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 		score REAL
 	);
 	CREATE VIRTUAL TABLE media_fts USING fts5(
-		path, fts_path, title, description,
+		path, path_tokenized, title, description,
 		content='media',
 		content_rowid='rowid',
 		tokenize='trigram',
 		detail='none'
 	);
 	CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
-		INSERT INTO media_fts(rowid, path, fts_path, title, description)
-		VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+		VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 	END;
 	`
 	_, err = sqlDB.Exec(schema)
@@ -362,7 +362,7 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 
 	// Insert test media
 	_, err = sqlDB.Exec(`
-		INSERT INTO media (path, fts_path, title, description, type)
+		INSERT INTO media (path, path_tokenized, title, description, type)
 		VALUES (?, ?, ?, ?, 'video')
 	`, "/videos/test.mp4", "/videos/test.mp4", "Test Video", "A test")
 	if err != nil {

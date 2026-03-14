@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS playlist_items (
 
 CREATE TABLE IF NOT EXISTS media (
     path TEXT PRIMARY KEY,
-    fts_path TEXT, -- Processed path for FTS (dots replaced by spaces etc)
+    path_tokenized TEXT, -- Processed path for FTS (dots replaced by spaces etc)
     title TEXT,
     duration INTEGER,
     size INTEGER,
@@ -123,7 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_time_downloaded ON media(time_downloaded);
 -- Optional FTS table
 CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
     path,
-    fts_path,
+    path_tokenized,
     title,
     description,
     content='media',
@@ -134,8 +134,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
 
 -- Trigger to keep FTS in sync
 CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
-    INSERT INTO media_fts(rowid, path, fts_path, title, description)
-    VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+    INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+    VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 END;
 
 CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
@@ -143,6 +143,6 @@ CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS media_au AFTER UPDATE ON media BEGIN
-    INSERT INTO media_fts(media_fts, rowid, path, fts_path, title, description) VALUES('delete', old.rowid, old.path, old.fts_path, old.title, old.description);
-    INSERT INTO media_fts(rowid, path, fts_path, title, description) VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+    INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description) VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description);
+    INSERT INTO media_fts(rowid, path, path_tokenized, title, description) VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 END;

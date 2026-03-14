@@ -18,7 +18,7 @@ CREATE TABLE playlist_items (
 ) STRICT;
 CREATE TABLE media (
     path TEXT PRIMARY KEY,
-    fts_path TEXT, -- Processed path for FTS (dots replaced by spaces etc)
+    path_tokenized TEXT, -- Processed path for FTS (dots replaced by spaces etc)
     title TEXT,
     duration INTEGER,
     size INTEGER,
@@ -112,7 +112,7 @@ CREATE INDEX idx_time_modified ON media(time_modified);
 CREATE INDEX idx_time_downloaded ON media(time_downloaded);
 CREATE VIRTUAL TABLE media_fts USING fts5(
     path,
-    fts_path,
+    path_tokenized,
     title,
     description,
     content='media',
@@ -120,19 +120,19 @@ CREATE VIRTUAL TABLE media_fts USING fts5(
     tokenize = 'trigram',
     detail = 'none'
 )
-/* media_fts(path,fts_path,title,description) */;
+/* media_fts(path,path_tokenized,title,description) */;
 CREATE TABLE IF NOT EXISTS 'media_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
 CREATE TABLE IF NOT EXISTS 'media_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS 'media_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 CREATE TABLE IF NOT EXISTS 'media_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
 CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
-    INSERT INTO media_fts(rowid, path, fts_path, title, description)
-    VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+    INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+    VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 END;
 CREATE TRIGGER media_ad AFTER DELETE ON media BEGIN
     DELETE FROM media_fts WHERE rowid = old.rowid;
 END;
 CREATE TRIGGER media_au AFTER UPDATE ON media BEGIN
-    INSERT INTO media_fts(media_fts, rowid, path, fts_path, title, description) VALUES('delete', old.rowid, old.path, old.fts_path, old.title, old.description);
-    INSERT INTO media_fts(rowid, path, fts_path, title, description) VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+    INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description) VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description);
+    INSERT INTO media_fts(rowid, path, path_tokenized, title, description) VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 END;

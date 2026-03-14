@@ -9,7 +9,7 @@ This document outlines the migration strategy from SQLite FTS5 to Bleve full-tex
 ### Current State
 
 - **Storage**: SQLite with FTS5 extension for full-text search
-- **Search Fields**: `path`, `fts_path`, `title`, `description`
+- **Search Fields**: `path`, `path_tokenized`, `title`, `description`
 - **Aggregations**: SQL-based GROUP BY for `--big-dirs`, `--group-by-*` features
 - **Sorting**: SQL ORDER BY with multiple fields
 - **Pagination**: OFFSET/LIMIT based

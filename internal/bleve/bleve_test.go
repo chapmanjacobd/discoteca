@@ -357,7 +357,7 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	// Test search for "sample" in fts_path field
+	// Test search for "sample" in path_tokenized field
 	ids, total, err := Search("sample", 10)
 	if err != nil {
 		t.Errorf("Search failed: %v", err)
@@ -369,7 +369,7 @@ func TestSearch(t *testing.T) {
 		t.Errorf("Expected at least 1 result for 'sample', got %v", ids)
 	}
 
-	// Test search for "videos" in fts_path (should match multiple)
+	// Test search for "videos" in path_tokenized (should match multiple)
 	ids, total, err = Search("videos", 10)
 	if err != nil {
 		t.Errorf("Search for 'videos' failed: %v", err)

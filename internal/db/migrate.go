@@ -215,7 +215,7 @@ func migrateColumns(db *sql.DB) error {
 	}{
 		{"playlists", "title", "TEXT"},
 		{"playlist_items", "time_added", "INTEGER DEFAULT 0"},
-		{"media", "fts_path", "TEXT"},
+		{"media", "path_tokenized", "TEXT"},
 		{"media", "description", "TEXT"},
 		{"media", "time_downloaded", "INTEGER"},
 		{"media", "play_count", "INTEGER DEFAULT 0"},
@@ -242,7 +242,7 @@ func migrateColumns(db *sql.DB) error {
 	}
 
 	for _, c := range cols {
-		if !FtsEnabled && (c.column == "fts_path" || strings.Contains(c.column, "_fts")) {
+		if !FtsEnabled && (c.column == "path_tokenized" || strings.Contains(c.column, "_fts")) {
 			continue
 		}
 
@@ -278,10 +278,10 @@ func migrateColumns(db *sql.DB) error {
 				}
 			}
 
-			if c.table == "media" && c.column == "fts_path" {
+			if c.table == "media" && c.column == "path_tokenized" {
 				// New column added, populate it for existing rows
 				if err := populatePathTokenized(db); err != nil {
-					return fmt.Errorf("failed to populate fts_path: %w", err)
+					return fmt.Errorf("failed to populate path_tokenized: %w", err)
 				}
 			}
 		}
@@ -330,8 +330,8 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 
 	// 2. Consolidate metadata into description before dropping columns
 	if hasDeadColumns {
-		_, _ = db.Exec(`UPDATE media SET description = 
-            COALESCE(description, '') || 
+		_, _ = db.Exec(`UPDATE media SET description =
+            COALESCE(description, '') ||
             CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
             CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
             CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
@@ -351,8 +351,8 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 		strictSql = "STRICT"
 	}
 
-	colsDef := "path TEXT PRIMARY KEY, fts_path TEXT,"
-	colsNames := "path, fts_path,"
+	colsDef := "path TEXT PRIMARY KEY, path_tokenized TEXT,"
+	colsNames := "path, path_tokenized,"
 	if !FtsEnabled {
 		colsDef = "path TEXT PRIMARY KEY,"
 		colsNames = "path,"
@@ -396,7 +396,7 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
             type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs,
             video_count, audio_count, subtitle_count, album, artist, genre,
             categories, description, language, time_downloaded, score
-        ) SELECT 
+        ) SELECT
             %s title, duration, size, time_created, time_modified,
             time_deleted, time_first_played, time_last_played, play_count, playhead,
             type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs,
@@ -417,7 +417,7 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 }
 
 func populatePathTokenized(db *sql.DB) error {
-	rows, err := db.Query("SELECT path FROM media WHERE fts_path IS NULL")
+	rows, err := db.Query("SELECT path FROM media WHERE path_tokenized IS NULL")
 	if err != nil {
 		return err
 	}
@@ -449,7 +449,7 @@ func populatePathTokenized(db *sql.DB) error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare("UPDATE media SET fts_path = ? WHERE path = ?")
+	stmt, err := tx.Prepare("UPDATE media SET path_tokenized = ? WHERE path = ?")
 	if err != nil {
 		return err
 	}
@@ -565,7 +565,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			if tableName == "media_fts" {
 				createSql = `CREATE VIRTUAL TABLE media_fts USING fts5(
 					path,
-					fts_path,
+					path_tokenized,
 					title,
                     description,
 					content='media',
@@ -591,15 +591,15 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			if tableName == "media_fts" {
 				triggerSqls := []string{
 					`CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
-						INSERT INTO media_fts(rowid, path, fts_path, title, description)
-						VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+						INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
+						VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 					END;`,
 					`CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
 						DELETE FROM media_fts WHERE rowid = old.rowid;
 					END;`,
 					`CREATE TRIGGER IF NOT EXISTS media_au AFTER UPDATE ON media BEGIN
-						INSERT INTO media_fts(media_fts, rowid, path, fts_path, title, description) VALUES('delete', old.rowid, old.path, old.fts_path, old.title, old.description);
-						INSERT INTO media_fts(rowid, path, fts_path, title, description) VALUES (new.rowid, new.path, new.fts_path, new.title, new.description);
+						INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description) VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description);
+						INSERT INTO media_fts(rowid, path, path_tokenized, title, description) VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description);
 					END;`,
 				}
 				for _, tsql := range triggerSqls {

@@ -30,7 +30,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 	_, err = db.Exec(`
 		CREATE TABLE media (
 			path TEXT PRIMARY KEY,
-			fts_path TEXT,
+			path_tokenized TEXT,
 			title TEXT,
 			type TEXT,
 			size INTEGER,
@@ -202,7 +202,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 		_, err = db.Exec(`
 			CREATE TABLE media (
 				path TEXT PRIMARY KEY,
-				fts_path TEXT,
+				path_tokenized TEXT,
 				title TEXT,
 				type TEXT,
 				size INTEGER,
