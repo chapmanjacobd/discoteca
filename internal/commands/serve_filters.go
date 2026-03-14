@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/chapmanjacobd/discoteca/internal/bleve"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -46,6 +47,15 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 	var allItems []itemWithParent
 	allParentCounts := make(map[string]int64)
 	allTypeCounts := make(map[string]int64)
+
+	// Try Bleve first if --bleve flag is set
+	if c.Bleve && len(dbs) == 1 {
+		bleveData, err := c.getFilterBinsDataFromBleve(ctx, filterToIgnore, dbs[0])
+		if err == nil && (len(bleveData.sizes) > 0 || len(bleveData.durations) > 0 || len(bleveData.parentCounts) > 0) {
+			return bleveData
+		}
+		// Fall through to SQL if Bleve failed
+	}
 
 	// Build flags for this query, ignoring the specified filter
 	tempFlags := flags
@@ -538,4 +548,24 @@ func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.Globa
 	resp.Type = buildTypeBins(typeData.typeCounts)
 
 	return resp
+}
+
+// getFilterBinsDataFromBleve fetches filter bins data using Bleve facets
+func (c *ServeCmd) getFilterBinsDataFromBleve(ctx context.Context, filterToIgnore string, dbPath string) (filterBinsData, error) {
+	data := filterBinsData{}
+
+	// Get type facet
+	if filterToIgnore != "type" {
+		typeCounts, err := bleve.GetTermFacetCounts("type", 100)
+		if err == nil && len(typeCounts) > 0 {
+			data.typeCounts = typeCounts
+		}
+	}
+
+	// For numeric fields (size, duration), we need to fetch documents and aggregate
+	// This is a limitation - Bleve facets are better for predefined ranges
+	// For dynamic bins, we still need to fetch some data from SQL
+	// As an optimization, we could use Bleve's numeric range facets with predefined ranges
+
+	return data, nil
 }

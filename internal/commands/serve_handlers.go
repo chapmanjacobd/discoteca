@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
+	"github.com/chapmanjacobd/discoteca/internal/bleve"
 	database "github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -228,7 +229,114 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	media, err := query.MediaQuery(ctx, dbs, flags)
+	// Try Bleve first if --bleve flag is set and we have search terms
+	var media []models.MediaWithDB
+	if c.Bleve && len(flags.Search) > 0 {
+		// Use Bleve for search
+		searchStr := strings.Join(flags.Search, " ")
+		limit := flags.Limit
+		if limit <= 0 {
+			limit = 100
+		}
+		if flags.All {
+			limit = 10000
+		}
+
+		// Perform Bleve search
+		ids, total, err := bleve.Search(searchStr, limit)
+		if err == nil && len(ids) > 0 {
+			// Convert IDs to MediaWithDB by fetching from SQLite
+			media = make([]models.MediaWithDB, 0, len(ids))
+			for _, dbPath := range dbs {
+				err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
+					queries := database.New(sqlDB)
+					for _, id := range ids {
+						row, err := queries.GetMediaByPathExact(ctx, id)
+						if err == nil {
+							media = append(media, models.MediaWithDB{
+								Media: models.Media{
+									Path:           row.Path,
+									Title:          models.NullStringPtr(row.Title),
+									Duration:       models.NullInt64Ptr(row.Duration),
+									Size:           models.NullInt64Ptr(row.Size),
+									TimeCreated:    models.NullInt64Ptr(row.TimeCreated),
+									TimeModified:   models.NullInt64Ptr(row.TimeModified),
+									TimeDeleted:    models.NullInt64Ptr(row.TimeDeleted),
+									TimeFirstPlayed: models.NullInt64Ptr(row.TimeFirstPlayed),
+									TimeLastPlayed: models.NullInt64Ptr(row.TimeLastPlayed),
+									PlayCount:      models.NullInt64Ptr(row.PlayCount),
+									Playhead:       models.NullInt64Ptr(row.Playhead),
+									Type:           models.NullStringPtr(row.Type),
+									Width:          models.NullInt64Ptr(row.Width),
+									Height:         models.NullInt64Ptr(row.Height),
+									Fps:            models.NullFloat64Ptr(row.Fps),
+									VideoCodecs:    models.NullStringPtr(row.VideoCodecs),
+									AudioCodecs:    models.NullStringPtr(row.AudioCodecs),
+									SubtitleCodecs: models.NullStringPtr(row.SubtitleCodecs),
+									VideoCount:     models.NullInt64Ptr(row.VideoCount),
+									AudioCount:     models.NullInt64Ptr(row.AudioCount),
+									SubtitleCount:  models.NullInt64Ptr(row.SubtitleCount),
+									Album:          models.NullStringPtr(row.Album),
+									Artist:         models.NullStringPtr(row.Artist),
+									Genre:          models.NullStringPtr(row.Genre),
+									Categories:     models.NullStringPtr(row.Categories),
+									Description:    models.NullStringPtr(row.Description),
+									Language:       models.NullStringPtr(row.Language),
+									TimeDownloaded: models.NullInt64Ptr(row.TimeDownloaded),
+									Score:          models.NullFloat64Ptr(row.Score),
+								},
+								DB: dbPath,
+							})
+						}
+					}
+					return nil
+				})
+				if err != nil {
+					slog.Error("Failed to fetch media from Bleve IDs", "db", dbPath, "error", err)
+				}
+			}
+
+			// Apply sorting
+			if len(media) > 0 && !flags.Random && !flags.NatSort && flags.SortBy != "" {
+				query.SortMedia(media, flags)
+			}
+
+			// Apply pagination
+			if !flags.All && flags.Limit > 0 {
+				start := flags.Offset
+				if start > len(media) {
+					media = []models.MediaWithDB{}
+				} else {
+					end := min(start+flags.Limit, len(media))
+					media = media[start:end]
+				}
+			}
+
+			// Check if filter counts are requested
+			includeCounts := q.Get("include_counts") == "true"
+			var filterCounts *models.FilterBinsResponse
+			if includeCounts {
+				filterCounts = c.calculateFilterCounts(ctx, flags, dbs)
+			}
+
+			w.Header().Set("X-Total-Count", strconv.Itoa(int(total)))
+			w.Header().Set("Content-Type", "application/json")
+
+			if includeCounts && filterCounts != nil {
+				response := map[string]any{
+					"items":  media,
+					"counts": filterCounts,
+				}
+				json.NewEncoder(w).Encode(response)
+			} else {
+				json.NewEncoder(w).Encode(media)
+			}
+			return
+		}
+		// Fall through to SQL if Bleve failed
+	}
+
+	media, err = query.MediaQuery(ctx, dbs, flags)
 	if err != nil {
 		slog.Error("Query failed", "dbs", dbs, "error", err)
 		w.Header().Set("Content-Type", "application/json")
@@ -910,6 +1018,38 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	cleanPath := filepath.Clean(path)
 	if cleanPath == "." || cleanPath == "/" {
 		cleanPath = ""
+	}
+
+	// Try Bleve first if --bleve flag is set
+	if c.Bleve {
+		dirStats, err := bleve.DiskUsageByDirectory(cleanPath, 10000)
+		if err == nil && len(dirStats) > 0 {
+			// Convert Bleve DirectoryStats to FolderStats
+			var results []models.FolderStats
+			for _, stats := range dirStats {
+				results = append(results, models.FolderStats{
+					Path:          stats.Path,
+					Count:         stats.Count,
+					TotalSize:     stats.TotalSize,
+					TotalDuration: stats.TotalDuration,
+				})
+			}
+
+			// Sort results
+			sortBy := r.URL.Query().Get("sort")
+			reverse := r.URL.Query().Get("reverse") == "true"
+			if sortBy == "" {
+				sortBy = "size"
+				reverse = true
+			}
+			query.SortFolders(results, sortBy, reverse)
+
+			w.Header().Set("X-Total-Count", strconv.Itoa(len(results)))
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(results)
+			return
+		}
+		// Fall through to SQL if Bleve failed
 	}
 
 	// Calculate the depth of current path (number of path components)
