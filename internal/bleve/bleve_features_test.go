@@ -324,13 +324,8 @@ func TestNumericRangeFacet(t *testing.T) {
 	}
 }
 
-// TestDateRangeFacet tests date range faceting
-// Note: This test is currently skipped because Bleve date range facets require
-// special date time field mapping. The functionality is implemented but needs
-// proper date field configuration in the index mapping.
+// TestDateRangeFacet tests date range faceting using numeric ranges on timestamps
 func TestDateRangeFacet(t *testing.T) {
-	t.Skip("Date range facets require DateTime field mapping - implementation pending")
-
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
@@ -358,16 +353,19 @@ func TestDateRangeFacet(t *testing.T) {
 		}
 	}
 
-	// Create date range facet
+	// Create numeric range facet for timestamps (using float64 for range boundaries)
+	daySeconds := float64(86400)
+	nowFloat := float64(now)
+
 	facetRequests := make(map[string]*bleve.FacetRequest)
-	facetRequests["date_ranges"] = NewDateRangeFacetRequest("time_created", []struct {
-		Name  string
-		Start int64
-		End   int64
+	facetRequests["date_ranges"] = NewNumericRangeFacetRequest("time_created", []struct {
+		Name string
+		Min  *float64
+		Max  *float64
 	}{
-		{"Last 2 days", now - (2 * day), now},
-		{"2-7 days ago", now - (7 * day), now - (2 * day)},
-		{"Older than 7 days", 0, now - (7 * day)},
+		{"Last 2 days", ptrFloat64(nowFloat - (2 * daySeconds)), ptrFloat64(nowFloat)},
+		{"2-7 days ago", ptrFloat64(nowFloat - (7 * daySeconds)), ptrFloat64(nowFloat - (2 * daySeconds))},
+		{"Older than 7 days", ptrFloat64(0), ptrFloat64(nowFloat - (7 * daySeconds))},
 	})
 
 	// Search with facets
@@ -390,6 +388,11 @@ func TestDateRangeFacet(t *testing.T) {
 	} else {
 		t.Error("Expected date_ranges in results")
 	}
+}
+
+// ptrFloat64 returns a pointer to a float64 value
+func ptrFloat64(f float64) *float64 {
+	return &f
 }
 
 // TestBatchIndexDocuments tests batch indexing
@@ -706,7 +709,7 @@ func TestSearchWithExactMatchPagination(t *testing.T) {
 			t.Fatalf("SearchWithExactMatchAndPagination page 2 failed: %v", err)
 		}
 		if len(ids2) == 0 {
-			t.Logf("Warning: No results on page 2")
+			t.Errorf("Expected results on page 2, got none")
 		}
 
 		// Verify pages are different

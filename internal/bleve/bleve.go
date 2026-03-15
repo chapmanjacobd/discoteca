@@ -274,7 +274,9 @@ func createIndex(path string) (bleve.Index, error) {
 	durationField := bleve.NewNumericFieldMapping()
 	durationField.DocValues = true
 
-	// Date/timestamp fields with docValues enabled
+	// Date/timestamp fields with DateTime mapping for date range facets
+	// DateTime fields need to be stored as time.Time for proper date range faceting
+	// We use numeric field mapping with docValues for sorting/faceting
 	timeCreatedField := bleve.NewNumericFieldMapping()
 	timeCreatedField.DocValues = true
 
@@ -1038,14 +1040,17 @@ func SearchWithExactMatchAndPagination(queryStr string, limit, offset int, exact
 		searchRequest = bleve.NewSearchRequest(matchQuery)
 	}
 	searchRequest.Size = limit
-	searchRequest.From = offset
-	searchRequest.Fields = []string{"id", "path"}
-	searchRequest.Sort = search.ParseSortOrderStrings([]string{"-_score", "id"})
-
-	// Add SearchAfter for efficient deep pagination
+	// Use SearchAfter for pagination if provided, otherwise use offset
+	// Note: Don't use both SearchAfter and From together as they work differently
 	if len(searchAfter) > 0 {
 		searchRequest.SearchAfter = searchAfter
+		searchRequest.From = 0
+	} else {
+		searchRequest.From = offset
 	}
+	searchRequest.Fields = []string{"id", "path"}
+	// Sort by id for consistent pagination (avoid _score which has encoding issues with SearchAfter)
+	searchRequest.Sort = search.ParseSortOrderStrings([]string{"id"})
 
 	// Execute search
 	results, err := indexInstance.Search(searchRequest)
