@@ -59,7 +59,7 @@ type Format struct {
 	Tags     map[string]string `json:"tags"`
 }
 
-func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetadata, error) {
+func Extract(ctx context.Context, path string, scanSubtitles bool, extractText bool) (*MediaMetadata, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -111,6 +111,17 @@ func Extract(ctx context.Context, path string, scanSubtitles bool) (*MediaMetada
 			}
 		}
 		result.Media = params
+		
+		// Extract full text from document if requested
+		if extractText {
+			captions, err := extractDocumentText(path)
+			if err != nil {
+				slog.Warn("Document text extraction failed", "path", path, "error", err)
+			} else {
+				result.Captions = captions
+			}
+		}
+		
 		return result, nil
 	}
 
@@ -421,6 +432,102 @@ func parseSubtitleFile(subPath, mediaPath string) ([]db.InsertCaptionParams, err
 	}
 
 	return captions, nil
+}
+
+// extractDocumentText extracts full text from a document and returns it as captions.
+// Text is chunked into paragraphs/sections for better search relevance.
+// Each chunk is stored as a caption with time=0 (documents don't have timestamps).
+func extractDocumentText(path string) ([]db.InsertCaptionParams, error) {
+	// Use the existing ExtractText utility
+	fullText, err := utils.ExtractText(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(fullText) == "" {
+		return nil, nil
+	}
+
+	// Split text into chunks (paragraphs or fixed-size chunks for very long paragraphs)
+	chunks := chunkDocumentText(fullText)
+
+	captions := make([]db.InsertCaptionParams, 0, len(chunks))
+	for i, chunk := range chunks {
+		text := cleanCaptionText(chunk)
+		if text == "" {
+			continue
+		}
+		captions = append(captions, db.InsertCaptionParams{
+			MediaPath: path,
+			Time:      sql.NullFloat64{Float64: 0, Valid: false}, // No timestamp for documents
+			Text:      sql.NullString{String: text, Valid: true},
+		})
+		_ = i // suppress unused variable warning
+	}
+
+	return captions, nil
+}
+
+// chunkDocumentText splits document text into searchable chunks.
+// It tries to split by paragraphs first, then by sentences for very long paragraphs.
+func chunkDocumentText(text string) []string {
+	const (
+		maxChunkSize = 2000 // Maximum characters per chunk
+		minChunkSize = 50   // Minimum characters to create a chunk
+	)
+
+	var chunks []string
+
+	// Split by paragraphs (double newlines or single newlines)
+	paragraphs := strings.Split(text, "\n\n")
+	if len(paragraphs) == 1 {
+		paragraphs = strings.Split(text, "\n")
+	}
+
+	for _, para := range paragraphs {
+		para = strings.TrimSpace(para)
+		if len(para) < minChunkSize {
+			continue
+		}
+
+		// If paragraph is small enough, use as-is
+		if len(para) <= maxChunkSize {
+			chunks = append(chunks, para)
+			continue
+		}
+
+		// Split long paragraphs by sentences
+		sentences := strings.Split(para, ". ")
+		currentChunk := ""
+		for _, sent := range sentences {
+			sent = strings.TrimSpace(sent)
+			if sent == "" {
+				continue
+			}
+			if !strings.HasSuffix(sent, ".") {
+				sent += "."
+			}
+
+			if len(currentChunk)+len(sent) <= maxChunkSize {
+				currentChunk += sent + " "
+			} else {
+				if len(currentChunk) >= minChunkSize {
+					chunks = append(chunks, strings.TrimSpace(currentChunk))
+				}
+				currentChunk = sent + " "
+			}
+		}
+		if len(currentChunk) >= minChunkSize {
+			chunks = append(chunks, strings.TrimSpace(currentChunk))
+		}
+	}
+
+	// Fallback: if no chunks created, use the whole text as one chunk
+	if len(chunks) == 0 && len(strings.TrimSpace(text)) >= minChunkSize {
+		chunks = append(chunks, strings.TrimSpace(text))
+	}
+
+	return chunks
 }
 
 func cleanCaptionText(s string) string {

@@ -1,20 +1,4 @@
-bleve only build serve --bleve captions search isn't working--lets add a bleve only mode FTS captions search
 
-in bleve only mode I get this error: Caption fetch failed
-    db=/home/xk/github/xk/discoteca/video.db
-    error=FTS caption search not enabled in this build
-
-so it means that bleve isn't working, right? we shouldn't remove FTS fallback but we should make sure to try bleve first!
-
-I also get this error: Failed to update progress
-    db=/home/xk/github/xk/discoteca/audio.db
-    error=no such module: fts5
-
-We should still be able to save progress without fts5--the sqlite db still exists
-
-
-
-thumbnails for text files, pdfs
 
 Track progress of eBook reading and resume back to the epub chapter (page [and scroll if the browser does not automatically adjust within 1s])
 

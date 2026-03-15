@@ -15,7 +15,7 @@ func TestExtract_BasicInfo(t *testing.T) {
 	f.WriteString("test content")
 	f.Close()
 
-	meta, err := Extract(context.Background(), f.Name(), false)
+	meta, err := Extract(context.Background(), f.Name(), false, false)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestExtract_MimeTypes(t *testing.T) {
 		defer os.Remove(name)
 
 		// We don't care if ffprobe fails, we want to see the mime-based detection in basicInfo or fallback
-		meta, _ := Extract(context.Background(), name, false)
+		meta, _ := Extract(context.Background(), name, false, false)
 		if meta != nil && meta.Media.Type.String != tt.expected {
 			// Note: DetectMimeType might depend on extension if content is empty
 		}
@@ -54,7 +54,7 @@ func TestExtract_MimeTypes(t *testing.T) {
 }
 
 func TestExtract_NonExistent(t *testing.T) {
-	_, err := Extract(context.Background(), "/non/existent/file", false)
+	_, err := Extract(context.Background(), "/non/existent/file", false, false)
 	if err == nil {
 		t.Error("Expected error for non-existent file")
 	}
@@ -103,7 +103,7 @@ func TestExtract_WithMockFFProbe(t *testing.T) {
 	f.Write([]byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'}) // Basic mp4 header to avoid text detection
 	defer os.Remove(f.Name())
 
-	meta, err := Extract(context.Background(), f.Name(), false)
+	meta, err := Extract(context.Background(), f.Name(), false, false)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}

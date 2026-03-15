@@ -28,8 +28,9 @@ type AddCmd struct {
 	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
 
-	Args     []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
-	Parallel int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
+	Args        []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
+	Parallel    int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
+	ExtractText bool     `help:"Extract full text from documents (PDF, EPUB, TXT, MD) for caption search"`
 
 	ScanPaths []string `kong:"-"`
 	Database  string   `kong:"-"`
@@ -278,7 +279,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		for i := 0; i < c.Parallel; i++ {
 			wg.Go(func() {
 				for path := range jobs {
-					res, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles)
+					res, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles, c.ExtractText)
 					if err != nil {
 						slog.Error("Metadata extraction failed", "path", path, "error", err)
 						continue

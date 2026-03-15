@@ -206,47 +206,225 @@ func EstimateWordCountFromSize(path string, size int64) int {
 
 // ExtractText extracts plain text from a given file path.
 // Supports .txt, .pdf, .epub and other text formats.
-// For ebook formats (PDF, EPUB, MOBI, etc.), it uses calibre's ebook-convert
-// to convert to HTML and then extracts text from the HTML files.
+// Uses lightweight tools first (pdftotext, native zip), with calibre as fallback.
 func ExtractText(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
-	case ".txt", ".md", ".log", ".ini", ".conf", ".cfg":
+	case ".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".rtf":
+		// Plain text files - read directly
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return "", err
 		}
 		return string(content), nil
-	case ".pdf", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".docx", ".odt", ".rtf", ".html", ".htm":
-		// Use calibre conversion for all ebook formats
-		htmlDir, err := ConvertEpubToOEB(path)
+
+	case ".html", ".htm":
+		// HTML - read and strip tags
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return "", fmt.Errorf("conversion failed: %w", err)
+			return "", err
 		}
+		return stripHTMLTags(string(content)), nil
 
-		// Get all HTML files in order
-		htmlFiles := GetHTMLFiles(htmlDir)
-		// GetHTMLFiles now returns sorted files
+	case ".pdf":
+		// Try pdftotext first (fast, lightweight)
+		if text, err := extractTextFromPDF(path); err == nil {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
 
-		var fullText strings.Builder
-		for _, relPath := range htmlFiles {
-			absPath := filepath.Join(htmlDir, relPath)
-			text, err := extractTextFromHTMLFile(absPath)
-			if err != nil {
-				continue
+	case ".epub":
+		// Extract text from EPUB using native zip (fast, no dependencies)
+		if text, err := extractTextFromEPUB(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	case ".docx":
+		// Extract text from DOCX using native zip
+		if text, err := extractTextFromDOCX(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+
+	case ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".odt":
+		// These formats require calibre or specialized tools
+	}
+
+	// Fallback: try calibre for all remaining ebook formats
+	return extractTextWithCalibre(path)
+}
+
+// extractTextFromPDF extracts text from PDF using pdftotext
+func extractTextFromPDF(path string) (string, error) {
+	// Check for pdftotext (poppler-utils)
+	pdftotextBin := "pdftotext"
+	if _, err := exec.LookPath(pdftotextBin); err != nil {
+		return "", fmt.Errorf("pdftotext not found")
+	}
+
+	// Run pdftotext with layout preservation
+	cmd := exec.Command(pdftotextBin, "-layout", "-q", path, "-")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+// extractTextFromEPUB extracts text from EPUB using native zip reading
+func extractTextFromEPUB(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	// Find content files (XHTML/HTML)
+	var contentFiles []string
+	for _, f := range r.File {
+		name := strings.ToLower(f.Name)
+		if strings.HasSuffix(name, ".xhtml") || strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".htm") {
+			// Skip nav, cover, and metadata files
+			if !strings.Contains(name, "nav.") && !strings.Contains(name, "cover") && !strings.Contains(name, "toc.") {
+				contentFiles = append(contentFiles, f.Name)
 			}
+		}
+	}
+
+	if len(contentFiles) == 0 {
+		return "", fmt.Errorf("no content files found in EPUB")
+	}
+
+	var fullText strings.Builder
+	for _, fname := range contentFiles {
+		rc, err := r.File[findFileIndex(r.File, fname)].Open()
+		if err != nil {
+			continue
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			continue
+		}
+		text := stripHTMLTags(string(content))
+		if text != "" {
 			fullText.WriteString(text)
 			fullText.WriteString(" ")
 		}
-		return fullText.String(), nil
-	default:
-		// Fallback: try reading as text
-		content, err := os.ReadFile(path)
-		if err == nil {
-			return string(content), nil
-		}
-		return "", fmt.Errorf("unsupported format: %s", ext)
 	}
+
+	return strings.TrimSpace(fullText.String()), nil
+}
+
+// extractTextFromDOCX extracts text from DOCX using native zip reading
+func extractTextFromDOCX(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	// Find document.xml
+	var docFile *zip.File
+	for _, f := range r.File {
+		if strings.HasSuffix(strings.ToLower(f.Name), "document.xml") {
+			docFile = f
+			break
+		}
+	}
+
+	if docFile == nil {
+		return "", fmt.Errorf("document.xml not found in DOCX")
+	}
+
+	rc, err := docFile.Open()
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+
+	content, err := io.ReadAll(rc)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract text from XML (simple approach - strip all tags)
+	text := stripXMLTags(string(content))
+	return strings.TrimSpace(text), nil
+}
+
+// extractTextWithCalibre uses calibre's ebook-convert as fallback
+func extractTextWithCalibre(path string) (string, error) {
+	htmlDir, err := ConvertEpubToOEB(path)
+	if err != nil {
+		return "", fmt.Errorf("calibre conversion failed: %w", err)
+	}
+
+	htmlFiles := GetHTMLFiles(htmlDir)
+	var fullText strings.Builder
+	for _, relPath := range htmlFiles {
+		absPath := filepath.Join(htmlDir, relPath)
+		text, err := extractTextFromHTMLFile(absPath)
+		if err != nil {
+			continue
+		}
+		fullText.WriteString(text)
+		fullText.WriteString(" ")
+	}
+	return fullText.String(), nil
+}
+
+// stripHTMLTags removes HTML tags and entities from text
+func stripHTMLTags(html string) string {
+	re := regexp.MustCompile(`<[^>]*>`)
+	text := re.ReplaceAllString(html, " ")
+
+	// Decode common HTML entities
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&apos;", "'")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&ndash;", "-")
+	text = strings.ReplaceAll(text, "&mdash;", "-")
+	text = strings.ReplaceAll(text, "&lsquo;", "'")
+	text = strings.ReplaceAll(text, "&rsquo;", "'")
+	text = strings.ReplaceAll(text, "&ldquo;", "\"")
+	text = strings.ReplaceAll(text, "&rdquo;", "\"")
+
+	// Collapse whitespace
+	return strings.Join(strings.Fields(text), " ")
+}
+
+// stripXMLTags removes XML tags from text (for DOCX)
+func stripXMLTags(xml string) string {
+	// Remove XML tags
+	re := regexp.MustCompile(`<[^>]*>`)
+	text := re.ReplaceAllString(xml, " ")
+
+	// Remove XML entities
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&apos;", "'")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+
+	return strings.Join(strings.Fields(text), " ")
+}
+
+// findFileIndex finds the index of a file in a zip.File slice
+func findFileIndex(files []*zip.File, name string) int {
+	for i, f := range files {
+		if f.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // extractTextFromHTMLFile reads an HTML file and returns plain text
