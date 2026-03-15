@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -361,8 +363,8 @@ func ExtractText(path string) (string, error) {
 		// Fallback to calibre
 		return extractTextWithCalibre(path)
 
-	// ===== EPUB - native zip extraction =====
-	case ".epub":
+	// ===== EPUB formats - native zip extraction =====
+	case ".epub", ".epub3":
 		// Extract text from EPUB using native zip (fast, no dependencies)
 		if text, err := extractTextFromEPUB(path); err == nil && text != "" {
 			return text, nil
@@ -371,8 +373,8 @@ func ExtractText(path string) (string, error) {
 		return extractTextWithCalibre(path)
 
 	// ===== OpenDocument formats - native zip =====
-	case ".odt", ".ods", ".odp", ".odg", ".odf":
-		// OpenDocument Text, Spreadsheet, Presentation, Graphics, Formula
+	case ".odt", ".ods", ".odp", ".odg", ".odf", ".odm", ".ott", ".ots", ".otp":
+		// OpenDocument Text, Spreadsheet, Presentation, Graphics, Formula, Master, Templates
 		if text, err := extractTextFromOpenDocument(path); err == nil && text != "" {
 			return text, nil
 		}
@@ -380,25 +382,111 @@ func ExtractText(path string) (string, error) {
 		return extractTextWithCalibre(path)
 
 	// ===== Microsoft Office formats - native zip =====
-	case ".docx", ".docm", ".dotx":
-		// Word documents
+	case ".docx", ".docm", ".dotx", ".dotm":
+		// Word documents and templates
 		if text, err := extractTextFromDOCX(path); err == nil && text != "" {
 			return text, nil
 		}
 		// Fallback to calibre
 		return extractTextWithCalibre(path)
 
-	case ".xlsx", ".xlsm", ".xltx":
-		// Excel spreadsheets - extract cell values
+	case ".xlsx", ".xlsm", ".xltx", ".xltm", ".xlsb":
+		// Excel spreadsheets and templates - extract cell values
 		if text, err := extractTextFromXLSX(path); err == nil && text != "" {
 			return text, nil
 		}
 		// Fallback to calibre
 		return extractTextWithCalibre(path)
 
-	case ".pptx", ".pptm", ".potx":
-		// PowerPoint presentations
+	case ".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm":
+		// PowerPoint presentations and templates
 		if text, err := extractTextFromPPTX(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	// ===== iWork formats (Apple) - native zip =====
+	case ".pages", ".numbers", ".key":
+		// Apple Pages, Numbers, Keynote
+		if text, err := extractTextFromIWork(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	// ===== Old Office formats - use external tools =====
+	case ".doc":
+		// Old Word format - try catdoc
+		if text, err := extractTextFromDOC(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	case ".xls":
+		// Old Excel format - try xls2csv or catdoc
+		if text, err := extractTextFromXLS(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	case ".ppt":
+		// Old PowerPoint - try catdoc
+		if text, err := extractTextFromPPT(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	// ===== Archive formats - list contents =====
+	case ".zip", ".jar", ".apk", ".aar", ".ipa":
+		// ZIP-based archives - list file names
+		return listArchiveContents(path)
+
+	case ".tar":
+		// TAR archive - list file names
+		return listTarContents(path)
+
+	case ".tar.gz", ".tgz":
+		// Gzipped TAR - list file names
+		return listTarContents(path)
+
+	case ".tar.bz2", ".tbz2":
+		// Bzip2 TAR - list file names
+		return listTarContents(path)
+
+	case ".tar.xz", ".txz":
+		// XZ TAR - list file names
+		return listTarContents(path)
+
+	case ".7z":
+		// 7-Zip archive - list file names (requires 7z)
+		return list7zContents(path)
+
+	case ".rar":
+		// RAR archive - list file names (requires unrar)
+		return listRarContents(path)
+
+	// ===== Torrent metadata =====
+	case ".torrent":
+		// Torrent file - extract metadata (bencoded data)
+		return extractTorrentMetadata(path)
+
+	// ===== Man pages =====
+	case ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", ".man":
+		// Unix manual pages - read and strip formatting
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return stripManPageFormatting(string(content)), nil
+
+	// ===== CHM (Microsoft Compiled HTML) =====
+	case ".chm":
+		// CHM files - try extract_chm or list contents
+		if text, err := extractCHMContents(path); err == nil && text != "" {
 			return text, nil
 		}
 		// Fallback to calibre
@@ -727,6 +815,375 @@ func stripSubtitleTimings(content string) string {
 	}
 
 	return strings.Join(result, " ")
+}
+
+// stripManPageFormatting removes troff/groff formatting from man pages
+func stripManPageFormatting(content string) string {
+	// Remove troff formatting commands (lines starting with .)
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, ".") {
+			continue
+		}
+		// Remove inline formatting
+		line = strings.ReplaceAll(line, "\\fB", "")
+		line = strings.ReplaceAll(line, "\\fR", "")
+		line = strings.ReplaceAll(line, "\\fI", "")
+		line = strings.ReplaceAll(line, "\\&", "")
+		result = append(result, line)
+	}
+
+	return strings.Join(result, " ")
+}
+
+// extractTextFromIWork extracts text from Apple iWork files (Pages, Numbers, Keynote)
+func extractTextFromIWork(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	// Find index.xml or main.xml in the archive
+	var indexFile *zip.File
+	for _, f := range r.File {
+		name := strings.ToLower(f.Name)
+		if strings.HasSuffix(name, "index.xml") || strings.HasSuffix(name, "main.xml") {
+			indexFile = f
+			break
+		}
+	}
+
+	if indexFile == nil {
+		return "", fmt.Errorf("index.xml not found in iWork file")
+	}
+
+	rc, err := indexFile.Open()
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+
+	content, err := io.ReadAll(rc)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract text from XML (strip tags)
+	text := stripXMLTags(string(content))
+	return strings.TrimSpace(text), nil
+}
+
+// extractTextFromDOC extracts text from old .doc files using catdoc
+func extractTextFromDOC(path string) (string, error) {
+	// Try catdoc first
+	catdocBin := "catdoc"
+	if _, err := exec.LookPath(catdocBin); err == nil {
+		cmd := exec.Command(catdocBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	// Try docx2txt as alternative (some versions support .doc)
+	docx2txtBin := "docx2txt"
+	if _, err := exec.LookPath(docx2txtBin); err == nil {
+		cmd := exec.Command(docx2txtBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	return "", fmt.Errorf("no DOC extractor found (install catdoc)")
+}
+
+// extractTextFromXLS extracts text from old .xls files
+func extractTextFromXLS(path string) (string, error) {
+	// Try xls2csv first
+	xls2csvBin := "xls2csv"
+	if _, err := exec.LookPath(xls2csvBin); err == nil {
+		cmd := exec.Command(xls2csvBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	// Try catdoc (also handles XLS)
+	catdocBin := "catdoc"
+	if _, err := exec.LookPath(catdocBin); err == nil {
+		cmd := exec.Command(catdocBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	return "", fmt.Errorf("no XLS extractor found (install xls2csv or catdoc)")
+}
+
+// extractTextFromPPT extracts text from old .ppt files
+func extractTextFromPPT(path string) (string, error) {
+	// Try catdoc (supports PPT)
+	catdocBin := "catdoc"
+	if _, err := exec.LookPath(catdocBin); err == nil {
+		cmd := exec.Command(catdocBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	return "", fmt.Errorf("no PPT extractor found (install catdoc)")
+}
+
+// listArchiveContents lists file names in a ZIP-based archive
+func listArchiveContents(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	var files []string
+	for _, f := range r.File {
+		if !f.FileInfo().IsDir() {
+			files = append(files, f.Name)
+		}
+	}
+
+	return strings.Join(files, "\n"), nil
+}
+
+// listTarContents lists file names in a TAR archive
+func listTarContents(path string) (string, error) {
+	// Try tar command first
+	tarBin := "tar"
+	if _, err := exec.LookPath(tarBin); err == nil {
+		cmd := exec.Command(tarBin, "-tf", path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	// Fallback: try Go tar package
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Handle compression
+	var reader io.Reader = f
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == ".gz" || ext == ".tgz" {
+		gzReader, err := gzip.NewReader(f)
+		if err != nil {
+			return "", err
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	}
+
+	tr := tar.NewReader(reader)
+	var files []string
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			break
+		}
+		if header.Typeflag == tar.TypeReg {
+			files = append(files, header.Name)
+		}
+	}
+
+	return strings.Join(files, "\n"), nil
+}
+
+// list7zContents lists file names in a 7-Zip archive
+func list7zContents(path string) (string, error) {
+	sevenzBin := "7z"
+	if _, err := exec.LookPath(sevenzBin); err != nil {
+		return "", fmt.Errorf("7z not found")
+	}
+
+	// Use 7z l (list) command
+	cmd := exec.Command(sevenzBin, "l", "-ba", path)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	// Parse output to extract file names (lines 5+ contain file info)
+	lines := strings.Split(string(output), "\n")
+	var files []string
+	for i, line := range lines {
+		// Skip header and footer lines
+		if i < 5 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		// Last line is usually summary
+		if strings.HasPrefix(strings.TrimSpace(line), "-----") || strings.Contains(line, "files") {
+			continue
+		}
+		// Extract filename (last column)
+		fields := strings.Fields(line)
+		if len(fields) >= 6 {
+			files = append(files, fields[len(fields)-1])
+		}
+	}
+
+	return strings.Join(files, "\n"), nil
+}
+
+// listRarContents lists file names in a RAR archive
+func listRarContents(path string) (string, error) {
+	// Try unrar first
+	unrarBin := "unrar"
+	if _, err := exec.LookPath(unrarBin); err == nil {
+		cmd := exec.Command(unrarBin, "l", "-c-", path)
+		output, err := cmd.Output()
+		if err == nil {
+			// Parse output to extract file names
+			lines := strings.Split(string(output), "\n")
+			var files []string
+			for _, line := range lines {
+				fields := strings.Fields(line)
+				if len(fields) >= 5 && fields[0] != "---------" {
+					// Filename is typically the last field
+					files = append(files, fields[len(fields)-1])
+				}
+			}
+			return strings.Join(files, "\n"), nil
+		}
+	}
+
+	// Try 7z as alternative
+	sevenzBin := "7z"
+	if _, err := exec.LookPath(sevenzBin); err == nil {
+		cmd := exec.Command(sevenzBin, "l", "-ba", path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	return "", fmt.Errorf("no RAR extractor found (install unrar or p7zip)")
+}
+
+// extractTorrentMetadata extracts metadata from a .torrent file
+func extractTorrentMetadata(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	// Parse bencoded data (simple parser for common torrent fields)
+	data := string(content)
+	var metadata []string
+
+	// Extract announce URL
+	if idx := strings.Index(data, "8:announce"); idx != -1 {
+		if endIdx := strings.Index(data[idx:], "e"); endIdx != -1 {
+			url := data[idx+12 : idx+endIdx]
+			metadata = append(metadata, "Announce: "+url)
+		}
+	}
+
+	// Extract info.name (torrent name)
+	if idx := strings.Index(data, "4:name"); idx != -1 {
+		if endIdx := strings.Index(data[idx:], "e"); endIdx != -1 {
+			name := data[idx+8 : idx+endIdx]
+			metadata = append(metadata, "Name: "+name)
+		}
+	}
+
+	// Extract creation date
+	if idx := strings.Index(data, "13:creation date"); idx != -1 {
+		if endIdx := strings.Index(data[idx:], "e"); endIdx != -1 {
+			date := data[idx+17 : idx+endIdx]
+			metadata = append(metadata, "Created: "+date)
+		}
+	}
+
+	// Extract comment
+	if idx := strings.Index(data, "7:comment"); idx != -1 {
+		if endIdx := strings.Index(data[idx:], "e"); endIdx != -1 {
+			comment := data[idx+10 : idx+endIdx]
+			metadata = append(metadata, "Comment: "+comment)
+		}
+	}
+
+	// Extract created by
+	if idx := strings.Index(data, "10:created by"); idx != -1 {
+		if endIdx := strings.Index(data[idx:], "e"); endIdx != -1 {
+			creator := data[idx+14 : idx+endIdx]
+			metadata = append(metadata, "By: "+creator)
+		}
+	}
+
+	if len(metadata) == 0 {
+		return data, nil
+	}
+
+	return strings.Join(metadata, "\n"), nil
+}
+
+// extractCHMContents extracts text from CHM (Microsoft Compiled HTML) files
+func extractCHMContents(path string) (string, error) {
+	// Try extract_chm if available
+	extractChmBin := "extract_chm"
+	if _, err := exec.LookPath(extractChmBin); err == nil {
+		// Create temp directory for extraction
+		tmpDir, err := os.MkdirTemp("", "chm-extract-*")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(tmpDir)
+
+		cmd := exec.Command(extractChmBin, "-l", tmpDir, path)
+		if err := cmd.Run(); err != nil {
+			return "", err
+		}
+
+		// Read extracted HTML files
+		var content strings.Builder
+		filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() && (strings.HasSuffix(strings.ToLower(path), ".html") || strings.HasSuffix(strings.ToLower(path), ".htm")) {
+				data, err := os.ReadFile(path)
+				if err == nil {
+					content.WriteString(stripHTMLTags(string(data)))
+					content.WriteString(" ")
+				}
+			}
+			return nil
+		})
+
+		return strings.TrimSpace(content.String()), nil
+	}
+
+	// Try chmcmd (from libmspack)
+	chmcmdBin := "chmcmd"
+	if _, err := exec.LookPath(chmcmdBin); err == nil {
+		cmd := exec.Command(chmcmdBin, "t", path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	return "", fmt.Errorf("no CHM extractor found (install chmextractor or libmspack-tools)")
 }
 
 // extractTextWithCalibre uses calibre's ebook-convert as fallback
