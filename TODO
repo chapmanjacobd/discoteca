@@ -1,7 +1,5 @@
 
 
-lets add add text recognition with tesseract to `add --OCR` ingest scanning to save to bleve; stream/convert incompatible formats via ffmpeg or imagemagick (whichever is faster for ~3MB images, benchmark first?); archived image formats like CBR/CBZ could also be supported by streaming from them or extracting to a temporary location first
-
 lets add add speech recognition with Vosk to `add --speech-recognition` ingest scanning to save to bleve; stream/convert incompatible formats via ffmpeg
 
 - Pagination should work on all pages except for Categorization

@@ -10,14 +10,42 @@ go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
 ## Dependencies
 
-**Required:** None (SQLite is embedded via CGO)
+**Required:** None
 
-**Optional:**
-- `ffmpeg` - Media transcoding, streaming, duration detection
-- `calibre` - Ebook conversion (ePub, mobi, PDF)
-- `kiwix-serve` - ZIM files proxy
+**Optional (sorted by importance):**
+
+### Core Media Features
+
+- `ffmpeg` - Media transcoding, streaming, duration detection, subtitle extraction, image conversion
+- `mpv` - Playback control, keyboard shortcuts, playlist management
+
+### Document & Ebook Support
+
+- `calibre` - Ebook conversion (mobi, azw, fb2, djvu, cbz, cbr, old Office formats)
+- `poppler-utils` - PDF text extraction (`pdftotext`) and thumbnails (`pdftoppm`)
+- `unrtf` - RTF document text extraction
+- `ghostscript` - PostScript text extraction (`ps2ascii`, `pstotext`)
+
+### OCR & Image Processing
+
+- `tesseract` - OCR text extraction from images (ingest scanning)
+- `imagemagick` - Image format conversion and manipulation
+
+### Archive & Legacy Formats
+
+- `catdoc` - Old Microsoft Office formats (.doc, .xls, .ppt)
+- `xls2csv` - Excel .xls spreadsheet extraction
+- `p7zip-full` - 7-Zip archive listing (`7z`)
+- `unrar` - RAR archive listing and CBR extraction
+- `chmextractor` or `libmspack-tools` - CHM help file extraction
+
+### Accessibility & TTS
+
 - `espeak-ng` - Text-to-speech generation
-- `mpv` - Playback control
+
+### Web & Proxy
+
+- `kiwix-serve` - ZIM file serving (Wikipedia offline)
 
 See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.
 
@@ -181,6 +209,10 @@ Flags:
         Disable default categories
   -p, --parallel
         Number of parallel extractors (default: CPU count * 4)
+  --extract-text
+        Extract full text from documents (PDF, EPUB, TXT, MD) for caption search
+  --ocr
+        Extract text from images using OCR (tesseract) for caption search
 ```
 
 </details>
@@ -455,12 +487,6 @@ Flags:
         Filter for duplicate words (true/false)
   --unique-only
         Filter for unique words (true/false)
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -628,12 +654,6 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -668,12 +688,6 @@ Flags:
         Return all results (no limit)
   --offset
         Skip N results
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -1379,12 +1393,6 @@ Flags:
         Filter folders by total size
   --folder-counts
         Filter folders by number of subfolders
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -2419,12 +2427,6 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -2692,12 +2694,6 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -3520,12 +3516,6 @@ Flags:
         Stop after N bytes (e.g., 10GB)
   --track-history
         Track playback history
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -3748,12 +3738,6 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -4014,12 +3998,6 @@ Flags:
         Filter out matches with less than this ratio (0.7-0.9)
   --dedupe-cmd
         Command to run for deduplication (rmlint-style: cmd duplicate keep)
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --bleve
-        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related

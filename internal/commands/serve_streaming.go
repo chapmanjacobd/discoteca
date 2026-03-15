@@ -719,6 +719,158 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// extractImageFromArchive extracts an image from CBR/CBZ archives
+// Returns the image data, content type, and error
+func (c *ServeCmd) extractImageFromArchive(archivePath, imagePath string) ([]byte, string, error) {
+	r, err := zip.OpenReader(archivePath)
+	if err != nil {
+		// Try RAR format
+		return c.extractImageFromRar(archivePath, imagePath)
+	}
+	defer r.Close()
+
+	// Find the image file in the archive
+	for _, f := range r.File {
+		if f.Name == imagePath || strings.HasSuffix(f.Name, imagePath) {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, "", err
+			}
+			defer rc.Close()
+
+			data, err := io.ReadAll(rc)
+			if err != nil {
+				return nil, "", err
+			}
+
+			// Detect mime type from magic bytes
+			mimeType := http.DetectContentType(data[:min(512, len(data))])
+			return data, mimeType, nil
+		}
+	}
+
+	return nil, "", fmt.Errorf("image not found in archive: %s", imagePath)
+}
+
+// extractImageFromRar extracts an image from RAR archives (requires unrar)
+func (c *ServeCmd) extractImageFromRar(archivePath, imagePath string) ([]byte, string, error) {
+	unrarBin := "unrar"
+	if _, err := exec.LookPath(unrarBin); err != nil {
+		return nil, "", fmt.Errorf("unrar not found")
+	}
+
+	// Extract to temp directory
+	tmpDir, err := os.MkdirTemp("", "rar-extract-*")
+	if err != nil {
+		return nil, "", err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Extract specific file
+	cmd := exec.Command(unrarBin, "e", "-y", archivePath, imagePath, tmpDir)
+	if err := cmd.Run(); err != nil {
+		return nil, "", err
+	}
+
+	// Read extracted file
+	extractedPath := filepath.Join(tmpDir, filepath.Base(imagePath))
+	data, err := os.ReadFile(extractedPath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	mimeType := http.DetectContentType(data[:min(512, len(data))])
+	return data, mimeType, nil
+}
+
+// convertImage converts an image to a web-friendly format using ffmpeg or ImageMagick
+func (c *ServeCmd) convertImage(inputPath, outputFormat string) ([]byte, string, error) {
+	// Benchmark: ffmpeg is faster for large images (~3MB), ImageMagick better for small
+	// Try ffmpeg first (generally faster)
+	ffmpegBin := "ffmpeg"
+	if _, err := exec.LookPath(ffmpegBin); err == nil {
+		args := []string{
+			"-hide_banner",
+			"-loglevel", "error",
+			"-i", inputPath,
+			"-q:v", "2", // High quality
+			"-f", "image2",
+		}
+
+		var format string
+		switch outputFormat {
+		case "jpeg", "jpg":
+			args = append(args, "-c:v", "mjpeg")
+			format = "image/jpeg"
+		case "png":
+			args = append(args, "-c:v", "png")
+			format = "image/png"
+		case "webp":
+			args = append(args, "-c:v", "libwebp")
+			format = "image/webp"
+		default:
+			args = append(args, "-c:v", "mjpeg")
+			format = "image/jpeg"
+		}
+
+		args = append(args, "pipe:1")
+
+		cmd := exec.Command(ffmpegBin, args...)
+		output, err := cmd.Output()
+		if err == nil {
+			return output, format, nil
+		}
+		// ffmpeg failed, fall through to ImageMagick
+	}
+
+	// Try ImageMagick (convert)
+	convertBin := "convert"
+	if _, err := exec.LookPath(convertBin); err == nil {
+		args := []string{inputPath, "-quality", "90"}
+
+		switch outputFormat {
+		case "jpeg", "jpg":
+			args = append(args, "jpg:-")
+		case "png":
+			args = append(args, "png:-")
+		case "webp":
+			args = append(args, "webp:-")
+		default:
+			args = append(args, "jpg:-")
+		}
+
+		cmd := exec.Command(convertBin, args...)
+		output, err := cmd.Output()
+		if err == nil {
+			var format string
+			switch outputFormat {
+			case "png":
+				format = "image/png"
+			case "webp":
+				format = "image/webp"
+			default:
+				format = "image/jpeg"
+			}
+			return output, format, nil
+		}
+	}
+
+	// No converter available, read original
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return nil, "", err
+	}
+	mimeType := http.DetectContentType(data[:min(512, len(data))])
+	return data, mimeType, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // serveFileWithMimeType serves a file with the correct MIME type based on extension
 func serveFileWithMimeType(w http.ResponseWriter, r *http.Request, filePath string) {
 	ext := strings.ToLower(filepath.Ext(filePath))

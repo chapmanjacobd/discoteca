@@ -127,7 +127,7 @@ func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
 			}
 
 			// Use path as-is
-			meta, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles, false)
+			meta, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles, false, false)
 			if err != nil {
 				return nil
 			}

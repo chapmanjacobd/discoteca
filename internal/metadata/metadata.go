@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -59,7 +60,7 @@ type Format struct {
 	Tags     map[string]string `json:"tags"`
 }
 
-func Extract(ctx context.Context, path string, scanSubtitles bool, extractText bool) (*MediaMetadata, error) {
+func Extract(ctx context.Context, path string, scanSubtitles bool, extractText bool, ocr bool) (*MediaMetadata, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -111,7 +112,7 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 			}
 		}
 		result.Media = params
-		
+
 		// Extract full text from document if requested
 		if extractText {
 			captions, err := extractDocumentText(path)
@@ -121,8 +122,18 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 				result.Captions = captions
 			}
 		}
-		
+
 		return result, nil
+	}
+
+	// Extract text from images using OCR if requested
+	if mediaType == "image" && ocr {
+		captions, err := extractImageText(path)
+		if err != nil {
+			slog.Warn("Image OCR extraction failed", "path", path, "error", err)
+		} else {
+			result.Captions = captions
+		}
 	}
 
 	var duration int64
@@ -556,4 +567,45 @@ func cleanCaptionText(s string) string {
 	}
 
 	return s
+}
+
+// extractImageText extracts text from images using tesseract OCR.
+// Returns captions with detected text (time=0 for images).
+func extractImageText(path string) ([]db.InsertCaptionParams, error) {
+	// Check for tesseract
+	tesseractBin := "tesseract"
+	if _, err := exec.LookPath(tesseractBin); err != nil {
+		return nil, fmt.Errorf("tesseract not found")
+	}
+
+	// Run tesseract with stdout output
+	// Using --psm 3 (fully automatic page segmentation) for general images
+	cmd := exec.Command(tesseractBin, path, "stdout", "--psm", "3")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	text := string(output)
+	if strings.TrimSpace(text) == "" {
+		return nil, nil
+	}
+
+	// Split into chunks for better search relevance
+	chunks := chunkDocumentText(text)
+
+	captions := make([]db.InsertCaptionParams, 0, len(chunks))
+	for _, chunk := range chunks {
+		cleaned := cleanCaptionText(chunk)
+		if cleaned == "" {
+			continue
+		}
+		captions = append(captions, db.InsertCaptionParams{
+			MediaPath: path,
+			Time:      sql.NullFloat64{Float64: 0, Valid: false}, // No timestamp for images
+			Text:      sql.NullString{String: cleaned, Valid: true},
+		})
+	}
+
+	return captions, nil
 }
