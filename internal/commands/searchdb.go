@@ -3,15 +3,14 @@ package commands
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type SearchDBCmd struct {
@@ -33,7 +32,7 @@ type SearchDBCmd struct {
 func (c *SearchDBCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
 
-	sqlDB, err := db.Connect(c.Database)
+	sqlDB, _, err := db.ConnectWithInit(c.Database)
 	if err != nil {
 		return err
 	}
@@ -255,9 +254,7 @@ func (c *SearchDBCmd) printRows(sqlDB *sql.DB, table string, where []string, arg
 	}
 
 	if c.JSON {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(allResults)
+		return utils.PrintJSON(allResults)
 	}
 
 	if len(allResults) > 0 {

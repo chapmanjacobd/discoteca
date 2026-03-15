@@ -2,9 +2,7 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -21,25 +19,19 @@ type PlaylistsCmd struct {
 func (c *PlaylistsCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
-		sqlDB, err := db.Connect(dbPath)
+		sqlDB, queries, err := db.ConnectWithInit(dbPath)
 		if err != nil {
 			return err
 		}
 		defer sqlDB.Close()
 
-		queries := db.New(sqlDB)
 		playlists, err := queries.GetPlaylists(context.Background())
 		if err != nil {
 			return err
 		}
 
 		if c.JSON {
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(playlists); err != nil {
-				return err
-			}
-			continue
+			return utils.PrintJSON(playlists)
 		}
 
 		fmt.Printf("Playlists in %s:\n", dbPath)

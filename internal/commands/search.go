@@ -2,13 +2,12 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
-	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type SearchCmd struct {
@@ -62,9 +61,7 @@ func (c *SearchCmd) Run(ctx *kong.Context) error {
 		query.SortMedia(media, flags)
 
 		if flags.JSON {
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			return encoder.Encode(media)
+			return utils.PrintJSON(media)
 		}
 
 		return PrintMedia(flags.DisplayFlags, flags.Columns, media)

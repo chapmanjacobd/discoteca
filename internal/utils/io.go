@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -93,4 +94,11 @@ func Prompt(message string) string {
 		return strings.TrimSpace(scanner.Text())
 	}
 	return ""
+}
+
+// PrintJSON encodes data as indented JSON to stdout
+func PrintJSON(data any) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(data)
 }

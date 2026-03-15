@@ -332,3 +332,31 @@ func SetupLogging(verbose bool) {
 		LogLevel.Set(slog.LevelInfo)
 	}
 }
+
+// BuildQueryGlobalFlags constructs GlobalFlags for query-based commands
+// This reduces boilerplate in command Run() methods
+func BuildQueryGlobalFlags(
+	core CoreFlags,
+	query QueryFlags,
+	pathFilter PathFilterFlags,
+	filter FilterFlags,
+	mediaFilter MediaFilterFlags,
+	timeFilter TimeFilterFlags,
+	deleted DeletedFlags,
+	sort SortFlags,
+	display DisplayFlags,
+	fts FTSFlags,
+) GlobalFlags {
+	return GlobalFlags{
+		CoreFlags:        core,
+		QueryFlags:       query,
+		PathFilterFlags:  pathFilter,
+		FilterFlags:      filter,
+		MediaFilterFlags: mediaFilter,
+		TimeFilterFlags:  timeFilter,
+		DeletedFlags:     deleted,
+		SortFlags:        sort,
+		DisplayFlags:     display,
+		FTSFlags:         fts,
+	}
+}

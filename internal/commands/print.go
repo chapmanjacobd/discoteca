@@ -2,10 +2,7 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -34,20 +31,9 @@ type PrintCmd struct {
 }
 
 func (c *PrintCmd) AfterApply() error {
-	if err := c.CoreFlags.AfterApply(); err != nil {
-		return err
-	}
-	if err := c.MediaFilterFlags.AfterApply(); err != nil {
-		return err
-	}
-	for _, arg := range c.Args {
-		if strings.HasSuffix(arg, ".db") && utils.IsSQLite(arg) {
-			c.Databases = append(c.Databases, arg)
-		} else {
-			c.ScanPaths = append(c.ScanPaths, arg)
-		}
-	}
-	return nil
+	var err error
+	c.Databases, c.ScanPaths, err = ParseDatabaseAndScanPaths(c.Args, &c.CoreFlags, &c.MediaFilterFlags)
+	return err
 }
 
 func (c *PrintCmd) Run(ctx *kong.Context) error {
@@ -81,9 +67,7 @@ func (c *PrintCmd) Run(ctx *kong.Context) error {
 			}
 			if flags.Summarize {
 				summary := query.SummarizeMedia(media)
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(summary)
+				return utils.PrintJSON(summary)
 			}
 			return PrintMedia(flags.DisplayFlags, flags.Columns, media)
 		}

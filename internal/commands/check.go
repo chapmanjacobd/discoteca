@@ -85,17 +85,12 @@ func (c *CheckCmd) Run(ctx *kong.Context) error {
 	}
 
 	for _, dbPath := range c.Databases {
-		sqlDB, err := db.Connect(dbPath)
+		sqlDB, queries, err := db.ConnectWithInit(dbPath)
 		if err != nil {
 			return err
 		}
 		defer sqlDB.Close()
 
-		if err := db.InitDB(sqlDB); err != nil {
-			return fmt.Errorf("failed to initialize database %s: %w", dbPath, err)
-		}
-
-		queries := db.New(sqlDB)
 		allMedia, err := queries.GetMedia(context.Background(), 1000000)
 		if err != nil {
 			return err

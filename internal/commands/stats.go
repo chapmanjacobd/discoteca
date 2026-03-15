@@ -2,9 +2,7 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -50,53 +48,39 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 	}
 
 	for _, dbPath := range c.Databases {
-		sqlDB, err := db.Connect(dbPath)
+		sqlDB, queries, err := db.ConnectWithInit(dbPath)
 		if err != nil {
 			return err
 		}
-
-		if err := db.InitDB(sqlDB); err != nil {
-			sqlDB.Close()
-			return fmt.Errorf("failed to initialize database %s: %w", dbPath, err)
-		}
+		defer sqlDB.Close()
 
 		if c.Frequency != "" {
 			stats, err := query.HistoricalUsage(context.Background(), dbPath, c.Frequency, timeCol)
 			if err != nil {
-				sqlDB.Close()
 				return err
 			}
 
 			if c.JSON {
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				if err := encoder.Encode(stats); err != nil {
-					sqlDB.Close()
+				if err := utils.PrintJSON(stats); err != nil {
 					return err
 				}
-				sqlDB.Close()
 				continue
 			}
 
 			fmt.Printf("%s media (%s) for %s:\n", utils.Title(c.Facet), c.Frequency, dbPath)
 			if err := PrintFrequencyStats(stats); err != nil {
-				sqlDB.Close()
 				return err
 			}
-			sqlDB.Close()
 			continue
 		}
 
-		queries := db.New(sqlDB)
 		stats, err := queries.GetStats(context.Background())
 		if err != nil {
-			sqlDB.Close()
 			return err
 		}
 
 		typeStats, err := queries.GetStatsByType(context.Background())
 		if err != nil {
-			sqlDB.Close()
 			return err
 		}
 
@@ -106,13 +90,9 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 				"summary":   stats,
 				"breakdown": typeStats,
 			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(result); err != nil {
-				sqlDB.Close()
+			if err := utils.PrintJSON(result); err != nil {
 				return err
 			}
-			sqlDB.Close()
 			continue
 		}
 
@@ -137,7 +117,6 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 			}
 		}
 		fmt.Println()
-		sqlDB.Close()
 	}
 	return nil
 }

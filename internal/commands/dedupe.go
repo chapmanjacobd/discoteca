@@ -154,7 +154,7 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 }
 
 func (c *DedupeCmd) getDuplicatesBy(dbPath string, groupByCols, selectCols, whereClause string) ([]DedupeDuplicate, error) {
-	sqlDB, err := db.Connect(dbPath)
+	sqlDB, _, err := db.ConnectWithInit(dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func (c *DedupeCmd) getDurationDuplicates(dbPath string) ([]DedupeDuplicate, err
 }
 
 func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]DedupeDuplicate, error) {
-	sqlDB, err := db.Connect(dbPath)
+	sqlDB, _, err := db.ConnectWithInit(dbPath)
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,8 @@
 package commands
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,7 +23,7 @@ func HideRedundantFirstPlayed(media []models.MediaWithDB) {
 
 func PrintMedia(flags models.DisplayFlags, columns []string, media []models.MediaWithDB) error {
 	if flags.JSON {
-		return json.NewEncoder(os.Stdout).Encode(media)
+		return utils.PrintJSON(media)
 	}
 
 	if len(columns) == 0 {
@@ -66,7 +64,7 @@ func PrintMedia(flags models.DisplayFlags, columns []string, media []models.Medi
 
 func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.FolderStats) error {
 	if flags.JSON {
-		return json.NewEncoder(os.Stdout).Encode(folders)
+		return utils.PrintJSON(folders)
 	}
 
 	if len(columns) == 0 {

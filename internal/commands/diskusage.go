@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/tui"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -35,20 +33,9 @@ type DiskUsageCmd struct {
 }
 
 func (c *DiskUsageCmd) AfterApply() error {
-	if err := c.CoreFlags.AfterApply(); err != nil {
-		return err
-	}
-	if err := c.MediaFilterFlags.AfterApply(); err != nil {
-		return err
-	}
-	for _, arg := range c.Args {
-		if strings.HasSuffix(arg, ".db") && utils.IsSQLite(arg) {
-			c.Databases = append(c.Databases, arg)
-		} else {
-			c.ScanPaths = append(c.ScanPaths, arg)
-		}
-	}
-	return nil
+	var err error
+	c.Databases, c.ScanPaths, err = ParseDatabaseAndScanPaths(c.Args, &c.CoreFlags, &c.MediaFilterFlags)
+	return err
 }
 
 func (c *DiskUsageCmd) Run(ctx *kong.Context) error {

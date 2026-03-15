@@ -48,6 +48,22 @@ func Connect(dbPath string) (*sql.DB, error) {
 	return baseDB, nil
 }
 
+// ConnectWithInit connects to a database and initializes it if needed
+// Returns the database connection and a Queries object ready to use
+func ConnectWithInit(dbPath string) (*sql.DB, *Queries, error) {
+	sqlDB, err := Connect(dbPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := InitDB(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, nil, fmt.Errorf("failed to initialize database %s: %w", dbPath, err)
+	}
+
+	return sqlDB, New(sqlDB), nil
+}
+
 // wrapWithTracing wraps the database connection with query tracing
 func wrapWithTracing(baseDB *sql.DB, dsn string) (*sql.DB, error) {
 	// Get the underlying driver

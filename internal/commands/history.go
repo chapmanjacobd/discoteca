@@ -2,16 +2,15 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type HistoryCmd struct {
@@ -56,9 +55,7 @@ func (c *HistoryCmd) Run(ctx *kong.Context) error {
 		HideRedundantFirstPlayed(media)
 
 		if flags.JSON {
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			return encoder.Encode(media)
+			return utils.PrintJSON(media)
 		}
 
 		if flags.Completed {

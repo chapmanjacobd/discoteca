@@ -323,13 +323,10 @@ func (c *ServeCmd) Run(ctx *kong.Context) error {
 	}
 
 	for _, dbPath := range c.Databases {
-		sqlDB, err := db.Connect(dbPath)
+		sqlDB, _, err := db.ConnectWithInit(dbPath)
 		if err != nil {
 			slog.Error("Failed to connect to database on startup", "db", dbPath, "error", err)
 			continue
-		}
-		if err := db.InitDB(sqlDB); err != nil {
-			slog.Error("Failed to initialize database", "db", dbPath, "error", err)
 		}
 		c.dbCache.Store(dbPath, sqlDB)
 	}

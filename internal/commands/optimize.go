@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -21,7 +20,7 @@ func (c *OptimizeCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
 		slog.Info("Optimizing database", "path", dbPath)
-		sqlDB, err := db.Connect(dbPath)
+		sqlDB, _, err := db.ConnectWithInit(dbPath)
 		if err != nil {
 			return err
 		}
@@ -83,7 +82,7 @@ func (c *SampleHashCmd) Run(ctx *kong.Context) error {
 	}
 
 	if c.JSON {
-		return json.NewEncoder(os.Stdout).Encode(results)
+		return utils.PrintJSON(results)
 	}
 	return nil
 }

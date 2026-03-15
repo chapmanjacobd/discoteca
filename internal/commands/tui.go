@@ -57,9 +57,8 @@ func (c *TuiCmd) Run(ctx *kong.Context) error {
 
 	var customCats []string
 	for _, dbPath := range c.Databases {
-		sqlDB, err := db.Connect(dbPath)
+		sqlDB, queries, err := db.ConnectWithInit(dbPath)
 		if err == nil {
-			queries := db.New(sqlDB)
 			cats, err := queries.GetCustomCategories(context.Background())
 			if err == nil {
 				customCats = append(customCats, cats...)

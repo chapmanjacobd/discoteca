@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -98,9 +97,7 @@ func (c *FilesInfoCmd) Run(ctx *kong.Context) error {
 	}
 
 	if c.JSON {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(allMedia)
+		return utils.PrintJSON(allMedia)
 	}
 
 	// Basic print if not JSON

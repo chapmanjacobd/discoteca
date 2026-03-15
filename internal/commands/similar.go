@@ -2,14 +2,13 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type SimilarFilesCmd struct {
@@ -132,7 +131,7 @@ func runSimilar(flags models.GlobalFlags, dbs []string, folderMode bool) error {
 	}
 
 	if flags.JSON {
-		return json.NewEncoder(os.Stdout).Encode(groups)
+		return utils.PrintJSON(groups)
 	}
 
 	for _, g := range groups {

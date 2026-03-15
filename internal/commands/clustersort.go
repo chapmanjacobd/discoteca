@@ -2,7 +2,6 @@ package commands
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type ClusterSortCmd struct {
@@ -73,9 +73,7 @@ func (c *ClusterSortCmd) Run(ctx *kong.Context) error {
 	}
 
 	if c.PrintGroups {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(groups)
+		return utils.PrintJSON(groups)
 	}
 
 	var writer *bufio.Writer

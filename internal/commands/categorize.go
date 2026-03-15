@@ -139,12 +139,11 @@ func (c *CategorizeCmd) applyCategories(media []models.MediaWithDB, compiled map
 			newCategories := ";" + strings.Join(combined, ";") + ";"
 
 			if !c.Simulate {
-				sqlDB, err := db.Connect(m.DB)
+				sqlDB, queries, err := db.ConnectWithInit(m.DB)
 				if err != nil {
 					slog.Error("Failed to connect to database", "db", m.DB, "error", err)
 					continue
 				}
-				queries := db.New(sqlDB)
 				err = queries.UpdateMediaCategories(context.Background(), db.UpdateMediaCategoriesParams{
 					Categories: utils.ToNullString(newCategories),
 					Path:       m.Path,

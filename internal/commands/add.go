@@ -76,17 +76,11 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	c.ScanPaths = utils.ExpandStdin(c.ScanPaths)
 
 	dbExists := utils.FileExists(dbPath)
-	sqlDB, err := db.Connect(dbPath)
+	sqlDB, queries, err := db.ConnectWithInit(dbPath)
 	if err != nil {
 		return err
 	}
 	defer sqlDB.Close()
-
-	if err := db.InitDB(sqlDB); err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	queries := db.New(sqlDB)
 
 	// Step 0: Load existing playlists (roots) to avoid redundant scans
 	existingPlaylists, _ := queries.GetPlaylists(context.Background())
