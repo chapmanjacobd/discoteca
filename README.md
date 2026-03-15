@@ -69,10 +69,6 @@ See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform
 
 ![EPUB Viewer](docs/screenshots/epub-viewer.png)
 
-### Filters Sidebar
-
-![Filters Sidebar](docs/screenshots/filters-sidebar.png)
-
 ### Settings Modal
 
 ![Settings Modal](docs/screenshots/settings-modal.png)
@@ -3303,7 +3299,7 @@ Examples:
 
 ```bash
 $ disco serve my_videos.db my_music.db
-$ disco serve --trashcan my_videos.db
+$ disco serve --readonly my_videos.db
 ```
 
 <details><summary>All Options</summary>
@@ -3558,10 +3554,8 @@ Flags:
         Override embedded web assets with local directory
   --dev
         Enable development mode (auto-reload)
-  --trashcan
-        Enable trash/recycle page and empty bin functionality
   --read-only
-        Disable server-side progress tracking and playlist modifications
+        Disable write operations (progress tracking, playlist modifications, deletions)
   --no-browser
         Don't open browser on startup
 ```

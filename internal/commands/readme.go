@@ -78,8 +78,6 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("![Video Player](docs/screenshots/video-player.png)\n\n")
 	sb.WriteString("### EPUB Viewer\n\n")
 	sb.WriteString("![EPUB Viewer](docs/screenshots/epub-viewer.png)\n\n")
-	sb.WriteString("### Filters Sidebar\n\n")
-	sb.WriteString("![Filters Sidebar](docs/screenshots/filters-sidebar.png)\n\n")
 	sb.WriteString("### Settings Modal\n\n")
 	sb.WriteString("![Settings Modal](docs/screenshots/settings-modal.png)\n\n")
 	sb.WriteString("### Group View\n\n")
