@@ -8,6 +8,7 @@ export interface TestServerOptions {
   databasePath?: string;
   port?: number;
   verbose?: boolean;
+  trashcan?: boolean;
 }
 
 // Find a free port dynamically
@@ -61,10 +62,12 @@ export class TestServer {
   private baseUrl: string;
   private databasePath: string;
   private port: number;
+  private trashcan: boolean;
 
   constructor(options: TestServerOptions = {}) {
     this.port = options.port || 0; // 0 means find free port dynamically
     this.databasePath = options.databasePath || path.join(__dirname, '../fixtures/test.db');
+    this.trashcan = options.trashcan ?? false; // Default to false for backward compatibility
     this.baseUrl = ''; // Will be set after server starts
   }
 
@@ -98,6 +101,11 @@ export class TestServer {
         '--dev',
         '--public-dir', path.resolve(__dirname, '../../web/dist'),
       ];
+
+      // Add --trashcan flag if enabled
+      if (this.trashcan) {
+        args.push('--trashcan');
+      }
 
       this.process = spawn(binaryPath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],

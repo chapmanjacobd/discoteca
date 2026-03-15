@@ -1,5 +1,5 @@
 import { test as base, expect, Page } from '@playwright/test';
-import { TestServer } from './utils/test-server';
+import { TestServer, TestServerOptions } from './utils/test-server';
 import { globalServers } from './global-setup';
 import { MediaPage } from './pages/media-page';
 import { SidebarPage } from './pages/sidebar-page';
@@ -46,6 +46,7 @@ export const test = base.extend<{
   server: TestServer;
   testDbPath: string;
   readOnly: boolean;
+  serverOptions: TestServerOptions;
   mediaPage: MediaPage;
   sidebarPage: SidebarPage;
   viewerPage: ViewerPage;
@@ -79,8 +80,16 @@ export const test = base.extend<{
   // Whether this test is read-only (doesn't modify server state)
   readOnly: [false, { option: true }],
 
+  // Server options (can be overridden per test)
+  serverOptions: async ({}, use) => {
+    // Default options - trashcan enabled for delete functionality tests
+    await use({
+      trashcan: true,
+    });
+  },
+
   // Test server instance - shared for readOnly tests, isolated for others
-  server: async ({ testDbPath, readOnly, page }, use) => {
+  server: async ({ testDbPath, readOnly, page, serverOptions }, use) => {
     const workerId = process.env.TEST_WORKER_INDEX || 'default';
     const project = process.env.PLAYWRIGHT_PROJECT || 'chromium';
     const serverKey = `${project}-${workerId}`;
@@ -94,6 +103,7 @@ export const test = base.extend<{
       if (!globalServers.has(serverKey)) {
         server = new TestServer({
           databasePath: testDbPath,
+          ...serverOptions,
         });
         await server.start();
         globalServers.set(serverKey, server);
@@ -113,6 +123,7 @@ export const test = base.extend<{
 
       server = new TestServer({
         databasePath: tempDbPath,
+        ...serverOptions,
       });
       await server.start();
     }

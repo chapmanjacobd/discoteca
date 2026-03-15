@@ -5268,7 +5268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         `<button class="media-action-btn mark-unplayed" title="Mark as Unplayed">⭕</button>` :
                         `<button class="media-action-btn mark-played" title="Mark as Played">✅</button>`
                     }
-                    ${!state.readOnly ? `<button class="media-action-btn delete" title="Move to Trash">🗑️</button>` : ''}
+                    ${!state.readOnly && state.trashcan ? `<button class="media-action-btn delete" title="Move to Trash">🗑️</button>` : ''}
                 `;
             }
 
@@ -5795,7 +5795,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         `<button class="table-action-btn mark-unplayed-btn" title="Unmark as Played">⭕</button>` :
                         `<button class="table-action-btn mark-played-btn" title="Mark as Played">✅</button>`
                     }
-                        ${!state.readOnly ? `<button class="table-action-btn delete-btn" title="Move to Trash">🗑️</button>` : ''}
+                        ${!state.readOnly && state.trashcan ? `<button class="table-action-btn delete-btn" title="Move to Trash">🗑️</button>` : ''}
                     </div>
                 `;
             }
