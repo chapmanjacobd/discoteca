@@ -75,7 +75,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS captions_fts USING fts5(
     text,
     content='captions',
     tokenize = 'trigram',
-    detail = 'none'
+    detail = 'full'
 );
 
 -- Triggers for captions FTS
@@ -129,7 +129,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
     content='media',
     content_rowid='rowid',
     tokenize = 'trigram',
-    detail = 'none'
+    detail = 'full'
 );
 
 -- Trigger to keep FTS in sync

@@ -91,7 +91,7 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 
 	params := db.UpsertMediaParams{
 		Path:           path,
-		FtsPath:        utils.ToNullString(utils.PathToTokenized(path)),
+		PathTokenized:  utils.ToNullString(utils.PathToTokenized(path)),
 		Size:           utils.ToNullInt64(stat.Size()),
 		TimeCreated:    utils.ToNullInt64(stat.ModTime().Unix()),
 		TimeModified:   utils.ToNullInt64(stat.ModTime().Unix()),

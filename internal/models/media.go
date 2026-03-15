@@ -182,7 +182,7 @@ type FolderStats struct {
 func FromDB(m db.Media) Media {
 	return Media{
 		Path:            m.Path,
-		PathTokenized:   NullStringPtr(m.FtsPath),
+		PathTokenized:   NullStringPtr(m.PathTokenized),
 		Title:           NullStringPtr(m.Title),
 		Duration:        NullInt64Ptr(m.Duration),
 		Size:            NullInt64Ptr(m.Size),
@@ -224,7 +224,7 @@ func FromDBWithDB(m db.Media, dbPath string) MediaWithDB {
 func ToDBUpsert(m Media) db.UpsertMediaParams {
 	return db.UpsertMediaParams{
 		Path:           m.Path,
-		FtsPath:        ToNullString(m.PathTokenized),
+		PathTokenized:  ToNullString(m.PathTokenized),
 		Title:          ToNullString(m.Title),
 		Duration:       ToNullInt64(m.Duration),
 		Size:           ToNullInt64(m.Size),

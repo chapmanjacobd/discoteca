@@ -19,7 +19,7 @@ func (q *Queries) GetMedia(ctx context.Context, limit int64) ([]Media, error) {
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -81,7 +81,7 @@ func (q *Queries) GetMediaByType(ctx context.Context, arg GetMediaByTypeParams) 
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -142,7 +142,7 @@ func (q *Queries) GetMediaBySize(ctx context.Context, arg GetMediaBySizeParams) 
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -203,7 +203,7 @@ func (q *Queries) GetMediaByDuration(ctx context.Context, arg GetMediaByDuration
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -263,7 +263,7 @@ func (q *Queries) GetMediaByPath(ctx context.Context, arg GetMediaByPathParams) 
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -324,7 +324,7 @@ func (q *Queries) GetMediaByPathPrefix(ctx context.Context, arg GetMediaByPathPr
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -370,7 +370,7 @@ func (q *Queries) GetMediaByPathExact(ctx context.Context, path string) (Media, 
 	var i Media
 	err := q.db.QueryRowContext(ctx, query, path).Scan(
 		&i.Path,
-		&i.FtsPath,
+		&i.PathTokenized,
 		&i.Title,
 		&i.Duration,
 		&i.Size,
@@ -451,7 +451,7 @@ func (q *Queries) GetWatchedMedia(ctx context.Context, limit int64) ([]Media, er
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -505,7 +505,7 @@ func (q *Queries) GetUnwatchedMedia(ctx context.Context, limit int64) ([]Media, 
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -559,7 +559,7 @@ func (q *Queries) GetUnfinishedMedia(ctx context.Context, limit int64) ([]Media,
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -620,7 +620,7 @@ func (q *Queries) GetMediaByPlayCount(ctx context.Context, arg GetMediaByPlayCou
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -674,7 +674,7 @@ func (q *Queries) GetRandomMedia(ctx context.Context, limit int64) ([]Media, err
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -735,7 +735,7 @@ func (q *Queries) GetSiblingMedia(ctx context.Context, arg GetSiblingMediaParams
 		var i Media
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,
@@ -1000,7 +1000,7 @@ func (q *Queries) GetLanguageStats(ctx context.Context) ([]GetLanguageStatsRow, 
 // UpsertMediaParams are parameters for UpsertMedia
 type UpsertMediaParams struct {
 	Path           string
-	FtsPath        sql.NullString
+	PathTokenized  sql.NullString
 	Title          sql.NullString
 	Duration       sql.NullInt64
 	Size           sql.NullInt64
@@ -1031,7 +1031,7 @@ func (q *Queries) UpsertMedia(ctx context.Context, arg UpsertMediaParams) error 
 	const query = `INSERT INTO media (path, path_tokenized, title, duration, size, time_created, time_modified, type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET path_tokenized = excluded.path_tokenized, title = excluded.title, duration = excluded.duration, size = excluded.size, time_modified = excluded.time_modified, type = excluded.type, width = excluded.width, height = excluded.height, fps = excluded.fps, video_codecs = excluded.video_codecs, audio_codecs = excluded.audio_codecs, subtitle_codecs = excluded.subtitle_codecs, video_count = excluded.video_count, audio_count = excluded.audio_count, subtitle_count = excluded.subtitle_count, album = excluded.album, artist = excluded.artist, genre = excluded.genre, categories = excluded.categories, description = excluded.description, language = excluded.language, time_downloaded = COALESCE(media.time_downloaded, excluded.time_downloaded), score = excluded.score`
 	_, err := q.db.ExecContext(ctx, query,
 		arg.Path,
-		arg.FtsPath,
+		arg.PathTokenized,
 		arg.Title,
 		arg.Duration,
 		arg.Size,
@@ -1166,7 +1166,7 @@ func (q *Queries) GetPlaylistItems(ctx context.Context, playlistID int64) ([]Get
 		var i GetPlaylistItemsRow
 		if err := rows.Scan(
 			&i.Path,
-			&i.FtsPath,
+			&i.PathTokenized,
 			&i.Title,
 			&i.Duration,
 			&i.Size,

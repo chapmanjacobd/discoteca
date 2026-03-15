@@ -1,4 +1,3 @@
-lets update all instances of FtsPath which should be PathTokenized instead
 
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media

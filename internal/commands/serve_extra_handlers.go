@@ -939,7 +939,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 				for _, item := range items {
 					m := models.FromDB(database.Media{
 						Path:            item.Path,
-						FtsPath:         item.FtsPath,
+						PathTokenized:   item.PathTokenized,
 						Title:           item.Title,
 						Duration:        item.Duration,
 						Size:            item.Size,

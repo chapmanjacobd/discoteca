@@ -111,7 +111,7 @@ func setupSQLiteComparison(b *testing.B, media []*MediaDocument, captions []*Cap
 	for _, m := range media {
 		err := qTx.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:           m.Path,
-			FtsPath:        sql.NullString{String: m.PathTokenized, Valid: true},
+			PathTokenized:  sql.NullString{String: m.PathTokenized, Valid: true},
 			Title:          sql.NullString{String: m.Title, Valid: true},
 			Description:    sql.NullString{String: m.Description, Valid: true},
 			Type:           sql.NullString{String: m.Type, Valid: true},
@@ -444,6 +444,56 @@ func BenchmarkComparison(b *testing.B) {
 					_, err := idx.Search(req)
 					if err != nil {
 						b.Fatal(err)
+					}
+				}
+			})
+
+			// 7. Group By Parent (Disk Usage Mode)
+			b.Run("Group_By_Parent_SQLite", func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					// Simulate aggregating by parent directory
+					// Extract parent using string manipulation:
+					// length(path) - length(replace(path, '/', '')) gives count of slashes
+					// We want to group by everything before the last slash
+					// Note: This logic is approximate for benchmark but forces string ops
+					rows, err := sqliteDB.Query(`
+						SELECT 
+							substr(path, 1, length(path) - length(replace(path, '/', '')) + 10) as parent,
+							COUNT(*),
+							SUM(size)
+						FROM media 
+						WHERE path LIKE '/mnt/media/video/%'
+						GROUP BY parent
+						LIMIT 50
+					`)
+					if err != nil {
+						b.Fatal(err)
+					}
+					count := 0
+					for rows.Next() {
+						count++
+					}
+					rows.Close()
+					// We might get 0 results if the string logic is weird or empty, but let's allow it for perf test
+					// actually we should expect results for video path
+					if count == 0 && i == 0 {
+						// debug print
+						var p string
+						sqliteDB.QueryRow("SELECT path FROM media WHERE path LIKE '/mnt/media/video/%' LIMIT 1").Scan(&p)
+						b.Fatalf("Group_By_Parent_SQLite returned 0 results. Sample path: %s", p)
+					}
+				}
+			})
+
+			b.Run("Group_By_Parent_Bleve", func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					// Bleve disk usage with prefix filter
+					stats, err := DiskUsageByDirectory("/mnt/media/video/", 10000)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if len(stats) == 0 && i == 0 {
+						b.Fatal("Group_By_Parent_Bleve returned 0 results")
 					}
 				}
 			})

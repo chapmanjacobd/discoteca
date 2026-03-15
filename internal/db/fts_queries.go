@@ -47,7 +47,7 @@ AND m.time_deleted = 0
 		var m Media
 		err := rows.Scan(
 			&m.Path,
-			&m.FtsPath,
+			&m.PathTokenized,
 			&m.Title,
 			&m.Duration,
 			&m.Size,
