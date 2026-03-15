@@ -134,7 +134,6 @@ export interface State {
     queueExpanded: boolean;
     queueAddMode: 'end' | 'next';
     playerMode: 'pip' | 'theatre';
-    trashcan: boolean;
     readOnly: boolean;
     dev: boolean;
     databases: string[];

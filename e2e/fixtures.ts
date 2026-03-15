@@ -82,10 +82,8 @@ export const test = base.extend<{
 
   // Server options (can be overridden per test)
   serverOptions: async ({}, use) => {
-    // Default options - trashcan enabled for delete functionality tests
-    await use({
-      trashcan: true,
-    });
+    // Default options
+    await use({});
   },
 
   // Test server instance - shared for readOnly tests, isolated for others

@@ -37,7 +37,7 @@ describe('Image Slideshow', () => {
             return Promise.resolve({
                 ok: true,
                 status: 200,
-                json: () => Promise.resolve({ databases: ['test.db'], trashcan: true, read_only: false, dev: false })
+                json: () => Promise.resolve({ databases: ['test.db'], read_only: false, dev: false })
             });
         });
 

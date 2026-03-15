@@ -8,7 +8,6 @@ export interface TestServerOptions {
   databasePath?: string;
   port?: number;
   verbose?: boolean;
-  trashcan?: boolean;
   readOnly?: boolean;
 }
 
@@ -63,13 +62,11 @@ export class TestServer {
   private baseUrl: string;
   private databasePath: string;
   private port: number;
-  private trashcan: boolean;
   private readOnly: boolean;
 
   constructor(options: TestServerOptions = {}) {
     this.port = options.port || 0; // 0 means find free port dynamically
     this.databasePath = options.databasePath || path.join(__dirname, '../fixtures/test.db');
-    this.trashcan = options.trashcan ?? false; // Default to false for backward compatibility
     this.readOnly = options.readOnly ?? false; // Default to false for backward compatibility
     this.baseUrl = ''; // Will be set after server starts
   }
@@ -104,11 +101,6 @@ export class TestServer {
         '--dev',
         '--public-dir', path.resolve(__dirname, '../../web/dist'),
       ];
-
-      // Add --trashcan flag if enabled
-      if (this.trashcan) {
-        args.push('--trashcan');
-      }
 
       // Add --read-only flag if enabled
       if (this.readOnly) {

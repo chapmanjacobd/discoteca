@@ -21,7 +21,7 @@ export async function setupTestEnvironment(initialLocalStorage) {
 
         let data = [];
         if (url.includes('/api/databases')) {
-            data = mocks.databases || { databases: ['test.db'], trashcan: true, read_only: false, dev: false };
+            data = mocks.databases || { databases: ['test.db'], read_only: false, dev: false };
         } else if (url.includes('/api/categories')) {
             data = mocks.categories || [{ category: 'comedy', count: 5 }, { category: 'music', count: 3 }];
         } else if (url.includes('/api/genres')) {

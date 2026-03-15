@@ -11,7 +11,6 @@ test.describe('Read-Only Mode', () => {
   test.use({
     serverOptions: {
       readOnly: true,
-      trashcan: false, // trashcan should also be disabled in read-only mode
     },
   });
 

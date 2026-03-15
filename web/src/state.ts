@@ -82,7 +82,6 @@ export const state: State = {
     queueAddMode: (getLocalStorageItem('disco-queue-add-mode', 'end') as 'end' | 'next'),
 
     playerMode: (getLocalStorageItem('disco-default-view', 'pip') as 'pip' | 'theatre'),
-    trashcan: false,
     readOnly: false,
     dev: false,
     databases: [],

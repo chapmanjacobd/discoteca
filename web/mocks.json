@@ -120,7 +120,6 @@
     "databases": [
       "test.db"
     ],
-    "trashcan": true,
     "read_only": false,
     "dev": false
   },

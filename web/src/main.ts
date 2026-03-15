@@ -1068,14 +1068,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await resp.json();
             allDatabases = data.databases;
             state.databases = data.databases; // Store in state for filter params
-            state.trashcan = data.trashcan;
             state.readOnly = data.read_only;
             state.dev = data.dev;
 
             renderDbSettingsList(allDatabases);
-            if (state.trashcan) {
-                if (trashBtn) trashBtn.classList.remove('hidden');
-            }
             if (state.dev) {
                 setupAutoReload();
             }
@@ -5268,7 +5264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         `<button class="media-action-btn mark-unplayed" title="Mark as Unplayed">⭕</button>` :
                         `<button class="media-action-btn mark-played" title="Mark as Played">✅</button>`
                     }
-                    ${!state.readOnly && state.trashcan ? `<button class="media-action-btn delete" title="Move to Trash">🗑️</button>` : ''}
+                    ${!state.readOnly ? `<button class="media-action-btn delete" title="Delete">🗑️</button>` : ''}
                 `;
             }
 
@@ -5795,7 +5791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         `<button class="table-action-btn mark-unplayed-btn" title="Unmark as Played">⭕</button>` :
                         `<button class="table-action-btn mark-played-btn" title="Mark as Played">✅</button>`
                     }
-                        ${!state.readOnly && state.trashcan ? `<button class="table-action-btn delete-btn" title="Move to Trash">🗑️</button>` : ''}
+                        ${!state.readOnly ? `<button class="table-action-btn delete-btn" title="Delete">🗑️</button>` : ''}
                     </div>
                 `;
             }
