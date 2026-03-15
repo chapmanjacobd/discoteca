@@ -67,8 +67,7 @@ type ServeCmd struct {
 	Port                 int      `short:"p" default:"5555" help:"Port to listen on"`
 	PublicDir            string   `help:"Override embedded web assets with local directory"`
 	Dev                  bool     `help:"Enable development mode (auto-reload)"`
-	Trashcan             bool     `help:"Enable trash/recycle page and empty bin functionality"`
-	ReadOnly             bool     `help:"Disable server-side progress tracking and playlist modifications"`
+	ReadOnly             bool     `help:"Disable write operations (progress tracking, playlist modifications, deletions)"`
 	NoBrowser            bool     `help:"Don't open browser on startup"`
 	ApplicationStartTime int64    `kong:"-"`
 	APIToken             string   `kong:"-"`
@@ -184,11 +183,9 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/thumbnail", c.authMiddleware(c.handleThumbnail))
 	mux.HandleFunc("/opds", c.authMiddleware(c.handleOPDS))
 
-	// Trash (optional)
-	if c.Trashcan {
-		mux.HandleFunc("/api/trash", c.authMiddleware(c.handleTrash))
-		mux.HandleFunc("/api/empty-bin", c.authMiddleware(c.handleEmptyBin))
-	}
+	// Trash endpoints (respects ReadOnly mode)
+	mux.HandleFunc("/api/trash", c.authMiddleware(c.handleTrash))
+	mux.HandleFunc("/api/empty-bin", c.authMiddleware(c.handleEmptyBin))
 
 	// Static assets
 	mux.HandleFunc("/lib/", func(w http.ResponseWriter, r *http.Request) {

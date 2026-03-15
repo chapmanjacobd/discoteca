@@ -418,12 +418,6 @@ func (c *ServeCmd) handleDelete(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Read-only mode"})
 		return
 	}
-	if !c.Trashcan {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(models.ErrorResponse{Error: "Server not started with --trashcan"})
-		return
-	}
 	if r.Method != http.MethodPost {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusMethodNotAllowed)

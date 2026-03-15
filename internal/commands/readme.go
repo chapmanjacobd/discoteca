@@ -124,7 +124,7 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 		},
 		"serve": {
 			"disco serve my_videos.db my_music.db",
-			"disco serve --trashcan my_videos.db",
+			"disco serve --readonly my_videos.db",
 		},
 		"disk-usage": {
 			"disco du my_videos.db",

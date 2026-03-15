@@ -62,7 +62,6 @@ func (c *ServeCmd) handleMetadata(w http.ResponseWriter, r *http.Request) {
 func (c *ServeCmd) handleDatabases(w http.ResponseWriter, r *http.Request) {
 	resp := models.DatabaseInfo{
 		Databases: c.Databases,
-		Trashcan:  c.Trashcan,
 		ReadOnly:  c.ReadOnly,
 		Dev:       c.Dev,
 	}

@@ -10,7 +10,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestTrashcan(t *testing.T) {
+// TestDeletedMedia tests querying and restoring deleted media items
+func TestDeletedMedia(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_trash.db")
 

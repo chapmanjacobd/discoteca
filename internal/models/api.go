@@ -17,7 +17,6 @@ type GenreStat struct {
 
 type DatabaseInfo struct {
 	Databases []string `json:"databases"`
-	Trashcan  bool     `json:"trashcan"`
 	ReadOnly  bool     `json:"read_only"`
 	Dev       bool     `json:"dev"`
 }

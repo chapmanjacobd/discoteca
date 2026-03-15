@@ -22,7 +22,6 @@ func TestServeCmd_Validation(t *testing.T) {
 
 	cmd := &ServeCmd{
 		Databases: []string{fixture.DBPath},
-		Trashcan:  true,
 	}
 	handler := cmd.Mux()
 
