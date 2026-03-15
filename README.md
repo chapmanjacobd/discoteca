@@ -8,11 +8,7 @@ Golang implementation of xklb/library
 go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
 ```
 
-## Dependencies
-
-**Required:** None
-
-**Optional (sorted by importance):**
+## Optional dependencies
 
 ### Core Media Features
 
@@ -59,7 +55,7 @@ See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform
 
 ### Grid View
 
-![Grid View](docs/screenshots/home-grid-view.png)
+![Search Results](docs/screenshots/search-results.png)
 
 ### Details View
 
@@ -72,10 +68,6 @@ See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform
 ### EPUB Viewer
 
 ![EPUB Viewer](docs/screenshots/epub-viewer.png)
-
-### Search Results
-
-![Search Results](docs/screenshots/search-results.png)
 
 ### Filters Sidebar
 
@@ -499,6 +491,12 @@ Flags:
         Filter for duplicate words (true/false)
   --unique-only
         Filter for unique words (true/false)
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -666,6 +664,12 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -700,6 +704,12 @@ Flags:
         Return all results (no limit)
   --offset
         Skip N results
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -1405,6 +1415,12 @@ Flags:
         Filter folders by total size
   --folder-counts
         Filter folders by number of subfolders
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -2439,6 +2455,12 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -2706,6 +2728,12 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -3528,6 +3556,12 @@ Flags:
         Stop after N bytes (e.g., 10GB)
   --track-history
         Track playback history
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -3750,6 +3784,12 @@ Flags:
         Group statistics by time frequency (daily, weekly, monthly, yearly)
   --tui
         Interactive TUI mode
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
@@ -4010,6 +4050,12 @@ Flags:
         Filter out matches with less than this ratio (0.7-0.9)
   --dedupe-cmd
         Command to run for deduplication (rmlint-style: cmd duplicate keep)
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --bleve
+        Use Bleve full-text search index
   --no-fts
         Disable full-text search, use substring search only
   -R, --related
