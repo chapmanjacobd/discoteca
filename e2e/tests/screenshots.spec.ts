@@ -7,7 +7,7 @@ import * as path from 'path';
  * Run with: npx playwright test screenshots --project=chromium
  */
 test.describe('README Screenshots', () => {
-  test.use({ 
+  test.use({
     readOnly: true,
     viewport: { width: 1280, height: 720 }
   });
@@ -17,23 +17,6 @@ test.describe('README Screenshots', () => {
   test.beforeAll(async () => {
     // Create screenshots directory
     fs.mkdirSync(screenshotsDir, { recursive: true });
-  });
-
-  test('capture home page - grid view', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
-
-    // Ensure we're in grid view
-    await mediaPage.switchToGridView();
-    await mediaPage.page.waitForTimeout(1000);
-
-    // Take screenshot
-    await mediaPage.page.screenshot({
-      path: path.join(screenshotsDir, 'home-grid-view.png'),
-      fullPage: false,
-      animations: 'disabled'
-    });
-
-    console.log('✓ Captured: home-grid-view.png');
   });
 
   test('capture home page - details view', async ({ mediaPage, server }) => {
@@ -172,27 +155,6 @@ test.describe('README Screenshots', () => {
 
     // Clear search
     await mediaPage.clearSearch();
-  });
-
-  test('capture filters sidebar', async ({ mediaPage, sidebarPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
-
-    // Expand filter sections
-    await sidebarPage.expandHistorySection();
-    await sidebarPage.expandMediaTypeSection();
-    await sidebarPage.expandRatingsSection();
-    await sidebarPage.expandPlaylistsSection();
-
-    await mediaPage.page.waitForTimeout(500);
-
-    // Take screenshot focused on sidebar
-    const sidebar = mediaPage.page.locator('#sidebar');
-    await sidebar.screenshot({
-      path: path.join(screenshotsDir, 'filters-sidebar.png'),
-      animations: 'disabled'
-    });
-
-    console.log('✓ Captured: filters-sidebar.png');
   });
 
   test('capture settings modal', async ({ mediaPage, sidebarPage, server }) => {

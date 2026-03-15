@@ -9,11 +9,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/search"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -92,6 +92,10 @@ func setupSQLiteComparison(b *testing.B, media []*MediaDocument, captions []*Cap
 	if err != nil {
 		b.Fatalf("Failed to connect to SQLite: %v", err)
 	}
+
+	if err := testutils.InitTestDB(b, sqlDB); err != nil {
+		b.Fatalf("Failed to init DB schema: %v", err)
+	}
 	
 	queries := db.New(sqlDB)
 	ctx := context.Background()
@@ -107,7 +111,7 @@ func setupSQLiteComparison(b *testing.B, media []*MediaDocument, captions []*Cap
 	for _, m := range media {
 		err := qTx.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:           m.Path,
-			PathTokenized:  &m.PathTokenized,
+			FtsPath:        sql.NullString{String: m.PathTokenized, Valid: true},
 			Title:          sql.NullString{String: m.Title, Valid: true},
 			Description:    sql.NullString{String: m.Description, Valid: true},
 			Type:           sql.NullString{String: m.Type, Valid: true},
@@ -116,7 +120,6 @@ func setupSQLiteComparison(b *testing.B, media []*MediaDocument, captions []*Cap
 			TimeCreated:    sql.NullInt64{Int64: m.TimeCreated, Valid: true},
 			TimeModified:   sql.NullInt64{Int64: m.TimeModified, Valid: true},
 			TimeDownloaded: sql.NullInt64{Int64: m.TimeDownloaded, Valid: true},
-			PlayCount:      sql.NullInt64{Int64: m.PlayCount, Valid: true},
 			Genre:          sql.NullString{String: m.Genre, Valid: true},
 			Score:          sql.NullFloat64{Float64: m.Score, Valid: true},
 		})
@@ -192,9 +195,8 @@ func setupBleveComparison(b *testing.B, media []*MediaDocument, captions []*Capt
 
 func BenchmarkComparison(b *testing.B) {
 	configs := []ComparisonBenchmarkConfig{
-		{MediaCount: 10000, CaptionCount: 20000},
-		// Uncomment for larger scale (might take too long for standard run)
-		// {MediaCount: 100000, CaptionCount: 200000},
+		// {MediaCount: 10000, CaptionCount: 20000},
+		{MediaCount: 100000, CaptionCount: 200000},
 	}
 
 	for _, config := range configs {
@@ -329,9 +331,10 @@ func BenchmarkComparison(b *testing.B) {
 					// Pick a random media to update
 					idx := i % len(media)
 					m := media[idx]
-					err := sqliteQueries.UpdatePlayhead(ctx, db.UpdatePlayheadParams{
+					err := sqliteQueries.UpdatePlayHistory(ctx, db.UpdatePlayHistoryParams{
 						Playhead: sql.NullInt64{Int64: int64(i), Valid: true},
 						Path:     m.Path,
+						TimeLastPlayed: sql.NullInt64{Int64: time.Now().Unix(), Valid: true},
 					})
 					if err != nil {
 						b.Fatal(err)
@@ -348,7 +351,7 @@ func BenchmarkComparison(b *testing.B) {
 					// In Bleve, we must re-index the document.
 					// We assume we have the document in memory (m).
 					// We update the field:
-					m.Playhead = int64(i) // Update field
+					m.TimeLastPlayed = int64(i) // Update field
 					
 					// Re-index
 					err := IndexDocument(m)

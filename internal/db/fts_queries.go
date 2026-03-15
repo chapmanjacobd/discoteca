@@ -25,13 +25,18 @@ type SearchMediaFTSResult struct {
 func (q *Queries) SearchMediaFTS(ctx context.Context, arg SearchMediaFTSParams) ([]SearchMediaFTSResult, error) {
 	// Use trigram-compatible query (3-char terms for detail=none)
 	// No ORDER BY - ranking done in Go for better control
+	ftsQuery := tokenizeForFTS5(arg.Query)
+	if ftsQuery == "" {
+		return nil, nil
+	}
+
 	query := `
 SELECT m.* FROM media m, media_fts
 WHERE m.rowid = media_fts.rowid
 AND media_fts MATCH ?
 AND m.time_deleted = 0
 `
-	rows, err := q.db.QueryContext(ctx, query, arg.Query)
+	rows, err := q.db.QueryContext(ctx, query, ftsQuery)
 	if err != nil {
 		return nil, err
 	}
