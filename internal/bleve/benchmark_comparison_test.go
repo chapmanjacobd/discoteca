@@ -196,7 +196,7 @@ func setupBleveComparison(b *testing.B, media []*MediaDocument, captions []*Capt
 func BenchmarkComparison(b *testing.B) {
 	configs := []ComparisonBenchmarkConfig{
 		// {MediaCount: 10000, CaptionCount: 20000},
-		{MediaCount: 200000, CaptionCount: 400000},
+		{MediaCount: 20000, CaptionCount: 40000},
 	}
 
 	for _, config := range configs {
@@ -240,32 +240,73 @@ func BenchmarkComparison(b *testing.B) {
 
 			// 1. Full Text Search (Common Term)
 			term := "apple" // Present in captions
+			pathTerm := "media" // Present in path_tokenized (/mnt/media/...)
+			descTerm := "Description" // Present in description
 			
-			b.Run("Search_Media_FTS_SQLite", func(b *testing.B) {
+			b.Run("Search_Path_FTS_SQLite", func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					// SQLite FTS on Media
 					res, err := sqliteQueries.SearchMediaFTS(context.Background(), db.SearchMediaFTSParams{
-						Query: "Description", // Term in description
+						Query: pathTerm, 
 						Limit: 1000,
 					})
 					if err != nil {
 						b.Fatal(err)
 					}
+					if i == 0 {
+						b.ReportMetric(float64(len(res)), "results")
+					}
 					if len(res) == 0 && i == 0 {
-						b.Fatal("Search_Media_FTS_SQLite returned 0 results")
+						b.Fatal("Search_Path_FTS_SQLite returned 0 results")
 					}
 				}
 			})
 
-			b.Run("Search_Media_FTS_Bleve", func(b *testing.B) {
+			b.Run("Search_Path_FTS_Bleve", func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					// Bleve Search
-					ids, _, err := Search("Description", 1000)
+					ids, total, err := Search(pathTerm, 1000)
 					if err != nil {
 						b.Fatal(err)
 					}
+					if i == 0 {
+						b.ReportMetric(float64(len(ids)), "results")
+						b.ReportMetric(float64(total), "total_hits")
+					}
 					if len(ids) == 0 && i == 0 {
-						b.Fatal("Search_Media_FTS_Bleve returned 0 results")
+						b.Fatal("Search_Path_FTS_Bleve returned 0 results")
+					}
+				}
+			})
+
+			b.Run("Search_Desc_FTS_SQLite", func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					res, err := sqliteQueries.SearchMediaFTS(context.Background(), db.SearchMediaFTSParams{
+						Query: descTerm, 
+						Limit: 1000,
+					})
+					if err != nil {
+						b.Fatal(err)
+					}
+					if i == 0 {
+						b.ReportMetric(float64(len(res)), "results")
+					}
+					if len(res) == 0 && i == 0 {
+						b.Fatal("Search_Desc_FTS_SQLite returned 0 results")
+					}
+				}
+			})
+
+			b.Run("Search_Desc_FTS_Bleve", func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					ids, total, err := Search(descTerm, 1000)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if i == 0 {
+						b.ReportMetric(float64(len(ids)), "results")
+						b.ReportMetric(float64(total), "total_hits")
+					}
+					if len(ids) == 0 && i == 0 {
+						b.Fatal("Search_Desc_FTS_Bleve returned 0 results")
 					}
 				}
 			})

@@ -53,7 +53,8 @@ jobs:
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
             make macos-deps
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
-            choco install sqlite ffmpeg
+            choco install sqlite --fail-on-unfound --retry 3
+            choco install ffmpeg --fail-on-unfound --retry 3
           fi
 
       - name: Install Go and Web dependencies

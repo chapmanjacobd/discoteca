@@ -554,7 +554,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			return err
 		}
 
-		if !strings.Contains(existingSql, "trigram") || !strings.Contains(existingSql, "detail='full'") || (expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
+		if strings.Contains(existingSql, "trigram") || !strings.Contains(existingSql, "unicode61") || !strings.Contains(existingSql, "detail='full'") || (expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
 			// Needs upgrade - drop it
 			if _, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
 				return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)
@@ -570,7 +570,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
                     description,
 					content='media',
 					content_rowid='rowid',
-					tokenize = 'trigram',
+					tokenize = 'unicode61',
 					detail = 'full'
 				);`
 			} else if tableName == "captions_fts" {
@@ -578,7 +578,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 					media_path UNINDEXED,
 					text,
 					content='captions',
-					tokenize = 'trigram',
+					tokenize = 'unicode61',
 					detail = 'full'
 				);`
 			}

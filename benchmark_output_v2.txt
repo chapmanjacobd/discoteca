@@ -1,0 +1,71 @@
+=== RUN   TestMediaDocumentWithAllFields
+--- PASS: TestMediaDocumentWithAllFields (0.00s)
+=== RUN   TestSearchWithExactMatch
+--- PASS: TestSearchWithExactMatch (0.01s)
+=== RUN   TestSearchWithSort
+--- PASS: TestSearchWithSort (0.01s)
+=== RUN   TestSearchWithFacets
+--- PASS: TestSearchWithFacets (0.01s)
+=== RUN   TestNumericRangeFacet
+--- PASS: TestNumericRangeFacet (0.01s)
+=== RUN   TestDateRangeFacet
+--- PASS: TestDateRangeFacet (0.01s)
+=== RUN   TestBatchIndexDocuments
+--- PASS: TestBatchIndexDocuments (0.02s)
+=== RUN   TestBatchIndexDocumentsWithProgress
+--- PASS: TestBatchIndexDocumentsWithProgress (0.02s)
+=== RUN   TestGetIndexStats
+--- PASS: TestGetIndexStats (0.01s)
+=== RUN   TestSearchWithSortAndFacets
+--- PASS: TestSearchWithSortAndFacets (0.01s)
+=== RUN   TestMultiFieldSearch
+--- PASS: TestMultiFieldSearch (0.01s)
+=== RUN   TestPrefixSearch
+--- PASS: TestPrefixSearch (0.03s)
+=== RUN   TestSearchWithExactMatchPagination
+--- PASS: TestSearchWithExactMatchPagination (0.09s)
+=== RUN   TestMediaDocument
+--- PASS: TestMediaDocument (0.00s)
+=== RUN   TestMediaDocumentNilFields
+--- PASS: TestMediaDocumentNilFields (0.00s)
+=== RUN   TestInitIndex
+--- PASS: TestInitIndex (0.00s)
+=== RUN   TestInitIndexCreatesBleveDirectory
+--- PASS: TestInitIndexCreatesBleveDirectory (0.00s)
+=== RUN   TestInitIndexWithDifferentExtensions
+--- PASS: TestInitIndexWithDifferentExtensions (0.00s)
+=== RUN   TestCloseIndex
+--- PASS: TestCloseIndex (0.00s)
+=== RUN   TestIndexDocument
+--- PASS: TestIndexDocument (0.00s)
+=== RUN   TestIndexDocumentWithoutInit
+--- PASS: TestIndexDocumentWithoutInit (0.00s)
+=== RUN   TestDeleteDocument
+--- PASS: TestDeleteDocument (0.00s)
+=== RUN   TestDeleteDocumentWithoutInit
+--- PASS: TestDeleteDocumentWithoutInit (0.00s)
+=== RUN   TestSearch
+--- PASS: TestSearch (0.01s)
+=== RUN   TestSearchWithoutInit
+--- PASS: TestSearchWithoutInit (0.00s)
+=== RUN   TestSearchPath
+--- PASS: TestSearchPath (0.01s)
+=== RUN   TestSearchPathWithoutInit
+--- PASS: TestSearchPathWithoutInit (0.00s)
+=== RUN   TestCount
+--- PASS: TestCount (0.02s)
+=== RUN   TestCountWithoutInit
+--- PASS: TestCountWithoutInit (0.00s)
+=== RUN   TestReindexAll
+--- PASS: TestReindexAll (0.01s)
+=== RUN   TestReindexAllWithoutInit
+--- PASS: TestReindexAllWithoutInit (0.00s)
+=== RUN   TestIndexUpdateDocument
+--- PASS: TestIndexUpdateDocument (0.01s)
+goos: linux
+goarch: amd64
+pkg: github.com/chapmanjacobd/discoteca/internal/bleve
+cpu: 13th Gen Intel(R) Core(TM) i5-13600KF
+BenchmarkComparison
+BenchmarkComparison/M200000_C400000
+BenchmarkComparison/M200000_C400000/Search_Path_FTS_SQLite
