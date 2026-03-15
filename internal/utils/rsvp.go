@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -205,20 +206,123 @@ func EstimateWordCountFromSize(path string, size int64) int {
 }
 
 // ExtractText extracts plain text from a given file path.
-// Supports .txt, .pdf, .epub and other text formats.
+// Supports a wide range of text and document formats.
 // Uses lightweight tools first (pdftotext, native zip), with calibre as fallback.
 func ExtractText(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
-	case ".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".rtf":
-		// Plain text files - read directly
+	// ===== Plain text formats - read directly =====
+	case ".txt", ".md", ".markdown", ".rst", ".asciidoc", ".adoc", ".tex", ".latex":
+		// Markdown, reStructuredText, AsciiDoc, LaTeX
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return "", err
 		}
 		return string(content), nil
 
-	case ".html", ".htm":
+	case ".log", ".ini", ".conf", ".cfg", ".env", ".properties":
+		// Config and log files
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".csv", ".tsv":
+		// CSV/TSV - read directly (structured but searchable as text)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".json", ".jsonl", ".jsonld":
+		// JSON - read directly (searchable as text)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".xml", ".svg", ".xhtml", ".xsl", ".xsd", ".plist":
+		// XML family - read and optionally strip tags for cleaner search
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		// For SVG and XHTML, strip tags; for others keep as-is
+		if ext == ".svg" || ext == ".xhtml" {
+			return stripHTMLTags(string(content)), nil
+		}
+		return string(content), nil
+
+	case ".yaml", ".yml", ".toml":
+		// YAML and TOML config files
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".srt", ".vtt", ".ass", ".ssa", ".sub":
+		// Subtitle formats - strip timing markers for cleaner search
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return stripSubtitleTimings(string(content)), nil
+
+	// ===== Source code formats =====
+	case ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs":
+		// JavaScript/TypeScript family
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".go", ".rs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx":
+		// C family and Rust
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".java", ".kt", ".kts", ".scala", ".sc":
+		// JVM languages
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".rb", ".php", ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd":
+		// Scripting languages
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".sql", ".graphql", ".gql":
+		// Query languages
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	case ".swift", ".m", ".mm":
+		// Apple languages
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	// ===== HTML - strip tags =====
+	case ".html", ".htm", ".mhtml", ".mht":
 		// HTML - read and strip tags
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -226,6 +330,20 @@ func ExtractText(path string) (string, error) {
 		}
 		return stripHTMLTags(string(content)), nil
 
+	// ===== RTF - use unrtf if available =====
+	case ".rtf":
+		// Try unrtf first for clean text extraction
+		if text, err := extractTextFromRTF(path); err == nil {
+			return text, nil
+		}
+		// Fallback: read raw (will include RTF control codes)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
+
+	// ===== PDF - use pdftotext =====
 	case ".pdf":
 		// Try pdftotext first (fast, lightweight)
 		if text, err := extractTextFromPDF(path); err == nil {
@@ -234,6 +352,16 @@ func ExtractText(path string) (string, error) {
 		// Fallback to calibre
 		return extractTextWithCalibre(path)
 
+	// ===== PostScript - use ps2ascii/pstotext =====
+	case ".ps", ".eps":
+		// Try ps2ascii (comes with ghostscript)
+		if text, err := extractTextFromPS(path); err == nil {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	// ===== EPUB - native zip extraction =====
 	case ".epub":
 		// Extract text from EPUB using native zip (fast, no dependencies)
 		if text, err := extractTextFromEPUB(path); err == nil && text != "" {
@@ -242,15 +370,43 @@ func ExtractText(path string) (string, error) {
 		// Fallback to calibre
 		return extractTextWithCalibre(path)
 
-	case ".docx":
-		// Extract text from DOCX using native zip
+	// ===== OpenDocument formats - native zip =====
+	case ".odt", ".ods", ".odp", ".odg", ".odf":
+		// OpenDocument Text, Spreadsheet, Presentation, Graphics, Formula
+		if text, err := extractTextFromOpenDocument(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	// ===== Microsoft Office formats - native zip =====
+	case ".docx", ".docm", ".dotx":
+		// Word documents
 		if text, err := extractTextFromDOCX(path); err == nil && text != "" {
 			return text, nil
 		}
 		// Fallback to calibre
+		return extractTextWithCalibre(path)
 
-	case ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".odt":
-		// These formats require calibre or specialized tools
+	case ".xlsx", ".xlsm", ".xltx":
+		// Excel spreadsheets - extract cell values
+		if text, err := extractTextFromXLSX(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	case ".pptx", ".pptm", ".potx":
+		// PowerPoint presentations
+		if text, err := extractTextFromPPTX(path); err == nil && text != "" {
+			return text, nil
+		}
+		// Fallback to calibre
+		return extractTextWithCalibre(path)
+
+	// ===== Other ebook formats - calibre only =====
+	case ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr":
+		// These require calibre or specialized tools
 	}
 
 	// Fallback: try calibre for all remaining ebook formats
@@ -267,6 +423,48 @@ func extractTextFromPDF(path string) (string, error) {
 
 	// Run pdftotext with layout preservation
 	cmd := exec.Command(pdftotextBin, "-layout", "-q", path, "-")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+// extractTextFromPS extracts text from PostScript using ps2ascii
+func extractTextFromPS(path string) (string, error) {
+	// Try ps2ascii first (comes with ghostscript)
+	ps2asciiBin := "ps2ascii"
+	if _, err := exec.LookPath(ps2asciiBin); err == nil {
+		cmd := exec.Command(ps2asciiBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	// Try pstotext as alternative
+	pstotextBin := "pstotext"
+	if _, err := exec.LookPath(pstotextBin); err == nil {
+		cmd := exec.Command(pstotextBin, path)
+		output, err := cmd.Output()
+		if err == nil {
+			return string(output), nil
+		}
+	}
+
+	return "", fmt.Errorf("no PostScript text extractor found")
+}
+
+// extractTextFromRTF extracts text from RTF using unrtf
+func extractTextFromRTF(path string) (string, error) {
+	// Check for unrtf
+	unrtfBin := "unrtf"
+	if _, err := exec.LookPath(unrtfBin); err != nil {
+		return "", fmt.Errorf("unrtf not found")
+	}
+
+	// Run unrtf with text output
+	cmd := exec.Command(unrtfBin, "--text", path)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -319,6 +517,43 @@ func extractTextFromEPUB(path string) (string, error) {
 	return strings.TrimSpace(fullText.String()), nil
 }
 
+// extractTextFromOpenDocument extracts text from ODT/ODS/ODP files
+func extractTextFromOpenDocument(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	// Find content.xml in the archive
+	var contentFile *zip.File
+	for _, f := range r.File {
+		if strings.HasSuffix(strings.ToLower(f.Name), "content.xml") {
+			contentFile = f
+			break
+		}
+	}
+
+	if contentFile == nil {
+		return "", fmt.Errorf("content.xml not found in OpenDocument")
+	}
+
+	rc, err := contentFile.Open()
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+
+	content, err := io.ReadAll(rc)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract text from XML (strip all tags)
+	text := stripXMLTags(string(content))
+	return strings.TrimSpace(text), nil
+}
+
 // extractTextFromDOCX extracts text from DOCX using native zip reading
 func extractTextFromDOCX(path string) (string, error) {
 	r, err := zip.OpenReader(path)
@@ -354,6 +589,144 @@ func extractTextFromDOCX(path string) (string, error) {
 	// Extract text from XML (simple approach - strip all tags)
 	text := stripXMLTags(string(content))
 	return strings.TrimSpace(text), nil
+}
+
+// extractTextFromXLSX extracts text from XLSX (cell values from all sheets)
+func extractTextFromXLSX(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	// Find all worksheet files
+	var worksheetFiles []string
+	for _, f := range r.File {
+		name := strings.ToLower(f.Name)
+		if strings.Contains(name, "worksheets/sheet") && strings.HasSuffix(name, ".xml") {
+			worksheetFiles = append(worksheetFiles, f.Name)
+		}
+	}
+
+	if len(worksheetFiles) == 0 {
+		return "", fmt.Errorf("no worksheets found in XLSX")
+	}
+
+	var fullText strings.Builder
+	for _, fname := range worksheetFiles {
+		idx := findFileIndex(r.File, fname)
+		if idx < 0 {
+			continue
+		}
+		rc, err := r.File[idx].Open()
+		if err != nil {
+			continue
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			continue
+		}
+		// Extract <v>...</v> cell values from XML
+		text := extractXLSXCellValues(string(content))
+		if text != "" {
+			fullText.WriteString(text)
+			fullText.WriteString(" ")
+		}
+	}
+
+	return strings.TrimSpace(fullText.String()), nil
+}
+
+// extractTextFromPPTX extracts text from PPTX (slide content)
+func extractTextFromPPTX(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	// Find all slide files
+	var slideFiles []string
+	for _, f := range r.File {
+		name := strings.ToLower(f.Name)
+		if strings.Contains(name, "slides/slide") && strings.HasSuffix(name, ".xml") {
+			slideFiles = append(slideFiles, f.Name)
+		}
+	}
+
+	if len(slideFiles) == 0 {
+		return "", fmt.Errorf("no slides found in PPTX")
+	}
+
+	var fullText strings.Builder
+	for _, fname := range slideFiles {
+		idx := findFileIndex(r.File, fname)
+		if idx < 0 {
+			continue
+		}
+		rc, err := r.File[idx].Open()
+		if err != nil {
+			continue
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			continue
+		}
+		// Extract text from XML (strip tags, keep text content)
+		text := stripXMLTags(string(content))
+		if text != "" {
+			fullText.WriteString(text)
+			fullText.WriteString(" ")
+		}
+	}
+
+	return strings.TrimSpace(fullText.String()), nil
+}
+
+// extractXLSXCellValues extracts cell values from XLSX worksheet XML
+func extractXLSXCellValues(xml string) string {
+	// Extract content from <v>...</v> tags (cell values)
+	re := regexp.MustCompile(`<v[^>]*>([^<]*)</v>`)
+	matches := re.FindAllStringSubmatch(xml, -1)
+
+	var values []string
+	for _, match := range matches {
+		if len(match) > 1 && strings.TrimSpace(match[1]) != "" {
+			values = append(values, strings.TrimSpace(match[1]))
+		}
+	}
+
+	return strings.Join(values, " ")
+}
+
+// stripSubtitleTimings removes timing markers from subtitle files
+func stripSubtitleTimings(content string) string {
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Skip line numbers
+		if _, err := strconv.Atoi(line); err == nil {
+			continue
+		}
+		// Skip timing lines (contain --> or start with timestamp)
+		if strings.Contains(line, "-->") || regexp.MustCompile(`^\d{2}:\d{2}:\d{2}`).MatchString(line) {
+			continue
+		}
+		// Skip SRT/ASS tags
+		if strings.HasPrefix(line, "{\\") || strings.HasPrefix(line, "<") {
+			continue
+		}
+		// Keep dialogue text
+		if line != "" {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, " ")
 }
 
 // extractTextWithCalibre uses calibre's ebook-convert as fallback
