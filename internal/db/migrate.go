@@ -647,6 +647,8 @@ func migrateIndexes(db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_time_created ON media(time_created)",
 		"CREATE INDEX IF NOT EXISTS idx_time_modified ON media(time_modified)",
 		"CREATE INDEX IF NOT EXISTS idx_time_downloaded ON media(time_downloaded)",
+		"CREATE INDEX IF NOT EXISTS idx_size ON media(size)",
+		"CREATE INDEX IF NOT EXISTS idx_duration ON media(duration)",
 	}
 
 	for _, idx := range indexes {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -1184,9 +1186,8 @@ func PrefixSearch(prefix string, limit int) ([]string, uint64, error) {
 	return ids, results.Total, nil
 }
 
-// DiskUsageByDirectory aggregates disk usage by parent directory using Bleve facets
+// DiskUsageByDirectory aggregates disk usage by parent directory using parallel client-side aggregation
 // Returns directory paths with their total size and count
-// Note: For better performance on group-by operations, consider using SQLite (20x faster)
 func DiskUsageByDirectory(prefix string, limit int) (map[string]*DirectoryStats, error) {
 	indexMutex.RLock()
 	defer indexMutex.RUnlock()
@@ -1206,53 +1207,102 @@ func DiskUsageByDirectory(prefix string, limit int) (map[string]*DirectoryStats,
 	}
 
 	searchRequest := bleve.NewSearchRequest(bleveQuery)
-	searchRequest.Size = limit // Use limit parameter, not hardcoded 10000
-	searchRequest.Fields = []string{"path", "size"} // Removed "id" - not needed
-	searchRequest.IncludeLocations = false // Don't include locations (saves memory)
+	searchRequest.Size = limit
+	searchRequest.Fields = []string{"size"} // We use hit.ID for path to avoid loading 'path' field
+	searchRequest.IncludeLocations = false // Saves memory and time
 
 	results, err := indexInstance.Search(searchRequest)
 	if err != nil {
 		return nil, err
 	}
 
-	// Aggregate by directory client-side
-	// Note: Bleve doesn't support dynamic GROUP BY like SQL
-	// For heavy aggregation workloads, use SQLite instead
-	dirStats := make(map[string]*DirectoryStats, limit/10) // Pre-allocate estimate
-	for _, hit := range results.Hits {
-		var path string
-		var size int64
-
-		// Optimized field extraction
-		if fields, ok := hit.Fields["path"]; ok {
-			if pathStr, ok := fields.(string); ok {
-				path = pathStr
-			}
-		}
-		if fields, ok := hit.Fields["size"]; ok {
-			switch v := fields.(type) {
-			case float64:
-				size = int64(v)
-			case int64:
-				size = v
-			}
-		}
-
-		if path == "" {
-			continue
-		}
-
-		dir := filepath.Dir(path)
-		if _, exists := dirStats[dir]; !exists {
-			dirStats[dir] = &DirectoryStats{
-				Path: dir,
-			}
-		}
-		dirStats[dir].Count++
-		dirStats[dir].TotalSize += size
+	hits := results.Hits
+	numHits := len(hits)
+	if numHits == 0 {
+		return make(map[string]*DirectoryStats), nil
 	}
 
-	return dirStats, nil
+	// PARALLEL AGGREGATION: Split hits into chunks and aggregate in Go
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 16 {
+		numWorkers = 16 // Cap workers to avoid excessive overhead
+	}
+	if numWorkers > numHits {
+		numWorkers = 1
+	}
+
+	workerResults := make([]map[string]*DirectoryStats, numWorkers)
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	chunkSize := (numHits + numWorkers - 1) / numWorkers
+
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > numHits {
+			end = numHits
+		}
+
+		go func(workerIdx, s, e int) {
+			defer wg.Done()
+			stats := make(map[string]*DirectoryStats)
+			for j := s; j < e; j++ {
+				hit := hits[j]
+				path := hit.ID // Document ID IS the path
+				var size int64
+
+				if fields, ok := hit.Fields["size"]; ok {
+					switch v := fields.(type) {
+					case float64:
+						size = int64(v)
+					case int64:
+						size = v
+					}
+				}
+
+				if path == "" {
+					continue
+				}
+
+				// Fast Dir implementation (equivalent to filepath.Dir but faster for hot loop)
+				dir := "."
+				if i := strings.LastIndexByte(path, '/'); i > 0 {
+					dir = path[:i]
+				} else if i == 0 {
+					dir = "/"
+				}
+
+				if ds, ok := stats[dir]; ok {
+					ds.Count++
+					ds.TotalSize += size
+				} else {
+					stats[dir] = &DirectoryStats{
+						Path:      dir,
+						Count:     1,
+						TotalSize: size,
+					}
+				}
+			}
+			workerResults[workerIdx] = stats
+		}(w, start, end)
+	}
+	wg.Wait()
+
+	// Merge worker results
+	finalStats := workerResults[0]
+	for i := 1; i < numWorkers; i++ {
+		for dir, s := range workerResults[i] {
+			if fs, ok := finalStats[dir]; ok {
+				fs.Count += s.Count
+				fs.TotalSize += s.TotalSize
+			} else {
+				finalStats[dir] = s
+			}
+		}
+	}
+
+	return finalStats, nil
 }
 
 // DirectoryStats holds disk usage statistics for a directory

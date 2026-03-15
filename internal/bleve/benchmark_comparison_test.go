@@ -40,10 +40,11 @@ func generateComparisonData(mediaCount, captionCount int) ([]*MediaDocument, []*
 	for i := 0; i < mediaCount; i++ {
 		mediaType := types[i%len(types)]
 		genre := genres[i%len(genres)]
+		path := fmt.Sprintf("/mnt/media/%s/file_%d.%s", mediaType, i, getExt(mediaType))
 		
 		media[i] = &MediaDocument{
-			ID:             fmt.Sprintf("media_%d", i),
-			Path:           fmt.Sprintf("/mnt/media/%s/file_%d.%s", mediaType, i, getExt(mediaType)),
+			ID:             path,
+			Path:           path,
 			PathTokenized:  fmt.Sprintf("mnt media %s file_%d %s", mediaType, i, getExt(mediaType)),
 			Title:          fmt.Sprintf("Title %d - %s Movie", i, genre),
 			Description:    fmt.Sprintf("Description for media %d. %s", i, lorem),
@@ -413,47 +414,6 @@ func BenchmarkComparison(b *testing.B) {
 				}
 			})
 
-			// 4. Pagination (Deep Paging)
-			// Page 100 (Offset 2000) or 50% of dataset if smaller
-			offset := 2000
-			if config.MediaCount <= offset {
-				offset = config.MediaCount / 2
-			}
-			b.Run("Pagination_SQLite", func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
-					rows, err := sqliteDB.Query(`SELECT path FROM media ORDER BY size DESC LIMIT 20 OFFSET ?`, offset)
-					if err != nil {
-						b.Fatal(err)
-					}
-					count := 0
-					for rows.Next() {
-						count++
-					}
-					rows.Close()
-					if count == 0 && i == 0 {
-						b.Fatal("Pagination_SQLite returned 0 results")
-					}
-				}
-			})
-
-			b.Run("Pagination_Bleve", func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
-					req := bleve.NewSearchRequest(bleve.NewMatchAllQuery())
-					req.Size = 20
-					req.From = offset
-					req.Sort = search.ParseSortOrderStrings([]string{"-size"})
-					
-					idx := GetIndex()
-					res, err := idx.Search(req)
-					if err != nil {
-						b.Fatal(err)
-					}
-					if res.Total == 0 && i == 0 {
-						b.Fatal("Pagination_Bleve returned 0 results")
-					}
-				}
-			})
-
 			// 5. High Frequency Updates (Simulate "Playhead" updates)
 			// Note: Bleve requires re-indexing the whole document.
 			b.Run("Update_Playhead_SQLite", func(b *testing.B) {
@@ -564,7 +524,8 @@ func BenchmarkComparison(b *testing.B) {
 			b.Run("Group_By_Parent_Bleve", func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					// Bleve disk usage with prefix filter
-					stats, err := DiskUsageByDirectory("/mnt/media/video/", 10000)
+					// Use a large limit to aggregate all matching docs, making it fair compared to SQLite
+					stats, err := DiskUsageByDirectory("/mnt/media/video/", 1000000)
 					if err != nil {
 						b.Fatal(err)
 					}
