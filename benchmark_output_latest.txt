@@ -1,20 +1,20 @@
-DEBUG SETUP: media count=20000 (/mnt/media/audio/file_1.mp3), captions count=40000 (/mnt/media/audio/file_1.mp3)
-DEBUG SETUP: captions_fts count after populate=40000
+DEBUG SETUP: media count=80000 (/mnt/media/audio/file_1.mp3), captions count=160000 (/mnt/media/audio/file_1.mp3)
+DEBUG SETUP: captions_fts count after populate=160000
 goos: linux
 goarch: amd64
 pkg: github.com/chapmanjacobd/discoteca/internal/bleve
 cpu: 13th Gen Intel(R) Core(TM) i5-13600KF
-BenchmarkComparison/M20000_C40000/Search_Path_FTS_SQLite-20         	      22	  52335988 ns/op	      1000 results	16814331 B/op	  315628 allocs/op
-BenchmarkComparison/M20000_C40000/Search_Path_FTS_Bleve-20          	     181	   6945110 ns/op	      1000 results	     20000 total_hits	 2834494 B/op	   66483 allocs/op
-BenchmarkComparison/M20000_C40000/Search_Desc_FTS_SQLite-20         	      12	  84399689 ns/op	      1000 results	 3293046 B/op	   19094 allocs/op
-BenchmarkComparison/M20000_C40000/Search_Desc_FTS_Bleve-20          	     355	   3127668 ns/op	      1000 results	     20000 total_hits	  318873 B/op	    2152 allocs/op
-BenchmarkComparison/M20000_C40000/Search_Captions_SQLite-20         	      26	  44614569 ns/op	   20024 B/op	     282 allocs/op
-BenchmarkComparison/M20000_C40000/Search_Captions_Bleve-20          	      76	  21838740 ns/op	 9743929 B/op	   81328 allocs/op
-BenchmarkComparison/M20000_C40000/Complex_FilterSort_SQLite-20      	     405	   3802470 ns/op	    1392 B/op	      54 allocs/op
-BenchmarkComparison/M20000_C40000/Complex_FilterSort_Bleve-20       	     186	   6735531 ns/op	 1735447 B/op	   15170 allocs/op
-BenchmarkComparison/M20000_C40000/Stats_Agg_SQLite-20               	    1208	    918686 ns/op	     624 B/op	      27 allocs/op
-BenchmarkComparison/M20000_C40000/Stats_Agg_Bleve-20                	      44	  27561158 ns/op	15756532 B/op	  200163 allocs/op
-BenchmarkComparison/M20000_C40000/Group_By_Parent_SQLite-20         	     254	   6088844 ns/op	     592 B/op	      18 allocs/op
-BenchmarkComparison/M20000_C40000/Group_By_Parent_Bleve-20          	      18	  67095935 ns/op	40291583 B/op	  460321 allocs/op
+BenchmarkComparison/M80000_C160000/Search_Path_FTS_SQLite-20         	       6	 182206318 ns/op	      1000 results	21846680 B/op	  457070 allocs/op
+BenchmarkComparison/M80000_C160000/Search_Path_FTS_Bleve-20          	      66	  17423104 ns/op	      1000 results	     80000 total_hits	 2865491 B/op	   82095 allocs/op
+BenchmarkComparison/M80000_C160000/Search_Desc_FTS_SQLite-20         	       4	 382523386 ns/op	      1000 results	 3293036 B/op	   19095 allocs/op
+BenchmarkComparison/M80000_C160000/Search_Desc_FTS_Bleve-20          	     127	   9658244 ns/op	      1000 results	     80000 total_hits	  321194 B/op	    2162 allocs/op
+BenchmarkComparison/M80000_C160000/Search_Captions_SQLite-20         	       4	 313103643 ns/op	   20032 B/op	     283 allocs/op
+BenchmarkComparison/M80000_C160000/Search_Captions_Bleve-20          	      16	  68846315 ns/op	24529950 B/op	  321524 allocs/op
+BenchmarkComparison/M80000_C160000/Complex_FilterSort_SQLite-20      	      98	  15045123 ns/op	    1392 B/op	      54 allocs/op
+BenchmarkComparison/M80000_C160000/Complex_FilterSort_Bleve-20       	      36	  28825688 ns/op	 5562818 B/op	   60190 allocs/op
+BenchmarkComparison/M80000_C160000/Stats_Agg_SQLite-20               	     334	   3744830 ns/op	     624 B/op	      27 allocs/op
+BenchmarkComparison/M80000_C160000/Stats_Agg_Bleve-20                	      12	  90933318 ns/op	46292184 B/op	  800262 allocs/op
+BenchmarkComparison/M80000_C160000/Group_By_Parent_SQLite-20         	      48	  22551142 ns/op	     592 B/op	      18 allocs/op
+BenchmarkComparison/M80000_C160000/Group_By_Parent_Bleve-20          	       3	 344138438 ns/op	199524394 B/op	 2020529 allocs/op
 PASS
-ok  	github.com/chapmanjacobd/discoteca/internal/bleve	48.279s
+ok  	github.com/chapmanjacobd/discoteca/internal/bleve	128.872s
