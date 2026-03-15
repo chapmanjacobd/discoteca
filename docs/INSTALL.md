@@ -310,9 +310,6 @@ See [BUILD_MODES.md](BUILD_MODES.md) for different build options:
 # FTS5 support (default, recommended)
 make build-fts5
 
-# Bleve full-text search
-make build-bleve
-
 # No full-text search (minimal)
 make build-nofts
 ```

@@ -13,8 +13,6 @@ import (
 	"sync"
 
 	"github.com/alecthomas/kong"
-	bleve_v2 "github.com/blevesearch/bleve/v2"
-	"github.com/chapmanjacobd/discoteca/internal/bleve"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/fs"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
@@ -86,15 +84,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 	if err := db.InitDB(sqlDB); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	// Initialize Bleve index for full-text search
-	if err := bleve.InitIndex(dbPath); err != nil {
-		slog.Warn("Failed to initialize Bleve index", "error", err)
-		// Continue without Bleve - FTS5 will be used as fallback
-	} else {
-		defer bleve.CloseIndex()
-		slog.Info("Bleve index initialized")
 	}
 
 	queries := db.New(sqlDB)
@@ -309,13 +298,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		batchSize := 100
 		var currentBatch []*metadata.MediaMetadata
 
-		// Bleve batch indexing (only if index is available)
-		bleveIndexAvailable := bleve.GetIndex() != nil
-		var bleveBatch *bleve_v2.Batch
-		if bleveIndexAvailable {
-			bleveBatch = bleve.NewBatch()
-		}
-
 		flush := func() error {
 			if len(currentBatch) == 0 {
 				return nil
@@ -335,34 +317,10 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 					if err := qtx.InsertCaption(context.Background(), cap); err != nil {
 						slog.Error("Caption insertion failed", "path", res.Media.Path, "error", err)
 					}
-					// Index caption to Bleve
-					if bleveIndexAvailable {
-						capDoc := &bleve.CaptionDocument{
-							MediaPath: cap.MediaPath,
-						}
-						if cap.Time.Valid {
-							capDoc.Time = cap.Time.Float64
-						}
-						if cap.Text.Valid {
-							capDoc.Text = cap.Text.String
-						}
-						if err := bleve.IndexCaption(capDoc); err != nil {
-							slog.Error("Bleve caption indexing failed", "path", cap.MediaPath, "error", err)
-						}
-					}
 				}
 			}
 			if err := tx.Commit(); err != nil {
 				return err
-			}
-
-			// Index to Bleve in batch (if available)
-			if bleveBatch != nil {
-				if err := bleve.Batch(bleveBatch); err != nil {
-					slog.Error("Bleve batch indexing failed", "error", err)
-				}
-				// Create new batch for next flush
-				bleveBatch = bleve.NewBatch()
 			}
 
 			return nil
@@ -370,14 +328,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 		for res := range results {
 			currentBatch = append(currentBatch, res)
-
-			// Add to Bleve batch
-			if bleveBatch != nil {
-				doc := bleve.ToBleveDocFromUpsert(res.Media)
-				if err := bleveBatch.Index(res.Media.Path, doc); err != nil {
-					slog.Error("Bleve batch add failed", "path", res.Media.Path, "error", err)
-				}
-			}
 
 			if len(currentBatch) >= batchSize {
 				if err := flush(); err != nil {
@@ -396,12 +346,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			slog.Error("Failed to commit final batch", "error", err)
 		}
 		fmt.Println()
-
-		// Bleve automatically merges segments in the background
-		// Batch indexing significantly reduces segment count vs individual indexing
-		if bleveIndexAvailable {
-			slog.Info("Bleve batch indexing completed")
-		}
 	}
 
 	return nil

@@ -11,11 +11,9 @@
 /*.db-shm
 /*.db-wal
 /*.db
-*.bleve/
 !/e2e/fixtures/schema.sql
 /disco
 /discotheque
-/disco-bleve
 /disco-fts5
 /disco-nofts
 /discoteca
@@ -26,4 +24,3 @@
 /disco-both
 /disco-fts
 /.tmp
-/internal/bleve/.tmp

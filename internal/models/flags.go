@@ -176,9 +176,10 @@ type DedupeFlags struct {
 }
 
 type FTSFlags struct {
-	FTSFlagsBuildSpecific
-	NoFTS   bool `help:"Disable full-text search, use substring search only" group:"FTS"`
-	Related int  `short:"R" help:"Find media related to the first result" group:"FTS"`
+	FTS      bool   `help:"Use FTS5 full-text search" group:"FTS"`
+	FTSTable string `default:"media_fts" help:"FTS table name" group:"FTS"`
+	NoFTS    bool   `help:"Disable full-text search, use substring search only" group:"FTS"`
+	Related  int    `short:"R" help:"Find media related to the first result" group:"FTS"`
 }
 
 type PlaybackFlags struct {

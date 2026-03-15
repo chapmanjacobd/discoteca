@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/chapmanjacobd/discoteca/internal/bleve"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -96,14 +95,6 @@ func (c *CheckCmd) Run(ctx *kong.Context) error {
 			return fmt.Errorf("failed to initialize database %s: %w", dbPath, err)
 		}
 
-		// Initialize Bleve index if available
-		if err := bleve.InitIndex(dbPath); err != nil {
-			slog.Warn("Failed to initialize Bleve index", "error", err)
-		} else {
-			defer bleve.CloseIndex()
-			slog.Info("Bleve index initialized for deletion sync")
-		}
-
 		queries := db.New(sqlDB)
 		allMedia, err := queries.GetMedia(context.Background(), 1000000)
 		if err != nil {
@@ -153,14 +144,6 @@ func (c *CheckCmd) Run(ctx *kong.Context) error {
 						Path:        m.Path,
 					}); err != nil {
 						slog.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
-					}
-					// Delete from Bleve index
-					if err := bleve.DeleteDocument(m.Path); err != nil {
-						slog.Debug("Failed to delete from Bleve", "path", m.Path, "error", err)
-					}
-					// Also delete captions from Bleve
-					if err := bleve.DeleteCaptionsForMedia(m.Path); err != nil {
-						slog.Debug("Failed to delete captions from Bleve", "path", m.Path, "error", err)
 					}
 				} else {
 					fmt.Printf("[Dry-run] Missing: %s\n", m.Path)
