@@ -77,7 +77,7 @@ func (c *FilesInfoCmd) Run(ctx *kong.Context) error {
 			}
 
 			// Use path as-is
-			meta, err := metadata.Extract(context.Background(), path, c.ScanSubtitles, false, false)
+			meta, err := metadata.Extract(context.Background(), path, c.ScanSubtitles, false, false, "", false, "")
 			if err != nil {
 				return nil
 			}

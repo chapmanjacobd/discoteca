@@ -29,7 +29,13 @@ go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
 ### OCR & Image Processing
 
 - `tesseract` - OCR text extraction from images (ingest scanning)
+- `paddleocr` - Advanced OCR with better accuracy on complex layouts (optional, requires Python)
 - `imagemagick` - Image format conversion and manipulation
+
+### Speech Recognition
+
+- `vosk` + `python3` - Speech-to-text extraction from audio/video (offline, lightweight)
+- `whisper` (openai-whisper) - High-accuracy speech-to-text (optional, requires Python, GPU recommended)
 
 ### Archive & Legacy Formats
 
@@ -213,6 +219,12 @@ Flags:
         Extract full text from documents (PDF, EPUB, TXT, MD) for caption search
   --ocr
         Extract text from images using OCR (tesseract) for caption search
+  --ocr-engine
+        OCR engine to use
+  --speech-recognition
+        Extract speech-to-text from audio/video files for caption search
+  --speech-recognition-engine
+        Speech recognition engine to use
 ```
 
 </details>

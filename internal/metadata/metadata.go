@@ -60,7 +60,7 @@ type Format struct {
 	Tags     map[string]string `json:"tags"`
 }
 
-func Extract(ctx context.Context, path string, scanSubtitles bool, extractText bool, ocr bool) (*MediaMetadata, error) {
+func Extract(ctx context.Context, path string, scanSubtitles bool, extractText bool, ocr bool, ocrEngine string, speechRec bool, speechRecEngine string) (*MediaMetadata, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -128,11 +128,21 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 
 	// Extract text from images using OCR if requested
 	if mediaType == "image" && ocr {
-		captions, err := extractImageText(path)
+		captions, err := extractImageText(path, ocrEngine)
 		if err != nil {
 			slog.Warn("Image OCR extraction failed", "path", path, "error", err)
 		} else {
 			result.Captions = captions
+		}
+	}
+
+	// Extract speech from audio/video files if requested
+	if speechRec && (mediaType == "audio" || mediaType == "video") {
+		captions, err := extractSpeechToText(path, speechRecEngine)
+		if err != nil {
+			slog.Warn("Speech recognition failed", "path", path, "error", err)
+		} else {
+			result.Captions = append(result.Captions, captions...)
 		}
 	}
 
@@ -569,9 +579,21 @@ func cleanCaptionText(s string) string {
 	return s
 }
 
-// extractImageText extracts text from images using tesseract OCR.
+// extractImageText extracts text from images using OCR.
 // Returns captions with detected text (time=0 for images).
-func extractImageText(path string) ([]db.InsertCaptionParams, error) {
+func extractImageText(path string, engine string) ([]db.InsertCaptionParams, error) {
+	switch engine {
+	case "paddle":
+		return extractImageTextPaddleOCR(path)
+	case "tesseract", "":
+		return extractImageTextTesseract(path)
+	default:
+		return extractImageTextTesseract(path)
+	}
+}
+
+// extractImageTextTesseract extracts text from images using tesseract OCR
+func extractImageTextTesseract(path string) ([]db.InsertCaptionParams, error) {
 	// Check for tesseract
 	tesseractBin := "tesseract"
 	if _, err := exec.LookPath(tesseractBin); err != nil {
@@ -603,6 +625,204 @@ func extractImageText(path string) ([]db.InsertCaptionParams, error) {
 		captions = append(captions, db.InsertCaptionParams{
 			MediaPath: path,
 			Time:      sql.NullFloat64{Float64: 0, Valid: false}, // No timestamp for images
+			Text:      sql.NullString{String: cleaned, Valid: true},
+		})
+	}
+
+	return captions, nil
+}
+
+// extractImageTextPaddleOCR extracts text from images using PaddleOCR
+func extractImageTextPaddleOCR(path string) ([]db.InsertCaptionParams, error) {
+	// Check for python and paddleocr
+	pythonBin := "python3"
+	if _, err := exec.LookPath(pythonBin); err != nil {
+		pythonBin = "python"
+		if _, err := exec.LookPath(pythonBin); err != nil {
+			return nil, fmt.Errorf("python not found")
+		}
+	}
+
+	// Run paddleocr with image
+	// --type ocr for OCR only, --lang for language (default en)
+	cmd := exec.Command(pythonBin, "-m", "paddleocr", "-i", path, "--type", "ocr", "--lang", "en", "--show_log", "false")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	text := string(output)
+	if strings.TrimSpace(text) == "" {
+		return nil, nil
+	}
+
+	// Split into chunks for better search relevance
+	chunks := chunkDocumentText(text)
+
+	captions := make([]db.InsertCaptionParams, 0, len(chunks))
+	for _, chunk := range chunks {
+		cleaned := cleanCaptionText(chunk)
+		if cleaned == "" {
+			continue
+		}
+		captions = append(captions, db.InsertCaptionParams{
+			MediaPath: path,
+			Time:      sql.NullFloat64{Float64: 0, Valid: false},
+			Text:      sql.NullString{String: cleaned, Valid: true},
+		})
+	}
+
+	return captions, nil
+}
+
+// extractSpeechToText extracts speech-to-text from audio/video files
+func extractSpeechToText(path string, engine string) ([]db.InsertCaptionParams, error) {
+	switch engine {
+	case "whisper":
+		return extractSpeechToTextWhisper(path)
+	case "vosk", "":
+		return extractSpeechToTextVosk(path)
+	default:
+		return extractSpeechToTextVosk(path)
+	}
+}
+
+// extractSpeechToTextVosk extracts speech-to-text using Vosk
+func extractSpeechToTextVosk(path string) ([]db.InsertCaptionParams, error) {
+	// Check for python and vosk
+	pythonBin := "python3"
+	if _, err := exec.LookPath(pythonBin); err != nil {
+		pythonBin = "python"
+		if _, err := exec.LookPath(pythonBin); err != nil {
+			return nil, fmt.Errorf("python not found")
+		}
+	}
+
+	// Create temp directory for model
+	modelDir := os.Getenv("VOSK_MODEL_PATH")
+	if modelDir == "" {
+		modelDir = filepath.Join(os.Getenv("HOME"), ".cache", "vosk-model")
+	}
+
+	// Check if model exists
+	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("vosk model not found at %s (download from https://alphacephei.com/vosk/models)", modelDir)
+	}
+
+	// Run vosk transcription
+	// Using a simple Python script to transcribe
+	voskScript := `
+import sys
+import json
+from vosk import Model, KaldiRecognizer
+import wave
+
+model = Model(sys.argv[1])
+wf = wave.open(sys.argv[2], "rb")
+if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
+    print("Audio file must be mono 16-bit PCM", file=sys.stderr)
+    sys.exit(1)
+
+rec = KaldiRecognizer(model, wf.getframerate())
+rec.SetWords(True)
+
+captions = []
+while True:
+    data = wf.readframes(4000)
+    if len(data) == 0:
+        break
+    if rec.AcceptWaveform(data):
+        result = json.loads(rec.Result())
+        if "text" in result and result["text"]:
+            captions.append(result["text"])
+    else:
+        result = json.loads(rec.PartialResult())
+        if "partial" in result and result["partial"]:
+            pass  # Ignore partial results
+
+final = json.loads(rec.FinalResult())
+if "text" in final and final["text"]:
+    captions.append(final["text"])
+
+for caption in captions:
+    print(caption)
+`
+
+	cmd := exec.Command(pythonBin, "-c", voskScript, modelDir, path)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	text := string(output)
+	if strings.TrimSpace(text) == "" {
+		return nil, nil
+	}
+
+	// Split into chunks (each line is a caption)
+	lines := strings.Split(text, "\n")
+	captions := make([]db.InsertCaptionParams, 0, len(lines))
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		captions = append(captions, db.InsertCaptionParams{
+			MediaPath: path,
+			Time:      sql.NullFloat64{Float64: float64(i * 5), Valid: true}, // Approximate timestamp
+			Text:      sql.NullString{String: cleanCaptionText(line), Valid: true},
+		})
+	}
+
+	return captions, nil
+}
+
+// extractSpeechToTextWhisper extracts speech-to-text using OpenAI Whisper
+func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
+	// Check for whisper CLI (pip install openai-whisper)
+	whisperBin := "whisper"
+	if _, err := exec.LookPath(whisperBin); err != nil {
+		return nil, fmt.Errorf("whisper not found (pip install openai-whisper)")
+	}
+
+	// Create temp directory for output
+	tmpDir, err := os.MkdirTemp("", "whisper-output-*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Run whisper with txt output
+	// --model tiny for speed, use base/small/medium/large for better accuracy
+	cmd := exec.Command(whisperBin, path, "--model", "tiny", "--output_dir", tmpDir, "--output_format", "txt", "--language", "en")
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	// Read output txt file
+	baseName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	txtPath := filepath.Join(tmpDir, baseName+".txt")
+	text, err := os.ReadFile(txtPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(string(text)) == "" {
+		return nil, nil
+	}
+
+	// Split into chunks for better search relevance
+	chunks := chunkDocumentText(string(text))
+
+	captions := make([]db.InsertCaptionParams, 0, len(chunks))
+	for _, chunk := range chunks {
+		cleaned := cleanCaptionText(chunk)
+		if cleaned == "" {
+			continue
+		}
+		captions = append(captions, db.InsertCaptionParams{
+			MediaPath: path,
+			Time:      sql.NullFloat64{Float64: 0, Valid: false},
 			Text:      sql.NullString{String: cleaned, Valid: true},
 		})
 	}

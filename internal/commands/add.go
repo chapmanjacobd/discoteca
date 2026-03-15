@@ -28,10 +28,13 @@ type AddCmd struct {
 	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
 
-	Args        []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
-	Parallel    int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
-	ExtractText bool     `help:"Extract full text from documents (PDF, EPUB, TXT, MD) for caption search"`
-	OCR         bool     `help:"Extract text from images using OCR (tesseract) for caption search"`
+	Args                 []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
+	Parallel             int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
+	ExtractText          bool     `help:"Extract full text from documents (PDF, EPUB, TXT, MD) for caption search"`
+	OCR                  bool     `help:"Extract text from images using OCR (tesseract) for caption search"`
+	OCREngine            string   `default:"tesseract" enum:"tesseract,paddle" help:"OCR engine to use"`
+	SpeechRecognition    bool     `help:"Extract speech-to-text from audio/video files for caption search"`
+	SpeechRecognitionEngine string `default:"vosk" enum:"vosk,whisper" help:"Speech recognition engine to use"`
 
 	ScanPaths []string `kong:"-"`
 	Database  string   `kong:"-"`
@@ -280,7 +283,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		for i := 0; i < c.Parallel; i++ {
 			wg.Go(func() {
 				for path := range jobs {
-					res, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles, c.ExtractText, c.OCR)
+					res, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles, c.ExtractText, c.OCR, c.OCREngine, c.SpeechRecognition, c.SpeechRecognitionEngine)
 					if err != nil {
 						slog.Error("Metadata extraction failed", "path", path, "error", err)
 						continue

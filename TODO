@@ -1,7 +1,5 @@
 
 
-lets add add speech recognition with Vosk to `add --speech-recognition` ingest scanning to save to bleve; stream/convert incompatible formats via ffmpeg
-
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
 - Search filtering should work across all modes without exiting that mode--but you could hide the searchbox on the Categorization page as that one doesn't really need it
