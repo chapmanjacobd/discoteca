@@ -38,7 +38,7 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("Golang implementation of xklb/library\n\n")
 	sb.WriteString("## Quick Install\n\n")
 	sb.WriteString("```bash\n")
-	sb.WriteString("go install github.com/chapmanjacobd/discoteca/cmd/disco@latest\n")
+	sb.WriteString("go install -tags \"fts5\" github.com/chapmanjacobd/discoteca/cmd/disco@latest\n")
 	sb.WriteString("```\n\n")
 
 	sb.WriteString("## Optional dependencies\n\n")

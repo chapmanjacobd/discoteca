@@ -5,7 +5,7 @@ Golang implementation of xklb/library
 ## Quick Install
 
 ```bash
-go install github.com/chapmanjacobd/discoteca/cmd/disco@latest
+go install -tags "fts5" github.com/chapmanjacobd/discoteca/cmd/disco@latest
 ```
 
 ## Optional dependencies

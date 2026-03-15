@@ -1,4 +1,4 @@
-.PHONY: build build-fts5 build-nofts test cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build benchmark benchstat profiles screenshots
+.PHONY: build build-fts5 test cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build benchmark benchstat profiles screenshots
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
@@ -62,10 +62,6 @@ build: webbuild
 # Build with FTS5 support (default)
 build-fts5:
 	$(MAKE) BUILD_TAGS=fts5 build
-
-# Build without any full-text search (LIKE only)
-build-nofts:
-	$(MAKE) BUILD_TAGS="" build
 
 dev:
 	(sleep 2 && xdg-open http://localhost:5555) &
