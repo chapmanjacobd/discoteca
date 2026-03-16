@@ -534,6 +534,112 @@ export class MediaPage {
   }
 
   /**
+   * Get file/media cards in DU mode (cards with data-path attribute)
+   */
+  getDUFileCards(): Locator {
+    return this.page.locator('#results-container .media-card[data-path]');
+  }
+
+  /**
+   * Get all DU file cards with their paths as an array
+   * @returns Array of file paths
+   */
+  async getDUFiles(): Promise<string[]> {
+    const fileCards = this.getDUFileCards();
+    const count = await fileCards.count();
+    const paths: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const path = await fileCards.nth(i).getAttribute('data-path');
+      if (path) paths.push(path);
+    }
+    return paths;
+  }
+
+  /**
+   * Get all DU folder cards with their paths as an array
+   * @returns Array of folder paths
+   */
+  async getDUFolders(): Promise<string[]> {
+    const folderCards = this.getFolderCards();
+    const count = await folderCards.count();
+    const paths: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const path = await folderCards.nth(i).getAttribute('data-path');
+      // Folder cards don't have data-path, get from onclick or text
+      if (!path) {
+        const card = folderCards.nth(i);
+        const text = await card.textContent();
+        paths.push(text?.trim() || `folder-${i}`);
+      } else {
+        paths.push(path);
+      }
+    }
+    return paths;
+  }
+
+  /**
+   * Navigate through DU mode, auto-clicking single folders until we find files
+   * Returns when we have at least minFiles file cards or no more single folders
+   * @param minFiles Minimum number of files to wait for (default: 2)
+   * @param maxDepth Maximum folder depth to navigate (default: 5)
+   * @returns Object with fileCards locator and final counts
+   */
+  async navigateToDUFiles(minFiles: number = 2, maxDepth: number = 5): Promise<{
+    fileCards: Locator;
+    folderCards: Locator;
+    fileCount: number;
+    folderCount: number;
+    depth: number;
+  }> {
+    const fileCards = this.getDUFileCards();
+    const folderCards = this.getFolderCards();
+    
+    let depth = 0;
+    let fileCount = await fileCards.count();
+    let folderCount = await folderCards.count();
+    
+    console.log(`[DU Nav] Depth ${depth}: ${fileCount} files, ${folderCount} folders`);
+    
+    // Auto-navigate through single folders until we have enough files or hit max depth
+    while (depth < maxDepth) {
+      // If we have enough files, we're done
+      if (fileCount >= minFiles) {
+        console.log(`[DU Nav] Found ${fileCount} files at depth ${depth}`);
+        break;
+      }
+      
+      // If no folders, we can't go deeper
+      if (folderCount === 0) {
+        console.log(`[DU Nav] No folders at depth ${depth}, stopping`);
+        break;
+      }
+      
+      // If exactly one folder (single folder auto-skip behavior)
+      if (folderCount === 1) {
+        console.log(`[DU Nav] Single folder detected, auto-navigating (depth ${depth})...`);
+        await folderCards.first().click();
+        await this.page.waitForTimeout(1500);
+      } else if (fileCount === 0 && folderCount > 1) {
+        // No files but multiple folders - click first folder to find files
+        console.log(`[DU Nav] No files, ${folderCount} folders - clicking first folder (depth ${depth})...`);
+        await folderCards.first().click();
+        await this.page.waitForTimeout(1500);
+      } else {
+        // Have some files but not enough, and multiple folders - stop here
+        console.log(`[DU Nav] Have ${fileCount} files and ${folderCount} folders, stopping`);
+        break;
+      }
+      
+      depth++;
+      fileCount = await fileCards.count();
+      folderCount = await folderCards.count();
+      console.log(`[DU Nav] Depth ${depth}: ${fileCount} files, ${folderCount} folders`);
+    }
+    
+    return { fileCards, folderCards, fileCount, folderCount, depth };
+  }
+
+  /**
    * Get settings modal
    */
   getSettingsModal(): Locator {
