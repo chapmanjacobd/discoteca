@@ -971,34 +971,23 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Combine folders and files into results
-	var results []models.FolderStats
+	// Combine folders and files into response
+	response := models.DUResponse{
+		Folders: make([]models.FolderStats, 0, len(folders)),
+		Files:   make([]models.MediaWithDB, 0, len(directFiles)),
+	}
 
 	// Add folders
 	for _, stat := range folders {
-		results = append(results, *stat)
+		response.Folders = append(response.Folders, *stat)
 	}
 
-	// Add direct files as single-file "folders"
+	// Add direct files
 	for _, file := range directFiles {
-		var fileSize, fileDuration int64
-		if file.Size != nil {
-			fileSize = *file.Size
-		}
-		if file.Duration != nil {
-			fileDuration = *file.Duration
-		}
-		results = append(results, models.FolderStats{
-			Path:          file.Path,
-			Count:         0,
-			TotalSize:     fileSize,
-			TotalDuration: fileDuration,
-			ExistsCount:   0,
-			Files:         []models.MediaWithDB{*file},
-		})
+		response.Files = append(response.Files, *file)
 	}
 
-	// Sort results
+	// Sort folders
 	sortBy := r.URL.Query().Get("sort")
 	reverse := r.URL.Query().Get("reverse") == "true"
 
@@ -1007,12 +996,17 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		reverse = true
 	}
 
-	query.SortFolders(results, sortBy, reverse)
+	query.SortFolders(response.Folders, sortBy, reverse)
+
+	// Set aggregate counts
+	response.FolderCount = len(response.Folders)
+	response.FileCount = len(response.Files)
+	response.TotalCount = response.FolderCount + response.FileCount
 
 	// Set total count header for pagination
-	w.Header().Set("X-Total-Count", strconv.Itoa(len(results)))
+	w.Header().Set("X-Total-Count", strconv.Itoa(response.TotalCount))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {

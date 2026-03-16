@@ -340,12 +340,25 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			// Regular LIKE search (also used for --exact mode since FTS detail=none doesn't support exact)
 			var searchParts []string
 			for _, term := range allInclude {
-				searchParts = append(searchParts, fmt.Sprintf("(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)", fb.col("path"), fb.col("title"), fb.col("path_tokenized")))
-				pattern := term
-				if !fb.flags.Exact {
-					pattern = "%" + strings.ReplaceAll(term, " ", "%") + "%"
+				if fb.flags.Exact {
+					// For exact match, use raw path column with word boundary matching
+					// Match basename containing the exact term followed by separator or extension
+					// This ensures "exact" matches "exact.mp4" but not "exact_match.mp4"
+					searchParts = append(searchParts, fmt.Sprintf(
+						"(%s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\')",
+						fb.col("path"), fb.col("path"),
+					))
+					// Match: "%/exact.%" or "%/exact" (basename boundaries)
+					// The % before matches any path prefix, then we match exact word boundary
+					args = append(args,
+						"%/"+term+".%", // path contains "/exact." (exact followed by extension)
+						"%/"+term,      // path ends with "/exact" (exact as basename)
+					)
+				} else {
+					searchParts = append(searchParts, fmt.Sprintf("(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)", fb.col("path"), fb.col("title"), fb.col("path_tokenized")))
+					pattern := "%" + strings.ReplaceAll(term, " ", "%") + "%"
+					args = append(args, pattern, pattern, pattern)
 				}
-				args = append(args, pattern, pattern, pattern)
 			}
 			whereClauses = append(whereClauses, "("+strings.Join(searchParts, joinOp)+")")
 		}

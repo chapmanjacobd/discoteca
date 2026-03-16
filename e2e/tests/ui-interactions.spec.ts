@@ -330,6 +330,15 @@ test.describe('Trash Functionality', () => {
   // Run in serial mode to prevent database state interference between tests
   test.describe.configure({ mode: 'serial' });
 
+  test('sidebar trash button is visible in normal mode', async ({ mediaPage, sidebarPage, server }) => {
+    await mediaPage.goto(server.getBaseUrl());
+    
+    // Sidebar trash button should be visible in normal (non-read-only) mode
+    // Note: on desktop, sidebar is always visible; on mobile, we need to open it
+    const trashBtn = sidebarPage.getTrashButton();
+    await expect(trashBtn).toBeVisible();
+  });
+
   test('trash button is visible for media', async ({ mediaPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 

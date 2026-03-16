@@ -31,6 +31,12 @@ type TuiCmd struct {
 
 func (c *TuiCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
+	// Override DeletedFlags to load all media (including deleted) for the TUI
+	// The TUI's internal filters will handle showing/hiding deleted items
+	deletedFlags := c.DeletedFlags
+	deletedFlags.HideDeleted = false
+	deletedFlags.OnlyDeleted = false
+
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
 		c.QueryFlags,
@@ -38,7 +44,7 @@ func (c *TuiCmd) Run(ctx *kong.Context) error {
 		c.FilterFlags,
 		c.MediaFilterFlags,
 		c.TimeFilterFlags,
-		c.DeletedFlags,
+		deletedFlags,
 		c.SortFlags,
 		c.DisplayFlags,
 		c.FTSFlags,

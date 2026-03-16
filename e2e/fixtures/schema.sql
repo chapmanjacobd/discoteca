@@ -63,6 +63,18 @@ CREATE TABLE captions (
     FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
 ) STRICT;
 CREATE INDEX idx_captions_path ON captions(media_path);
+CREATE VIRTUAL TABLE captions_fts USING fts5(
+    media_path UNINDEXED,
+    text,
+    content='captions',
+    tokenize = 'trigram',
+    detail = 'full'
+)
+/* captions_fts(media_path,text) */;
+CREATE TABLE IF NOT EXISTS 'captions_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE IF NOT EXISTS 'captions_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS 'captions_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE IF NOT EXISTS 'captions_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
 CREATE TRIGGER captions_ai AFTER INSERT ON captions BEGIN
     INSERT INTO captions_fts(rowid, media_path, text)
     VALUES (new.rowid, new.media_path, new.text);
@@ -98,6 +110,22 @@ CREATE INDEX idx_score ON media(score);
 CREATE INDEX idx_time_created ON media(time_created);
 CREATE INDEX idx_time_modified ON media(time_modified);
 CREATE INDEX idx_time_downloaded ON media(time_downloaded);
+CREATE VIRTUAL TABLE media_fts USING fts5(
+    path,
+    path_tokenized,
+    title,
+    description,
+    time_deleted UNINDEXED,
+    content='media',
+    content_rowid='rowid',
+    tokenize = 'trigram',
+    detail = 'full'
+)
+/* media_fts(path,path_tokenized,title,description,time_deleted) */;
+CREATE TABLE IF NOT EXISTS 'media_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE IF NOT EXISTS 'media_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS 'media_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE IF NOT EXISTS 'media_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
 CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
     INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted)
     VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description, new.time_deleted);
@@ -109,31 +137,3 @@ CREATE TRIGGER media_au AFTER UPDATE ON media BEGIN
     INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description, time_deleted) VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description, old.time_deleted);
     INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description, new.time_deleted);
 END;
-CREATE VIRTUAL TABLE media_fts USING fts5(
-					path,
-					path_tokenized,
-					title,
-                    description,
-					time_deleted UNINDEXED,
-					content='media',
-					content_rowid='rowid',
-					tokenize = 'trigram',
-					detail = 'full'
-				)
-/* media_fts(path,path_tokenized,title,description,time_deleted) */;
-CREATE TABLE IF NOT EXISTS 'media_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-CREATE TABLE IF NOT EXISTS 'media_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS 'media_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-CREATE TABLE IF NOT EXISTS 'media_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-CREATE VIRTUAL TABLE captions_fts USING fts5(
-					media_path UNINDEXED,
-					text,
-					content='captions',
-					tokenize = 'trigram',
-					detail = 'full'
-				)
-/* captions_fts(media_path,text) */;
-CREATE TABLE IF NOT EXISTS 'captions_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-CREATE TABLE IF NOT EXISTS 'captions_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS 'captions_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-CREATE TABLE IF NOT EXISTS 'captions_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;

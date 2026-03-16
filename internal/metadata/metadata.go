@@ -99,9 +99,6 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 		TimeDownloaded: utils.ToNullInt64(time.Now().Unix()),
 	}
 
-	// Fallback title to filename (without extension)
-	params.Title = utils.ToNullString(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
-
 	result := &MediaMetadata{
 		Media: params,
 	}

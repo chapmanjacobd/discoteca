@@ -2,6 +2,7 @@ package commands
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -198,18 +200,25 @@ func TestHandleDU(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_du.db")
 
-	sqlDB, _ := sql.Open("sqlite3", dbPath)
-	db.InitDB(sqlDB)
+	sqlDB, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Don't close sqlDB here - it will be closed by cmd.Close()
+
+	// Initialize database schema
+	if err := db.InitDB(sqlDB); err != nil {
+		t.Fatalf("Failed to initialize DB: %v", err)
+	}
 
 	// Create test media in different directories
-	_, err := sqlDB.Exec(`INSERT INTO media (path, title, type, size, duration, time_deleted) VALUES 
+	_, err = sqlDB.Exec(`INSERT INTO media (path, title, type, size, duration, time_deleted) VALUES
 		('/videos/movies/movie1.mp4', 'Movie1', 'video', 1073741824, 7200, 0),
 		('/videos/movies/movie2.mp4', 'Movie2', 'video', 536870912, 3600, 0),
 		('/videos/music/song1.mp4', 'Song1', 'video', 268435456, 300, 0)`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sqlDB.Close()
 
 	cmd := &ServeCmd{
 		Databases: []string{dbPath},
@@ -231,6 +240,24 @@ func TestHandleDU(t *testing.T) {
 		if w.Header().Get("X-Total-Count") == "" {
 			t.Error("Expected X-Total-Count header")
 		}
+
+		// Verify new response format: {folders?: [], files?: []}
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should have folders array (not a flat array)
+		if resp.Folders == nil {
+			t.Error("Expected folders array in response")
+		}
+
+		// Verify folders have expected fields
+		for _, folder := range resp.Folders {
+			if folder.Path == "" {
+				t.Error("Expected folder to have path")
+			}
+		}
 	})
 
 	t.Run("SpecificPath", func(t *testing.T) {
@@ -241,6 +268,49 @@ func TestHandleDU(t *testing.T) {
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		// Verify new response format
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should have folders and/or files arrays
+		if resp.Folders == nil {
+			t.Error("Expected folders array in response")
+		}
+		if resp.Files == nil {
+			t.Error("Expected files array in response (can be empty)")
+		}
+	})
+
+	t.Run("DirectFiles", func(t *testing.T) {
+		// Test that direct files are returned in the files array, not as fake folders
+		req := httptest.NewRequest("GET", "/api/du?path=/videos/movies", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should have files in the files array, not wrapped in folders
+		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
+			t.Error("Expected files or folders in response")
+		}
+
+		// Verify files are not duplicated as fake folders
+		for _, folder := range resp.Folders {
+			if folder.Count == 0 && len(folder.Files) == 1 {
+				t.Error("Files should be in the files array, not wrapped as fake folders")
+			}
 		}
 	})
 }

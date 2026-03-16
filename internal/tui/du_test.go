@@ -24,19 +24,25 @@ func TestDUModel(t *testing.T) {
 
 	// Test navigation
 	// Initial state: root, showing /home
-	if len(m.list.Items()) == 0 {
-		t.Skip("No items in root, maybe path parsing logic differs")
+	// Check that we have items at root level
+	items := m.list.Items()
+	if len(items) == 0 {
+		t.Fatal("Expected items at root level, got none")
 	}
 
 	// Mock window size
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	m = m2.(DUModel)
 
-	// Mock Enter on /home/user
-	m2, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m = m2.(DUModel)
-	if m.currentPath == "" {
-		// If it was at root, it should have moved to a subdirectory
+	// Verify we can navigate - select first item and press Enter
+	if len(items) > 0 {
+		// Select first item
+		m2, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+		m = m2.(DUModel)
+
+		// Try to enter (if it's a directory)
+		m2, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = m2.(DUModel)
 	}
 
 	// Mock Backspace to go back

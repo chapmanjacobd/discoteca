@@ -15,7 +15,7 @@ describe('Error Handling', () => {
         // Use items from mocks.json or default mock in test-helper.js
         const item1 = { path: 'video1.mp4', type: 'video/mp4' };
         const item2 = { path: 'audio1.mp3', type: 'audio/mpeg' };
-        
+
         window.disco.state.autoplay = true;
         // currentMedia is already populated by setupTestEnvironment via performSearch/fetchDatabases etc.
         // Actually setupTestEnvironment calls readUrl and fetchDatabases but might not call performSearch.
@@ -27,16 +27,17 @@ describe('Error Handling', () => {
 
         const video = document.querySelector('video');
 
-        // Trigger error
-        video.onerror();
+        // Trigger error - handleMediaError is async so we need to await it
+        await window.disco.handleMediaError(item1, video);
 
-        // Let the async handleMediaError run until it sets the timeout
-        await vi.waitFor(() => {
-            if (!window.disco.state.playback.skipTimeout) throw new Error('Timeout not set yet');
-        });
+        // Verify skipTimeout was set
+        expect(window.disco.state.playback.skipTimeout).toBeTruthy();
 
-        // Advance timers
+        // Advance timers to trigger the auto-skip
         vi.advanceTimersByTime(1200);
+
+        // Wait a bit for the async playSibling to complete
+        await vi.runAllTimersAsync();
 
         expect(window.disco.state.playback.item.path).toBe('audio1.mp3');
     });

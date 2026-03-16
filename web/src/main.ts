@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sortByEl && state.filters.sort) {
             sortByEl.value = state.filters.sort;
         }
-        
+
         if (state.page === 'du') {
             window.location.reload();
         } else {
@@ -641,12 +641,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
                     const iframeWin = iframe.contentWindow;
-                    
+
                     if (iframeDoc && iframeWin) {
                         const scrollTop = iframeWin.scrollY || iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop;
                         const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
                         const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
-                        
+
                         if (scrollHeight > clientHeight) {
                             const scrollPercent = scrollTop / (scrollHeight - clientHeight);
                             saveDocumentProgress(state.playback.item.path, scrollPercent);
@@ -655,14 +655,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     // Cross-origin or other error - silently fail
                 }
-                
+
                 // Clear progress timer
                 if (documentProgressTimer !== null) {
                     window.clearInterval(documentProgressTimer);
                     documentProgressTimer = null;
                 }
             }
-            
+
             docModal.classList.add('hidden');
             if (state.activeModal === 'document-modal') {
                 state.activeModal = null;
@@ -1075,9 +1075,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.dev) {
                 setupAutoReload();
             }
+            const trashBtn = document.getElementById('trash-btn');
+            const newPlaylistBtn = document.getElementById('new-playlist-btn');
             if (state.readOnly) {
-                const newPlaylistBtn = document.getElementById('new-playlist-btn');
                 if (newPlaylistBtn) newPlaylistBtn.classList.add('hidden');
+                if (trashBtn) trashBtn.classList.add('hidden');
+            } else {
+                if (trashBtn) trashBtn.classList.remove('hidden');
             }
         } catch (err) {
             console.error('Failed to fetch databases', err);
@@ -1627,16 +1631,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const resp = await fetchAPI(`/api/du?${params.toString()}`);
             clearTimeout(skeletonTimeout);
             if (!resp.ok) throw new Error('Failed to fetch DU');
-            let data = await resp.json();
+            let response = await resp.json();
+
+            // New format: {folders: [], files: [], total_count, folder_count, file_count}
+            // Store the raw response - no conversion needed
+            state.duDataRaw = response;
+            
+            // Create combined data array for rendering (folders first, then files)
+            let data = [];
+            if (response.folders) {
+                data = data.concat(response.folders);
+            }
+            if (response.files) {
+                data = data.concat(response.files);
+            }
+            state.duData = data;
 
             // Auto-skip through single-item folders recursively (including initial load)
             // Auto-skip on first visit OR during auto-skip recursion (when navigating deeper)
-            let shouldAutoSkip = (isFirstDUVisit || isAutoSkipRecursion) && data && data.length === 1;
+            // Only auto-skip if there's exactly 1 folder and 0 files (pure folder navigation)
+            let shouldAutoSkip = (isFirstDUVisit || isAutoSkipRecursion) && 
+                                 response.folders && response.folders.length === 1 && 
+                                 response.files && response.files.length === 0;
             if (shouldAutoSkip) {
-                const singleItem = data[0];
+                const singleItem = response.folders[0];
                 // Check if it's a folder (count > 0 means it has files in subdirectories)
                 // A folder with only subfolders (no direct files) will have count > 0
-                // A single file will have count === 0 and files.length === 1
                 const isFolder = singleItem.count > 0;
                 if (isFolder) {
                     // Auto-navigate into this folder
@@ -1647,8 +1667,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            state.duData = data;
-            renderDU(state.duData);
+            renderDU(state.duData, state.duDataRaw);
         } catch (err) {
             clearTimeout(skeletonTimeout);
             console.error('DU fetch failed:', err);
@@ -1656,8 +1675,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderDU(data) {
-        if (!data) data = [];
+    function renderDU(data, rawResponse?) {
+        // Use pre-computed aggregates from backend
+        const totalFolders = rawResponse?.folder_count || 0;
+        const totalFiles = rawResponse?.file_count || 0;
 
         // Show current path in toolbar input
         const duToolbar = document.getElementById('du-toolbar');
@@ -1686,18 +1707,26 @@ document.addEventListener('DOMContentLoaded', () => {
             renderDUBreadcrumbs(duBreadcrumbs);
         }
 
-        // Show folder/file count in results-info
-        let totalFolders = 0;
-        let totalFiles = 0;
-        data.forEach(item => {
-            if (item.count === 0 && item.files && item.files.length === 1) {
-                totalFiles++;
-            } else {
-                totalFolders++;
-                totalFiles += item.count;
-            }
-        });
+        // Show folder/file count in results-info (from backend aggregates)
         resultsCount.textContent = `${totalFolders} folders, ${totalFiles} files`;
+
+        // Build mediaItems array for navigation (folders with files + direct files)
+        let mediaItems = [];
+        if (rawResponse?.folders) {
+            rawResponse.folders.forEach(folder => {
+                if (folder.files && folder.files.length > 0) {
+                    mediaItems = mediaItems.concat(folder.files);
+                }
+            });
+        }
+        if (rawResponse?.files) {
+            mediaItems = mediaItems.concat(rawResponse.files);
+        }
+
+        // Set currentMedia for DU mode so that playSibling uses DU siblings
+        if (state.page === 'du') {
+            currentMedia = mediaItems;
+        }
 
         // Render based on current view mode
         if (state.view === 'details') {
@@ -1807,13 +1836,12 @@ document.addEventListener('DOMContentLoaded', () => {
         data.forEach(item => {
             const tr = document.createElement('tr');
 
-            // Check if this is a single file
-            const isSingleFile = (item.count === 0 && item.files && item.files.length === 1) ||
-                (item.files && item.files.length === 1 && item.files[0].path === item.path);
+            // Check if this is a direct file (has type field, no count field)
+            const isDirectFile = item.type !== undefined && item.count === undefined;
 
-            if (isSingleFile) {
-                // Single file row
-                const mediaItem = item.files[0];
+            if (isDirectFile) {
+                // Direct file row
+                const mediaItem = item;
                 const name = mediaItem.title || mediaItem.path.split('/').pop();
                 const type = mediaItem.type || 'unknown';
                 const size = formatSize(mediaItem.size);
@@ -1828,7 +1856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 tr.onclick = () => playMedia(mediaItem);
             } else if (item.files && item.files.length > 0) {
-                // Multiple individual files - render each
+                // Folder with files - render each file
                 item.files.forEach(mediaItem => {
                     const fileTr = document.createElement('tr');
                     const name = mediaItem.title || mediaItem.path.split('/').pop();
@@ -1908,18 +1936,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const maxSize = Math.max(...data.map(d => d.total_size || 0));
+        // Calculate max size for visualization (only from folders)
+        const folders = state.duDataRaw?.folders || [];
+        const maxSize = folders.length > 0 ? Math.max(...folders.map(d => d.total_size || 0)) : 0;
 
         data.forEach(item => {
             const card = document.createElement('div');
 
-            // Check if this is a single file (not a folder)
-            const isSingleFile = (item.count === 0 && item.files && item.files.length === 1) ||
-                (item.files && item.files.length === 1 && item.files[0].path === item.path);
+            // Check if this is a direct file (has type field, no count field)
+            const isDirectFile = item.type !== undefined && item.count === undefined;
 
-            if (isSingleFile) {
+            if (isDirectFile) {
                 // Render as clickable media card
-                const mediaItem = item.files[0];
+                const mediaItem = item;
                 card.className = 'media-card';
                 (card as HTMLElement).dataset.path = mediaItem.path;
                 (card as HTMLElement).dataset.type = mediaItem.type || '';
@@ -4642,31 +4671,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveDocumentProgress(path: string, scrollPercent: number, chapter?: string) {
         if (!state.localResume) return;
-        
+
         const progress = getLocalStorageItem('disco-progress', {});
         const now = Date.now();
-        
+
         // Store document-specific progress with scroll position and optional chapter
         progress[path] = {
             pos: Math.floor(scrollPercent * 100), // Store as percentage (0-100)
             chapter: chapter || '',
             last: now
         };
-        
+
         setLocalStorageItem('disco-progress', progress);
     }
 
     function restoreDocumentProgress(path: string): { scrollPercent: number; chapter: string } | null {
         if (!state.localResume) return null;
-        
+
         const progress = getLocalStorageItem('disco-progress', {});
         const entry = progress[path];
-        
+
         if (!entry || typeof entry !== 'object') return null;
-        
+
         const scrollPercent = (entry.pos || 0) / 100;
         const chapter = entry.chapter || '';
-        
+
         return { scrollPercent, chapter };
     }
 
@@ -4714,7 +4743,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!saved) return;
 
         const { scrollPercent, chapter } = saved;
-        
+
         // Wait for iframe to load, then restore position
         iframe.addEventListener('load', () => {
             // Give browser 1 second to stabilize layout
@@ -4722,20 +4751,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
                     const iframeWin = iframe.contentWindow;
-                    
+
                     if (!iframeDoc || !iframeWin) return;
 
                     const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
                     const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
-                    
+
                     if (scrollHeight > clientHeight) {
                         const targetScroll = scrollPercent * (scrollHeight - clientHeight);
                         iframeWin.scrollTo({ top: targetScroll, behavior: 'smooth' });
-                        
+
                         // Show toast with resume position
                         if (scrollPercent > 0.05) { // Only show if > 5% progress
                             const percent = Math.round(scrollPercent * 100);
-                            const msg = chapter 
+                            const msg = chapter
                                 ? `Resumed at chapter: ${chapter} (${percent}%)`
                                 : `Resumed at ${percent}%`;
                             showToast(msg, '📖');
@@ -4829,7 +4858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 container.appendChild(iframe);
-                
+
                 // Track and restore reading progress
                 trackDocumentProgress(iframe, item.path);
                 applyDocumentProgress(iframe, item.path);
@@ -4842,7 +4871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 iframe.style.height = '100%';
                 iframe.style.border = 'none';
                 container.appendChild(iframe);
-                
+
                 // For raw files, try to restore progress (works for same-origin)
                 applyDocumentProgress(iframe, item.path);
             }
@@ -4862,7 +4891,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iframe.style.height = '100%';
             iframe.style.border = 'none';
             container.appendChild(iframe);
-            
+
             // Try to restore progress
             applyDocumentProgress(iframe, item.path);
         }
@@ -4957,7 +4986,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup zoom/pan functionality for image elements in fullscreen
     function setupImageZoomPan(el) {
         if (!el) return;
-        
+
         let scale = 1;
         let translateX = 0;
         let translateY = 0;

@@ -63,9 +63,8 @@ build: webbuild
 build-fts5:
 	$(MAKE) BUILD_TAGS=fts5 build
 
-dev:
-	(sleep 2 && xdg-open http://localhost:5555) &
-	go run -tags fts5 ./cmd/disco serve -v --dev audio.db books.db images.db video.db
+dev: build
+	go run -tags fts5 ./cmd/disco serve -v --dev --public-dir web/dist audio.db books.db images.db video.db
 
 test:
 	go test -tags "$(BUILD_TAGS)" ./...

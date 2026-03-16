@@ -554,7 +554,8 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			return err
 		}
 
-		if !strings.Contains(existingSql, "time_deleted") || !strings.Contains(existingSql, "detail='full'") || (expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
+		// Normalize whitespace for comparison
+		if !strings.Contains(existingSql, "trigram") || (expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
 			// Needs upgrade - drop it
 			if _, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
 				return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)

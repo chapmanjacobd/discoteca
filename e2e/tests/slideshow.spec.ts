@@ -16,10 +16,7 @@ test.describe('Image Slideshow', () => {
     const imageCard = mediaPage.getFirstMediaCardByType('image');
     const imageCount = await mediaPage.page.locator('.media-card[data-type*="image"]').count();
 
-    if (imageCount === 0) {
-      test.skip();
-      return;
-    }
+    expect(imageCount).toBeGreaterThan(0);
 
     await imageCard.click();
 
@@ -65,10 +62,7 @@ test.describe('Image Slideshow', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     const imageCard = mediaPage.getFirstMediaCardByType('image');
-    if (await imageCard.count() === 0) {
-      test.skip();
-      return;
-    }
+    expect(await imageCard.count()).toBeGreaterThan(0);
 
     await imageCard.click();
     await viewerPage.waitForImageLoad();
@@ -86,10 +80,7 @@ test.describe('Image Slideshow', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     const imageCard = mediaPage.getFirstMediaCardByType('image');
-    if (await imageCard.count() === 0) {
-      test.skip();
-      return;
-    }
+    expect(await imageCard.count()).toBeGreaterThan(0);
 
     await imageCard.click();
     await viewerPage.waitForImageLoad();
@@ -107,10 +98,7 @@ test.describe('Image Slideshow', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     const imageCard = mediaPage.getFirstMediaCardByType('image');
-    if (await imageCard.count() === 0) {
-      test.skip();
-      return;
-    }
+    expect(await imageCard.count()).toBeGreaterThan(0);
 
     // Set custom slideshow delay in settings using POM
     await sidebarPage.openSettings();
@@ -140,10 +128,7 @@ test.describe('Image Slideshow', () => {
     const imageCards = mediaPage.page.locator('.media-card[data-type*="image"]');
     const imageCount = await imageCards.count();
 
-    if (imageCount < 2) {
-      test.skip();
-      return;
-    }
+    expect(imageCount).toBeGreaterThanOrEqual(2);
 
     // Set custom slideshow delay to 1s to speed up the test
     await sidebarPage.openSettings();
@@ -170,7 +155,7 @@ test.describe('Image Slideshow', () => {
         // This is tricky because it might have passed through other images
         expect(currentSrc).toBeTruthy();
     }).toPass({ timeout: 10000 });
-    
+
     // Check that it's still running
     await expect(viewerPage.slideshowBtn).toContainText('⏸️');
   });

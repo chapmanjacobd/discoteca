@@ -56,6 +56,15 @@ test.describe('Read-Only Mode', () => {
     expect(isVisible).toBe(false);
   });
 
+  test('sidebar trash button not visible in read-only mode', async ({ sidebarPage, server }) => {
+    await sidebarPage.open();
+
+    // Sidebar trash button should NOT be visible in read-only mode
+    const trashBtn = sidebarPage.getTrashButton();
+    const isVisible = await trashBtn.isVisible().catch(() => false);
+    expect(isVisible).toBe(false);
+  });
+
   test('playlist modification buttons not visible in read-only mode', async ({ mediaPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 

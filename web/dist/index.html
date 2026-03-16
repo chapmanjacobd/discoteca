@@ -54,26 +54,6 @@
 
                 <div class="sidebar-separator"></div>
 
-                <details id="details-playlists">
-                    <summary>Playlists</summary>
-
-                    <div id="playlist-list">
-                        <!-- Playlists will be injected here -->
-                    </div>
-
-                    <button
-                        id="new-playlist-btn"
-                        class="category-btn"
-                        style="
-                            width: 100%;
-                            margin-top: 0.5rem;
-                            border: 1px dashed var(--border-color);
-                        "
-                    >
-                        + New Playlist
-                    </button>
-                </details>
-
                 <details id="details-history">
                     <summary>History</summary>
                     <div
@@ -94,6 +74,47 @@
                         <button class="category-btn" data-type="audio">🎵 Audio</button>
                         <button class="category-btn" data-type="text">📖 Text</button>
                         <button class="category-btn" data-type="image">🖼️ Image</button>
+                    </div>
+                </details>
+
+                <details id="details-playlists">
+                    <summary>Playlists</summary>
+
+                    <div id="playlist-list">
+                        <!-- Playlists will be injected here -->
+                    </div>
+
+                    <button
+                        id="new-playlist-btn"
+                        class="category-btn"
+                        style="
+                            width: 100%;
+                            margin-top: 0.5rem;
+                            border: 1px dashed var(--border-color);
+                        "
+                    >
+                        + New Playlist
+                    </button>
+                </details>
+
+                <details id="details-ratings">
+                    <summary>Ratings</summary>
+                    <div id="rating-list">
+                        <!-- Ratings will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-categories">
+                    <summary>Categories</summary>
+                    <div id="category-list">
+                        <!-- Categories will be injected here -->
+                    </div>
+                </details>
+
+                <details id="details-languages" class="advanced-only">
+                    <summary>Languages</summary>
+                    <div id="language-list">
+                        <!-- Languages will be injected here -->
                     </div>
                 </details>
 
@@ -259,27 +280,6 @@
                             <span id="downloaded-min-label"></span>
                             <span id="downloaded-max-label"></span>
                         </div>
-                    </div>
-                </details>
-
-                <details id="details-categories">
-                    <summary>Categories</summary>
-                    <div id="category-list">
-                        <!-- Categories will be injected here -->
-                    </div>
-                </details>
-
-                <details id="details-languages" class="advanced-only">
-                    <summary>Languages</summary>
-                    <div id="language-list">
-                        <!-- Languages will be injected here -->
-                    </div>
-                </details>
-
-                <details id="details-ratings">
-                    <summary>Ratings</summary>
-                    <div id="rating-list">
-                        <!-- Ratings will be injected here -->
                     </div>
                 </details>
 
@@ -976,7 +976,7 @@
                 "
             ></div>
         </div>
-        
+
         <!-- Custom Sorting Modal -->
         <div id="sort-complex-modal" class="modal hidden">
             <div class="modal-content" style="max-width: 600px;">
@@ -988,7 +988,7 @@
                     <p style="color: var(--text-muted); margin-bottom: 1rem;">
                         Drag and drop to reorder sort fields. Fields are applied in order from top to bottom.
                     </p>
-                    
+
                     <div id="sort-fields-list" style="
                         display: flex;
                         flex-direction: column;
@@ -1000,7 +1000,7 @@
                     ">
                         <!-- Sort field items will be injected here -->
                     </div>
-                    
+
                     <div style="margin-top: 1rem;">
                         <button id="sort-add-field-btn" class="primary-btn" style="flex: 1;">+ Add Field</button>
                     </div>
@@ -1014,7 +1014,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div id="toast" class="hidden"></div>
 
     </body>

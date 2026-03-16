@@ -143,6 +143,7 @@ export interface State {
     ratings: { rating: number; count: number }[];
     filterBins: FilterBins;
     duData?: any[];
+    duDataRaw?: any; // Raw API response: {folders?: [], files?: []}
     similarityData?: any[];
     playlists: string[];
     newCategories: string[];

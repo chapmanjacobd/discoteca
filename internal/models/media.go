@@ -177,6 +177,15 @@ type FolderStats struct {
 	Files          []MediaWithDB `json:"files,omitempty"`
 }
 
+// DUResponse is the response for the /api/du endpoint
+type DUResponse struct {
+	Folders     []FolderStats `json:"folders"`
+	Files       []MediaWithDB `json:"files"`
+	TotalCount  int           `json:"total_count"`  // Total items (folders + files)
+	FolderCount int           `json:"folder_count"` // Number of folders
+	FileCount   int           `json:"file_count"`   // Number of direct files
+}
+
 // Helper functions for mapping from sql.Null types
 
 func FromDB(m db.Media) Media {

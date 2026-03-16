@@ -10,11 +10,7 @@ test.describe('Image Arrow Key Navigation', () => {
     const imageCards = mediaPage.page.locator('.media-card[data-type*="image"]');
     const imageCount = await imageCards.count();
 
-    if (imageCount < 2) {
-      console.log('Not enough images for this test, skipping');
-      test.skip();
-      return;
-    }
+    expect(imageCount).toBeGreaterThanOrEqual(2);
 
     // Click second image (so there's a previous sibling) using POM
     await imageCards.nth(1).click();
@@ -44,11 +40,7 @@ test.describe('Image Arrow Key Navigation', () => {
     const imageCards = mediaPage.page.locator('.media-card[data-type*="image"]');
     const imageCount = await imageCards.count();
 
-    if (imageCount < 2) {
-      console.log('Not enough images for this test, skipping');
-      test.skip();
-      return;
-    }
+    expect(imageCount).toBeGreaterThanOrEqual(2);
 
     // Click first image (so there's a next sibling) using POM
     await imageCards.first().click();
@@ -90,11 +82,7 @@ test.describe('Image Arrow Key Navigation', () => {
     const imageCards = mediaPage.page.locator('.media-card[data-type*="image"]');
     const imageCount = await imageCards.count();
 
-    if (imageCount < 3) {
-      console.log('Not enough images for cycle test, skipping');
-      test.skip();
-      return;
-    }
+    expect(imageCount).toBeGreaterThanOrEqual(3);
 
     // Click first image using POM
     await imageCards.first().click();
