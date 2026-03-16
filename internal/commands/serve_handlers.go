@@ -992,19 +992,16 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 
 	// Apply pagination to folders and files separately
 	// Folders come first, then files
-	folderStart := offset
-	folderEnd := offset + limit
-	
-	if folderStart >= len(folders) {
+	if offset >= len(folders) {
 		// Offset is beyond folders, apply to files
 		fileStart := offset - len(folders)
 		fileEnd := fileStart + limit
 		if fileStart >= len(directFiles) {
 			// Offset is beyond all items
-			folderStart, folderEnd = len(folders), len(folders)
-			fileStart, fileEnd = len(directFiles), len(directFiles)
+			folders = folders[len(folders):]
+			directFiles = directFiles[len(directFiles):]
 		} else {
-			folderStart, folderEnd = len(folders), len(folders)
+			folders = folders[len(folders):]
 			if fileEnd > len(directFiles) {
 				fileEnd = len(directFiles)
 			}
@@ -1012,18 +1009,15 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Offset is within folders
+		folderEnd := offset + limit
 		if folderEnd > len(folders) {
 			// Pagination spans folders and files
-			fileStart := 0
-			fileEnd := folderEnd - len(folders)
-			if fileEnd > len(directFiles) {
-				fileEnd = len(directFiles)
-			}
-			folders = folders[folderStart:]
-			directFiles = directFiles[fileStart:fileEnd]
+			fileEnd := min(folderEnd-len(folders), len(directFiles))
+			folders = folders[offset:]
+			directFiles = directFiles[0:fileEnd]
 		} else {
 			// Pagination is within folders only
-			folders = folders[folderStart:folderEnd]
+			folders = folders[offset:folderEnd]
 		}
 	}
 

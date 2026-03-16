@@ -1718,15 +1718,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Auto-skip through single-item folders recursively (including initial load)
             // Auto-skip on first visit OR during auto-skip recursion (when navigating deeper)
-            // Only auto-skip if there's exactly 1 folder and 0 files (pure folder navigation)
-            let shouldAutoSkip = (isFirstDUVisit || isAutoSkipRecursion) && 
-                                 response.folders && response.folders.length === 1 && 
-                                 response.files && response.files.length === 0;
+            // Keep descending until duData.length > 1
+            let shouldAutoSkip = (isFirstDUVisit || isAutoSkipRecursion) &&
+                                 data.length <= 1;
             if (shouldAutoSkip) {
-                const singleItem = response.folders[0];
-                // Check if it's a folder (count > 0 means it has files in subdirectories)
-                // A folder with only subfolders (no direct files) will have count > 0
-                const isFolder = singleItem.count > 0;
+                // Get the single item (could be a folder or a file)
+                const singleItem = data[0];
+                // Only auto-skip if it's a folder with count > 0 (has files in subdirectories)
+                const isFolder = singleItem.count !== undefined && singleItem.count > 0;
                 if (isFolder) {
                     // Auto-navigate into this folder
                     state.duPath = singleItem.path + (singleItem.path.endsWith('/') ? '' : '/');
@@ -5252,10 +5251,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const totalPages = Math.ceil(state.totalCount / state.filters.limit);
-        
+
         // Hide pagination if there's only one page or less
         if (totalPages <= 1) {
             paginationContainer.classList.add('hidden');
+            // Still set disabled state for tests
+            (prevPageBtn as HTMLButtonElement).disabled = true;
+            (nextPageBtn as HTMLButtonElement).disabled = true;
             return;
         }
 

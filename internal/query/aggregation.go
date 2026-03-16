@@ -96,20 +96,20 @@ func AggregateDUByPath(ctx context.Context, dbPath string, pathPrefix string, ta
 		`
 		// Add args for the placeholders (14 total)
 		args = append(args,
-			pathPrefix,      // 1: substr(?, 1, 1)
-			pathPrefix,      // 2: ? || substr(
-			pathPrefix,      // 3: length(?) + 1
-			pathPrefix,      // 4: length(?) + 2
-			pathPrefix,      // 5: length(?) + 2
-			pathPrefix,      // 6: length(?) + 1
-			pathPrefix,      // 7: ? || CASE
-			pathPrefix,      // 8: length(?) + 1
-			pathPrefix,      // 9: length(?) + 1
-			pathPrefix,      // 10: length(?) + 2
-			pathPrefix,      // 11: length(?) + 1
-			escapedPrefix,   // 12: LIKE ? || '/%'
-			escapedPrefix,   // 13: LIKE ? || '\\%'
-			targetDepth,     // 14: separator count > targetDepth
+			pathPrefix,    // 1: substr(?, 1, 1)
+			pathPrefix,    // 2: ? || substr(
+			pathPrefix,    // 3: length(?) + 1
+			pathPrefix,    // 4: length(?) + 2
+			pathPrefix,    // 5: length(?) + 2
+			pathPrefix,    // 6: length(?) + 1
+			pathPrefix,    // 7: ? || CASE
+			pathPrefix,    // 8: length(?) + 1
+			pathPrefix,    // 9: length(?) + 1
+			pathPrefix,    // 10: length(?) + 2
+			pathPrefix,    // 11: length(?) + 1
+			escapedPrefix, // 12: LIKE ? || '/%'
+			escapedPrefix, // 13: LIKE ? || '\\%'
+			targetDepth,   // 14: separator count > targetDepth
 		)
 	}
 
