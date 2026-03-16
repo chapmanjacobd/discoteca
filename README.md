@@ -5,7 +5,7 @@ Golang implementation of xklb/library
 ## Quick Install
 
 ```bash
-go install -tags "fts5" github.com/chapmanjacobd/discoteca/cmd/disco@latest
+go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest
 ```
 
 ## Optional dependencies
@@ -37,8 +37,8 @@ go install -tags "fts5" github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
 - `catdoc` - Old Microsoft Office formats (.doc, .xls, .ppt)
 - `xls2csv` - Excel .xls spreadsheet extraction
-- `p7zip-full` or `unar` - 7-Zip archive listing (`7z`)
-- `unrar` or `unar` - RAR archive listing and CBR extraction
+- `unar` or`p7zip-full` - 7-Zip archive listing (`7z`)
+- `unar` or`unrar` - RAR archive listing and CBR extraction
 - `chmextractor` or `libmspack-tools` - CHM help file extraction
 
 ### Accessibility & TTS
