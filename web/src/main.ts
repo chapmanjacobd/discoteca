@@ -822,6 +822,11 @@ document.addEventListener('DOMContentLoaded', () => {
             params.set('p', String(state.currentPage.toString()));
         }
 
+        // Include limit in URL if not default
+        if (state.filters.limit !== 99 && !state.filters.all) {
+            params.set('limit', String(state.filters.limit));
+        }
+
         // Modal and playback states in URL (primarily for mobile back button)
         if (isMobileOrFullscreen()) {
             if (state.activeModal) {
@@ -860,6 +865,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const pageParam = params.get('p');
         state.currentPage = pageParam ? parseInt(pageParam) : 1;
+
+        // Read limit from URL
+        const limitParam = params.get('limit');
+        if (limitParam) {
+            const limit = parseInt(limitParam);
+            if (!isNaN(limit) && limit > 0) {
+                state.filters.limit = limit;
+                state.filters.all = false;
+                const limitInput = document.getElementById('limit') as HTMLInputElement;
+                const limitAll = document.getElementById('limit-all') as HTMLInputElement;
+                if (limitInput) limitInput.value = limit.toString();
+                if (limitAll) limitAll.checked = false;
+            }
+        }
 
         // Read history filter from URL - applies across all modes
         const historyFilter = params.get('history');

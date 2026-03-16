@@ -77,6 +77,10 @@ export class MediaPage {
   async goto(baseUrl: string, timeout: number = 10000): Promise<void> {
     await this.page.goto(baseUrl);
     await this.waitForMediaToLoad(timeout);
+    // Wait for currentMedia to be populated in JavaScript state
+    await this.page.waitForFunction(() => {
+      return (window as any).disco?.currentMedia?.length > 0;
+    }, { timeout });
   }
 
   /**

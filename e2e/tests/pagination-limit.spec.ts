@@ -4,7 +4,8 @@ test.describe('Pagination Limit', () => {
   test.use({ readOnly: true });
 
   test('pagination controls are visible when results exceed page size', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Check if pagination is visible using POM
     await expect(mediaPage.paginationContainer).toBeVisible();
@@ -14,7 +15,8 @@ test.describe('Pagination Limit', () => {
   });
 
   test('next page button navigates to next page', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Get initial page info using POM
     const initialPageText = await mediaPage.pageInfo.textContent();
@@ -32,7 +34,8 @@ test.describe('Pagination Limit', () => {
   });
 
   test('previous page button navigates to previous page', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Go to page 2 first using POM
     const nextBtn = mediaPage.page.locator('#next-page');
@@ -54,7 +57,8 @@ test.describe('Pagination Limit', () => {
   });
 
   test('page size can be changed', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Check if page size selector exists using POM
     const pageSizeSelect = mediaPage.page.locator('#page-size');
@@ -76,21 +80,23 @@ test.describe('Pagination Limit', () => {
   });
 
   test('pagination works with search results', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Search for something using POM
     await mediaPage.search('test');
 
     // Pagination should still be visible if results exceed page size using POM
     const paginationVisible = await mediaPage.paginationContainer.isVisible();
-    
+
     if (paginationVisible) {
       await expect(mediaPage.paginationContainer).toBeVisible();
     }
   });
 
   test('pagination works with filtered results', async ({ mediaPage, sidebarPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Apply a filter using POM
     await sidebarPage.expandMediaTypeSection();
@@ -99,14 +105,15 @@ test.describe('Pagination Limit', () => {
 
     // Pagination should still work with filtered results using POM
     const paginationVisible = await mediaPage.paginationContainer.isVisible();
-    
+
     if (paginationVisible) {
       await expect(mediaPage.paginationContainer).toBeVisible();
     }
   });
 
   test('last page button navigates to last page', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Click last page button using POM
     const lastBtn = mediaPage.page.locator('#last-page');
@@ -127,7 +134,8 @@ test.describe('Pagination Limit', () => {
   });
 
   test('first page button navigates to first page', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Go to page 2 first using POM
     const nextBtn = mediaPage.page.locator('#next-page');
@@ -149,7 +157,8 @@ test.describe('Pagination Limit', () => {
   });
 
   test('pagination buttons are disabled when appropriate', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Set a small limit to force pagination (test.db has 11 items)
+    await mediaPage.page.goto(server.getBaseUrl() + '/#limit=5');
 
     // Previous and first buttons should be disabled on page 1 using POM
     const prevBtn = mediaPage.page.locator('#prev-page');
