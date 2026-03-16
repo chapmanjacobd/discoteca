@@ -5510,6 +5510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             resultsContainer.className = 'captions-list-view';
         }
+        renderPagination();
         updateNowPlayingButton();
     }
 
