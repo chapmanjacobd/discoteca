@@ -134,7 +134,7 @@ var SubtitleExtensions = []string{
 }
 
 var ArchiveExtensions = []string{
-	"7z", "bz2", "gz", "rar", "tar", "xz", "zip",
+	"7z", "arj", "arc", "adf", "br", "bz2", "gz", "iso", "lha", "lzh", "lzx", "pak", "rar", "sit", "tar", "tar.bz2", "tar.gz", "tar.xz", "tar.zst", "tbz2", "tgz", "txz", "tzst", "xz", "zoo", "zip", "zst", "zstd",
 }
 
 func GetTempDir() string {

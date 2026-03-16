@@ -461,6 +461,10 @@ func ExtractText(path string) (string, error) {
 		// XZ TAR - list file names
 		return listTarContents(path)
 
+	case ".tar.zst", ".tzst", ".zst", ".zstd":
+		// Zstd TAR - list file names (requires zstd or tar with zstd support)
+		return listTarContents(path)
+
 	case ".7z":
 		// 7-Zip archive - list file names (requires 7z)
 		return list7zContents(path)
@@ -971,6 +975,20 @@ func listTarContents(path string) (string, error) {
 		}
 	}
 
+	// For zstd-compressed tar, try piping through zstd to tar
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == ".zst" || ext == ".tzst" || strings.HasSuffix(strings.ToLower(path), ".tar.zst") {
+		zstdBin := "zstd"
+		if _, err := exec.LookPath(zstdBin); err == nil {
+			// zstd -d -c file | tar -tf -
+			cmd := exec.Command("sh", "-c", "zstd -d -c "+strings.ReplaceAll(path, "'", "'\\''")+" | tar -tf -")
+			output, err := cmd.Output()
+			if err == nil {
+				return string(output), nil
+			}
+		}
+	}
+
 	// Fallback: try Go tar package
 	f, err := os.Open(path)
 	if err != nil {
@@ -980,7 +998,7 @@ func listTarContents(path string) (string, error) {
 
 	// Handle compression
 	var reader io.Reader = f
-	ext := strings.ToLower(filepath.Ext(path))
+	ext = strings.ToLower(filepath.Ext(path))
 	if ext == ".gz" || ext == ".tgz" {
 		gzReader, err := gzip.NewReader(f)
 		if err != nil {
@@ -988,6 +1006,19 @@ func listTarContents(path string) (string, error) {
 		}
 		defer gzReader.Close()
 		reader = gzReader
+	} else if ext == ".zst" || ext == ".tzst" {
+		// Zstd compression - use external zstd command
+		zstdBin := "zstd"
+		if _, err := exec.LookPath(zstdBin); err == nil {
+			cmd := exec.Command(zstdBin, "-d", "-c", path)
+			output, err := cmd.Output()
+			if err != nil {
+				return "", err
+			}
+			reader = bytes.NewReader(output)
+		} else {
+			return "", fmt.Errorf("zstd not found")
+		}
 	}
 
 	tr := tar.NewReader(reader)

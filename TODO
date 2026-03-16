@@ -1,5 +1,3 @@
-find functions and other code that looks similar but in different files. look for opportunities to simplify the code. Show them here with a plan to organize them into a central location
-
 
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
