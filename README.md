@@ -18,9 +18,17 @@ go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
 ![Details View](docs/screenshots/home-details-view.png)
 
+### Disk Usage View
+
+![Disk Usage View](docs/screenshots/disk-usage-view.png)
+
 ### Video Player
 
 ![Video Player](docs/screenshots/video-player.png)
+
+### Audio Player
+
+![Audio Player](docs/screenshots/audio-player.png)
 
 ### EPUB Viewer
 

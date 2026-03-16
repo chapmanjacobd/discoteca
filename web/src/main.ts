@@ -1456,11 +1456,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateCardItem(item) {
+        const index = currentMedia.findIndex(m => m.path === item.path);
+        if (index !== -1) {
+            currentMedia[index] = item;
+        }
+        if (state.playlistItems) {
+            const pIndex = state.playlistItems.findIndex(m => m.path === item.path);
+            if (pIndex !== -1) {
+                state.playlistItems[pIndex] = item;
+            }
+        }
+
+        const card = document.querySelector(`.media-card[data-path="${CSS.escape(item.path)}"]`);
+        if (card) {
+            const newCard = createMediaCard(item, index !== -1 ? index : 0);
+            card.replaceWith(newCard);
+        }
+    }
+
     async function addToPlaylist(title, item) {
         const payload = {
             playlist_title: title,
             media_path: item.path
         };
+
+        const itemEl = document.querySelector(`.media-card[data-path="${CSS.escape(item.path)}"]`);
+        const addBtn = itemEl?.querySelector('.media-action-btn.add-playlist');
+        
+        if (addBtn) {
+            addBtn.classList.add('success');
+            addBtn.textContent = '✓';
+        }
+
         try {
             const resp = await fetchAPI('/api/playlists/items', {
                 method: 'POST',
@@ -1473,9 +1501,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const filename = item.path.split('/').pop();
             showToast(`Added to ${title}\n\n${filename}`, '📁');
+            
+            // Revert icon after a delay
+            if (addBtn) {
+                setTimeout(() => {
+                    addBtn.classList.remove('success');
+                    addBtn.textContent = '+';
+                }, 2000);
+            }
         } catch (err) {
             console.error('Add to playlist failed:', err, payload);
             showToast(err.message);
+            if (addBtn) {
+                addBtn.classList.remove('success');
+                addBtn.textContent = '+';
+            }
         }
     }
 
@@ -3609,8 +3649,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Update current state and re-render
-        const updated = (m) => {
+        // Update current state and re-render surgically
+        const updateFn = (m) => {
             if (m.path === item.path) {
                 if (!state.readOnly) {
                     m.play_count = (m.play_count || 0) + 1;
@@ -3620,13 +3660,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return m;
         };
-        currentMedia = currentMedia.map(updated);
-        if (state.playlistItems) state.playlistItems = state.playlistItems.map(updated);
+
+        const updatedItem = { ...item };
+        updateFn(updatedItem);
 
         if (state.filters.unplayed) {
-            performSearch();
+            const itemEl = document.querySelector(`.media-card[data-path="${CSS.escape(item.path)}"]`);
+            if (itemEl) {
+                itemEl.classList.add('fade-out');
+                await new Promise(r => setTimeout(r, 200));
+                itemEl.remove();
+                currentMedia = currentMedia.filter(m => m.path !== item.path);
+                state.totalCount--;
+                
+                // Update results count
+                const hasClientFilter = state.filters.unplayed || state.filters.unfinished || state.filters.completed;
+                const displayCount = hasClientFilter ? currentMedia.length : state.totalCount;
+                const unit = displayCount === 1 ? 'result' : 'results';
+                resultsCount.textContent = `${displayCount} ${unit}`;
+
+                await fetchNextItem();
+                renderPagination();
+            } else {
+                performSearch();
+            }
         } else {
-            renderResults();
+            updateCardItem(updatedItem);
         }
     }
 
@@ -3658,8 +3717,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Update current state and re-render
-        const updated = (m) => {
+        // Update current state and re-render surgically
+        const updateFn = (m) => {
             if (m.path === item.path) {
                 m.play_count = 0;
                 m.playhead = 0;
@@ -3667,13 +3726,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return m;
         };
-        currentMedia = currentMedia.map(updated);
-        if (state.playlistItems) state.playlistItems = state.playlistItems.map(updated);
+
+        const updatedItem = { ...item };
+        updateFn(updatedItem);
 
         if (state.filters.completed) {
-            performSearch();
+            const itemEl = document.querySelector(`.media-card[data-path="${CSS.escape(item.path)}"]`);
+            if (itemEl) {
+                itemEl.classList.add('fade-out');
+                await new Promise(r => setTimeout(r, 200));
+                itemEl.remove();
+                currentMedia = currentMedia.filter(m => m.path !== item.path);
+                state.totalCount--;
+                
+                // Update results count
+                const hasClientFilter = state.filters.unplayed || state.filters.unfinished || state.filters.completed;
+                const displayCount = hasClientFilter ? currentMedia.length : state.totalCount;
+                const unit = displayCount === 1 ? 'result' : 'results';
+                resultsCount.textContent = `${displayCount} ${unit}`;
+
+                await fetchNextItem();
+                renderPagination();
+            } else {
+                performSearch();
+            }
         } else {
-            renderResults();
+            updateCardItem(updatedItem);
         }
     }
 
@@ -5325,8 +5403,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let thumbHtml = `
-            <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-            <i style="display: none">${getIcon(item.type)}</i>
+            <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded'); this.closest('.media-thumb').classList.remove('skeleton')" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'; this.closest('.media-thumb').classList.remove('skeleton')">
+            <i style="display: block">${getIcon(item.type)}</i>
         `;
 
         if (item.is_dir) {
@@ -5334,7 +5412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         card.innerHTML = `
-            <div class="media-thumb">
+            <div class="media-thumb ${item.is_dir ? '' : 'skeleton'}">
                 ${thumbHtml}
                 ${duration ? `<span class="media-duration">${duration}</span>` : ''}
                 <div class="media-actions">
@@ -7987,29 +8065,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isClickable && window.innerWidth <= 768) {
             closeMobileSidebar();
-        }
-    });
-
-    // On touch devices, remove hover state from sidebar buttons when touched
-    // to prevent buttons from staying highlighted after selection
-    document.addEventListener('touchstart', (e) => {
-        const target = e.target as HTMLElement;
-        const sidebarButton = target.closest('.category-btn') ||
-            target.closest('#trash-btn') ||
-            target.closest('#history-btn') ||
-            target.closest('#all-media-btn') ||
-            target.closest('#du-btn') ||
-            target.closest('#captions-btn') ||
-            target.closest('#curation-btn') ||
-            target.closest('#channel-surf-btn') ||
-            target.closest('#settings-button');
-
-        if (sidebarButton) {
-            document.querySelectorAll('.category-btn:hover, #trash-btn:hover, #history-btn:hover, ' +
-                '#all-media-btn:hover, #du-btn:hover, #captions-btn:hover, #curation-btn:hover, ' +
-                '#channel-surf-btn:hover, #settings-button:hover').forEach((el) => {
-                (el as HTMLElement).blur();
-            });
         }
     });
 

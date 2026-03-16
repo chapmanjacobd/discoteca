@@ -145,8 +145,11 @@ header {
     justify-content: center;
 }
 
-#settings-button:hover {
-    background: var(--hover-color);
+/* Only apply hover styles on devices that support hover */
+@media (hover: hover) {
+    #settings-button:hover {
+        background: var(--hover-color);
+    }
 }
 
 #logo {
@@ -370,9 +373,12 @@ header {
     text-transform: capitalize;
 }
 
-.category-btn:hover {
-    background: var(--hover-color);
-    color: var(--text-color);
+/* Only apply hover styles on devices that support hover */
+@media (hover: hover) {
+    .category-btn:hover {
+        background: var(--hover-color);
+        color: var(--text-color);
+    }
 }
 
 .category-btn.active {
@@ -840,6 +846,11 @@ header {
 
 .media-action-btn.restore:hover {
     background: rgba(46, 204, 113, 0.9);
+}
+
+.media-action-btn.success {
+    background: #2ecc71 !important;
+    color: white !important;
 }
 
 .media-card.fade-out {
