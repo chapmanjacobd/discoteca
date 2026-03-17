@@ -904,8 +904,15 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve percentile-based filters (e.g., p10-90) to absolute values
+	resolvedFlags, err := query.ResolvePercentileFlags(r.Context(), dbs, flags)
+	if err != nil {
+		slog.Warn("Failed to resolve percentile filters", "error", err)
+		resolvedFlags = flags
+	}
+
 	// Use DU aggregation with filter support
-	folderResults, err := query.AggregateDUByPathMultiDBWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, currentDepth, flags)
+	folderResults, err := query.AggregateDUByPathMultiDBWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, currentDepth, resolvedFlags)
 	if err != nil {
 		slog.Error("Failed to fetch DU folders", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
@@ -913,7 +920,7 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch direct files at target depth with filter support
-	directFiles, err := query.FetchDUDirectFilesWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, flags)
+	directFiles, err := query.FetchDUDirectFilesWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, resolvedFlags)
 	if err != nil {
 		slog.Error("Failed to fetch DU files", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)

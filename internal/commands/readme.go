@@ -44,20 +44,24 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("## Screenshots\n\n")
 	sb.WriteString("### Grid View\n\n")
 	sb.WriteString("![Search Results](docs/screenshots/search-results.png)\n\n")
+	sb.WriteString("### Group View\n\n")
+	sb.WriteString("![Group View](docs/screenshots/group-view.png)\n\n")
 	sb.WriteString("### Details View\n\n")
 	sb.WriteString("![Details View](docs/screenshots/home-details-view.png)\n\n")
+
 	sb.WriteString("### Disk Usage View\n\n")
 	sb.WriteString("![Disk Usage View](docs/screenshots/disk-usage-view.png)\n\n")
+
 	sb.WriteString("### Video Player\n\n")
 	sb.WriteString("![Video Player](docs/screenshots/video-player.png)\n\n")
 	sb.WriteString("### Audio Player\n\n")
 	sb.WriteString("![Audio Player](docs/screenshots/audio-player.png)\n\n")
+
 	sb.WriteString("### EPUB Viewer\n\n")
 	sb.WriteString("![EPUB Viewer](docs/screenshots/epub-viewer.png)\n\n")
+
 	sb.WriteString("### Settings Modal\n\n")
 	sb.WriteString("![Settings Modal](docs/screenshots/settings-modal.png)\n\n")
-	sb.WriteString("### Group View\n\n")
-	sb.WriteString("![Group View](docs/screenshots/group-view.png)\n\n")
 
 	sb.WriteString("## Optional dependencies\n\n")
 	sb.WriteString("### Core Media Features\n\n")

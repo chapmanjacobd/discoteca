@@ -337,6 +337,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		var resp2 models.DUResponse
 		json.Unmarshal(w2.Body.Bytes(), &resp2)
 
+		// Should have results with size filter applied
+		if resp2.FolderCount == 0 && resp2.FileCount == 0 {
+			t.Errorf("Expected folders or files with size filter, got none")
+		}
 		t.Logf("Size filter - Subfolder results: Folders: %d, Files: %d", 
 			resp2.FolderCount, resp2.FileCount)
 	})
@@ -363,6 +367,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		var resp2 models.DUResponse
 		json.Unmarshal(w2.Body.Bytes(), &resp2)
 
+		// Should have results with duration filter applied
+		if resp2.FolderCount == 0 && resp2.FileCount == 0 {
+			t.Errorf("Expected folders or files with duration filter, got none")
+		}
 		t.Logf("Duration filter - Subfolder results: Folders: %d, Files: %d", 
 			resp2.FolderCount, resp2.FileCount)
 	})
