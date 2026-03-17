@@ -1,3 +1,7 @@
+lets go through all the e2e tests and find any near duplicates and coverage duplicates and also check if organizing is needed
+
+Are there any gaps in e2e which would be valuable to cover?
+
 if thumbnail is too dark, try seeking 60 keyframes later? most of the time thumbnails work well but 5% of the time we could try again if it was cheap to do so
 
 scroll to zoom in to photo and pan around like WhatsApp Web

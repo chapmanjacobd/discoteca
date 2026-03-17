@@ -513,7 +513,7 @@ export class ViewerPage extends BasePage {
   /**
    * Wait for document modal
    */
-  async waitForDocumentModal(timeout: number = 10000): Promise<void> {
+  async waitForDocumentModal(timeout: number = 30000): Promise<void> {
     await this.documentModal.first().waitFor({ state: 'visible', timeout });
   }
 

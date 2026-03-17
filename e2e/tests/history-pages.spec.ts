@@ -153,6 +153,10 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     // Simulate local play count using POM
     await mediaPage.setPlayCount(mediaPath, 1);
 
+    // Reload page to pick up localStorage changes
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
+
     // Navigate to Unplayed using POM
     await sidebarPage.expandHistorySection();
     await sidebarPage.historyUnplayedButton.click();
@@ -191,6 +195,10 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
 
     // Simulate local play count using POM
     await mediaPage.setPlayCount(mediaPath, 1);
+
+    // Reload page to pick up localStorage changes
+    await mediaPage.page.reload();
+    await mediaPage.waitForMediaToLoad();
 
     // Navigate to Completed using POM
     await sidebarPage.expandHistorySection();

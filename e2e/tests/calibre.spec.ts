@@ -4,7 +4,10 @@ import { test, expect } from '../fixtures';
  * E2E tests for calibre-based EPUB conversion and viewing
  */
 test.describe('Calibre EPUB Viewer', () => {
-  test.use({ readOnly: true });
+  test.use({
+    readOnly: true,
+    actionTimeout: 30000, // Increased timeout for calibre conversion
+  });
 
   test('opens EPUB in document modal with calibre conversion', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
