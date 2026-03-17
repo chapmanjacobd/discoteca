@@ -362,6 +362,9 @@ func TestToURL(t *testing.T) {
 		{"windows forward", "C:/Users/file", "C:/Users/file"},
 		{"windows mixed", "C:\\Users/file\\doc.txt", "C:/Users/file/doc.txt"},
 		{"unc path", "\\\\server\\share\\file", "//server/share/file"},
+		{"windows drive only", "C:", "C:"},
+		{"windows drive backslash", "C:\\", "C:/"},
+		{"windows network share", "\\\\nas\\share\\file", "//nas/share/file"},
 		{"relative unix", "home/user", "home/user"},
 		{"relative windows", "home\\user", "home/user"},
 	}
@@ -433,8 +436,8 @@ func TestToURLFromURLRoundTrip(t *testing.T) {
 	isWindows := filepath.Separator == '\\'
 
 	tests := []string{
-		"/home/user/file.txt",
-		"relative/path",
+		filepath.FromSlash("/home/user/file.txt"),
+		filepath.FromSlash("relative/path"),
 	}
 
 	// Add Windows-style paths only when testing on Windows

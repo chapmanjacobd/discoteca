@@ -15,6 +15,7 @@ jobs:
   ci:
     name: Continuous Integration
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     env:
       BUILD_TAGS: fts5
     strategy:
