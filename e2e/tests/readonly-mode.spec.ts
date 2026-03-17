@@ -214,8 +214,8 @@ test.describe('Read-Only Mode', () => {
   test('can view media details in read-only mode', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
-    // Click first media to open player using POM
-    const firstCard = mediaPage.getMediaCard(0);
+    // Click first video to open player using POM
+    const firstCard = mediaPage.getFirstMediaCardByType('video');
     await firstCard.click();
     await viewerPage.waitForPlayer();
 

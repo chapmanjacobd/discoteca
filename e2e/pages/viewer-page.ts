@@ -56,10 +56,18 @@ export class ViewerPage extends BasePage {
    */
   async waitForPlayer(timeout: number = 10000): Promise<void> {
     await this.playerContainer.waitFor({ state: 'visible', timeout });
-    const media = this.videoElement.or(this.audioElement);
+    // Wait for video, audio, or image element (images use img tag)
+    const media = this.videoElement.or(this.audioElement).or(this.imageElement);
     await media.waitFor({ state: 'visible', timeout });
+    // For video/audio, wait for readyState; for images, just wait for load event
     await this.page.waitForFunction(() => {
-      const media = document.querySelector('#pip-player video, #pip-player audio') as HTMLMediaElement;
+      const video = document.querySelector('#pip-player video') as HTMLVideoElement;
+      const audio = document.querySelector('#pip-player audio') as HTMLAudioElement;
+      const img = document.querySelector('#pip-player img') as HTMLImageElement;
+      if (img && !video && !audio) {
+        return img.complete;
+      }
+      const media = video || audio;
       return media && media.readyState >= 1;
     }, { timeout });
   }
@@ -160,7 +168,9 @@ export class ViewerPage extends BasePage {
    */
   async play(): Promise<void> {
     const media = this.videoElement.or(this.audioElement);
-    await media.evaluate((el: HTMLMediaElement) => el.play());
+    if (await media.count() > 0) {
+      await media.evaluate((el: HTMLMediaElement) => el.play());
+    }
   }
 
   /**
@@ -168,7 +178,9 @@ export class ViewerPage extends BasePage {
    */
   async pause(): Promise<void> {
     const media = this.videoElement.or(this.audioElement);
-    await media.evaluate((el: HTMLMediaElement) => el.pause());
+    if (await media.count() > 0) {
+      await media.evaluate((el: HTMLMediaElement) => el.pause());
+    }
   }
 
   /**
@@ -176,7 +188,11 @@ export class ViewerPage extends BasePage {
    */
   async isPlaying(): Promise<boolean> {
     const media = this.videoElement.or(this.audioElement);
-    return await media.evaluate((el: HTMLMediaElement) => !el.paused);
+    if (await media.count() > 0) {
+      return await media.evaluate((el: HTMLMediaElement) => !el.paused);
+    }
+    // For images, consider them "playing" if visible
+    return await this.imageElement.isVisible();
   }
 
   /**
@@ -184,7 +200,10 @@ export class ViewerPage extends BasePage {
    */
   async getCurrentTime(): Promise<number> {
     const media = this.videoElement.or(this.audioElement);
-    return await media.evaluate((el: HTMLMediaElement) => el.currentTime);
+    if (await media.count() > 0) {
+      return await media.evaluate((el: HTMLMediaElement) => el.currentTime);
+    }
+    return 0;
   }
 
   /**
@@ -192,7 +211,10 @@ export class ViewerPage extends BasePage {
    */
   async getDuration(): Promise<number> {
     const media = this.videoElement.or(this.audioElement);
-    return await media.evaluate((el: HTMLMediaElement) => el.duration);
+    if (await media.count() > 0) {
+      return await media.evaluate((el: HTMLMediaElement) => el.duration);
+    }
+    return 0;
   }
 
   /**
@@ -277,13 +299,21 @@ export class ViewerPage extends BasePage {
    * Wait for media to load
    */
   async waitForMediaLoaded(timeout: number = 10000): Promise<void> {
-    const media = this.videoElement.or(this.audioElement);
-    await media.waitFor({ state: 'visible', timeout });
+    // For images, wait for complete state
+    const img = this.imageElement;
+    if (await img.count() > 0) {
+      await this.page.waitForFunction(() => {
+        const img = document.querySelector('#pip-player img') as HTMLImageElement;
+        return img && img.complete;
+      }, { timeout });
+      return;
+    }
+    // For video/audio, wait for readyState
     await this.page.waitForFunction(() => {
       const video = document.querySelector('#pip-player video') as HTMLVideoElement;
       const audio = document.querySelector('#pip-player audio') as HTMLAudioElement;
       const media = video || audio;
-      return media && !media.readyState;
+      return media && media.readyState >= 3;
     }, { timeout });
   }
 
@@ -318,7 +348,7 @@ export class ViewerPage extends BasePage {
    * Get media element
    */
   getMediaElement(): Locator {
-    return this.videoElement.or(this.audioElement);
+    return this.videoElement.or(this.audioElement).or(this.imageElement);
   }
 
   /**

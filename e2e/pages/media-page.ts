@@ -685,15 +685,6 @@ export class MediaPage extends BasePage {
   }
 
   /**
-   * Set progress (stub for backward compatibility)
-   */
-  async setProgress(index: number | string, progress: number, timestamp?: number): Promise<void> {
-    // This was a test helper that modified state directly
-    // Now tests should use the actual application flow
-    await this.waitForTimeout(100);
-  }
-
-  /**
    * Scroll settings modal (for backward compatibility)
    */
   async scrollSettingsModal(direction: 'up' | 'down' | number, amount: number = 100): Promise<void> {
