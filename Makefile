@@ -105,6 +105,7 @@ install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco
 
 e2e-install:
+	npm install --prefix e2e
 	npm run install --prefix e2e
 
 e2e-init: build
