@@ -14,7 +14,6 @@ all: clean webbuild fmt lint build test webtest readme
 ubuntu-deps:
 	sudo apt-get update && sudo apt-get install -y --no-install-recommends -o APT::Install-Suggests=0 \
 		fonts-dejavu-core \
-		libasound2 \
 		libasound2t64 \
 		libatk-bridge2.0-0 \
 		libatk1.0-0 \
