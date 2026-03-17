@@ -53,6 +53,60 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
+	t.Run("type=video filter returns only video folders", func(t *testing.T) {
+		// Get unfiltered results first
+		req1 := httptest.NewRequest("GET", "/api/du?path=&include_counts=true", nil)
+		req1.Header.Set("X-Disco-Token", cmd.APIToken)
+		w1 := httptest.NewRecorder()
+		mux.ServeHTTP(w1, req1)
+
+		var resp1 models.DUResponse
+		if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+			t.Fatalf("Failed to unmarshal unfiltered response: %v", err)
+		}
+		unfilteredTotal := resp1.TotalCount
+		t.Logf("Unfiltered - Folders: %d, Total: %d", resp1.FolderCount, unfilteredTotal)
+
+		// Get total file count from folders
+		unfilteredFileCount := 0
+		for _, f := range resp1.Folders {
+			unfilteredFileCount += f.Count
+		}
+		t.Logf("Unfiltered file count in folders: %d", unfilteredFileCount)
+
+		// Apply type=video filter (frontend uses this format)
+		req2 := httptest.NewRequest("GET", "/api/du?path=&type=video", nil)
+		req2.Header.Set("X-Disco-Token", cmd.APIToken)
+		w2 := httptest.NewRecorder()
+		mux.ServeHTTP(w2, req2)
+
+		if w2.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w2.Code, w2.Body.String())
+		}
+
+		var resp2 models.DUResponse
+		if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		t.Logf("type=video - Folders: %d, Files: %d, Total: %d", resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
+
+		// Get filtered file count from folders
+		filteredFileCount := 0
+		for _, f := range resp2.Folders {
+			filteredFileCount += f.Count
+		}
+		t.Logf("Filtered file count in folders: %d", filteredFileCount)
+
+		// File count within folders should be less (5 videos out of 13 total)
+		if filteredFileCount >= unfilteredFileCount {
+			t.Errorf("Expected filtered file count (%d) to be less than unfiltered (%d)", filteredFileCount, unfilteredFileCount)
+		}
+		if filteredFileCount == 0 {
+			t.Error("Expected some video results")
+		}
+	})
+
 	t.Run("audio-only filter returns only audio folders", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/du?path=&audio=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)

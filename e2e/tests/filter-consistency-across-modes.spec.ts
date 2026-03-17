@@ -161,9 +161,9 @@ test.describe('Filter Consistency Across Modes', () => {
 
       // Sort options should include common fields
       const options = await mediaPage.sortBySelect.locator('option').allTextContents();
-      expect(options).toContain('name');
-      expect(options).toContain('size');
-      expect(options).toContain('duration');
+      expect(options).toContain('Path');
+      expect(options).toContain('Size');
+      expect(options).toContain('Duration');
     });
 
     test('sort options available in DU mode', async ({ mediaPage, server }) => {
@@ -175,9 +175,9 @@ test.describe('Filter Consistency Across Modes', () => {
 
       // Sort options should include common fields
       const options = await mediaPage.sortBySelect.locator('option').allTextContents();
-      expect(options).toContain('name');
-      expect(options).toContain('size');
-      expect(options).toContain('duration');
+      expect(options).toContain('Path');
+      expect(options).toContain('Size');
+      expect(options).toContain('Duration');
     });
 
     test('sort options available in Captions mode', async ({ mediaPage, server }) => {
@@ -189,9 +189,9 @@ test.describe('Filter Consistency Across Modes', () => {
 
       // Sort options should include common fields
       const options = await mediaPage.sortBySelect.locator('option').allTextContents();
-      expect(options).toContain('name');
-      expect(options).toContain('size');
-      expect(options).toContain('duration');
+      expect(options).toContain('Path');
+      expect(options).toContain('Size');
+      expect(options).toContain('Duration');
     });
 
     test('reverse sort works in Search mode', async ({ mediaPage, server }) => {

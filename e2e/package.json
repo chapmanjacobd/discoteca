@@ -11,7 +11,7 @@
     "test:debug": "playwright test --debug",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
-    "install:browsers": "playwright install"
+    "install": "playwright install --with-deps"
   },
   "repository": {
     "type": "git",

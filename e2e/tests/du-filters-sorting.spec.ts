@@ -125,22 +125,40 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial folder count at root level
+      // Get initial folder count and file count at root level
       const folderCards = mediaPage.page.locator('.media-card.is-folder');
       const initialFolderCount = await folderCards.count();
       expect(initialFolderCount).toBeGreaterThan(0);
+      
+      // Get initial file count from folder card ("X files" text in media-meta)
+      const getFolderFileCount = async (): Promise<number> => {
+        // The file count is displayed as "X files" in the media-meta section
+        const countElement = mediaPage.page.locator('.media-card.is-folder .media-meta span:has-text("files")').first();
+        const text = await countElement.textContent();
+        if (text) {
+          const match = text.match(/(\d+)/);
+          if (match) return parseInt(match[1]);
+        }
+        return 0;
+      };
+      
+      const initialFileCount = await getFolderFileCount();
+      console.log(`[DU Video Filter] Initial folders: ${initialFolderCount}, files: ${initialFileCount}`);
 
       // Apply video filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Folder count should change after applying video filter
+      // File count within folder should change after applying video filter
+      const videoFileCount = await getFolderFileCount();
       const videoFolderCount = await folderCards.count();
-      console.log(`[DU Video Filter] Initial folders: ${initialFolderCount}, After video filter: ${videoFolderCount}`);
-      
-      // The count should be different (filter should have an effect)
-      expect(videoFolderCount).not.toBe(initialFolderCount);
+      console.log(`[DU Video Filter] After video filter - folders: ${videoFolderCount}, files: ${videoFileCount}`);
+
+      // The file count should be different (filter should have an effect)
+      // Note: folder count may stay the same if all media is under same parent folder
+      expect(videoFileCount).not.toBe(initialFileCount);
+      expect(videoFileCount).toBeLessThan(initialFileCount);
     });
 
     test('audio filter works in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -148,20 +166,36 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial folder count
+      // Get initial folder count and file count
       const folderCards = mediaPage.page.locator('.media-card.is-folder');
       const initialFolderCount = await folderCards.count();
       expect(initialFolderCount).toBeGreaterThan(0);
+      
+      const getFolderFileCount = async (): Promise<number> => {
+        const countElement = mediaPage.page.locator('.media-card.is-folder .media-meta span:has-text("files")').first();
+        const text = await countElement.textContent();
+        if (text) {
+          const match = text.match(/(\d+)/);
+          if (match) return parseInt(match[1]);
+        }
+        return 0;
+      };
+      
+      const initialFileCount = await getFolderFileCount();
+      console.log(`[DU Audio Filter] Initial folders: ${initialFolderCount}, files: ${initialFileCount}`);
 
       // Apply audio filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('audio').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Folder count should change after applying audio filter
+      // File count within folder should change
+      const audioFileCount = await getFolderFileCount();
       const audioFolderCount = await folderCards.count();
-      console.log(`[DU Audio Filter] Initial: ${initialFolderCount}, After audio filter: ${audioFolderCount}`);
-      expect(audioFolderCount).not.toBe(initialFolderCount);
+      console.log(`[DU Audio Filter] After audio - folders: ${audioFolderCount}, files: ${audioFileCount}`);
+      
+      expect(audioFileCount).not.toBe(initialFileCount);
+      expect(audioFileCount).toBeLessThan(initialFileCount);
     });
 
     test('image filter works in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -169,20 +203,36 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial folder count
+      // Get initial folder count and file count
       const folderCards = mediaPage.page.locator('.media-card.is-folder');
       const initialFolderCount = await folderCards.count();
       expect(initialFolderCount).toBeGreaterThan(0);
+      
+      const getFolderFileCount = async (): Promise<number> => {
+        const countElement = mediaPage.page.locator('.media-card.is-folder .media-meta span:has-text("files")').first();
+        const text = await countElement.textContent();
+        if (text) {
+          const match = text.match(/(\d+)/);
+          if (match) return parseInt(match[1]);
+        }
+        return 0;
+      };
+      
+      const initialFileCount = await getFolderFileCount();
+      console.log(`[DU Image Filter] Initial folders: ${initialFolderCount}, files: ${initialFileCount}`);
 
       // Apply image filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('image').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Folder count should change after applying image filter
+      // File count within folder should change
+      const imageFileCount = await getFolderFileCount();
       const imageFolderCount = await folderCards.count();
-      console.log(`[DU Image Filter] Initial: ${initialFolderCount}, After image filter: ${imageFolderCount}`);
-      expect(imageFolderCount).not.toBe(initialFolderCount);
+      console.log(`[DU Image Filter] After image - folders: ${imageFolderCount}, files: ${imageFileCount}`);
+      
+      expect(imageFileCount).not.toBe(initialFileCount);
+      expect(imageFileCount).toBeLessThan(initialFileCount);
     });
 
     test('text filter works in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -190,20 +240,36 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial folder count
+      // Get initial folder count and file count
       const folderCards = mediaPage.page.locator('.media-card.is-folder');
       const initialFolderCount = await folderCards.count();
       expect(initialFolderCount).toBeGreaterThan(0);
+      
+      const getFolderFileCount = async (): Promise<number> => {
+        const countElement = mediaPage.page.locator('.media-card.is-folder .media-meta span:has-text("files")').first();
+        const text = await countElement.textContent();
+        if (text) {
+          const match = text.match(/(\d+)/);
+          if (match) return parseInt(match[1]);
+        }
+        return 0;
+      };
+      
+      const initialFileCount = await getFolderFileCount();
+      console.log(`[DU Text Filter] Initial folders: ${initialFolderCount}, files: ${initialFileCount}`);
 
       // Apply text filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('text').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Folder count should change after applying text filter
+      // File count within folder should change
+      const textFileCount = await getFolderFileCount();
       const textFolderCount = await folderCards.count();
-      console.log(`[DU Text Filter] Initial: ${initialFolderCount}, After text filter: ${textFolderCount}`);
-      expect(textFolderCount).not.toBe(initialFolderCount);
+      console.log(`[DU Text Filter] After text - folders: ${textFolderCount}, files: ${textFileCount}`);
+      
+      expect(textFileCount).not.toBe(initialFileCount);
+      expect(textFileCount).toBeLessThan(initialFileCount);
     });
 
     test('clearing media type filter restores all results in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -211,28 +277,40 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial folder count
+      // Get initial folder count and file count
       const folderCards = mediaPage.page.locator('.media-card.is-folder');
       const initialFolderCount = await folderCards.count();
+      
+      const getFolderFileCount = async (): Promise<number> => {
+        const countElement = mediaPage.page.locator('.media-card.is-folder .media-meta span:has-text("files")').first();
+        const text = await countElement.textContent();
+        if (text) {
+          const match = text.match(/(\d+)/);
+          if (match) return parseInt(match[1]);
+        }
+        return 0;
+      };
+      
+      const initialFileCount = await getFolderFileCount();
 
       // Apply video filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      const filteredFolderCount = await folderCards.count();
+      const filteredFileCount = await getFolderFileCount();
 
-      // Verify filter had an effect
-      expect(filteredFolderCount).not.toBe(initialFolderCount);
+      // Verify filter had an effect on file count
+      expect(filteredFileCount).not.toBe(initialFileCount);
 
       // Clear filter by clicking again
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      const restoredFolderCount = await folderCards.count();
+      const restoredFileCount = await getFolderFileCount();
 
-      // Count should be back to initial count
-      expect(restoredFolderCount).toBe(initialFolderCount);
+      // File count should be back to initial count
+      expect(restoredFileCount).toBe(initialFileCount);
     });
   });
 

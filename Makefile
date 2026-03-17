@@ -99,20 +99,19 @@ install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco
 
 e2e-install:
-	cd e2e && npm install && npx playwright install --with-deps
+	npm run install --prefix e2e
 
 e2e-init: build
 	./e2e/fixtures/init-db.sh $(BINARY_NAME)$(EXE)
 
 e2e: e2e-init
-	cd e2e && npx playwright test
+	npm run test --prefix e2e
 
 e2e-cli: e2e-init
-	cd e2e && npx playwright test --grep 'cli-'
+	npm run test --prefix e2e -- --grep 'cli-'
 
 e2e-web: e2e-init
-	cd e2e && npx playwright test --grep-invert 'cli-'
-
+	npm run test --prefix e2e -- --grep-invert 'cli-'
 
 release-build: webbuild
 	mkdir -p dist
