@@ -85,6 +85,14 @@ ffmpeg -y -f lavfi -i color=c=blue:s=640x480:d=1 \
     -vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='Image 3'" \
     -frames:v 1 "$MEDIA_DIR/images/test_image3.png" 2>/dev/null
 
+# Recursive folder structure for DU auto-skip testing
+# /recursive -> /recursive/level1 -> /recursive/level1/level2 -> file
+mkdir -p "$MEDIA_DIR/recursive/level1/level2"
+ffmpeg -y -f lavfi -i testsrc=duration=1:size=320x240:rate=30 \
+    -f lavfi -i sine=frequency=440:duration=1 \
+    -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart \
+    "$MEDIA_DIR/recursive/level1/level2/deep_video.mp4" 2>/dev/null
+
 # Create valid PDF using pandoc
 echo "# Test Document
 

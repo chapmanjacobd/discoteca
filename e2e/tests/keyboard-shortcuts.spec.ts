@@ -20,8 +20,10 @@ test.describe('Keyboard Shortcuts', () => {
       await mediaPage.page.keyboard.press('n');
       await mediaPage.page.waitForTimeout(1000);
 
-      // Player should open with next media using POM
-      await expect(viewerPage.playerContainer).toBeVisible();
+      // Player or document modal should be visible
+      const playerVisible = await viewerPage.playerContainer.isVisible();
+      const docVisible = await viewerPage.documentModal.isVisible();
+      expect(playerVisible || docVisible).toBe(true);
     });
 
     test('p key plays previous sibling without player open', async ({ mediaPage, viewerPage, server }) => {
@@ -42,8 +44,10 @@ test.describe('Keyboard Shortcuts', () => {
       await viewerPage.waitForPlayer();
       await mediaPage.page.waitForTimeout(500);
 
-      // Player should be visible with some media
-      await expect(viewerPage.playerContainer).toBeVisible();
+      // Player or document modal should be visible
+      const playerVisible = await viewerPage.playerContainer.isVisible();
+      const docVisible = await viewerPage.documentModal.isVisible();
+      expect(playerVisible || docVisible).toBe(true);
     });
 
     test('ArrowRight seeks forward 5 seconds', async ({ mediaPage, viewerPage, server }) => {

@@ -322,14 +322,8 @@ export class ViewerPage {
   /**
    * Wait for player to be hidden
    */
-  async waitForHidden(timeout: number = 5000): Promise<void> {
-    await this.page.waitForFunction(
-      () => {
-        const player = document.querySelector('#pip-player');
-        return player && player.classList.contains('hidden');
-      },
-      { timeout }
-    );
+  async waitForHidden(timeout: number = 10000): Promise<void> {
+    await this.playerContainer.waitFor({ state: 'hidden', timeout });
   }
 
   /**

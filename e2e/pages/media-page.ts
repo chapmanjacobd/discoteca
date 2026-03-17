@@ -77,9 +77,23 @@ export class MediaPage {
   async goto(baseUrl: string, timeout: number = 10000): Promise<void> {
     await this.page.goto(baseUrl);
     await this.waitForMediaToLoad(timeout);
-    // Wait for currentMedia to be populated in JavaScript state
-    await this.page.waitForFunction(() => {
-      return (window as any).disco?.currentMedia?.length > 0;
+    // Wait for state to be populated (currentMedia for search/history/playlist, duData for DU mode)
+    // For DU mode, also accept if toolbar is visible (indicates DU loaded even during auto-skip)
+    await this.page.waitForFunction((timeout) => {
+      const disco = (window as any).disco;
+      if (!disco) return false;
+      // DU mode uses duData, other modes use currentMedia
+      // Check URL hash for mode or state.page
+      const isDUMode = window.location.hash.includes('mode=du') || disco.state?.page === 'du';
+      if (isDUMode) {
+        // DU mode: check for duData OR toolbar visibility (auto-skip might be in progress)
+        if (disco.duData && disco.duData.length > 0) return true;
+        // If toolbar is visible, DU mode is loaded (even if auto-skipping)
+        const duToolbar = document.getElementById('du-toolbar');
+        if (duToolbar && !duToolbar.classList.contains('hidden')) return true;
+        return false;
+      }
+      return disco.currentMedia && disco.currentMedia.length > 0;
     }, { timeout });
   }
 
@@ -94,7 +108,8 @@ export class MediaPage {
       '.details-table',
       '.no-results',
       '.captions-group-view',
-      '.caption-media-card'
+      '.caption-media-card',
+      '.du-card',
     ];
     await this.page.locator(selectors.join(', ')).first().waitFor({ state: 'visible', timeout });
   }
