@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"path/filepath"
 	"strconv"
@@ -550,4 +551,219 @@ func finalizeStatsWithOptions(groups map[string]*models.FolderStats, calculateMe
 		result = append(result, *f)
 	}
 	return result
+}
+
+// AggregateDUByPathMultiDBWithFilters performs SQL-level aggregation with filter support
+func AggregateDUByPathMultiDBWithFilters(ctx context.Context, dbPaths []string, pathPrefix string, targetDepth int, currentDepth int, flags models.GlobalFlags) ([]DUQueryResult, error) {
+	allResults := make([]DUQueryResult, 0)
+
+	for _, dbPath := range dbPaths {
+		results, err := AggregateDUByPathWithFilters(ctx, dbPath, pathPrefix, targetDepth, currentDepth, flags)
+		if err != nil {
+			return nil, err
+		}
+		allResults = append(allResults, results...)
+	}
+
+	// Aggregate results from multiple databases by path
+	pathMap := make(map[string]*DUQueryResult)
+	for _, r := range allResults {
+		if _, ok := pathMap[r.Path]; !ok {
+			pathMap[r.Path] = &DUQueryResult{Path: r.Path}
+		}
+		pathMap[r.Path].Count += r.Count
+		pathMap[r.Path].TotalSize += r.TotalSize
+		pathMap[r.Path].TotalDuration += r.TotalDuration
+	}
+
+	// Convert map to slice
+	finalResults := make([]DUQueryResult, 0, len(pathMap))
+	for _, r := range pathMap {
+		finalResults = append(finalResults, *r)
+	}
+
+	return finalResults, nil
+}
+
+// AggregateDUByPathWithFilters performs SQL-level aggregation with filter support
+func AggregateDUByPathWithFilters(ctx context.Context, dbPath string, pathPrefix string, targetDepth int, currentDepth int, flags models.GlobalFlags) ([]DUQueryResult, error) {
+	sqlDB, err := db.Connect(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer sqlDB.Close()
+
+	var query string
+	var args []any
+
+	if pathPrefix == "" {
+		// Root level: aggregate by first path component
+		query = `
+			SELECT
+				CASE
+					WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
+						substr(replace(path, '\\', '/'), 1,
+							CASE
+								WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
+								THEN instr(substr(replace(path, '\\', '/'), 2), '/')
+								ELSE length(replace(path, '\\', '/'))
+							END
+						)
+					ELSE
+						CASE
+							WHEN instr(replace(path, '\\', '/'), '/') > 0
+							THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
+							ELSE replace(path, '\\', '/')
+						END
+				END as agg_path,
+				COUNT(*) as count,
+				COALESCE(SUM(size), 0) as total_size,
+				COALESCE(SUM(duration), 0) as total_duration
+			FROM media
+			WHERE COALESCE(time_deleted, 0) = 0
+		`
+	} else {
+		// Subdirectory level: aggregate by path at target depth
+		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
+
+		query = `
+			SELECT
+				CASE
+					WHEN substr(?, 1, 1) = '/' THEN
+						? || substr(
+							substr(replace(path, '\\', '/'), length(?) + 1),
+							1,
+							CASE
+								WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
+								THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
+								ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
+							END
+						)
+					ELSE
+						? || CASE
+							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
+							THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
+							ELSE substr(replace(path, '\\', '/'), length(?) + 1)
+						END
+				END as agg_path,
+				COUNT(*) as count,
+				COALESCE(SUM(size), 0) as total_size,
+				COALESCE(SUM(duration), 0) as total_duration
+			FROM media
+			WHERE COALESCE(time_deleted, 0) = 0
+				AND replace(path, '\\', '/') LIKE ? || '/%'
+				AND (length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))) > ?
+		`
+		args = append(args, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix,
+			escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix, escapedPrefix)
+	}
+
+	// Add filter clauses using FilterBuilder
+	fb := NewFilterBuilder(flags)
+	filterClauses, filterArgs := fb.BuildWhereClauses()
+
+	// Append filter clauses
+	if len(filterClauses) > 0 {
+		query += " AND " + strings.Join(filterClauses, " AND ")
+		args = append(args, filterArgs...)
+	}
+
+	query += " GROUP BY agg_path ORDER BY total_size DESC"
+
+	rows, err := sqlDB.QueryContext(ctx, query, args...)
+	if err != nil {
+		slog.Error("DU aggregation query failed", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []DUQueryResult
+	for rows.Next() {
+		var r DUQueryResult
+		if err := rows.Scan(&r.Path, &r.Count, &r.TotalSize, &r.TotalDuration); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+// FetchDUDirectFilesWithFilters fetches files at the target depth with filter support
+func FetchDUDirectFilesWithFilters(ctx context.Context, dbPaths []string, pathPrefix string, targetDepth int, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
+	allFiles := make([]models.MediaWithDB, 0)
+
+	for _, dbPath := range dbPaths {
+		sqlDB, err := db.Connect(dbPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var query string
+		var args []any
+
+		if pathPrefix == "" {
+			query = `
+				SELECT path, title, duration, size, time_created, time_modified,
+				       time_deleted, time_first_played, time_last_played, play_count,
+				       playhead, album, artist, genre, categories, description,
+				       language, time_downloaded, score, video_codecs, audio_codecs,
+				       subtitle_codecs, width, height, type
+				FROM media
+				WHERE COALESCE(time_deleted, 0) = 0
+				  AND instr(replace(path, '\\', '/'), '/') = 0
+			`
+		} else {
+			normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+			escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
+
+			isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
+			separatorCount := targetDepth
+			if !isAbs {
+				separatorCount = targetDepth - 1
+			}
+
+			query = `
+				SELECT path, title, duration, size, time_created, time_modified,
+				       time_deleted, time_first_played, time_last_played, play_count,
+				       playhead, album, artist, genre, categories, description,
+				       language, time_downloaded, score, video_codecs, audio_codecs,
+				       subtitle_codecs, width, height, type
+				FROM media
+				WHERE COALESCE(time_deleted, 0) = 0
+				  AND replace(path, '\\', '/') LIKE ? || '/%'
+				  AND (
+					length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))
+				  ) = ?
+			`
+			args = append(args, escapedPrefix, separatorCount)
+		}
+
+		// Add filter clauses
+		fb := NewFilterBuilder(flags)
+		filterClauses, filterArgs := fb.BuildWhereClauses()
+
+		if len(filterClauses) > 0 {
+			query += " AND " + strings.Join(filterClauses, " AND ")
+			args = append(args, filterArgs...)
+		}
+
+		rows, err := sqlDB.QueryContext(ctx, query, args...)
+		if err != nil {
+			sqlDB.Close()
+			return nil, err
+		}
+
+		files, err := ScanMedia(rows, dbPath)
+		rows.Close()
+		sqlDB.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		allFiles = append(allFiles, files...)
+	}
+
+	return allFiles, nil
 }

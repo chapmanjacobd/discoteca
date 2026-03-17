@@ -867,7 +867,9 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
+	flags := c.parseFlags(r)
 	path := r.URL.Query().Get("path")
+	includeCounts := r.URL.Query().Get("include_counts") == "true"
 
 	// Convert URL path to filesystem path
 	// On Windows: forward slashes become backslashes
@@ -886,20 +888,32 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		parts := strings.FieldsFunc(cleanPath, func(r rune) bool {
 			return r == '/' || r == '\\'
 		})
-		currentDepth = len(parts)
+		// Count non-empty parts (for absolute paths like /home/xk, count both "home" and "xk")
+		for _, p := range parts {
+			if p != "" {
+				currentDepth++
+			}
+		}
 	}
 	targetDepth := currentDepth + 1 // We want to show children at this depth
 
-	// Use SQL-level aggregation for folders (much faster than fetching all media)
-	folderResults, err := query.AggregateDUByPathMultiDB(r.Context(), c.Databases, cleanPath, targetDepth, currentDepth)
+	// Validate and filter databases
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Use DU aggregation with filter support
+	folderResults, err := query.AggregateDUByPathMultiDBWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, currentDepth, flags)
 	if err != nil {
 		slog.Error("Failed to fetch DU folders", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
 		return
 	}
 
-	// Fetch direct files at target depth
-	directFiles, err := query.FetchDUDirectFiles(r.Context(), c.Databases, cleanPath, targetDepth)
+	// Fetch direct files at target depth with filter support
+	directFiles, err := query.FetchDUDirectFilesWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, flags)
 	if err != nil {
 		slog.Error("Failed to fetch DU files", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
@@ -1030,6 +1044,11 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		FolderCount: len(folders),
 		FileCount:   len(directFiles),
 		TotalCount:  totalCount,
+	}
+
+	// Calculate filter bins if requested
+	if includeCounts {
+		response.Counts = c.calculateFilterCounts(r.Context(), flags, dbs)
 	}
 
 	// Set total count header for pagination

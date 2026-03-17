@@ -2,6 +2,7 @@ package commands
 
 import (
 	"embed"
+	"fmt"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -31,8 +32,12 @@ func ParseDatabaseAndScanPaths(args []string, coreFlags *models.CoreFlags, media
 
 	var databases, scanPaths []string
 	for _, arg := range args {
-		if strings.HasSuffix(arg, ".db") && utils.IsSQLite(arg) {
-			databases = append(databases, arg)
+		if strings.HasSuffix(arg, ".db") {
+			if utils.IsSQLite(arg) {
+				databases = append(databases, arg)
+			} else {
+				return nil, nil, fmt.Errorf("database file not found: %s", arg)
+			}
 		} else {
 			scanPaths = append(scanPaths, arg)
 		}

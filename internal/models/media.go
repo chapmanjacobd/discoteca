@@ -179,11 +179,12 @@ type FolderStats struct {
 
 // DUResponse is the response for the /api/du endpoint
 type DUResponse struct {
-	Folders     []FolderStats `json:"folders"`
-	Files       []MediaWithDB `json:"files"`
-	TotalCount  int           `json:"total_count"`  // Total items (folders + files)
-	FolderCount int           `json:"folder_count"` // Number of folders
-	FileCount   int           `json:"file_count"`   // Number of direct files
+	Folders     []FolderStats       `json:"folders"`
+	Files       []MediaWithDB       `json:"files"`
+	TotalCount  int                 `json:"total_count"`      // Total items (folders + files)
+	FolderCount int                 `json:"folder_count"`     // Number of folders
+	FileCount   int                 `json:"file_count"`       // Number of direct files
+	Counts      *FilterBinsResponse `json:"counts,omitempty"` // Filter bins data (when include_counts=true)
 }
 
 // Helper functions for mapping from sql.Null types

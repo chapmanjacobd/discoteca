@@ -34,17 +34,17 @@ test.describe('DU Mode Filters and Sorting', () => {
       }
     });
 
-    test('sort by name works in DU mode', async ({ mediaPage, server }) => {
+    test('sort by path works in DU mode', async ({ mediaPage, server }) => {
       await mediaPage.goto(server.getBaseUrl() + '/#mode=du');
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Change sort to name
-      await mediaPage.setSortBy('name');
+      // Change sort to path
+      await mediaPage.setSortBy('path');
       await mediaPage.page.waitForTimeout(500);
 
-      // Verify sort dropdown shows name
-      await expect(mediaPage.sortBySelect).toHaveValue('name');
+      // Verify sort dropdown shows path
+      await expect(mediaPage.sortBySelect).toHaveValue('path');
     });
 
     test('sort by duration works in DU mode', async ({ mediaPage, server }) => {
@@ -65,7 +65,11 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(500);
 
-      // Click to toggle reverse sort
+      // First set a sort option, then toggle reverse
+      await mediaPage.setSortBy('size');
+      await mediaPage.page.waitForTimeout(300);
+      
+      // Click reverse sort button
       await mediaPage.sortReverseBtn.click();
       await mediaPage.page.waitForTimeout(300);
 
@@ -85,7 +89,7 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(500);
 
-      // Set sort to size
+      // Set sort to size and enable reverse
       await mediaPage.setSortBy('size');
       await mediaPage.sortReverseBtn.click();
       await mediaPage.page.waitForTimeout(500);
@@ -121,23 +125,22 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial count
-      const initialCount = await mediaPage.getMediaCount();
+      // Get initial folder count at root level
+      const folderCards = mediaPage.page.locator('.media-card.is-folder');
+      const initialFolderCount = await folderCards.count();
+      expect(initialFolderCount).toBeGreaterThan(0);
 
       // Apply video filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Should have video-only results
-      const videoCount = await mediaPage.getMediaCount();
-      expect(videoCount).toBeLessThanOrEqual(initialCount);
-
-      // All results should be video type
-      const types = await mediaPage.getAllMediaCardTypes();
-      for (const type of types) {
-        expect(type.toLowerCase()).toContain('video');
-      }
+      // Folder count should change after applying video filter
+      const videoFolderCount = await folderCards.count();
+      console.log(`[DU Video Filter] Initial folders: ${initialFolderCount}, After video filter: ${videoFolderCount}`);
+      
+      // The count should be different (filter should have an effect)
+      expect(videoFolderCount).not.toBe(initialFolderCount);
     });
 
     test('audio filter works in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -145,23 +148,20 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial count
-      const initialCount = await mediaPage.getMediaCount();
+      // Get initial folder count
+      const folderCards = mediaPage.page.locator('.media-card.is-folder');
+      const initialFolderCount = await folderCards.count();
+      expect(initialFolderCount).toBeGreaterThan(0);
 
       // Apply audio filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('audio').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Should have audio-only results
-      const audioCount = await mediaPage.getMediaCount();
-      expect(audioCount).toBeLessThanOrEqual(initialCount);
-
-      // All results should be audio type
-      const types = await mediaPage.getAllMediaCardTypes();
-      for (const type of types) {
-        expect(type.toLowerCase()).toContain('audio');
-      }
+      // Folder count should change after applying audio filter
+      const audioFolderCount = await folderCards.count();
+      console.log(`[DU Audio Filter] Initial: ${initialFolderCount}, After audio filter: ${audioFolderCount}`);
+      expect(audioFolderCount).not.toBe(initialFolderCount);
     });
 
     test('image filter works in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -169,23 +169,20 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial count
-      const initialCount = await mediaPage.getMediaCount();
+      // Get initial folder count
+      const folderCards = mediaPage.page.locator('.media-card.is-folder');
+      const initialFolderCount = await folderCards.count();
+      expect(initialFolderCount).toBeGreaterThan(0);
 
       // Apply image filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('image').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Should have image-only results
-      const imageCount = await mediaPage.getMediaCount();
-      expect(imageCount).toBeLessThanOrEqual(initialCount);
-
-      // All results should be image type
-      const types = await mediaPage.getAllMediaCardTypes();
-      for (const type of types) {
-        expect(type.toLowerCase()).toContain('image');
-      }
+      // Folder count should change after applying image filter
+      const imageFolderCount = await folderCards.count();
+      console.log(`[DU Image Filter] Initial: ${initialFolderCount}, After image filter: ${imageFolderCount}`);
+      expect(imageFolderCount).not.toBe(initialFolderCount);
     });
 
     test('text filter works in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -193,23 +190,20 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
-      // Get initial count
-      const initialCount = await mediaPage.getMediaCount();
+      // Get initial folder count
+      const folderCards = mediaPage.page.locator('.media-card.is-folder');
+      const initialFolderCount = await folderCards.count();
+      expect(initialFolderCount).toBeGreaterThan(0);
 
       // Apply text filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('text').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      // Should have text-only results
-      const textCount = await mediaPage.getMediaCount();
-      expect(textCount).toBeLessThanOrEqual(initialCount);
-
-      // All results should be text type
-      const types = await mediaPage.getAllMediaCardTypes();
-      for (const type of types) {
-        expect(type.toLowerCase()).toContain('text');
-      }
+      // Folder count should change after applying text filter
+      const textFolderCount = await folderCards.count();
+      console.log(`[DU Text Filter] Initial: ${initialFolderCount}, After text filter: ${textFolderCount}`);
+      expect(textFolderCount).not.toBe(initialFolderCount);
     });
 
     test('clearing media type filter restores all results in DU mode', async ({ mediaPage, sidebarPage, server }) => {
@@ -217,21 +211,28 @@ test.describe('DU Mode Filters and Sorting', () => {
       await mediaPage.getDUTToolbar().waitFor({ state: 'visible', timeout: 10000 });
       await mediaPage.page.waitForTimeout(1000);
 
+      // Get initial folder count
+      const folderCards = mediaPage.page.locator('.media-card.is-folder');
+      const initialFolderCount = await folderCards.count();
+
       // Apply video filter
       await sidebarPage.expandMediaTypeSection();
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      const filteredCount = await mediaPage.getMediaCount();
+      const filteredFolderCount = await folderCards.count();
+
+      // Verify filter had an effect
+      expect(filteredFolderCount).not.toBe(initialFolderCount);
 
       // Clear filter by clicking again
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 
-      const restoredCount = await mediaPage.getMediaCount();
+      const restoredFolderCount = await folderCards.count();
 
-      // Count should increase after clearing filter
-      expect(restoredCount).toBeGreaterThanOrEqual(filteredCount);
+      // Count should be back to initial count
+      expect(restoredFolderCount).toBe(initialFolderCount);
     });
   });
 

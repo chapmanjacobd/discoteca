@@ -45,6 +45,7 @@ go-deps:
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install mvdan.cc/gofumpt@latest
 	go install github.com/daixiang0/gci@latest
+	go install gotest.tools/gotestsum@latest
 
 deps-update:
 	go get -u ./...
@@ -67,10 +68,10 @@ dev: build
 	go run -tags fts5 ./cmd/disco serve -v --dev --public-dir web/dist audio.db books.db images.db video.db
 
 test:
-	go test -tags "$(BUILD_TAGS)" ./...
+	gotestsum --format pkgname-and-test-fails -- ./... -tags "$(BUILD_TAGS)"
 
 cover:
-	go test -tags "$(BUILD_TAGS)" -coverprofile=coverage.out ./...
+	gotestsum --format pkgname-and-test-fails -- ./... -tags "$(BUILD_TAGS)" -coverprofile=coverage.out
 	go tool cover -func=coverage.out | awk '{n=split($$NF,a,"%%"); if (a[1] < 85) print $$0}' | sort -k3 -n
 
 webtest:

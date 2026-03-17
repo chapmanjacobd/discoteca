@@ -1712,10 +1712,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const sortReverseBtn = document.getElementById('sort-reverse-btn');
             if (sortBy) (sortBy as HTMLSelectElement).value = 'size';
             if (sortReverseBtn) sortReverseBtn.classList.add('active');
-
-            // Fetch filter bins to populate percentile sliders when entering DU mode
-            // This ensures bins are populated even when coming from "No media found" state
-            fetchFilterBins(null);
         }
 
         syncUrl();
@@ -1733,15 +1729,58 @@ document.addEventListener('DOMContentLoaded', () => {
             params.append('limit', String(state.filters.limit));
             params.append('offset', String((state.currentPage - 1) * state.filters.limit));
 
+            // Request filter bins to update slider ranges
+            params.append('include_counts', String('true'));
+
             const resp = await fetchAPI(`/api/du?${params.toString()}`);
             clearTimeout(skeletonTimeout);
             if (!resp.ok) throw new Error('Failed to fetch DU');
             let response = await resp.json();
 
-            // New format: {folders: [], files: [], total_count, folder_count, file_count}
+            // New format: {folders: [], files: [], total_count, folder_count, file_count, counts: {...}}
             // Store the raw response - no conversion needed
             state.duDataRaw = response;
-            
+
+            // Extract filter bins if included in response
+            if (response.counts) {
+                state.filterBins = {
+                    episodes: response.counts.episodes || [],
+                    size: response.counts.size || [],
+                    duration: response.counts.duration || [],
+                    modified: response.counts.modified || [],
+                    created: response.counts.created || [],
+                    downloaded: response.counts.downloaded || [],
+                    episodes_min: response.counts.episodes_min || 0,
+                    episodes_max: response.counts.episodes_max || 100,
+                    size_min: response.counts.size_min || 0,
+                    size_max: response.counts.size_max || (100 * 1024 * 1024),
+                    duration_min: response.counts.duration_min || 0,
+                    duration_max: response.counts.duration_max || 3600,
+                    modified_min: response.counts.modified_min || 0,
+                    modified_max: response.counts.modified_max || 100,
+                    created_min: response.counts.created_min || 0,
+                    created_max: response.counts.created_max || 100,
+                    downloaded_min: response.counts.downloaded_min || 0,
+                    downloaded_max: response.counts.downloaded_max || 100,
+                    episodes_percentiles: response.counts.episodes_percentiles || [],
+                    size_percentiles: response.counts.size_percentiles || [],
+                    duration_percentiles: response.counts.duration_percentiles || [],
+                    modified_percentiles: response.counts.modified_percentiles || [],
+                    created_percentiles: response.counts.created_percentiles || [],
+                    downloaded_percentiles: response.counts.downloaded_percentiles || []
+                };
+
+                updateSlidersFromAbsolute('episodes', 'episodes');
+                updateSlidersFromAbsolute('size', 'sizes');
+                updateSlidersFromAbsolute('duration', 'durations');
+                updateSlidersFromAbsolute('modified', 'modified');
+                updateSlidersFromAbsolute('created', 'created');
+                updateSlidersFromAbsolute('downloaded', 'downloaded');
+
+                renderFilterBins();
+                updateSliderLabels();
+            }
+
             // Create combined data array for rendering (folders first, then files)
             let data = [];
             if (response.folders) {
@@ -1756,18 +1795,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Auto-skip on first visit OR during auto-skip recursion (when navigating deeper)
             // Keep descending until duData.length > 1
             let shouldAutoSkip = (isFirstDUVisit || isAutoSkipRecursion) &&
-                                 data.length <= 1;
+                                 data && data.length === 1;
             if (shouldAutoSkip) {
                 // Get the single item (could be a folder or a file)
                 const singleItem = data[0];
-                // Only auto-skip if it's a folder with count > 0 (has files in subdirectories)
-                const isFolder = singleItem.count !== undefined && singleItem.count > 0;
-                if (isFolder) {
-                    // Auto-navigate into this folder
-                    state.duPath = singleItem.path + (singleItem.path.endsWith('/') ? '' : '/');
-                    syncUrl();
-                    fetchDU(state.duPath, true);
-                    return;
+                if (!singleItem) {
+                    shouldAutoSkip = false;
+                } else {
+                    // Only auto-skip if it's a folder with count > 0 (has files in subdirectories)
+                    const isFolder = 'count' in singleItem && typeof singleItem.count === 'number' && singleItem.count > 0;
+                    if (isFolder) {
+                        // Auto-navigate into this folder
+                        state.duPath = singleItem.path + (singleItem.path.endsWith('/') ? '' : '/');
+                        syncUrl();
+                        fetchDU(state.duPath, true);
+                        return;
+                    }
                 }
             }
 
@@ -2006,8 +2049,8 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.className = 'grid du-view';
         resultsContainer.innerHTML = '';
 
-        // Handle empty state
-        if (!data || data.length === 0) {
+        // Handle empty or invalid data
+        if (!data || !Array.isArray(data) || data.length === 0) {
             resultsContainer.className = 'no-results-container';
             resultsContainer.innerHTML = `
                 <div class="no-results" style="
@@ -2042,10 +2085,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxSize = folders.length > 0 ? Math.max(...folders.map(d => d.total_size || 0)) : 0;
 
         data.forEach(item => {
+            if (!item) return; // Skip undefined/null items
+            
             const card = document.createElement('div');
 
             // Check if this is a direct file (no count field, which folders have)
-            const isDirectFile = item.count === undefined;
+            const isDirectFile = !('count' in item);
 
             if (isDirectFile) {
                 // Render as clickable media card with is-file class
