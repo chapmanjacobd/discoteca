@@ -1669,7 +1669,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchDU(path = '') {
+    async function fetchDU(path = '', isAutoSkip = false) {
         const prevPath = state.duPath;
         const isForwardNav = prevPath && path.startsWith(prevPath);
         const isBackwardNav = prevPath && prevPath.startsWith(path);
@@ -1677,7 +1677,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasLoadedDuData = state.duData && state.duData.length > 0;
         const isFirstDUVisit = !hasLoadedDuData;
         // Track if we're auto-skipping to prevent infinite recursion
-        const isAutoSkipRecursion = prevPath && path.startsWith(prevPath) && path !== prevPath;
+        const isAutoSkipRecursion = isAutoSkip || (prevPath && path.startsWith(prevPath) && path !== prevPath);
 
         state.page = 'du';
         state.duPath = path;
@@ -1749,7 +1749,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto-navigate into this folder
                     state.duPath = singleItem.path + (singleItem.path.endsWith('/') ? '' : '/');
                     syncUrl();
-                    fetchDU(state.duPath);
+                    fetchDU(state.duPath, true);
                     return;
                 }
             }
@@ -2031,9 +2031,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const isDirectFile = item.count === undefined;
 
             if (isDirectFile) {
-                // Render as clickable media card
+                // Render as clickable media card with is-file class
                 const mediaItem = item;
-                card.className = 'media-card';
+                card.className = 'media-card is-file';
                 (card as HTMLElement).dataset.path = mediaItem.path;
                 (card as HTMLElement).dataset.type = mediaItem.type || '';
                 if (mediaItem.is_dir) (card as HTMLElement).dataset.isDir = 'true';
@@ -2045,12 +2045,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const duration = formatDuration(mediaItem.duration);
                 const icon = getIcon(mediaItem.type);
                 const filename = mediaItem.path.split('/').pop() || mediaItem.path;
+                const plays = getPlayCount(mediaItem);
+
+                // Add action buttons (same as search mode)
+                const actionBtns = `
+                    ${!state.readOnly ? `<button class="media-action-btn add-playlist" title="Add to Playlist">+</button>` : ''}
+                    ${plays > 0 ?
+                        `<button class="media-action-btn mark-unplayed" title="Mark as Unplayed">⭕</button>` :
+                        `<button class="media-action-btn mark-played" title="Mark as Played">✅</button>`
+                    }
+                    ${!state.readOnly ? `<button class="media-action-btn delete" title="Delete">🗑️</button>` : ''}
+                `;
 
                 card.innerHTML = `
                     <div class="media-thumb">
                         <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')" onerror="const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;const dataUrl=generateClientThumbnail(canvas,'${filename.replace(/'/g, "\\'")}','${mediaItem.type || ''}');this.src=dataUrl;this.classList.add('loaded');this.onerror=null">
                         <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:var(--sidebar-bg); font-size:3rem;">${icon}</div>
                         <span class="media-duration">${duration}</span>
+                        <div class="media-actions">
+                            ${actionBtns}
+                        </div>
                     </div>
                     <div class="media-info">
                         <div class="media-title">${title}</div>
@@ -2060,8 +2074,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
             } else {
-                // Render as folder card
-                card.className = 'media-card du-card';
+                // Render as folder card with is-folder class
+                card.className = 'media-card is-folder';
                 (card as HTMLElement).onclick = () => fetchDU(item.path + (item.path.endsWith('/') ? '' : '/'));
 
                 const name = item.path.split('/').pop() || item.path;
@@ -2089,6 +2103,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
             resultsContainer.appendChild(card);
+        });
+
+        // Add event handlers for action buttons on is-file cards in DU mode
+        resultsContainer.querySelectorAll('.is-file').forEach((card) => {
+            const item = (card as any)._item || state.duDataRaw?.files?.find((f: any) => f.path === (card as HTMLElement).dataset.path);
+            if (!item) return;
+
+            const btnAddPlaylist = card.querySelector('.media-action-btn.add-playlist');
+            if (btnAddPlaylist) {
+                (btnAddPlaylist as HTMLElement).onclick = (e) => {
+                    e.stopPropagation();
+                    if (state.playlists.length === 0) {
+                        showToast('Create a playlist first');
+                        return;
+                    }
+                    // For simplicity, just add to the first playlist if only one, or prompt
+                    if (state.playlists.length === 1) {
+                        addToPlaylist(state.playlists[0], item);
+                    } else {
+                        const names = state.playlists.map((title, i) => `${i + 1}: ${title}`).join('\n');
+                        const choice = prompt(`Add to which playlist?\n${names}`);
+                        const idx = parseInt(choice) - 1;
+                        if (state.playlists[idx]) {
+                            addToPlaylist(state.playlists[idx], item);
+                        }
+                    }
+                };
+            }
+
+            const btnMarkPlayed = card.querySelector('.media-action-btn.mark-played');
+            if (btnMarkPlayed) {
+                (btnMarkPlayed as HTMLElement).onclick = (e) => {
+                    e.stopPropagation();
+                    markMediaPlayed(item);
+                };
+            }
+
+            const btnMarkUnplayed = card.querySelector('.media-action-btn.mark-unplayed');
+            if (btnMarkUnplayed) {
+                (btnMarkUnplayed as HTMLElement).onclick = (e) => {
+                    e.stopPropagation();
+                    markMediaUnplayed(item);
+                };
+            }
+
+            const btnDelete = card.querySelector('.media-action-btn.delete');
+            if (btnDelete) {
+                (btnDelete as HTMLElement).onclick = (e) => {
+                    e.stopPropagation();
+                    deleteMedia(item.path, false);
+                };
+            }
         });
 
         updateNowPlayingButton();

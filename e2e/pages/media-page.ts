@@ -109,7 +109,7 @@ export class MediaPage {
       '.no-results',
       '.captions-group-view',
       '.caption-media-card',
-      '.du-card',
+      '.is-folder',
     ];
     await this.page.locator(selectors.join(', ')).first().waitFor({ state: 'visible', timeout });
   }
@@ -542,14 +542,14 @@ export class MediaPage {
    * Get DU cards
    */
   getDUCards(): Locator {
-    return this.page.locator('.media-card.du-card');
+    return this.page.locator('.media-card.is-folder');
   }
 
   /**
    * Get folder cards in DU mode
    */
   getFolderCards(): Locator {
-    return this.page.locator('.media-card.du-card');
+    return this.page.locator('.media-card.is-folder');
   }
 
   /**

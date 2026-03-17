@@ -10,12 +10,6 @@ test.describe('Keyboard Shortcuts', () => {
       // Get initial media count using POM
       const initialCount = await mediaPage.getMediaCount();
 
-      // Need at least 2 items for next sibling to work
-      if (initialCount < 2) {
-        console.log('Skipping test: not enough media items');
-        return;
-      }
-
       // Press 'n' to play next (no player needs to be open)
       await mediaPage.page.keyboard.press('n');
       await mediaPage.page.waitForTimeout(1000);
@@ -379,13 +373,6 @@ test.describe('Keyboard Shortcuts', () => {
     test('v key toggles subtitle visibility', async ({ mediaPage, viewerPage, server }) => {
       await mediaPage.goto(server.getBaseUrl() + '/#mode=captions');
       await mediaPage.getCaptionSegments().first().waitFor({ state: 'visible', timeout: 10000 });
-
-      // Get caption count using POM
-      const captionCount = await mediaPage.getCaptionSegments().count();
-      if (captionCount === 0) {
-        console.log('No captions available, skipping test');
-        return;
-      }
 
       // Click a caption segment to open player with subtitles using POM
       await mediaPage.getCaptionSegments().first().click();
