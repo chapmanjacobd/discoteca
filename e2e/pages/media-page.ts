@@ -347,9 +347,8 @@ export class MediaPage extends BasePage {
   getMediaCardByText(type: 'video' | 'audio' | 'image' | 'text' | 'document', textPattern: string | RegExp): Locator {
     const searchType = type === 'document' ? 'text' : type;
     const cards = this.page.locator(`.media-card[data-type*="${searchType}"]`);
-    return typeof textPattern === 'string'
-      ? cards.filter({ hasText: textPattern })
-      : cards.locator(`:has-text("${textPattern.source}")`);
+    // Use filter for both string and RegExp to get the card element, not child elements
+    return cards.filter({ hasText: textPattern });
   }
 
   /**
@@ -643,14 +642,35 @@ export class MediaPage extends BasePage {
   }
 
   /**
-   * Get progress (for backward compatibility - returns all progress bars when no index)
+   * Get progress (for backward compatibility - returns progress data object)
    */
-  getProgress(index?: number): Locator {
-    if (index === undefined) {
-      return this.page.locator('.progress-bar');
-    }
-    const card = this.getMediaCard(index);
-    return card.locator('.progress-bar');
+  async getProgress(): Promise<Record<string, { pos: number; last: number }>> {
+    return await this.page.evaluate(() => {
+      const data = localStorage.getItem('disco-progress');
+      return data ? JSON.parse(data) : {};
+    });
+  }
+
+  /**
+   * Set progress in localStorage (for backward compatibility)
+   */
+  async setProgress(path: string, position: number, timestamp: number): Promise<void> {
+    await this.page.evaluate(({ path, pos, ts }) => {
+      const data = localStorage.getItem('disco-progress');
+      const progress = data ? JSON.parse(data) : {};
+      progress[path] = { pos, last: ts };
+      localStorage.setItem('disco-progress', JSON.stringify(progress));
+    }, { path, pos: position, ts: timestamp });
+  }
+
+  /**
+   * Set play count in localStorage (for backward compatibility)
+   */
+  async setPlayCount(mediaPath: string, count: number): Promise<void> {
+    await this.page.evaluate(({ path, cnt }) => {
+      const key = `disco-playcount-${path}`;
+      localStorage.setItem(key, cnt.toString());
+    }, { path: mediaPath, cnt: count });
   }
 
   /**
