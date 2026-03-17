@@ -32,12 +32,8 @@ ubuntu-deps:
 		libnss3 \
 		ffmpeg \
 		groff \
-		wget
-	PANDOC_VERSION=$(curl -s https://api.github.com/repos/jgm/pandoc/releases/latest | grep tag_name | cut -d '"' -f4)
-	wget -q https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz
-	tar -xzf pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz
-	sudo mv pandoc-${PANDOC_VERSION}/bin/pandoc /usr/local/bin/
-	rm -rf pandoc-${PANDOC_VERSION}*
+		wget \
+		pandoc
 	sudo -v && wget -qO- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
 
 macos-deps:
