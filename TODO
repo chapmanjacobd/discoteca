@@ -1,5 +1,12 @@
 DU mode sorting and sliders
 
+djvu counted as image but it should be text media type
+
+Image gestures work well on mobile but not desktop. Double click to full-screen is good but the image starts out scaled to full-width contain instead of full-height for taller images. Lets also disable the browser's drag-image and select text features on the image as those are conflicting with drag-to-pan while zoomed-in.
+and lets not use cursor: zoom-in; just keep normal pointer except during dragging use hand. Perhaps we should add click to zoom out all the way but keep the cursor as hand if zoomed in.
+
+lets put the Media Metadata modal in/above fullscreen mode (similar to how we are handling toasts)
+
 - Pagination should work on all pages except for Categorization
 - Captions mode: Media Type should filter the caption media
 - Search filtering should work across all modes without exiting that mode--but you could hide the searchbox on the Categorization page as that one doesn't really need it

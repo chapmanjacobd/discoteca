@@ -4908,7 +4908,56 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el.complete) {
                 el.onload();
             }
-            el.ondblclick = () => toggleFullscreen(pipViewer as HTMLElement);
+            // Style image to fit viewer (full-height contain for tall images)
+            el.style.maxWidth = '100%';
+            el.style.maxHeight = '100vh';
+            el.style.objectFit = 'contain';
+            el.style.display = 'block';
+            el.style.margin = 'auto';
+            // Disable browser drag and selection
+            el.draggable = false;
+            el.ondragstart = () => false;
+            el.style.userSelect = 'none';
+            (el.style as any).webkitUserSelect = 'none';
+            (el.style as any).webkitTouchCallout = 'none';
+            // Double click toggles fullscreen
+            el.ondblclick = (e) => {
+                e.stopPropagation();
+                toggleFullscreen(pipViewer as HTMLElement);
+            };
+            // Single click to zoom out when zoomed in (only if not dragging)
+            let wasDragging = false;
+            let clickTimer: number | null = null;
+            el.addEventListener('mousedown', () => { wasDragging = false; });
+            el.addEventListener('mousemove', () => { wasDragging = true; });
+            el.onclick = (e) => {
+                e.stopPropagation();
+                if (wasDragging) return; // Don't reset zoom after dragging
+                
+                // Wait to see if this is a double-click
+                if (clickTimer) {
+                    // Second click - clear timer, let dblclick handler handle it
+                    window.clearTimeout(clickTimer);
+                    clickTimer = null;
+                    return;
+                }
+                
+                // First click - wait to see if second click comes
+                clickTimer = window.setTimeout(() => {
+                    clickTimer = null;
+                    const isZoomedIn = (pipViewer as any)._isZoomedIn?.() || false;
+                    if (isZoomedIn) {
+                        // Reset zoom on single click
+                        const img = pipViewer.querySelector('img');
+                        if (img) {
+                            img.style.transform = '';
+                            img.style.cursor = 'default';
+                        }
+                        // Reset the internal dragging state to prevent re-entering drag mode
+                        (pipViewer as any)._resetDragging?.();
+                    }
+                }, 250); // Double-click threshold
+            };
             setupViewerZoomPan();
         } else {
             showToast('Unsupported media format');
@@ -5273,7 +5322,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     scale = 1;
                     translateX = 0;
                     translateY = 0;
-                    img.style.cursor = 'zoom-in';
+                    img.style.cursor = 'default';
                 } else {
                     img.style.cursor = 'grab';
                 }
@@ -5312,7 +5361,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isDragging = false;
             const img = getCurrentImg();
             if (img) {
-                img.style.cursor = scale > 1 ? 'grab' : 'zoom-in';
+                img.style.cursor = isZoomedIn() ? 'grab' : 'default';
                 img.style.transition = 'transform 0.1s ease-out';
             }
         });
@@ -5353,7 +5402,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     scale = 1;
                     translateX = 0;
                     translateY = 0;
-                    img.style.cursor = 'zoom-in';
+                    img.style.cursor = 'default';
                 } else {
                     img.style.cursor = 'grab';
                 }
@@ -5378,19 +5427,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
+                // Reset zoom immediately without animation when exiting fullscreen
                 scale = 1;
                 translateX = 0;
                 translateY = 0;
                 const img = getCurrentImg();
                 if (img) {
+                    // Remove transition to prevent animation
+                    img.style.transition = 'none';
                     img.style.transform = '';
-                    img.style.cursor = 'zoom-in';
+                    img.style.cursor = 'default';
+                    // Restore transition after a brief delay
+                    setTimeout(() => {
+                        if (img && img.style.transition === 'none') {
+                            img.style.transition = 'transform 0.1s ease-out';
+                        }
+                    }, 50);
                 }
             }
         });
 
         // Expose isZoomedIn for swipe gesture detection
         (pipViewer as any)._isZoomedIn = isZoomedIn;
+        
+        // Expose reset function to clear dragging state when zoom is reset
+        (pipViewer as any)._resetDragging = () => {
+            isDragging = false;
+            scale = 1;
+            translateX = 0;
+            translateY = 0;
+        };
     }
 
     // Fallback function for when video element can't decode a file (e.g., animated GIFs)
@@ -5407,7 +5473,51 @@ document.addEventListener('DOMContentLoaded', () => {
         if (imgEl.complete && imgEl.onload) {
             (imgEl as any).onload(new Event("load"));
         }
-        imgEl.ondblclick = () => toggleFullscreen(pipViewer as HTMLElement);
+        // Style image to fit viewer
+        imgEl.style.maxWidth = '100%';
+        imgEl.style.maxHeight = '100vh';
+        imgEl.style.objectFit = 'contain';
+        imgEl.style.display = 'block';
+        imgEl.style.margin = 'auto';
+        // Disable browser drag and selection
+        imgEl.draggable = false;
+        imgEl.ondragstart = () => false;
+        imgEl.style.userSelect = 'none';
+        (imgEl.style as any).webkitUserSelect = 'none';
+        (imgEl.style as any).webkitTouchCallout = 'none';
+        // Double click toggles fullscreen
+        imgEl.ondblclick = (e) => {
+            e.stopPropagation();
+            toggleFullscreen(pipViewer as HTMLElement);
+        };
+        // Single click to zoom out when zoomed in (only if not dragging)
+        let imgWasDragging = false;
+        let imgClickTimer: number | null = null;
+        imgEl.addEventListener('mousedown', () => { imgWasDragging = false; });
+        imgEl.addEventListener('mousemove', () => { imgWasDragging = true; });
+        imgEl.onclick = (e) => {
+            e.stopPropagation();
+            if (imgWasDragging) return; // Don't reset zoom after dragging
+            
+            // Wait to see if this is a double-click
+            if (imgClickTimer) {
+                // Second click - clear timer, let dblclick handler handle it
+                window.clearTimeout(imgClickTimer);
+                imgClickTimer = null;
+                return;
+            }
+            
+            // First click - wait to see if second click comes
+            imgClickTimer = window.setTimeout(() => {
+                imgClickTimer = null;
+                const isZoomedIn = (pipViewer as any)._isZoomedIn?.() || false;
+                if (isZoomedIn) {
+                    imgEl.style.transform = '';
+                    imgEl.style.cursor = 'default';
+                    (pipViewer as any)._resetDragging?.();
+                }
+            }, 250); // Double-click threshold
+        };
         (imgEl as any).controls = false;
 
         // Replace video with img in the viewer

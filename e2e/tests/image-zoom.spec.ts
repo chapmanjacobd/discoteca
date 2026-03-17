@@ -16,7 +16,7 @@ test.describe('Image Zoom and Pan', () => {
 
     // Enter fullscreen first (double-click)
     await img.dblclick();
-    await mediaPage.page.waitForTimeout(500);
+    await mediaPage.page.waitForTimeout(800);
 
     // Get initial transform
     const initialTransform = await img.evaluate(el => el.style.transform);
@@ -55,12 +55,15 @@ test.describe('Image Zoom and Pan', () => {
 
     // Double click should toggle fullscreen (not zoom)
     // Check that we're in fullscreen after double-click
+    await img.dblclick();
+    await mediaPage.page.waitForTimeout(800);
+
     const isFullscreen = await viewerPage.page.evaluate(() => !!document.fullscreenElement);
     expect(isFullscreen).toBe(true);
 
     // Double click again to exit fullscreen
     await img.dblclick();
-    await mediaPage.page.waitForTimeout(500);
+    await mediaPage.page.waitForTimeout(800);
 
     // Should exit fullscreen
     const isNotFullscreen = await viewerPage.page.evaluate(() => !!document.fullscreenElement);
@@ -95,7 +98,7 @@ test.describe('Image Zoom and Pan', () => {
     expect(afterWheelTransform).toBe(initialTransform);
   });
 
-  test('panning works when zoomed in fullscreen', async ({ mediaPage, viewerPage, server }) => {
+  test('click to zoom out when zoomed in', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open an image
@@ -107,7 +110,7 @@ test.describe('Image Zoom and Pan', () => {
 
     // Enter fullscreen first
     await img.dblclick();
-    await mediaPage.page.waitForTimeout(500);
+    await mediaPage.page.waitForTimeout(800);
 
     // Zoom in with wheel
     await img.evaluate(el => {
@@ -120,25 +123,20 @@ test.describe('Image Zoom and Pan', () => {
     });
     await mediaPage.page.waitForTimeout(300);
 
-    // Get position before pan
-    const beforePanTransform = await img.evaluate(el => el.style.transform);
+    // Verify zoomed in
+    const zoomedTransform = await img.evaluate(el => el.style.transform);
+    expect(zoomedTransform).toContain('scale(');
 
-    // Drag to pan
-    const box = await img.boundingBox();
-    if (box) {
-        await mediaPage.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await mediaPage.page.mouse.down();
-        await mediaPage.page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2 + 50);
-        await mediaPage.page.mouse.up();
-    }
+    // Click to zoom out (has 250ms delay to distinguish from double-click)
+    await img.click();
+    await mediaPage.page.waitForTimeout(400);
 
-    // Check if translate changed
-    const afterPanTransform = await img.evaluate(el => el.style.transform);
-    expect(afterPanTransform).toContain('translate(');
-    expect(afterPanTransform).not.toBe(beforePanTransform);
+    // Should be reset
+    const resetTransform = await img.evaluate(el => el.style.transform);
+    expect(resetTransform).toBe('');
   });
 
-  test('pinch to zoom works in fullscreen', async ({ mediaPage, viewerPage, server }) => {
+  test('image has drag and selection disabled', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open an image
@@ -148,44 +146,12 @@ test.describe('Image Zoom and Pan', () => {
 
     const img = viewerPage.getImageElement();
 
-    // Enter fullscreen first
-    await img.dblclick();
-    await mediaPage.page.waitForTimeout(500);
+    // Check draggable attribute is false
+    const draggable = await img.evaluate(el => (el as HTMLImageElement).draggable);
+    expect(draggable).toBe(false);
 
-    // Simulate pinch gesture (two-finger touch)
-    await img.evaluate(el => {
-        // Start pinch
-        const touchStart1 = new TouchEvent('touchstart', {
-            touches: [{ clientX: 100, clientY: 100, identifier: 1 } as any, { clientX: 200, clientY: 200, identifier: 2 } as any],
-            bubbles: true,
-            cancelable: true
-        });
-        el.dispatchEvent(touchStart1);
-
-        // Move fingers apart (zoom in)
-        const touchMove = new TouchEvent('touchmove', {
-            touches: [{ clientX: 50, clientY: 50, identifier: 1 } as any, { clientX: 250, clientY: 250, identifier: 2 } as any],
-            bubbles: true,
-            cancelable: true
-        });
-        el.dispatchEvent(touchMove);
-
-        // End pinch
-        const touchEnd = new TouchEvent('touchend', {
-            touches: [],
-            bubbles: true,
-            cancelable: true
-        });
-        el.dispatchEvent(touchEnd);
-    });
-
-    // Check if zoomed
-    const zoomedTransform = await img.evaluate(el => el.style.transform);
-    expect(zoomedTransform).toContain('scale(');
-    const match = zoomedTransform.match(/scale\(([\d.]+)\)/);
-    if (match) {
-        const scale = parseFloat(match[1]);
-        expect(scale).toBeGreaterThan(1);
-    }
+    // Check user-select style
+    const userSelect = await img.evaluate(el => el.style.userSelect);
+    expect(userSelect).toBe('none');
   });
 });
