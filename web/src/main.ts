@@ -3175,16 +3175,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const resp = await fetchAPI('/api/delete', {
+            await fetchAPI('/api/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path, restore })
             });
-
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(text || 'Action failed');
-            }
 
             if (restore) {
                 showToast('Item restored');
@@ -3673,7 +3668,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             fetchRatings();
         } catch (err) {
-            console.error('Failed to rate media:', err);
+            errorToast(err as any, 'Failed to rate media');
         }
     }
 
@@ -3709,7 +3704,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Marked as played', '✅');
             } catch (err) {
                 console.error('Failed to mark as played:', err);
-                errorToast(err as any, 'Action failed');
+                errorToast(err as any, '');
                 return;
             }
         }
@@ -3777,7 +3772,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Marked as unplayed', '⭕');
             } catch (err) {
                 console.error('Failed to mark as unplayed:', err);
-                errorToast(err as any, 'Action failed');
+                errorToast(err as any, '');
                 return;
             }
         }
@@ -5241,7 +5236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Setup zoom/pan functionality for image elements in fullscreen
+    // Setup zoom/pan functionality for image elements
     function setupImageZoomPan(el) {
         if (!el) return;
 
@@ -5251,32 +5246,39 @@ document.addEventListener('DOMContentLoaded', () => {
         let isDragging = false;
         let lastX, lastY;
 
+        el.style.transition = 'transform 0.1s ease-out';
+        el.style.cursor = 'zoom-in';
+
         el.addEventListener('wheel', (e) => {
-            if (!document.fullscreenElement) return;
             e.preventDefault();
-            const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            const newScale = Math.min(Math.max(1, scale * delta), 10);
+            const delta = e.deltaY > 0 ? 0.8 : 1.25;
+            const newScale = Math.min(Math.max(1, scale * delta), 15);
 
             if (newScale !== scale) {
                 scale = newScale;
-                if (scale === 1) {
+                if (scale <= 1) {
+                    scale = 1;
                     translateX = 0;
                     translateY = 0;
+                    el.style.cursor = 'zoom-in';
+                } else {
+                    el.style.cursor = 'grab';
                 }
                 el.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
             }
         }, { passive: false });
 
         el.addEventListener('mousedown', (e) => {
-            if (!document.fullscreenElement || scale <= 1) return;
+            if (scale <= 1) return;
             isDragging = true;
             lastX = e.clientX;
             lastY = e.clientY;
             el.style.cursor = 'grabbing';
+            el.style.transition = 'none';
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (!isDragging || !document.fullscreenElement) return;
+            if (!isDragging) return;
             const dx = (e.clientX - lastX) / scale;
             const dy = (e.clientY - lastY) / scale;
             translateX += dx;
@@ -5287,8 +5289,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
             isDragging = false;
-            if (el) el.style.cursor = '';
+            if (el) {
+                el.style.cursor = scale > 1 ? 'grab' : 'zoom-in';
+                el.style.transition = 'transform 0.1s ease-out';
+            }
+        });
+
+        // Double click to reset
+        el.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (scale > 1) {
+                scale = 1;
+                translateX = 0;
+                translateY = 0;
+                el.style.cursor = 'zoom-in';
+            } else {
+                scale = 3;
+                el.style.cursor = 'grab';
+            }
+            el.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
         });
 
         document.addEventListener('fullscreenchange', () => {
@@ -5298,7 +5320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 translateY = 0;
                 if (el) {
                     el.style.transform = '';
-                    el.style.cursor = '';
+                    el.style.cursor = 'zoom-in';
                 }
             }
         });
@@ -6347,12 +6369,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Helpers ---
     function errorToast(err: any, fallbackMsg) {
         console.error('errorToast:', fallbackMsg, err);
-        if (err.message === 'Access Denied' || err.message === 'Unauthorized') {
-            showToast(err.message);
+        const lowerMsg = (err.message || '').toLowerCase();
+        if (err.message === 'Access Denied' || err.message === 'Unauthorized' || lowerMsg.includes('read-only')) {
+            showToast('Access Denied', '🚫');
             return true;
         }
         if (fallbackMsg) {
-            showToast(fallbackMsg);
+            showToast(fallbackMsg, '❌');
         }
         return false;
     }

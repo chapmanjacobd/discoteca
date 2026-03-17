@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
 )
 
 // handleHealth returns OK if the server is running
@@ -869,11 +869,11 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 
-	// Normalize path: replace backslashes with forward slashes, then clean
-	// This ensures cross-platform compatibility since URLs always use forward slashes
-	// and we store paths consistently in the database
-	cleanPath := filepath.Clean(strings.ReplaceAll(path, "\\", "/"))
-	if cleanPath == "." || cleanPath == "/" {
+	// Convert URL path to filesystem path
+	// On Windows: forward slashes become backslashes
+	// On Linux: forward slashes stay as-is
+	cleanPath := pathutil.FromURL(path)
+	if cleanPath == "." || cleanPath == "/" || cleanPath == "\\" {
 		cleanPath = ""
 	}
 

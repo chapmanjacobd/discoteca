@@ -576,7 +576,8 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Default: handle video/audio with ffmpeg
 	var args []string
-	if strings.HasPrefix(mimeType, "video/") {
+	is_video := strings.HasPrefix(mimeType, "video/")
+	if is_video {
 		args = []string{"-ss", "25", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
 	} else if strings.HasPrefix(mimeType, "audio/") {
 		// For audio files, try to extract embedded album art first
@@ -602,6 +603,17 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	cmd := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
 	thumb, err := cmd.Output()
+
+	// If video thumbnail is too dark, try seeking further (e.g. 60 seconds later)
+	if err == nil && is_video && utils.IsImageTooDark(thumb, 0.05) {
+		slog.Debug("Thumbnail too dark, retrying further in the video", "path", path)
+		retryArgs := []string{"-ss", "85", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
+		cmdRetry := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, retryArgs...)...)
+		if retryThumb, retryErr := cmdRetry.Output(); retryErr == nil {
+			thumb = retryThumb
+		}
+	}
+
 	if err != nil {
 		// For audio files without embedded art, or video files that fail, return a placeholder
 		// This is more user-friendly than returning an error

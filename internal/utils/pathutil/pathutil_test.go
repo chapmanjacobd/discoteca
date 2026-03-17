@@ -2,6 +2,7 @@ package pathutil
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -295,10 +296,10 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"/var/log",
 			"/",
 		}
-		for _, path := range paths {
-			_, isAbs := Split(path)
+		for _, p := range paths {
+			_, isAbs := Split(p)
 			if !isAbs {
-				t.Errorf("Unix path %q should be absolute", path)
+				t.Errorf("Unix path %q should be absolute", p)
 			}
 		}
 	})
@@ -308,13 +309,13 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"C:\\Users\\file.txt",
 			"D:\\data\\folder",
 		}
-		for _, path := range paths {
-			parts, isAbs := Split(path)
+		for _, p := range paths {
+			parts, isAbs := Split(p)
 			if !isAbs {
-				t.Errorf("Windows path %q should be absolute", path)
+				t.Errorf("Windows path %q should be absolute", p)
 			}
 			if len(parts) == 0 || parts[0][len(parts[0])-1] != ':' {
-				t.Errorf("Windows path %q should have drive letter as first component", path)
+				t.Errorf("Windows path %q should have drive letter as first component", p)
 			}
 		}
 	})
@@ -324,10 +325,10 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"\\\\server\\share\\file.txt",
 			"\\\\nas\\media\\movies",
 		}
-		for _, path := range paths {
-			_, isAbs := Split(path)
+		for _, p := range paths {
+			_, isAbs := Split(p)
 			if !isAbs {
-				t.Errorf("UNC path %q should be absolute", path)
+				t.Errorf("UNC path %q should be absolute", p)
 			}
 		}
 	})
@@ -338,11 +339,138 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"C:/Users\\file.txt",
 			"folder\\subfolder/file.txt",
 		}
-		for _, path := range paths {
-			parts, _ := Split(path)
+		for _, p := range paths {
+			parts, _ := Split(p)
 			if len(parts) == 0 {
-				t.Errorf("Mixed separator path %q should have parts", path)
+				t.Errorf("Mixed separator path %q should have parts", p)
 			}
 		}
 	})
+}
+
+// TestToURL tests converting filesystem paths to URL-safe paths.
+func TestToURL(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"empty", "", ""},
+		{"unix simple", "/home/user", "/home/user"},
+		{"unix nested", "/var/log/syslog", "/var/log/syslog"},
+		{"windows backslash", "C:\\Users\\file", "C:/Users/file"},
+		{"windows forward", "C:/Users/file", "C:/Users/file"},
+		{"windows mixed", "C:\\Users/file\\doc.txt", "C:/Users/file/doc.txt"},
+		{"unc path", "\\\\server\\share\\file", "//server/share/file"},
+		{"relative unix", "home/user", "home/user"},
+		{"relative windows", "home\\user", "home/user"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToURL(tt.path)
+			if got != tt.want {
+				t.Errorf("ToURL(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+			// Verify result never contains backslashes
+			if strings.Contains(got, "\\") {
+				t.Errorf("ToURL(%q) = %q contains backslashes, should be URL-safe", tt.path, got)
+			}
+		})
+	}
+}
+
+// TestFromURL tests converting URL paths to filesystem paths.
+func TestFromURL(t *testing.T) {
+	isWindows := filepath.Separator == '\\'
+
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{"empty", "", ""},
+		{"unix simple", "/home/user", func() string {
+			if isWindows {
+				return "\\home\\user"
+			}
+			return "/home/user"
+		}()},
+		{"unix nested", "/var/log/syslog", func() string {
+			if isWindows {
+				return "\\var\\log\\syslog"
+			}
+			return "/var/log/syslog"
+		}()},
+		{"windows style", "C:/Users/file", func() string {
+			if isWindows {
+				return "C:\\Users\\file"
+			}
+			return "C:/Users/file"
+		}()},
+		{"relative unix", "home/user", func() string {
+			if isWindows {
+				return "home\\user"
+			}
+			return "home/user"
+		}()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FromURL(tt.url)
+			if got != tt.want {
+				t.Errorf("FromURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestToURLFromURLRoundTrip verifies that ToURL(FromURL(x)) and FromURL(ToURL(x)) are identity operations.
+// Note: Round-trip only works correctly on the native OS. On Linux, Windows paths won't round-trip
+// because FromURL doesn't convert forward slashes to backslashes (that's a Windows-only operation).
+func TestToURLFromURLRoundTrip(t *testing.T) {
+	isWindows := filepath.Separator == '\\'
+
+	tests := []string{
+		"/home/user/file.txt",
+		"relative/path",
+	}
+
+	// Add Windows-style paths only when testing on Windows
+	if isWindows {
+		tests = append(tests, "C:\\Users\\file.txt", "relative\\path")
+	}
+
+	for _, path := range tests {
+		t.Run(path, func(t *testing.T) {
+			// FS -> URL -> FS should preserve original on native OS
+			url := ToURL(path)
+			back := FromURL(url)
+			if back != path {
+				t.Errorf("FromURL(ToURL(%q)) = %q, want %q", path, back, path)
+			}
+
+			// URL -> FS -> URL should preserve original
+			url2 := ToURL(FromURL(path))
+			if url2 != url {
+				t.Errorf("ToURL(FromURL(%q)) = %q, want %q", path, url2, url)
+			}
+		})
+	}
+
+	// Cross-platform test: On Linux, Windows paths convert to URL but don't round-trip
+	if !isWindows {
+		winPath := "C:\\Users\\file.txt"
+		url := ToURL(winPath)
+		if url != "C:/Users/file.txt" {
+			t.Errorf("On Linux, ToURL(%q) = %q, want C:/Users/file.txt", winPath, url)
+		}
+		// FromURL on Linux returns the URL as-is (forward slashes)
+		// This is expected - only Windows converts forward slashes to backslashes
+		back := FromURL(url)
+		if back != "C:/Users/file.txt" {
+			t.Errorf("On Linux, FromURL(%q) = %q, want C:/Users/file.txt", url, back)
+		}
+	}
 }

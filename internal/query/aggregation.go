@@ -33,22 +33,30 @@ func AggregateDUByPath(ctx context.Context, dbPath string, pathPrefix string, ta
 
 	// Build SQL query for aggregation
 	// We use SUBSTR and INSTR to extract the path at target depth
+	// For cross-platform compatibility, we normalize separators in the SQL query
+	// by replacing backslashes with forward slashes for comparison
 	var query string
 	var args []any
 
 	if pathPrefix == "" {
 		// Root level: aggregate by first path component
-		// For paths like "/media/video/file.mp4", extract "/media" (without trailing slash)
-		// For paths like "media/video/file.mp4", extract "media"
+		// Normalize paths by replacing backslashes with forward slashes for consistent grouping
 		query = `
 			SELECT
 				CASE
-					WHEN substr(path, 1, 1) IN ('/', '\\') THEN
-						substr(path, 1, instr(substr(path, 2), '/'))
+					WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
+						substr(replace(path, '\\', '/'), 1, 
+							CASE 
+								WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0 
+								THEN instr(substr(replace(path, '\\', '/'), 2), '/')
+								ELSE length(replace(path, '\\', '/'))
+							END
+						)
 					ELSE
 						CASE
-							WHEN instr(path, '/') > 0 THEN substr(path, 1, instr(path, '/') - 1)
-							ELSE path
+							WHEN instr(replace(path, '\\', '/'), '/') > 0 
+							THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
+							ELSE replace(path, '\\', '/')
 						END
 				END as agg_path,
 				COUNT(*) as count,
@@ -61,27 +69,29 @@ func AggregateDUByPath(ctx context.Context, dbPath string, pathPrefix string, ta
 		`
 	} else {
 		// Subdirectory level: aggregate by path at target depth
-		// Only include paths that start with the prefix
-		// Only include files DEEPER than targetDepth (files at targetDepth are returned separately)
-		escapedPrefix := strings.ReplaceAll(pathPrefix, "'", "''")
+		// Normalize both the prefix and stored paths to forward slashes for matching
+		// This ensures /videos/movies matches both /videos/movies/file and \videos\movies\file
+		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
+
 		query = `
 			SELECT
 				CASE
-					WHEN substr(?, 1, 1) IN ('/', '\\') THEN
+					WHEN substr(?, 1, 1) = '/' THEN
 						? || substr(
-							substr(path, length(?) + 1),
+							substr(replace(path, '\\', '/'), length(?) + 1),
 							1,
 							CASE
-								WHEN instr(substr(path, length(?) + 2), '/') > 0
-								THEN instr(substr(path, length(?) + 2), '/')
-								ELSE length(substr(path, length(?) + 1))
+								WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
+								THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
+								ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
 							END
 						)
 					ELSE
 						? || CASE
-							WHEN instr(substr(path, length(?) + 1), '/') > 0
-							THEN substr(substr(path, length(?) + 1), 1, instr(substr(path, length(?) + 2), '/') - 1)
-							ELSE substr(path, length(?) + 1)
+							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
+							THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
+							ELSE substr(replace(path, '\\', '/'), length(?) + 1)
 						END
 				END as agg_path,
 				COUNT(*) as count,
@@ -89,27 +99,26 @@ func AggregateDUByPath(ctx context.Context, dbPath string, pathPrefix string, ta
 				COALESCE(SUM(duration), 0) as total_duration
 			FROM media
 			WHERE COALESCE(time_deleted, 0) = 0
-				AND (path LIKE ? || '/%' OR path LIKE ? || '\\%')
-				AND (length(path) - length(replace(replace(path, '/', ''), '\\', ''))) > ?
+				AND replace(path, '\\', '/') LIKE ? || '/%'
+				AND (length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))) > ?
 			GROUP BY agg_path
 			ORDER BY total_size DESC
 		`
-		// Add args for the placeholders (14 total)
+		// Add args for the placeholders (12 total)
 		args = append(args,
-			pathPrefix,    // 1: substr(?, 1, 1)
-			pathPrefix,    // 2: ? || substr(
-			pathPrefix,    // 3: length(?) + 1
-			pathPrefix,    // 4: length(?) + 2
-			pathPrefix,    // 5: length(?) + 2
-			pathPrefix,    // 6: length(?) + 1
-			pathPrefix,    // 7: ? || CASE
-			pathPrefix,    // 8: length(?) + 1
-			pathPrefix,    // 9: length(?) + 1
-			pathPrefix,    // 10: length(?) + 2
-			pathPrefix,    // 11: length(?) + 1
-			escapedPrefix, // 12: LIKE ? || '/%'
-			escapedPrefix, // 13: LIKE ? || '\\%'
-			targetDepth,   // 14: separator count > targetDepth
+			normalizedPrefix, // 1: substr(?, 1, 1)
+			normalizedPrefix, // 2: ? || substr(
+			normalizedPrefix, // 3: length(?) + 1
+			normalizedPrefix, // 4: length(?) + 2
+			normalizedPrefix, // 5: length(?) + 2
+			normalizedPrefix, // 6: length(?) + 1
+			normalizedPrefix, // 7: ? || CASE
+			normalizedPrefix, // 8: length(?) + 1
+			normalizedPrefix, // 9: length(?) + 1
+			normalizedPrefix, // 10: length(?) + 2
+			normalizedPrefix, // 11: length(?) + 1
+			escapedPrefix,    // 12: LIKE ? || '/%'
+			targetDepth,      // 13: separator count > targetDepth
 		)
 	}
 
@@ -178,6 +187,7 @@ func FetchDUDirectFiles(ctx context.Context, dbPaths []string, pathPrefix string
 
 		if pathPrefix == "" {
 			// Root level: files with no directory separator
+			// Normalize paths to forward slashes for consistent matching
 			query = `
 				SELECT path, title, duration, size, time_created, time_modified,
 				       time_deleted, time_first_played, time_last_played, play_count,
@@ -186,23 +196,22 @@ func FetchDUDirectFiles(ctx context.Context, dbPaths []string, pathPrefix string
 				       subtitle_codecs, width, height, type
 				FROM media
 				WHERE COALESCE(time_deleted, 0) = 0
-				  AND instr(path, '/') = 0
-				  AND instr(path, '\\') = 0
+				  AND instr(replace(path, '\\', '/'), '/') = 0
 			`
 		} else {
 			// Subdirectory: files at exactly target depth
-			// For absolute paths: separator count = targetDepth
-			// For relative paths: separator count = targetDepth - 1
-			// We need to handle both cases
-			escapedPrefix := strings.ReplaceAll(pathPrefix, "'", "''")
+			// Normalize prefix to forward slashes for cross-platform matching
+			normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+			escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
-			// Check if pathPrefix is absolute
-			isAbs := len(pathPrefix) > 0 && (pathPrefix[0] == '/' || pathPrefix[0] == '\\')
+			// Check if pathPrefix is absolute (after normalization)
+			isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
 			separatorCount := targetDepth
 			if !isAbs {
 				separatorCount = targetDepth - 1
 			}
 
+			// Normalize paths to forward slashes for consistent matching
 			query = `
 				SELECT path, title, duration, size, time_created, time_modified,
 				       time_deleted, time_first_played, time_last_played, play_count,
@@ -211,12 +220,12 @@ func FetchDUDirectFiles(ctx context.Context, dbPaths []string, pathPrefix string
 				       subtitle_codecs, width, height, type
 				FROM media
 				WHERE COALESCE(time_deleted, 0) = 0
-				  AND (path LIKE ? || '/%' OR path LIKE ? || '\\%')
+				  AND replace(path, '\\', '/') LIKE ? || '/%'
 				  AND (
-					length(path) - length(replace(replace(path, '/', ''), '\\', ''))
+					length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))
 				  ) = ?
 			`
-			args = append(args, escapedPrefix, escapedPrefix, separatorCount)
+			args = append(args, escapedPrefix, separatorCount)
 		}
 
 		rows, err := sqlDB.QueryContext(ctx, query, args...)

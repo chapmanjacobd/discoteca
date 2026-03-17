@@ -212,10 +212,16 @@ func TestHandleDU(t *testing.T) {
 	}
 
 	// Create test media in different directories
+	// Include both Unix-style and Windows-style paths to test cross-platform compatibility
 	_, err = sqlDB.Exec(`INSERT INTO media (path, title, type, size, duration, time_deleted) VALUES
 		('/videos/movies/movie1.mp4', 'Movie1', 'video', 1073741824, 7200, 0),
 		('/videos/movies/movie2.mp4', 'Movie2', 'video', 536870912, 3600, 0),
-		('/videos/music/song1.mp4', 'Song1', 'video', 268435456, 300, 0)`)
+		('/videos/music/song1.mp4', 'Song1', 'video', 268435456, 300, 0),
+		-- Windows-style paths (stored as-is in database)
+		('\\videos\\movies\\movie3.mp4', 'Movie3', 'video', 800000000, 5400, 0),
+		('\\videos\\music\\song2.mp4', 'Song2', 'video', 150000000, 240, 0),
+		-- Mixed separator paths
+		('/videos\\tv\\show1.mp4', 'Show1', 'video', 400000000, 1800, 0)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +307,8 @@ func TestHandleDU(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		// Should have files in the files array, not wrapped in folders
+		// Should have files in the files array (movie1.mp4, movie2.mp4)
+		// Note: movie3.mp4 has Windows-style path, so it won't match /videos/movies
 		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
 			t.Error("Expected files or folders in response")
 		}
@@ -331,7 +338,8 @@ func TestHandleDU(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		// Should find the same files as forward-slash path
+		// Should find movie3.mp4 which has Windows-style path in database
+		// After normalization, \\videos\\movies should match both /videos/movies and \\videos\\movies
 		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
 			t.Error("Expected files or folders for Windows-style path")
 		}
@@ -353,9 +361,144 @@ func TestHandleDU(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		// Should find the same files as normalized path
+		// Should find files after normalizing mixed separators
 		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
 			t.Error("Expected files or folders for mixed-style path")
+		}
+	})
+
+	t.Run("WindowsAbsolutePath", func(t *testing.T) {
+		// Test Windows absolute path with drive letter
+		// This simulates how Windows clients would query paths
+		req := httptest.NewRequest("GET", "/api/du?path=C:\\videos\\movies", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Path normalization should handle Windows drive letters
+		// Even though our test data uses Unix paths, the query should not fail
+		if resp.Folders == nil {
+			t.Error("Expected folders array (can be empty)")
+		}
+	})
+
+	t.Run("WindowsRootPath", func(t *testing.T) {
+		// Test Windows root path (drive letter only)
+		req := httptest.NewRequest("GET", "/api/du?path=C:\\", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if resp.Folders == nil {
+			t.Error("Expected folders array (can be empty)")
+		}
+	})
+
+	t.Run("UNCPath", func(t *testing.T) {
+		// Test UNC path (network share)
+		req := httptest.NewRequest("GET", "/api/du?path=\\\\server\\share\\videos", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if resp.Folders == nil {
+			t.Error("Expected folders array (can be empty)")
+		}
+	})
+
+	t.Run("PathWithDotComponents", func(t *testing.T) {
+		// Test path with . and .. components
+		// FromURL normalizes the path: /videos/./movies/../music -> /videos/music
+		req := httptest.NewRequest("GET", "/api/du?path=/videos/./movies/../music", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should normalize to /videos/music and find the song
+		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
+			t.Error("Expected files or folders for normalized path")
+		}
+	})
+
+	t.Run("PathWithDoubleSeparators", func(t *testing.T) {
+		// Test path with double separators
+		// FromURL normalizes: /videos//movies -> /videos/movies
+		req := httptest.NewRequest("GET", "/api/du?path=/videos//movies", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should normalize to /videos/movies and find the movies
+		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
+			t.Error("Expected files or folders for normalized path")
+		}
+	})
+
+	t.Run("WindowsPathWithDotDot", func(t *testing.T) {
+		// Test Windows path with .. components
+		// FromURL normalizes: \videos\movies\..\music -> /videos/music (on Linux)
+		req := httptest.NewRequest("GET", "/api/du?path=\\videos\\movies\\..\\music", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp models.DUResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should normalize to /videos/music and find the song
+		if len(resp.Files) == 0 && len(resp.Folders) == 0 {
+			t.Error("Expected files or folders for normalized path")
 		}
 	})
 }

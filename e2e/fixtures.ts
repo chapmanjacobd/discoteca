@@ -108,7 +108,7 @@ export const test = base.extend<{
 
     if (readOnly) {
       if (!globalServers.has(serverKey)) {
-        server = new TestServer({ databasePath: testDbPath, ...serverOptions });
+        server = new TestServer({ databasePath: testDbPath, readOnly: true, ...serverOptions });
         await server.start();
         globalServers.set(serverKey, server);
       } else {
@@ -118,7 +118,7 @@ export const test = base.extend<{
       fs.mkdirSync(tmpDir, { recursive: true });
       tempDbPath = path.join(tmpDir, `test-${process.pid}-${Date.now()}.db`);
       fs.copyFileSync(testDbPath, tempDbPath);
-      server = new TestServer({ databasePath: tempDbPath, ...serverOptions });
+      server = new TestServer({ databasePath: tempDbPath, readOnly: false, ...serverOptions });
       await server.start();
     }
 

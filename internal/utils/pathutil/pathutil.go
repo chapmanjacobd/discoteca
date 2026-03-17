@@ -4,6 +4,7 @@
 package pathutil
 
 import (
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -186,4 +187,37 @@ func Prefix(path string) string {
 	}
 
 	return ""
+}
+
+// ToURL converts a filesystem path to a URL-safe path.
+// On Windows: converts backslashes to forward slashes (C:\Users -> C:/Users)
+// On Linux: path is already URL-safe (forward slashes)
+// This is used when sending paths to clients via URLs.
+func ToURL(path string) string {
+	if path == "" {
+		return ""
+	}
+	// Always convert to forward slashes for URLs
+	return strings.ReplaceAll(path, "\\", "/")
+}
+
+// FromURL converts a URL path to a filesystem path.
+// It performs the following normalizations:
+// 1. Converts forward slashes to OS separator (backslash on Windows)
+// 2. Resolves . and .. components
+// 3. Removes duplicate separators
+// This is used when receiving paths from clients via URL parameters.
+func FromURL(urlPath string) string {
+	if urlPath == "" {
+		return ""
+	}
+	// First normalize to forward slashes and clean the path
+	// path.Clean handles ., .., and duplicate slashes
+	clean := path.Clean(strings.ReplaceAll(urlPath, "\\", "/"))
+
+	// On Windows, convert forward slashes to backslashes
+	if filepath.Separator == '\\' {
+		return strings.ReplaceAll(clean, "/", "\\")
+	}
+	return clean
 }
