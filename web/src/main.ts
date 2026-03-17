@@ -2209,7 +2209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.localResume) {
                 const localProgress = JSON.parse(localStorage.getItem('disco-progress') || '{}');
 
-                if (state.page === 'history' || state.filters.unfinished || state.filters.completed) {
+                if (state.page === 'history' || state.filters.unplayed || state.filters.unfinished || state.filters.completed) {
                     const serverFiles = [];
                     groups.forEach(g => { if (g.files) serverFiles.push(...g.files); });
                     const serverPaths = new Set(serverFiles.map(m => m.path));
@@ -2220,7 +2220,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         let missingData = await fetchMediaByPaths(missingPaths);
 
                         // Client-side filtering for merged items
-                        if (state.filters.unfinished) {
+                        if (state.filters.unplayed) {
+                            missingData = missingData.filter(item => getPlayCount(item) === 0);
+                        } else if (state.filters.unfinished) {
                             missingData = missingData.filter(item => getPlayCount(item) === 0 && (localProgress[item.path]?.pos > 0));
                         } else if (state.filters.completed) {
                             missingData = missingData.filter(item => getPlayCount(item) > 0);

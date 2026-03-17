@@ -46,7 +46,8 @@ test.describe('Large Result Sets Scrolling', () => {
   });
 
   test('pagination controls are visible for large sets', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Use #limit=5 to artificially create pagination with test.db's media count
+    await mediaPage.goto(server.getBaseUrl() + '/#limit=5');
 
     // Pagination container should exist using POM
     await expect(mediaPage.paginationContainer).toBeVisible();

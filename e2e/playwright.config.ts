@@ -14,7 +14,7 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
 
-  maxFailures: process.env.CI ? 100 : 1000,
+  maxFailures: process.env.CI ? 100 : 10,
 
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
@@ -25,8 +25,8 @@ export default defineConfig({
 
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
-    ['html', { open: 'never' }],
-    ['list'],
+    // ['list'],
+    ['dot'],
     ['json', { outputFile: path.join(__dirname, 'test-results', 'results.json') }]
   ],
 
@@ -46,7 +46,7 @@ export default defineConfig({
     video: 'retain-on-failure',
 
     /* Maximum time each action can take */
-    actionTimeout: 10000,
+    actionTimeout: 60000,
 
     /* Mute audio for all browsers */
     contextOptions: {

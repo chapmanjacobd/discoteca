@@ -62,7 +62,8 @@ test.describe('Search and Filtering', () => {
   });
 
   test('pagination works for large result sets', async ({ mediaPage, server }) => {
-    await mediaPage.goto(server.getBaseUrl());
+    // Use #limit=5 to artificially create pagination with test.db's media count
+    await mediaPage.goto(server.getBaseUrl() + '/#limit=5');
 
     // Check if pagination is visible using POM
     const pagination = mediaPage.paginationContainer;

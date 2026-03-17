@@ -664,12 +664,14 @@ export class MediaPage extends BasePage {
   }
 
   /**
-   * Set play count in localStorage (for backward compatibility)
+   * Set play count in localStorage
    */
   async setPlayCount(mediaPath: string, count: number): Promise<void> {
     await this.page.evaluate(({ path, cnt }) => {
-      const key = `disco-playcount-${path}`;
-      localStorage.setItem(key, cnt.toString());
+      const key = 'disco-play-counts';
+      const counts = JSON.parse(localStorage.getItem(key) || '{}');
+      counts[path] = cnt;
+      localStorage.setItem(key, JSON.stringify(counts));
     }, { path: mediaPath, cnt: count });
   }
 
