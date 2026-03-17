@@ -313,7 +313,8 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
 
     for (const type of ['video', 'audio', 'image', 'video']) {
       await sidebarPage.getMediaTypeButton(type).click();
-      await mediaPage.page.waitForTimeout(100);
+      // Wait a bit longer for the filter to be applied
+      await mediaPage.page.waitForTimeout(300);
     }
 
     // Wait for results to stabilize using POM
@@ -333,7 +334,10 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
     }, { timeout: 10000 }).toBeGreaterThan(0);
 
     // All results should be videos using POM
+    // Wait for the filter to fully apply before checking types
+    await mediaPage.page.waitForTimeout(500);
     const types = await mediaPage.getAllMediaCardTypes();
+    console.log(`Media card types: ${types}`);
     types.forEach(type => {
       if (type) {
         expect(type.toLowerCase()).toContain('video');

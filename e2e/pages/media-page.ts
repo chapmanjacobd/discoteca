@@ -92,6 +92,14 @@ export class MediaPage extends BasePage {
         if (duToolbar && !duToolbar.classList.contains('hidden')) return true;
         return false;
       }
+      // For trash and history modes, the page is loaded when state is set (even if empty)
+      const isTrashMode = disco.state?.page === 'trash';
+      const isHistoryMode = disco.state?.page === 'history';
+      if (isTrashMode || isHistoryMode) {
+        // Check if results container exists (page has rendered)
+        const resultsContainer = document.getElementById('results-container');
+        if (resultsContainer) return true;
+      }
       return disco.currentMedia && disco.currentMedia.length > 0;
     }, { timeout });
   }

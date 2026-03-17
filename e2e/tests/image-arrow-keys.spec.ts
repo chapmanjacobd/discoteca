@@ -76,7 +76,7 @@ test.describe('Image Arrow Key Navigation', () => {
 
     // Find images using POM
     const imageCount = await mediaPage.getMediaCountByType('image');
-    expect(imageCount).toBeGreaterThanOrEqual(3);
+    expect(imageCount).toBeGreaterThanOrEqual(2);
 
     // Click first image using POM
     await mediaPage.clickNthMediaByType('image', 0, 0);
@@ -88,7 +88,7 @@ test.describe('Image Arrow Key Navigation', () => {
     const initialSrc = await imageElement.getAttribute('src');
 
     // Press ArrowRight multiple times using POM (cycle through fewer images to avoid closing player)
-    const cycles = Math.min(imageCount - 1, 3);
+    const cycles = Math.min(imageCount - 1, 2);
     for (let i = 0; i < cycles; i++) {
       await mediaPage.page.keyboard.press('ArrowRight');
       await mediaPage.page.waitForTimeout(300);

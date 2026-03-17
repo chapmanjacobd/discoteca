@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Combined Filters and Views', () => {
+  test.use({ readOnly: false });
 
   const modes = [
     { name: 'Search', hash: '', selector: '#all-media-btn' },
@@ -11,10 +12,43 @@ test.describe('Combined Filters and Views', () => {
 
   for (const mode of modes) {
     test(`mode: ${mode.name} - switching views and filtering`, async ({ mediaPage, sidebarPage, viewerPage, server }) => {
+      // Set up test data for Trash and History modes
+      if (mode.name === 'Trash') {
+        // Go to home, delete a file to populate trash
+        await mediaPage.goto(server.getBaseUrl());
+        const firstVideo = mediaPage.getFirstMediaCardByType('video');
+        await firstVideo.click();
+        await viewerPage.waitForPlayer();
+        // Click the delete button in the viewer
+        const deleteBtn = viewerPage.page.locator('.media-action-btn.delete').first();
+        await deleteBtn.click();
+        // Wait for deletion to process
+        await mediaPage.page.waitForTimeout(1000);
+        await viewerPage.close();
+        await mediaPage.page.waitForTimeout(500);
+      } else if (mode.name === 'History') {
+        // Go to home, watch a file to populate history
+        await mediaPage.goto(server.getBaseUrl());
+        const firstVideo = mediaPage.getFirstMediaCardByType('video');
+        await firstVideo.click();
+        await viewerPage.waitForPlayer();
+        await viewerPage.videoElement.waitFor({ state: 'visible', timeout: 5000 });
+        await viewerPage.play();
+        await mediaPage.page.waitForTimeout(2000);
+        await viewerPage.close();
+        await mediaPage.page.waitForTimeout(500);
+      }
+
       await mediaPage.goto(server.getBaseUrl() + (mode.hash ? `#${mode.hash}` : ''));
 
       // Wait for results container using POM
       await expect(mediaPage.resultsContainer).toBeVisible();
+
+      // For Trash and History, verify we have items (test setup requirement)
+      if (mode.name === 'Trash' || mode.name === 'History') {
+        const count = await mediaPage.getMediaCount();
+        expect(count).toBeGreaterThan(0);
+      }
 
       // Expand history details if we are in history mode using POM
       if (mode.name === 'History') {
@@ -68,6 +102,7 @@ test.describe('Combined Filters and Views', () => {
       }
 
       // 3. Apply a search filter using POM
+      // Search for 'test' which matches our test files (test_video1, test_image1, etc.)
       await mediaPage.search('test');
 
       // Verify we are STILL in the same mode using POM
