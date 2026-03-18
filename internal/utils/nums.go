@@ -554,8 +554,8 @@ func BoolToInt64(b bool) int64 {
 // ParsePercentOrBytes parses a string like "5%" or "100MB" into a float64 ratio or bytes
 func ParsePercentOrBytes(s string) float64 {
 	s = strings.TrimSpace(s)
-	if strings.HasSuffix(s, "%") {
-		v, err := strconv.ParseFloat(strings.TrimSuffix(s, "%"), 64)
+	if before, ok := strings.CutSuffix(s, "%"); ok {
+		v, err := strconv.ParseFloat(before, 64)
 		if err != nil {
 			return 0.05 // default 5%
 		}

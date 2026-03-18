@@ -66,12 +66,8 @@ func (c *AddCmd) AfterApply() error {
 
 func (c *AddCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := models.GlobalFlags{
-		CoreFlags:        c.CoreFlags,
-		PathFilterFlags:  c.PathFilterFlags,
-		FilterFlags:      c.FilterFlags,
-		MediaFilterFlags: c.MediaFilterFlags,
-	}
+	db.SetFtsEnabled(true)
+
 	dbPath := c.Database
 	c.ScanPaths = utils.ExpandStdin(c.ScanPaths)
 
@@ -81,6 +77,13 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		return err
 	}
 	defer sqlDB.Close()
+
+	flags := models.GlobalFlags{
+		CoreFlags:        c.CoreFlags,
+		PathFilterFlags:  c.PathFilterFlags,
+		FilterFlags:      c.FilterFlags,
+		MediaFilterFlags: c.MediaFilterFlags,
+	}
 
 	// Step 0: Load existing playlists (roots) to avoid redundant scans
 	existingPlaylists, _ := queries.GetPlaylists(context.Background())

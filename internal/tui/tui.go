@@ -197,11 +197,6 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 			cats := strings.SplitSeq(*m.Categories, ";")
 			for c := range cats {
 				if c != "" {
-					if flags.NoDefaultCategories && !isCustom[c] {
-						if _, isDefault := models.DefaultCategories[c]; isDefault {
-							continue
-						}
-					}
 					categories[c] = true
 				}
 			}

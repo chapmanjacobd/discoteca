@@ -41,6 +41,31 @@ type DedupeDuplicate struct {
 
 func (c *DedupeCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
+
+	for _, dbPath := range c.Databases {
+		sqlDB, _, err := db.ConnectWithInit(dbPath)
+		if err != nil {
+			return err
+		}
+		// Micro-migration for dedupe
+		err = db.EnsureColumns(sqlDB, []db.ColumnDef{
+			{Table: "media", Column: "is_deduped", Schema: "INTEGER DEFAULT 0"},
+		})
+		if err != nil {
+			sqlDB.Close()
+			return err
+		}
+		err = db.EnsureIndexes(sqlDB, []db.IndexDef{
+			{Name: "idx_media_is_deduped", SQL: "CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1"},
+			{Name: "idx_media_unprocessed", SQL: "CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL"},
+		})
+		if err != nil {
+			sqlDB.Close()
+			return err
+		}
+		sqlDB.Close()
+	}
+
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -151,10 +176,10 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 			if err == nil {
 				// Mark duplicate as deleted
 				_, _ = sqlDB.Exec("UPDATE media SET time_deleted = unixepoch() WHERE path = ?", d.DuplicatePath)
-				
+
 				// Mark keep file as deduped
 				_, _ = sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", d.KeepPath)
-				
+
 				// Update hash if not already set
 				if d.DuplicateSize > 0 {
 					h, err := utils.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
@@ -166,7 +191,7 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 						_, _ = sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, d.KeepPath)
 					}
 				}
-				
+
 				sqlDB.Close()
 			}
 		}

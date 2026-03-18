@@ -44,19 +44,6 @@ type Media struct {
 	TrackNumber *int64 `json:"track_number,omitempty"`
 }
 
-var DefaultCategories = map[string][]string{
-	"sports":      {"sports?", "football", "soccer", "basketball", "tennis", "olympics", "training"},
-	"fitness":     {"workout", "fitness", "gym", "yoga", "pilates", "exercise", "bodybuilding", "cardio"},
-	"documentary": {"documentaries", "documentary", "docu", "history", "biography", "nature", "science", "planet", "wildlife", "factual"},
-	"comedy":      {"comedy", "comedies", "standup", "funny", "sitcom", "humor", "prank", "roast", "satire"},
-	"music":       {"music", "concerts?", "performance", "live", "musical", "video clip", "remix(es)?", "feat", "official video", "soundtracks?"},
-	"educational": {"educational", "tutorials?", "lessons?", "lectures?", "courses?", "learning", "how to", "explainers?", "masterclass(es)?"},
-	"news":        {"news", "reports?", "politics", "interviews?", "journalists?", "coverage", "current affairs", "broadcasts?", "press release"},
-	"gaming":      {"gaming", "gameplay", "walkthroughs?", "playthroughs?", "twitch", "nintendo", "playstation", "xbox", "steam", "speedruns?", "lets play"},
-	"tech":        {"tech", "technology", "software", "hardware", "programming", "coding", "reviews?", "unboxings?", "gadgets?", "silicon"},
-	"audiobook":   {"audiobooks?", "audio book", "narrated", "reading", "unabridged"},
-}
-
 type Playlist struct {
 	ID              int64   `json:"id"`
 	Path            *string `json:"path,omitempty"`

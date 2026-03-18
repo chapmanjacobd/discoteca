@@ -32,59 +32,87 @@ type ShrinkCmd struct {
 	Valid   bool `default:"true" help:"Attempt to process files with valid metadata"`
 	Invalid bool `help:"Attempt to process files with invalid metadata"`
 
-	MinSavingsVideo   string `default:"5%" help:"Minimum savings for video (percentage or bytes)"`
-	MinSavingsAudio   string `default:"10%" help:"Minimum savings for audio (percentage or bytes)"`
-	MinSavingsImage   string `default:"15%" help:"Minimum savings for images (percentage or bytes)"`
-	SourceAudioBitrate  string `default:"256kbps" help:"Used to estimate duration when files are inside of archives or invalid"`
-	SourceVideoBitrate  string `default:"1500kbps" help:"Used to estimate duration when files are inside of archives or invalid"`
-	TargetAudioBitrate  string `default:"128kbps" help:"Target audio bitrate"`
-	TargetVideoBitrate  string `default:"800kbps" help:"Target video bitrate"`
-	TargetImageSize     string `default:"30KiB" help:"Target image size"`
+	MinSavingsVideo      string  `default:"5%" help:"Minimum savings for video (percentage or bytes)"`
+	MinSavingsAudio      string  `default:"10%" help:"Minimum savings for audio (percentage or bytes)"`
+	MinSavingsImage      string  `default:"15%" help:"Minimum savings for images (percentage or bytes)"`
+	SourceAudioBitrate   string  `default:"256kbps" help:"Used to estimate duration when files are inside of archives or invalid"`
+	SourceVideoBitrate   string  `default:"1500kbps" help:"Used to estimate duration when files are inside of archives or invalid"`
+	TargetAudioBitrate   string  `default:"128kbps" help:"Target audio bitrate"`
+	TargetVideoBitrate   string  `default:"800kbps" help:"Target video bitrate"`
+	TargetImageSize      string  `default:"30KiB" help:"Target image size"`
 	TranscodingVideoRate float64 `default:"1.8" help:"Ratio of duration eg. 4x realtime speed"`
 	TranscodingAudioRate float64 `default:"150" help:"Ratio of duration eg. 100x realtime speed"`
 	TranscodingImageTime float64 `default:"1.5" help:"Seconds to process an image"`
 
-	MaxVideoHeight int `default:"960" help:"Maximum video height"`
-	MaxVideoWidth  int `default:"1440" help:"Maximum video width"`
-	MaxImageHeight int `default:"2400" help:"Maximum image height"`
-	MaxImageWidth  int `default:"2400" help:"Maximum image width"`
+	MaxVideoHeight int    `default:"960" help:"Maximum video height"`
+	MaxVideoWidth  int    `default:"1440" help:"Maximum video width"`
+	MaxImageHeight int    `default:"2400" help:"Maximum image height"`
+	MaxImageWidth  int    `default:"2400" help:"Maximum image width"`
 	Preset         string `default:"7" help:"SVT-AV1 preset (0-13, lower is slower/better)"`
 	CRF            string `default:"40" help:"CRF value for SVT-AV1 (0-63, lower is better)"`
 
-	ContinueFrom   string `help:"Skip media until specific file path is seen"`
-	Move           string `help:"Directory to move successful files"`
-	MoveBroken     string `help:"Directory to move unsuccessful files"`
-	DeleteUnplayable bool `help:"Delete unplayable files"`
+	ContinueFrom     string `help:"Skip media until specific file path is seen"`
+	Move             string `help:"Directory to move successful files"`
+	MoveBroken       string `help:"Directory to move unsuccessful files"`
+	DeleteUnplayable bool   `help:"Delete unplayable files"`
 
-	OnlyHash    bool `help:"Only calculate hashes, don't shrink"`
-	OnlyDedupe  bool `help:"Only mark deduplicated files, don't shrink"`
-	ForceRehash bool `help:"Force recalculation of hashes"`
+	OnlyHash      bool `help:"Only calculate hashes, don't shrink"`
+	OnlyDedupe    bool `help:"Only mark deduplicated files, don't shrink"`
+	ForceRehash   bool `help:"Force recalculation of hashes"`
 	ForceReshrink bool `help:"Force reprocessing of already shrinked files"`
 }
 
 type ShrinkMedia struct {
-	Path          string
-	Size          int64
-	Duration      float64
-	VideoCount    int
-	AudioCount    int
-	VideoCodecs   string
-	AudioCodecs   string
-	Type          string
-	Ext           string
-	MediaType     string
-	FutureSize    int64
-	Savings       int64
+	Path           string
+	Size           int64
+	Duration       float64
+	VideoCount     int
+	AudioCount     int
+	VideoCodecs    string
+	AudioCodecs    string
+	Type           string
+	Ext            string
+	MediaType      string
+	FutureSize     int64
+	Savings        int64
 	ProcessingTime int
 	CompressedSize int64
-	IsArchived    bool
-	ArchivePath   string
-	FastHash      string
-	Sha256        string
+	IsArchived     bool
+	ArchivePath    string
+	FastHash       string
+	Sha256         string
 }
 
 func (c *ShrinkCmd) Run(ctx *kong.Context) error {
 	models.SetupLogging(c.Verbose)
+
+	for _, dbPath := range c.Databases {
+		sqlDB, _, err := db.ConnectWithInit(dbPath)
+		if err != nil {
+			return err
+		}
+		// Micro-migration for shrink
+		err = db.EnsureColumns(sqlDB, []db.ColumnDef{
+			{Table: "media", Column: "fasthash", Schema: "TEXT"},
+			{Table: "media", Column: "sha256", Schema: "TEXT"},
+			{Table: "media", Column: "is_shrinked", Schema: "INTEGER DEFAULT 0"},
+		})
+		if err != nil {
+			sqlDB.Close()
+			return err
+		}
+		err = db.EnsureIndexes(sqlDB, []db.IndexDef{
+			{Name: "idx_media_fasthash", SQL: "CREATE INDEX IF NOT EXISTS idx_media_fasthash ON media(fasthash) WHERE fasthash IS NOT NULL"},
+			{Name: "idx_media_sha256", SQL: "CREATE INDEX IF NOT EXISTS idx_media_sha256 ON media(sha256) WHERE sha256 IS NOT NULL"},
+			{Name: "idx_media_is_shrinked", SQL: "CREATE INDEX IF NOT EXISTS idx_media_is_shrinked ON media(is_shrinked) WHERE is_shrinked = 1"},
+			{Name: "idx_media_unshrinked", SQL: "CREATE INDEX IF NOT EXISTS idx_media_unshrinked ON media(path) WHERE is_shrinked = 0 OR is_shrinked IS NULL"},
+		})
+		if err != nil {
+			sqlDB.Close()
+			return err
+		}
+		sqlDB.Close()
+	}
 
 	// Parse size/duration strings
 	minSavingsVideo := utils.ParsePercentOrBytes(c.MinSavingsVideo)
@@ -120,8 +148,8 @@ func (c *ShrinkCmd) Run(ctx *kong.Context) error {
 
 func (c *ShrinkCmd) processDatabase(dbPath string, ffmpegInstalled, magickInstalled bool,
 	minSavingsVideo, minSavingsAudio, minSavingsImage float64,
-	sourceAudioBitrate, sourceVideoBitrate, targetAudioBitrate, targetVideoBitrate, targetImageSize int64) error {
-
+	sourceAudioBitrate, sourceVideoBitrate, targetAudioBitrate, targetVideoBitrate, targetImageSize int64,
+) error {
 	sqlDB, _, err := db.ConnectWithInit(dbPath)
 	if err != nil {
 		return err
@@ -136,9 +164,9 @@ func (c *ShrinkCmd) processDatabase(dbPath string, ffmpegInstalled, magickInstal
 		WHERE COALESCE(time_deleted, 0) = 0
 		  AND size > 0
 	`
-	
+
 	if !c.ForceReshrink {
-		query += " AND (COALESCE(is_shrinked, 0) = 0 OR is_shrinked IS NULL)"
+		query += " AND COALESCE(is_shrinked, 0) = 0"
 	}
 
 	rows, err := sqlDB.Query(query)
@@ -181,7 +209,7 @@ func (c *ShrinkCmd) processDatabase(dbPath string, ffmpegInstalled, magickInstal
 
 	for i := range media {
 		m := &media[i]
-		
+
 		// Calculate hashes if needed
 		if c.ForceRehash || m.FastHash == "" {
 			hashWg.Add(1)
@@ -240,7 +268,7 @@ func (c *ShrinkCmd) processDatabase(dbPath string, ffmpegInstalled, magickInstal
 		totalCurrentSize += m.Size
 		totalFutureSize += m.FutureSize
 		totalSavings += m.Savings
-		slog.Info("To shrink", 
+		slog.Info("To shrink",
 			"path", m.Path,
 			"type", m.MediaType,
 			"current", utils.FormatSize(m.Size),
@@ -272,7 +300,7 @@ func (c *ShrinkCmd) processDatabase(dbPath string, ffmpegInstalled, magickInstal
 	var successCount, failCount int
 	for _, m := range toShrink {
 		slog.Info("Processing", "path", m.Path, "type", m.MediaType)
-		
+
 		var err error
 		switch m.MediaType {
 		case "Audio":
@@ -306,8 +334,8 @@ func (c *ShrinkCmd) processDatabase(dbPath string, ffmpegInstalled, magickInstal
 
 func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled bool,
 	minSavingsVideo, minSavingsAudio, minSavingsImage float64,
-	sourceAudioBitrate, sourceVideoBitrate, targetAudioBitrate, targetVideoBitrate, targetImageSize int64) bool {
-
+	sourceAudioBitrate, sourceVideoBitrate, targetAudioBitrate, targetVideoBitrate, targetImageSize int64,
+) bool {
 	if m.Size == 0 {
 		return false
 	}
@@ -318,7 +346,7 @@ func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled
 	// Audio files
 	if (strings.HasPrefix(filetype, "audio/") || strings.Contains(filetype, " audio")) ||
 		(utils.AudioExtensionMap[ext] && m.VideoCount == 0) {
-		
+
 		if !ffmpegInstalled {
 			return false
 		}
@@ -336,7 +364,7 @@ func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled
 
 		futureSize := int64(duration * float64(targetAudioBitrate) / 8)
 		shouldShrinkBuffer := int64(float64(futureSize) * minSavingsAudio)
-		
+
 		m.MediaType = "Audio"
 		m.FutureSize = futureSize
 		m.Savings = m.Size - futureSize
@@ -349,7 +377,7 @@ func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled
 	// Video files
 	if (strings.HasPrefix(filetype, "video/") || strings.Contains(filetype, " video")) ||
 		(utils.VideoExtensionMap[ext] && m.VideoCount >= 1) {
-		
+
 		if !ffmpegInstalled {
 			return false
 		}
@@ -367,7 +395,7 @@ func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled
 
 		futureSize := int64(duration * float64(targetVideoBitrate) / 8)
 		shouldShrinkBuffer := int64(float64(futureSize) * minSavingsVideo)
-		
+
 		m.MediaType = "Video"
 		m.FutureSize = futureSize
 		m.Savings = m.Size - futureSize
@@ -380,7 +408,7 @@ func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled
 	// Image files
 	if (strings.HasPrefix(filetype, "image/") || strings.Contains(filetype, " image")) ||
 		(utils.ImageExtensionMap[ext] && m.Duration == 0) {
-		
+
 		if !magickInstalled {
 			return false
 		}
@@ -393,7 +421,7 @@ func (c *ShrinkCmd) checkShrink(m *ShrinkMedia, ffmpegInstalled, magickInstalled
 
 		futureSize := targetImageSize
 		shouldShrinkBuffer := int64(float64(futureSize) * minSavingsImage)
-		
+
 		m.MediaType = "Image"
 		m.FutureSize = futureSize
 		m.Savings = m.Size - futureSize
@@ -495,8 +523,8 @@ func (c *ShrinkCmd) shrinkImage(path string) error {
 func updateHash(db *sql.DB, path, fastHash, sha256 string, isDeduped bool) {
 	query := "UPDATE media SET "
 	updates := []string{}
-	args := []interface{}{}
-	
+	args := []any{}
+
 	if fastHash != "" {
 		updates = append(updates, "fasthash = ?")
 		args = append(args, fastHash)
@@ -508,14 +536,14 @@ func updateHash(db *sql.DB, path, fastHash, sha256 string, isDeduped bool) {
 	if isDeduped {
 		updates = append(updates, "is_deduped = 1")
 	}
-	
+
 	if len(updates) == 0 {
 		return
 	}
-	
+
 	query += strings.Join(updates, ", ") + " WHERE path = ?"
 	args = append(args, path)
-	
+
 	_, err := db.Exec(query, args...)
 	if err != nil {
 		slog.Error("Failed to update hash", "path", path, "error", err)

@@ -211,8 +211,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   -p, --parallel
         Number of parallel extractors (default: CPU count * 4)
   --extract-text
@@ -285,8 +283,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --dry-run
         Don't actually mark files as deleted
 ```
@@ -407,8 +403,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -624,8 +618,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -744,8 +736,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   -O, --play-in-order
         Play media in order
   --no-play-in-order
@@ -934,8 +924,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1092,8 +1080,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --hide-deleted
         Exclude deleted files from results
   --only-deleted
@@ -1222,8 +1208,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   -c, --columns
         Columns to display
   -j, --json
@@ -1343,8 +1327,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1527,8 +1509,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1599,6 +1579,192 @@ Flags:
         Size of each segment to hash
   --hash-threads
         Number of threads to use for hashing a single file
+```
+
+</details>
+
+### shrink
+
+Shrink media to efficient formats (AV1/Opus/AVIF)
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco shrink --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -T, --timeout
+        Quit after N minutes/seconds
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --mime-type
+        Filter by mimetype substring (e.g., video, mp4)
+  --no-mime-type
+        Exclude by mimetype substring
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  --hash-gap
+        Gap between segments (0.0-1.0 as percentage of file size, or absolute bytes if >1)
+  --hash-chunk-size
+        Size of each segment to hash
+  --hash-threads
+        Number of threads to use for hashing a single file
+  --valid
+        Attempt to process files with valid metadata
+  --invalid
+        Attempt to process files with invalid metadata
+  --min-savings-video
+        Minimum savings for video (percentage or bytes)
+  --min-savings-audio
+        Minimum savings for audio (percentage or bytes)
+  --min-savings-image
+        Minimum savings for images (percentage or bytes)
+  --source-audio-bitrate
+        Used to estimate duration when files are inside of archives or invalid
+  --source-video-bitrate
+        Used to estimate duration when files are inside of archives or invalid
+  --target-audio-bitrate
+        Target audio bitrate
+  --target-video-bitrate
+        Target video bitrate
+  --target-image-size
+        Target image size
+  --transcoding-video-rate
+        Ratio of duration eg. 4x realtime speed
+  --transcoding-audio-rate
+        Ratio of duration eg. 100x realtime speed
+  --transcoding-image-time
+        Seconds to process an image
+  --max-video-height
+        Maximum video height
+  --max-video-width
+        Maximum video width
+  --max-image-height
+        Maximum image height
+  --max-image-width
+        Maximum image width
+  --preset
+        SVT-AV1 preset (0-13, lower is slower/better)
+  --crf
+        CRF value for SVT-AV1 (0-63, lower is better)
+  --continue-from
+        Skip media until specific file path is seen
+  --move
+        Directory to move successful files
+  --move-broken
+        Directory to move unsuccessful files
+  --delete-unplayable
+        Delete unplayable files
+  --only-hash
+        Only calculate hashes, don't shrink
+  --only-dedupe
+        Only mark deduplicated files, don't shrink
+  --force-rehash
+        Force recalculation of hashes
+  --force-reshrink
+        Force reprocessing of already shrinked files
 ```
 
 </details>
@@ -1701,8 +1867,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1885,8 +2049,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2037,8 +2199,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2215,8 +2375,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2409,8 +2567,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2680,8 +2836,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2936,8 +3090,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3081,8 +3233,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3221,8 +3371,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -3416,8 +3564,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3730,8 +3876,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3894,8 +4038,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -4438,8 +4580,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   -u, --sort-by
         Sort by field
   -V, --reverse
@@ -4572,8 +4712,6 @@ Flags:
         Filter by mimetype substring (e.g., video, mp4)
   --no-mime-type
         Exclude by mimetype substring
-  --no-default-categories
-        Disable default categories
   -u, --sort-by
         Sort by field
   -V, --reverse

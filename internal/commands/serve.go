@@ -168,7 +168,6 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/categorize/suggest", c.authMiddleware(c.handleCategorizeSuggest))
 	mux.HandleFunc("/api/categorize/apply", c.authMiddleware(c.handleCategorizeApply))
 	mux.HandleFunc("/api/categorize/keywords", c.authMiddleware(c.handleCategorizeKeywords))
-	mux.HandleFunc("/api/categorize/defaults", c.authMiddleware(c.handleCategorizeDefaults))
 	mux.HandleFunc("/api/categorize/category", c.authMiddleware(c.handleCategorizeDeleteCategory))
 	mux.HandleFunc("/api/categorize/keyword", c.authMiddleware(c.handleCategorizeKeyword))
 	mux.HandleFunc("/api/raw", c.authMiddleware(c.handleRaw))
@@ -333,6 +332,15 @@ func (c *ServeCmd) Close() error {
 func (c *ServeCmd) Run(ctx *kong.Context) error {
 	defer c.Close()
 	models.SetupLogging(c.Verbose)
+	db.SetFtsEnabled(true)
+
+	for _, dbPath := range c.Databases {
+		sqlDB, _, err := db.ConnectWithInit(dbPath)
+		if err == nil {
+			sqlDB.Close()
+		}
+	}
+
 	c.ApplicationStartTime = time.Now().UnixNano()
 
 	if envToken := os.Getenv("DISCO_API_TOKEN"); envToken != "" {
@@ -648,9 +656,6 @@ func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
 	}
 	if text := q.Get("text"); text == "true" {
 		flags.TextOnly = true
-	}
-	if q.Get("no-default-categories") == "true" {
-		flags.NoDefaultCategories = true
 	}
 	if q.Get("captions") == "true" || q.Get("view") == "captions" {
 		flags.WithCaptions = true

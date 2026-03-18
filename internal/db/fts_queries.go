@@ -26,7 +26,16 @@ func (q *Queries) SearchMediaFTS(ctx context.Context, arg SearchMediaFTSParams) 
 	}
 
 	query := `
-SELECT m.* FROM media m
+SELECT 
+    m.path, m.path_tokenized, m.title, m.duration, m.size, 
+    m.time_created, m.time_modified, m.time_deleted, 
+    m.time_first_played, m.time_last_played, m.play_count, m.playhead, 
+    m.type, m.width, m.height, m.fps, 
+    m.video_codecs, m.audio_codecs, m.subtitle_codecs, 
+    m.video_count, m.audio_count, m.subtitle_count, 
+    m.album, m.artist, m.genre, m.categories, 
+    m.description, m.language, m.time_downloaded, m.score
+FROM media m
 JOIN (
     SELECT rowid, rank FROM media_fts
     WHERE media_fts MATCH ? AND media_fts.time_deleted = 0

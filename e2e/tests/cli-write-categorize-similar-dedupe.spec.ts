@@ -14,11 +14,11 @@ test.describe('CLI: Categorize Command', () => {
     expect(Array.isArray(queryResult)).toBe(true);
   });
 
-  test('categorizes with no default categories', async ({ cli, tempDir, testDbPath, createValidVideo }) => {
+  test('categorizes files', async ({ cli, tempDir, testDbPath, createValidVideo }) => {
     createValidVideo('video.mp4');
     await cli.runAndVerify(['add', testDbPath, tempDir]);
 
-    const result = await cli.runAndVerify(['categorize', '--no-default-categories', testDbPath]);
+    const result = await cli.runAndVerify(['categorize', testDbPath]);
     expect(result.exitCode).toBe(0);
   });
 });

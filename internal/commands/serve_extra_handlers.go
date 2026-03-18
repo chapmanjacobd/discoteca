@@ -70,48 +70,6 @@ func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Reque
 	sendJSON(w, http.StatusOK, results)
 }
 
-func (c *ServeCmd) handleCategorizeDefaults(w http.ResponseWriter, r *http.Request) {
-	if c.ReadOnly {
-		http.Error(w, "Read-only mode", http.StatusForbidden)
-		return
-	}
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	count := 0
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			tx, err := sqlDB.Begin()
-			if err != nil {
-				return err
-			}
-			stmt, err := tx.PrepareContext(r.Context(), "INSERT OR IGNORE INTO custom_keywords (category, keyword) VALUES (?, ?)")
-			if err != nil {
-				tx.Rollback()
-				return err
-			}
-			defer stmt.Close()
-
-			for cat, keywords := range models.DefaultCategories {
-				for _, kw := range keywords {
-					_, err := stmt.ExecContext(r.Context(), cat, kw)
-					if err == nil {
-						count++
-					}
-				}
-			}
-			return tx.Commit()
-		})
-		if err != nil {
-			slog.Error("Failed to insert default categories", "db", dbPath, "error", err)
-		}
-	}
-
-	sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 func (c *ServeCmd) handleCategorizeDeleteCategory(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)

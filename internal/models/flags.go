@@ -58,21 +58,20 @@ type FilterFlags struct {
 }
 
 type MediaFilterFlags struct {
-	Category            []string `help:"Filter by category" group:"MediaFilter"`
-	Genre               string   `help:"Filter by genre" group:"MediaFilter"`
-	Language            []string `help:"Filter by language" group:"MediaFilter"`
-	Ext                 []string `short:"e" help:"Filter by extensions (e.g., .mp4,.mkv)" group:"MediaFilter"`
-	VideoOnly           bool     `help:"Only video files" group:"MediaFilter"`
-	AudioOnly           bool     `help:"Only audio files" group:"MediaFilter"`
-	ImageOnly           bool     `help:"Only image files" group:"MediaFilter"`
-	TextOnly            bool     `help:"Only text/ebook files" group:"MediaFilter"`
-	Portrait            bool     `help:"Only portrait orientation files" group:"MediaFilter"`
-	ScanSubtitles       bool     `help:"Scan for external subtitles during import" group:"MediaFilter"`
-	OnlineMediaOnly     bool     `help:"Exclude local media" group:"MediaFilter"`
-	LocalMediaOnly      bool     `help:"Exclude online media" group:"MediaFilter"`
-	MimeType            []string `help:"Filter by mimetype substring (e.g., video, mp4)" group:"MediaFilter"`
-	NoMimeType          []string `help:"Exclude by mimetype substring" group:"MediaFilter"`
-	NoDefaultCategories bool     `help:"Disable default categories" group:"MediaFilter"`
+	Category        []string `help:"Filter by category" group:"MediaFilter"`
+	Genre           string   `help:"Filter by genre" group:"MediaFilter"`
+	Language        []string `help:"Filter by language" group:"MediaFilter"`
+	Ext             []string `short:"e" help:"Filter by extensions (e.g., .mp4,.mkv)" group:"MediaFilter"`
+	VideoOnly       bool     `help:"Only video files" group:"MediaFilter"`
+	AudioOnly       bool     `help:"Only audio files" group:"MediaFilter"`
+	ImageOnly       bool     `help:"Only image files" group:"MediaFilter"`
+	TextOnly        bool     `help:"Only text/ebook files" group:"MediaFilter"`
+	Portrait        bool     `help:"Only portrait orientation files" group:"MediaFilter"`
+	ScanSubtitles   bool     `help:"Scan for external subtitles during import" group:"MediaFilter"`
+	OnlineMediaOnly bool     `help:"Exclude local media" group:"MediaFilter"`
+	LocalMediaOnly  bool     `help:"Exclude online media" group:"MediaFilter"`
+	MimeType        []string `help:"Filter by mimetype substring (e.g., video, mp4)" group:"MediaFilter"`
+	NoMimeType      []string `help:"Exclude by mimetype substring" group:"MediaFilter"`
 }
 
 type TimeFilterFlags struct {

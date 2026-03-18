@@ -15,6 +15,19 @@ import {
     generateClientThumbnail
 } from './utils';
 
+const DEFAULT_CATEGORIES: Record<string, string[]> = {
+    sports: ['sports?', 'football', 'soccer', 'basketball', 'tennis', 'olympics', 'training'],
+    fitness: ['workout', 'fitness', 'gym', 'yoga', 'pilates', 'exercise', 'bodybuilding', 'cardio'],
+    documentary: ['documentaries', 'documentary', 'docu', 'history', 'biography', 'nature', 'science', 'planet', 'wildlife', 'factual'],
+    comedy: ['comedy', 'comedies', 'standup', 'funny', 'sitcom', 'humor', 'prank', 'roast', 'satire'],
+    music: ['music', 'concerts?', 'performance', 'live', 'musical', 'video clip', 'remix(es)?', 'feat', 'official video', 'soundtracks?'],
+    educational: ['educational', 'tutorials?', 'lessons?', 'lectures?', 'courses?', 'learning', 'how to', 'explainers?', 'masterclass(es)?'],
+    news: ['news', 'reports?', 'politics', 'interviews?', 'journalists?', 'coverage', 'current affairs', 'broadcasts?', 'press release'],
+    gaming: ['gaming', 'gameplay', 'walkthroughs?', 'playthroughs?', 'twitch', 'nintendo', 'playstation', 'xbox', 'steam', 'speedruns?', 'lets play'],
+    tech: ['tech', 'technology', 'software', 'hardware', 'programming', 'coding', 'reviews?', 'unboxings?', 'gadgets?', 'silicon'],
+    audiobook: ['audiobooks?', 'audio book', 'narrated', 'reading', 'unabridged'],
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
     const resultsContainer = document.getElementById('results-container');
@@ -2696,9 +2709,19 @@ document.addEventListener('DOMContentLoaded', () => {
             (btnDefaults as HTMLElement).onclick = async () => {
                 if (confirm('Add default categories and keywords? (Existing ones will be kept)')) {
                     try {
-                        const resp = await fetchAPI('/api/categorize/defaults', { method: 'POST' });
-                        if (!resp.ok) throw new Error('Failed');
-                        showToast('Default categories added');
+                        let added = 0;
+                        for (const [category, keywords] of Object.entries(DEFAULT_CATEGORIES)) {
+                            for (const keyword of keywords) {
+                                const resp = await fetchAPI('/api/categorize/keyword', {
+                                    method: 'POST',
+                                    body: JSON.stringify({ category, keyword }),
+                                });
+                                if (resp.ok) {
+                                    added++;
+                                }
+                            }
+                        }
+                        showToast(`Default categories added (${added} keywords)`);
                         fetchCuration(); // Refresh
                     } catch (err) {
                         console.error(err);

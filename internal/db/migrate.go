@@ -236,15 +236,9 @@ func migrateColumns(db *sql.DB) error {
 		{"media", "width", "INTEGER"},
 		{"media", "height", "INTEGER"},
 		{"media", "fps", "REAL"},
-		{"captions", "media_path", "TEXT NOT NULL"},
-		{"captions", "time", "REAL"},
-		{"captions", "text", "TEXT"},
 	}
 
 	for _, c := range cols {
-		if !FtsEnabled && (c.column == "path_tokenized" || strings.Contains(c.column, "_fts")) {
-			continue
-		}
 
 		rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", c.table))
 		if err != nil {
@@ -353,7 +347,7 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 
 	colsDef := "path TEXT PRIMARY KEY, path_tokenized TEXT,"
 	colsNames := "path, path_tokenized,"
-	if !FtsEnabled {
+	if !IsFtsEnabled() {
 		colsDef = "path TEXT PRIMARY KEY,"
 		colsNames = "path,"
 	}
@@ -515,6 +509,10 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 		}
 
 		for _, m := range migrations {
+			// Skip captions table migration if FTS is disabled
+			if !IsFtsEnabled() && m.name == "captions" {
+				continue
+			}
 			// Check if table exists before migrating
 			var exists int
 			err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", m.name).Scan(&exists)
@@ -523,7 +521,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			}
 			if exists > 0 {
 				if err := migrateToStrict(db, m.name, m.sql); err != nil {
-					return err
+					return fmt.Errorf("migrateToStrict failed for %s: %w", m.name, err)
 				}
 			} else {
 				// Create it if it doesn't exist
@@ -657,7 +655,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 		return nil
 	}
 
-	if FtsEnabled {
+	if IsFtsEnabled() {
 		if err := upgradeFTS("media_fts", "description"); err != nil {
 			return err
 		}

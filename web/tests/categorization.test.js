@@ -199,7 +199,7 @@ describe('Categorization / Curation', () => {
         }
     });
 
-    it('calls /api/categorize/defaults when "Add Default Categories" is clicked', async () => {
+    it('calls /api/categorize/keyword for each default keyword when "Add Default Categories" is clicked', async () => {
         const catLink = document.getElementById('categorization-link-btn');
         catLink.click();
 
@@ -214,11 +214,11 @@ describe('Categorization / Curation', () => {
 
             await vi.waitFor(() => {
                 const calls = global.fetch.mock.calls;
-                const hasDefaultsRequest = calls.some(call =>
-                    call[0].includes('/api/categorize/defaults') &&
+                const hasKeywordRequests = calls.some(call =>
+                    call[0].includes('/api/categorize/keyword') &&
                     call[1]?.method === 'POST'
                 );
-                expect(hasDefaultsRequest).toBe(true);
+                expect(hasKeywordRequests).toBe(true);
             });
         } else {
             expect(window.disco.state.page).toBe('curation');
