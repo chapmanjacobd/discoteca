@@ -39,6 +39,7 @@ ubuntu-deps:
 		libxfixes3 \
 		libxkbcommon0 \
 		libxrandr2 \
+		ghostscript \
 		sqlite3 \
 		ffmpeg \
 		groff \
