@@ -377,30 +377,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!resp.ok) throw new Error('Failed to fetch filter bins');
             const data = await resp.json();
             state.filterBins = {
-                episodes: data.episodes || [],
-                size: data.size || [],
-                duration: data.duration || [],
-                modified: data.modified || [],
-                created: data.created || [],
-                downloaded: data.downloaded || [],
-                episodes_min: data.episodes_min !== undefined && data.episodes_min !== null ? data.episodes_min : 0,
-                episodes_max: data.episodes_max !== undefined && data.episodes_max !== null ? data.episodes_max : 100,
-                size_min: data.size_min !== undefined && data.size_min !== null ? data.size_min : 0,
-                size_max: data.size_max !== undefined && data.size_max !== null ? data.size_max : (100 * 1024 * 1024),
-                duration_min: data.duration_min !== undefined && data.duration_min !== null ? data.duration_min : 0,
-                duration_max: data.duration_max !== undefined && data.duration_max !== null ? data.duration_max : 3600,
-                modified_min: data.modified_min !== undefined && data.modified_min !== null ? data.modified_min : 0,
-                modified_max: data.modified_max !== undefined && data.modified_max !== null ? data.modified_max : 100,
-                created_min: data.created_min !== undefined && data.created_min !== null ? data.created_min : 0,
-                created_max: data.created_max !== undefined && data.created_max !== null ? data.created_max : 100,
-                downloaded_min: data.downloaded_min !== undefined && data.downloaded_min !== null ? data.downloaded_min : 0,
-                downloaded_max: data.downloaded_max !== undefined && data.downloaded_max !== null ? data.downloaded_max : 100,
+                // Percentiles for slider calculations
                 episodes_percentiles: data.episodes_percentiles || [],
                 size_percentiles: data.size_percentiles || [],
                 duration_percentiles: data.duration_percentiles || [],
                 modified_percentiles: data.modified_percentiles || [],
                 created_percentiles: data.created_percentiles || [],
-                downloaded_percentiles: data.downloaded_percentiles || []
+                downloaded_percentiles: data.downloaded_percentiles || [],
+                // Type counts (special case)
+                type: data.type || []
             };
 
             updateSlidersFromAbsolute('episodes', 'episodes');
@@ -1754,30 +1739,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Extract filter bins if included in response
             if (response.counts) {
                 state.filterBins = {
-                    episodes: response.counts.episodes || [],
-                    size: response.counts.size || [],
-                    duration: response.counts.duration || [],
-                    modified: response.counts.modified || [],
-                    created: response.counts.created || [],
-                    downloaded: response.counts.downloaded || [],
-                    episodes_min: response.counts.episodes_min || 0,
-                    episodes_max: response.counts.episodes_max || 100,
-                    size_min: response.counts.size_min || 0,
-                    size_max: response.counts.size_max || (100 * 1024 * 1024),
-                    duration_min: response.counts.duration_min || 0,
-                    duration_max: response.counts.duration_max || 3600,
-                    modified_min: response.counts.modified_min || 0,
-                    modified_max: response.counts.modified_max || 100,
-                    created_min: response.counts.created_min || 0,
-                    created_max: response.counts.created_max || 100,
-                    downloaded_min: response.counts.downloaded_min || 0,
-                    downloaded_max: response.counts.downloaded_max || 100,
+                    // Percentiles for slider calculations
                     episodes_percentiles: response.counts.episodes_percentiles || [],
                     size_percentiles: response.counts.size_percentiles || [],
                     duration_percentiles: response.counts.duration_percentiles || [],
                     modified_percentiles: response.counts.modified_percentiles || [],
                     created_percentiles: response.counts.created_percentiles || [],
-                    downloaded_percentiles: response.counts.downloaded_percentiles || []
+                    downloaded_percentiles: response.counts.downloaded_percentiles || [],
+                    // Type counts (special case)
+                    type: response.counts.type || []
                 };
 
                 updateSlidersFromAbsolute('episodes', 'episodes');
@@ -2131,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 card.innerHTML = `
                     <div class="media-thumb">
-                        <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')" onerror="const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;const dataUrl=generateClientThumbnail(canvas,'${filename.replace(/'/g, "\\'")}','${mediaItem.type || ''}');this.src=dataUrl;this.classList.add('loaded');this.onerror=null">
+                        <img data-src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')" onerror="const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;const dataUrl=generateClientThumbnail(canvas,'${filename.replace(/'/g, "\\'")}','${mediaItem.type || ''}');this.src=dataUrl;this.classList.add('loaded');this.onerror=null">
                         <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:var(--sidebar-bg); font-size:3rem;">${icon}</div>
                         <span class="media-duration">${duration}</span>
                         <div class="media-actions">
@@ -2145,6 +2115,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 `;
+                
+                // Setup lazy loading for the thumbnail
+                const imgEl = card.querySelector('img');
+                if (imgEl) setupLazyThumbnail(imgEl as HTMLImageElement);
             } else {
                 // Render as folder card with is-folder class
                 card.className = 'media-card is-folder';
@@ -5810,7 +5784,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let thumbHtml = `
-            <img src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded'); const icon = this.nextElementSibling; if (icon && icon.tagName === 'I') icon.style.display = 'none'; this.closest('.media-thumb').classList.remove('skeleton')" onerror="this.style.display='none'; const icon = this.nextElementSibling; if (icon && icon.tagName === 'I') { icon.style.display = 'block'; icon.innerHTML = '${getIcon(item.type)}'; } this.closest('.media-thumb').classList.remove('skeleton')">
+            <img data-src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded'); const icon = this.nextElementSibling; if (icon && icon.tagName === 'I') icon.style.display = 'none'; this.closest('.media-thumb').classList.remove('skeleton')" onerror="this.style.display='none'; const icon = this.nextElementSibling; if (icon && icon.tagName === 'I') { icon.style.display = 'block'; icon.innerHTML = '${getIcon(item.type)}'; } this.closest('.media-thumb').classList.remove('skeleton')">
             <i style="display: none">${getIcon(item.type)}</i>
         `;
 
@@ -5838,6 +5812,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${captionHtml}
             </div>
         `;
+
+        // Setup lazy loading for the thumbnail (if not a directory)
+        if (!item.is_dir) {
+            const imgEl = card.querySelector('img');
+            if (imgEl) setupLazyThumbnail(imgEl as HTMLImageElement);
+        }
 
         // Reordering logic within a playlist
         if (isPlaylist) {
@@ -6758,6 +6738,58 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
+    }
+
+    // Throttle: ensures function is called at most once per wait period
+    // Unlike debounce, it executes immediately then waits
+    function throttle(func, wait) {
+        let timeout;
+        let previous = 0;
+        return function executedFunction(...args) {
+            const now = Date.now();
+            const remaining = wait - (now - previous);
+            if (remaining <= 0 || remaining > wait) {
+                if (timeout) {
+                    clearTimeout(timeout);
+                    timeout = null;
+                }
+                previous = now;
+                func(...args);
+            } else if (!timeout) {
+                timeout = setTimeout(() => {
+                    previous = Date.now();
+                    timeout = null;
+                    func(...args);
+                }, remaining);
+            }
+        };
+    }
+
+    // Lazy-load thumbnails using Intersection Observer
+    // This defers loading of images until they're near the viewport
+    const thumbnailObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const img = entry.target as HTMLImageElement;
+                const dataSrc = img.dataset.src;
+                if (dataSrc) {
+                    img.src = dataSrc;
+                    img.removeAttribute('data-src');
+                    thumbnailObserver.unobserve(img);
+                }
+            }
+        });
+    }, { rootMargin: '200px 0px' }) : null;
+
+    // Helper to setup lazy-loaded thumbnail
+    function setupLazyThumbnail(img: HTMLImageElement) {
+        if (thumbnailObserver && img.dataset.src) {
+            thumbnailObserver.observe(img);
+        } else if (img.dataset.src) {
+            // Fallback: load immediately if no observer
+            img.src = img.dataset.src;
+            img.removeAttribute('data-src');
+        }
     }
 
     // --- Keyboard Shortcuts ---
@@ -7974,6 +8006,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (searchInput) {
+        // Throttle search to 300ms to avoid excessive API calls while typing
+        const throttledPerformSearch = throttle(performSearch, 300);
+        searchInput.oninput = throttledPerformSearch;
         searchInput.onkeypress = (e) => { if (e.key === 'Enter') performSearch(); };
     }
 
@@ -8017,21 +8052,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateSliderLabels();
 
-        // Update Bins
-        if (state.filterBins) {
-            document.querySelectorAll('#episodes-list .category-btn').forEach(btn => {
-                const bin = state.filterBins.episodes[(btn as any).dataset.index];
-                if (bin) btn.classList.toggle('active', state.filters.episodes.some(b => b.label === bin.label));
-            });
-            document.querySelectorAll('#size-list .category-btn').forEach(btn => {
-                const bin = state.filterBins.size[(btn as any).dataset.index];
-                if (bin) btn.classList.toggle('active', state.filters.sizes.some(b => b.label === bin.label));
-            });
-            document.querySelectorAll('#duration-list .category-btn').forEach(btn => {
-                const bin = state.filterBins.duration[(btn as any).dataset.index];
-                if (bin) btn.classList.toggle('active', state.filters.durations.some(b => b.label === bin.label));
-            });
-        }
+        // Note: Bin buttons removed - sliders now use percentile-based ranges
 
         if (allMediaBtn) allMediaBtn.classList.toggle('active', state.page === 'search' && state.filters.categories.length === 0 && state.filters.genre === '' && state.filters.languages.length === 0 && state.filters.ratings.length === 0 && !state.filters.playlist && !state.filters.unplayed && !state.filters.unfinished && !state.filters.completed && state.filters.sizes.length === 0 && state.filters.durations.length === 0 && state.filters.episodes.length === 0 && state.filters.types.length === 0);
         if (trashBtn) trashBtn.classList.toggle('active', state.page === 'trash');

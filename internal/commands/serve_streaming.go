@@ -263,45 +263,10 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 }
 
 // generateTextSnippetSVG creates a styled SVG thumbnail with text content preview
+// DEPRECATED: SVG thumbnails disabled, returning placeholder
 func (c *ServeCmd) generateTextSnippetSVG(label, firstLine, filename string) []byte {
-	// Truncate and escape text for SVG
-	if len(firstLine) > 60 {
-		firstLine = firstLine[:57] + "..."
-	}
-	firstLine = strings.ReplaceAll(firstLine, "&", "&amp;")
-	firstLine = strings.ReplaceAll(firstLine, "<", "&lt;")
-	firstLine = strings.ReplaceAll(firstLine, ">", "&gt;")
-
-	// Ensure label is not empty and is safe for SVG ID
-	if label == "" {
-		label = "FILE"
-	}
-	// Remove any characters that are invalid in SVG IDs
-	label = strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return '_'
-	}, label)
-
-	if firstLine == "" {
-		firstLine = label
-	}
-
-	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
-  <defs>
-    <linearGradient id="grad-%s" x1="0%%" y1="0%%" x2="100%%" y2="100%%">
-      <stop offset="0%%" stop-color="#1e40af"/>
-      <stop offset="100%%" stop-color="#3b82f6"/>
-    </linearGradient>
-  </defs>
-  <rect fill="url(#grad-%s)" width="320" height="240"/>
-  <text fill="white" font-family="system-ui,sans-serif" font-size="12" opacity="0.7" x="20" y="30">%s</text>
-  <text fill="white" font-family="system-ui,sans-serif" font-size="18" font-weight="600" x="20" y="80" text-overflow="ellipsis">%s</text>
-  <text fill="white" font-family="system-ui,sans-serif" font-size="11" opacity="0.5" x="20" y="220">%s</text>
-</svg>`, label, label, label, firstLine, filepath.Base(filename))
-
-	return []byte(svg)
+	// Return a simple placeholder instead of SVG
+	return []byte{}
 }
 
 // generatePDFThumbnail generates a thumbnail for PDF files using pdftoppm or fallback
@@ -455,34 +420,6 @@ func (c *ServeCmd) generateEpubThumbnail(path string) ([]byte, string, error) {
 	return c.generateTextSnippetSVG("EPUB", title, path), "image/svg+xml", nil
 }
 
-// generateTextFileThumbnail generates a thumbnail for text-based files
-func (c *ServeCmd) generateTextFileThumbnail(path string, ext string) ([]byte, string) {
-	f, err := os.Open(path)
-	if err != nil {
-		return c.generateTextSnippetSVG(strings.ToUpper(ext), "", path), "image/svg+xml"
-	}
-	defer f.Close()
-
-	// Read first 500 bytes
-	buf := make([]byte, 500)
-	n, _ := f.Read(buf)
-	text := strings.TrimSpace(string(buf[:n]))
-
-	// Extract first meaningful line
-	lines := strings.Split(text, "\n")
-	firstLine := ""
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		// Skip markdown headers, empty lines, and RTF control chars
-		if len(line) > 0 && !strings.HasPrefix(line, "#") && line[0] != '\\' {
-			firstLine = line
-			break
-		}
-	}
-
-	return c.generateTextSnippetSVG(strings.ToUpper(ext), firstLine, path), "image/svg+xml"
-}
-
 func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
@@ -514,12 +451,14 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check cache
-	if data, ok := c.thumbnailCache.Load(path); ok {
-		w.Header().Set("Content-Type", "image/jpeg")
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
-		w.Write(data.([]byte))
-		return
+	// Check cache (skip cache in dev mode)
+	if !c.Dev {
+		if data, ok := c.thumbnailCache.Load(path); ok {
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+			w.Write(data.([]byte))
+			return
+		}
 	}
 
 	// Generate thumbnail
@@ -530,7 +469,11 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 			data, err := os.ReadFile(path)
 			if err == nil {
 				w.Header().Set("Content-Type", mimeType)
-				w.Header().Set("Cache-Control", "public, max-age=31536000")
+				if !c.Dev {
+					w.Header().Set("Cache-Control", "public, max-age=31536000")
+				} else {
+					w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				}
 				w.Write(data)
 				return
 			}
@@ -542,35 +485,39 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	switch ext {
 	case ".pdf":
 		thumb, contentType, err := c.generatePDFThumbnail(path)
-		if err != nil {
+		if err != nil || len(thumb) == 0 {
 			slog.Warn("PDF thumbnail generation failed", "path", path, "error", err)
-			thumb, contentType = c.generateTextSnippetSVG("PDF", "", path), "image/svg+xml"
+			http.NotFound(w, r)
+			return
 		}
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		if !c.Dev {
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		}
 		w.Write(thumb)
 		return
 
 	case ".epub":
 		thumb, contentType, err := c.generateEpubThumbnail(path)
-		if err != nil {
+		if err != nil || len(thumb) == 0 {
 			slog.Warn("EPUB thumbnail generation failed", "path", path, "error", err)
-			thumb, contentType = c.generateTextSnippetSVG("EPUB", "", path), "image/svg+xml"
+			http.NotFound(w, r)
+			return
 		}
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		if !c.Dev {
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		}
 		w.Write(thumb)
 		return
 
 	case ".txt", ".md", ".markdown", ".rtf":
-		label := strings.TrimPrefix(ext, ".")
-		if label == "markdown" {
-			label = "md"
-		}
-		thumb, contentType := c.generateTextFileThumbnail(path, label)
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
-		w.Write(thumb)
+		// SVG thumbnails disabled for text files
+		http.NotFound(w, r)
 		return
 	}
 
@@ -584,20 +531,8 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 		// If no album art exists, ffmpeg will fail, so we return a placeholder
 		args = []string{"-i", path, "-an", "-vcodec", "copy", "-f", "image2", "pipe:1"}
 	} else {
-		// For documents and other unsupported types, return a simple placeholder SVG
-		// This is more user-friendly than returning an error
-		w.Header().Set("Content-Type", "image/svg+xml")
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
-		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-		label := strings.ToUpper(ext)
-		if label == "" {
-			label = "FILE"
-		}
-		placeholder := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
-  <rect fill="#3b82f6" width="320" height="240"/>
-  <text fill="white" font-family="system-ui,sans-serif" font-size="48" font-weight="bold" text-anchor="middle" x="160" y="140">%s</text>
-</svg>`, label)
-		w.Write([]byte(placeholder))
+		// SVG thumbnails disabled for documents and unsupported types
+		http.NotFound(w, r)
 		return
 	}
 
@@ -605,7 +540,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	thumb, err := cmd.Output()
 
 	// If video thumbnail is too dark, try seeking further (e.g. 60 seconds later)
-	if err == nil && is_video && utils.IsImageTooDark(thumb, 0.05) {
+	if err == nil && is_video && utils.IsImageTooDark(thumb, 0.5) {
 		slog.Debug("Thumbnail too dark, retrying further in the video", "path", path)
 		retryArgs := []string{"-ss", "85", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
 		cmdRetry := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, retryArgs...)...)
@@ -615,28 +550,24 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		// For audio files without embedded art, or video files that fail, return a placeholder
-		// This is more user-friendly than returning an error
-		w.Header().Set("Content-Type", "image/svg+xml")
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
-		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-		label := strings.ToUpper(ext)
-		if label == "" {
-			label = "MEDIA"
-		}
-		placeholder := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
-  <rect fill="#6b7280" width="320" height="240"/>
-  <text fill="white" font-family="system-ui,sans-serif" font-size="48" font-weight="bold" text-anchor="middle" x="160" y="140">%s</text>
-</svg>`, label)
-		w.Write([]byte(placeholder))
+		// For audio files without embedded art, or video files that fail, return 404
+		// Frontend will fall back to client-generated thumbnails
+		slog.Debug("Thumbnail generation failed", "path", path, "error", err)
+		http.NotFound(w, r)
 		return
 	}
 
-	// Cache it
-	c.thumbnailCache.Store(path, thumb)
+	// Cache it (skip in dev mode)
+	if !c.Dev {
+		c.thumbnailCache.Store(path, thumb)
+	}
 
 	w.Header().Set("Content-Type", "image/jpeg")
-	w.Header().Set("Cache-Control", "public, max-age=31536000")
+	if !c.Dev {
+		w.Header().Set("Cache-Control", "public, max-age=31536000")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	}
 	w.Write(thumb)
 }
 

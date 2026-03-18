@@ -302,3 +302,11 @@ func NullFloat64Ptr(nf sql.NullFloat64) *float64 {
 	}
 	return &nf.Float64
 }
+
+// IndexStat represents database index statistics
+type IndexStat struct {
+	IndexName string `json:"index_name"`
+	TableName string `json:"table_name"`
+	SizeEst   int64  `json:"size_est,omitempty"`
+	Used      bool   `json:"used,omitempty"`
+}

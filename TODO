@@ -1,5 +1,212 @@
-DU mode sorting and Media Type, sliders, and other filters are not working like they do in Search mode and Captions mode--I think we need some more e2e tests to cover this failure case too
+### 🎯 **DU (Disk Usage) Mode Optimizations**
 
+#### 1. **Query-Level Optimizations**
+
+- **Materialized view for DU aggregation**: Pre-compute folder-level aggregates that update on `add`/`check` operations
+  ```sql
+  CREATE TABLE folder_stats (
+    path TEXT PRIMARY KEY,
+    parent_path TEXT,
+    depth INTEGER,
+    file_count INTEGER,
+    total_size INTEGER,
+    total_duration INTEGER
+  );
+  ```
+
+- **Batch filter resolution**: Instead of resolving percentiles separately for each DU request, cache percentile boundaries for common filters (p10, p25, p50, p75, p90)
+
+#### 2. **Tree Navigation Optimization**
+- **Lazy-loading with depth limits**: Currently builds full tree in memory. Instead:
+  - Only load 2 levels deep from current position
+  - Cache tree nodes at each depth level
+  - Use `LIMIT` + `OFFSET` for large directories
+
+#### 3. **Caching Strategy**
+- **LRU cache for DU results**: Cache folder listings at each path with invalidation on:
+  - Database modification timestamp change
+  - Explicit `check` command execution
+  - TTL-based expiration (5-10 minutes for large collections)
+
+- **Filter result caching**: Cache common filter combinations (type=video, size=>1GB, etc.)
+
+#### 4. **Pagination Improvements**
+- **Cursor-based pagination**: Replace `OFFSET` with keyset pagination for better performance on deep pages
+  ```sql
+  WHERE path > :last_seen_path ORDER BY path LIMIT :limit
+  ```
+
+- **Adaptive page sizing**: Smaller pages for folders with many children, larger for sparse directories
+
+---
+
+### ⚡ **API Performance Optimizations**
+
+#### 1. **Query Optimization**
+- **Query plan analysis**: Add `EXPLAIN QUERY PLAN` logging for slow queries in verbose mode
+
+- **Parallel database execution**: Already implemented, but could add:
+  - Connection pooling per database
+  - Query timeout per database (not total)
+  - Early termination if one DB returns enough results
+
+- **Covering indexes**: Create indexes that include all columns needed for common queries to avoid table lookups
+
+#### 2. **Response Optimization**
+- **Field selection**: Allow clients to request specific fields only (`?fields=path,title,size`)
+  - Reduces JSON payload size
+  - Reduces database column fetching
+
+- **Compression**: Enable gzip/brotli compression for API responses >1KB
+
+- **Streaming responses**: For large result sets, stream JSON array elements instead of buffering
+
+#### 3. **Caching Layers**
+- **HTTP caching headers**: Add `ETag`, `Last-Modified` for cacheable endpoints
+  - `/api/categories`, `/api/genres`, `/api/languages` rarely change
+  - Filter bins can have short TTL (30s)
+
+- **Query result cache**: In-memory cache (sync.Map or Ristretto) for:
+  - Repeated identical queries within session
+  - Aggregate statistics (category counts, etc.)
+
+- **Database connection cache**: Already using `sync.Map`, but could add:
+  - Connection health checks
+  - Max connection limits
+  - Prepared statement caching
+
+#### 4. **Endpoint-Specific Optimizations**
+
+**`/api/query`**:
+- Defer caption enrichment to separate endpoint or lazy-load
+- Skip `MediaQueryCount` when not needed (add `?no_count=true`)
+- Use `SELECT COUNT(*) OVER()` window function to get total with single query
+
+**`/api/filter-bins`**:
+- Pre-compute bin boundaries during off-peak hours
+- Incremental updates instead of full recalculation
+- Sample-based estimation for very large collections (>100k items)
+
+**`/api/ls`**:
+- Limit to 100 results instead of 500
+- Add prefix-based autocomplete mode vs full search mode
+
+---
+
+### 🎨 **Web UI Optimizations**
+
+#### 1. **Frontend Performance**
+- **Virtual scrolling**: Already using bubbles list, but ensure:
+  - Windowing for large lists (>1000 items)
+  - Incremental rendering
+  - Skeleton loaders during fetch
+
+- **Image lazy-loading**: Defer thumbnail loading until visible in viewport
+  - Use `loading="lazy"` on img tags
+  - Intersection Observer API for dynamic content
+
+- **Code splitting**: Split JavaScript bundles by route/view
+  - DU view code separate from main grid
+  - Player components loaded on-demand
+
+#### 2. **State Management**
+- **Filter state persistence**: Store filter state in URL query params
+  - Enables back/forward navigation
+  - Shareable URLs with filters
+
+- **Optimistic UI updates**: For actions like:
+  - Mark as played/unplayed
+  - Rating changes
+  - Delete operations
+  - Update UI immediately, rollback on error
+
+#### 3. **Network Optimization**
+- **Request debouncing**: For search/filter inputs (300ms delay)
+- **Request coalescing**: Combine multiple rapid filter changes into single API call
+- **Service Worker**: Cache static assets and API responses for offline browsing
+- **WebSocket for real-time updates**: Instead of polling `/api/events`:
+  - Push notifications for library updates
+  - Live progress updates during `add` operations
+
+#### 4. **DU View Specific**
+- **Breadcrumb navigation**: Show current path with clickable segments
+- **Quick filters**: Preset buttons for common filters (Videos, Audio, >1GB, etc.)
+- **Visual size indicators**: Already have bar chart, but could add:
+  - Treemap visualization for nested folders
+  - Sunburst chart for hierarchical view
+  - Color coding by media type
+
+---
+
+### 🔧 **System-Level Optimizations**
+
+#### 1. **Database Optimization**
+- **WAL mode**: Ensure SQLite uses Write-Ahead Logging for better concurrent read performance
+- **PRAGMA optimizations**:
+  ```sql
+  PRAGMA cache_size = -64000;  -- 64MB cache
+  PRAGMA temp_store = MEMORY;
+  PRAGMA mmap_size = 268435456;  -- 256MB memory-mapped I/O
+  ```
+- **ANALYZE**: Run periodically to update query planner statistics
+
+#### 2. **Concurrency**
+- **Read replicas**: For multi-disk setups, could use separate read-only connections
+- **Background workers**: For expensive operations:
+  - Text extraction
+  - OCR processing
+  - Speech recognition
+  - Thumbnail generation
+
+#### 3. **Memory Management**
+- **Stream large queries**: Use `rows.Next()` instead of loading all into memory
+- **Limit result sizes**: Enforce max `LIMIT` of 10,000 for safety
+- **GC tuning**: Adjust Go GC percentage for memory vs CPU tradeoff
+
+---
+
+### 📊 **Monitoring & Profiling**
+
+1. **Add performance metrics**:
+   - Query execution time histogram
+   - API response time percentiles (p50, p95, p99)
+   - Cache hit/miss rates
+
+2. **Slow query logging**: Log queries taking >1s with `EXPLAIN QUERY PLAN`
+
+3. **Profiling endpoints**: Add `?profile=true` to enable Go profiler for debugging
+
+4. **Frontend performance marks**: Use Performance API to track:
+   - Time to first byte
+   - Time to interactive
+   - Filter application latency
+
+---
+
+### 🚀 **Quick Wins** (Low effort, high impact)
+
+1. ✅ Add `LIMIT` default to DU queries (currently may return all results)
+2. ✅ Enable gzip compression on HTTP server
+3. ✅ Add `Cache-Control` headers to static assets
+4. ✅ Implement connection pooling for SQLite
+5. ✅ Add database indexes on filtered columns
+6. ✅ Skip count query when not needed (`?no_count=true`)
+7. ✅ Debounce search input in frontend (300ms)
+8. ✅ Lazy-load thumbnails below the fold
+
+---
+
+### 🔮 **Advanced Features**
+
+1. **Incremental indexing**: Watch directories for changes instead of full rescans
+2. **Distributed search**: For multi-server setups, federated queries
+3. **ML-based recommendations**: Use play history to suggest content
+4. **Full-text search improvements**:
+   - Trigram search for fuzzy matching
+   - Stemming for better text search
+   - Phonetic matching for names
+
+Would you like me to dive deeper into any of these areas or create implementation plans for specific optimizations?
 
 
 - Pagination should work on all pages except for Categorization

@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-const slowQueryThreshold = 50 * time.Millisecond
+// SlowQueryThreshold is the minimum duration for a query to be considered slow
+const SlowQueryThreshold = 50 * time.Millisecond
 
 // debugModeEnabled is an atomic flag to control slow query logging
 var debugModeEnabled atomic.Bool

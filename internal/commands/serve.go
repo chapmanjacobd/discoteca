@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -128,6 +129,71 @@ func (c *ServeCmd) isPathBlocklisted(path string) bool {
 	return false
 }
 
+// gzipResponseWriter wraps http.ResponseWriter to support gzip compression
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer *gzip.Writer
+	code   int
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	if w.writer == nil {
+		return w.ResponseWriter.Write(b)
+	}
+	return w.writer.Write(b)
+}
+
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	w.code = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// withGzip wraps an http.Handler with gzip compression support
+// Compresses responses if client accepts gzip and response is text/JSON
+// Excludes streaming endpoints (SSE, HLS) which don't work with compression
+func withGzip(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if client accepts gzip encoding
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Skip gzip for streaming endpoints and non-GET requests
+		if r.URL.Path == "/api/events" ||
+			strings.HasPrefix(r.URL.Path, "/api/hls/") ||
+			strings.HasPrefix(r.URL.Path, "/api/subtitles") ||
+			strings.HasPrefix(r.URL.Path, "/api/thumbnail") ||
+			strings.HasPrefix(r.URL.Path, "/api/raw") ||
+			r.Method != http.MethodGet {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Skip gzip for /api/ paths without Accept-Encoding: gzip
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			acceptEncoding := r.Header.Get("Accept-Encoding")
+			if !strings.Contains(acceptEncoding, "gzip") {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// Create gzip writer
+		gw := &gzipResponseWriter{
+			ResponseWriter: w,
+			writer:         gzip.NewWriter(w),
+		}
+		defer gw.writer.Close()
+
+		// Set headers for gzip
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Vary", "Accept-Encoding")
+
+		next.ServeHTTP(gw, r)
+	})
+}
+
 // Mux creates the HTTP request multiplexer with all routes
 func (c *ServeCmd) Mux() http.Handler {
 	if c.APIToken == "" {
@@ -172,6 +238,9 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/categorize/category", c.authMiddleware(c.handleCategorizeDeleteCategory))
 	mux.HandleFunc("/api/categorize/keyword", c.authMiddleware(c.handleCategorizeKeyword))
 	mux.HandleFunc("/api/raw", c.authMiddleware(c.handleRaw))
+
+	// Query statistics / slow query dashboard
+	mux.HandleFunc("/api/queries", c.authMiddleware(c.handleQueries))
 
 	// ZIM routes
 	mux.HandleFunc("/api/zim/view", c.authMiddleware(c.handleZimView))
@@ -226,8 +295,22 @@ func (c *ServeCmd) Mux() http.Handler {
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".mjs") || strings.HasSuffix(r.URL.Path, ".ts") {
-			w.Header().Set("Content-Type", "text/javascript")
+		// Set Cache-Control headers for static assets (1 week cache)
+		// Disable caching in dev mode for easier development
+		if !c.Dev {
+			if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".mjs") || strings.HasSuffix(r.URL.Path, ".ts") {
+				w.Header().Set("Content-Type", "text/javascript")
+				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week
+			} else if strings.HasSuffix(r.URL.Path, ".css") {
+				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week
+			} else if strings.HasSuffix(r.URL.Path, ".html") {
+				w.Header().Set("Cache-Control", "no-cache, must-revalidate") // HTML should not be cached
+			} else if strings.HasPrefix(r.URL.Path, "/lib/") {
+				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week for library files
+			}
+		} else {
+			// Dev mode: disable caching for all static assets
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		}
 
 		if c.PublicDir != "" {
@@ -341,6 +424,10 @@ func (c *ServeCmd) Run(ctx *kong.Context) error {
 	}
 
 	handler := c.Mux()
+
+	// Wrap with gzip compression middleware
+	handler = withGzip(handler)
+
 	addr := fmt.Sprintf(":%d", c.Port)
 	baseURL := fmt.Sprintf("http://localhost:%d", c.Port)
 	slog.Info("Server starting", "addr", baseURL)

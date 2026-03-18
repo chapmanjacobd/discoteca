@@ -23,10 +23,21 @@ export function updateSliderLabels() {
         const getVal = (p: number) => {
             if (percentiles.length > p) return percentiles[p];
 
-            // Fallback to linear if percentiles missing
-            let minTotal = (state.filterBins as any)[`${type}_min`] || 0;
-            let maxTotal = (state.filterBins as any)[`${type}_max`] || 100;
-            return minTotal + (maxTotal - minTotal) * (p / 100);
+            // Fallback: use first/last percentile if index out of range
+            if (percentiles.length > 0) {
+                // Linear interpolation between known percentiles
+                const lastIdx = percentiles.length - 1;
+                const lastP = lastIdx * (100 / lastIdx); // e.g., if 7 percentiles, last is at 100%
+                if (p >= lastP) return percentiles[lastIdx];
+                if (p <= 0) return percentiles[0];
+                // Linear interpolation
+                const segment = Math.floor(p / (100 / lastIdx));
+                const segmentProgress = (p % (100 / lastIdx)) / (100 / lastIdx);
+                return percentiles[segment] + (percentiles[segment + 1] - percentiles[segment]) * segmentProgress;
+            }
+
+            // Ultimate fallback
+            return 0;
         };
 
         const valMin = getVal(minP);
@@ -143,13 +154,16 @@ export function updateSlidersFromAbsolute(type: string, filterKey: string) {
     const filters = (state.filters as any)[filterKey];
     const filter = filters && filters.find((f: any) => f.value === '@abs');
     if (filter && state.filterBins) {
-        let minTotal = (state.filterBins as any)[`${type}_min`] || 0;
-        let maxTotal = (state.filterBins as any)[`${type}_max`] || 100;
+        const percentiles = (state.filterBins as any)[`${type}_percentiles`] || [];
+        if (percentiles.length > 1) {
+            const minTotal = percentiles[0];
+            const maxTotal = percentiles[percentiles.length - 1];
 
-        if (maxTotal > minTotal) {
-            const minP = Math.max(0, Math.min(100, ((filter.min - minTotal) / (maxTotal - minTotal)) * 100));
-            const maxP = Math.max(0, Math.min(100, ((filter.max - minTotal) / (maxTotal - minTotal)) * 100));
-            setSliderValues(type, Math.round(minP), Math.round(maxP));
+            if (maxTotal > minTotal) {
+                const minP = Math.max(0, Math.min(100, ((filter.min - minTotal) / (maxTotal - minTotal)) * 100));
+                const maxP = Math.max(0, Math.min(100, ((filter.max - minTotal) / (maxTotal - minTotal)) * 100));
+                setSliderValues(type, Math.round(minP), Math.round(maxP));
+            }
         }
     }
 }

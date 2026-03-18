@@ -100,6 +100,11 @@ CREATE TABLE custom_keywords (
 CREATE INDEX idx_time_deleted ON media(time_deleted);
 CREATE INDEX idx_time_last_played ON media(time_last_played);
 CREATE INDEX idx_path ON media(path);
+CREATE INDEX idx_media_deleted_type ON media(time_deleted, type);
+CREATE INDEX idx_media_deleted_size ON media(time_deleted, size);
+CREATE INDEX idx_media_deleted_duration ON media(time_deleted, duration);
+CREATE INDEX idx_media_deleted_path ON media(time_deleted, path);
+CREATE INDEX idx_media_active ON media(path, type) WHERE time_deleted = 0;
 CREATE INDEX idx_duration ON media(duration);
 CREATE INDEX idx_size ON media(size);
 CREATE INDEX idx_type ON media(type);

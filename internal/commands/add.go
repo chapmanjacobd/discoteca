@@ -115,24 +115,31 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			continue
 		}
 
-		// Check if this path or a parent is already a playlist
-		isSubpath := false
+		// Check if this path is a child of an existing playlist root
+		// We allow re-scanning the same path, but block child directories
+		isChildPath := false
 		absRootSlash := filepath.ToSlash(absRoot)
 		for _, pl := range existingPlaylists {
 			if pl.Path.Valid {
 				plPathSlash := filepath.ToSlash(pl.Path.String)
-				if absRootSlash == plPathSlash || strings.HasPrefix(absRootSlash, plPathSlash+"/") {
-					slog.Info("Path already covered by existing scan root", "path", absRoot, "root", pl.Path.String)
-					isSubpath = true
+				// Check if absRoot is a strict subpath (child) of existing root
+				// strings.HasPrefix with "/" suffix ensures we match directory boundaries
+				// e.g., /home/xk/sync is NOT a child of /home/xk/sync/audio
+				// but /home/xk/sync/audio IS a child of /home/xk/sync
+				if strings.HasPrefix(absRootSlash, plPathSlash+"/") {
+					slog.Info("Path is child of existing scan root, skipping", "path", absRoot, "root", pl.Path.String)
+					isChildPath = true
 					break
 				}
 			}
 		}
-		if isSubpath {
+		if isChildPath {
 			continue
 		}
 
-		// Record this new scan root
+		// Record or update this scan root
+		// If path already exists as a playlist, this will be a no-op for the insert
+		// The actual scan logic below will process the files
 		queries.InsertPlaylist(context.Background(), db.InsertPlaylistParams{
 			Path:         sql.NullString{String: absRoot, Valid: true},
 			ExtractorKey: sql.NullString{String: "Local", Valid: true},

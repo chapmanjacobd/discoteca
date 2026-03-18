@@ -252,12 +252,12 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Error("Expected type bins in counts")
 		}
 
-		if len(resp.Counts.Size) == 0 {
-			t.Error("Expected size bins in counts")
+		if len(resp.Counts.SizePercentiles) == 0 {
+			t.Error("Expected size percentiles in counts")
 		}
 
-		if len(resp.Counts.Duration) == 0 {
-			t.Error("Expected duration bins in counts")
+		if len(resp.Counts.DurationPercentiles) == 0 {
+			t.Error("Expected duration percentiles in counts")
 		}
 	})
 

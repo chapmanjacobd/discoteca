@@ -22,31 +22,25 @@ export interface MediaItem {
     transcode?: boolean;
 }
 
+export interface FilterBin {
+    label: string;
+    min?: number;
+    max?: number;
+    value?: number;
+}
+
 export interface FilterBins {
-    episodes: any[];
-    size: any[];
-    duration: any[];
-    modified: any[];
-    created: any[];
-    downloaded: any[];
-    episodes_min: number;
-    episodes_max: number;
-    size_min: number;
-    size_max: number;
-    duration_min: number;
-    duration_max: number;
-    modified_min: number;
-    modified_max: number;
-    created_min: number;
-    created_max: number;
-    downloaded_min: number;
-    downloaded_max: number;
-    episodes_percentiles?: number[];
-    size_percentiles?: number[];
-    duration_percentiles?: number[];
-    modified_percentiles?: number[];
-    created_percentiles?: number[];
-    downloaded_percentiles?: number[];
+    // Percentiles for slider calculations (0%, 16.6%, 33.3%, 50%, 66.6%, 83.3%, 100%)
+    // Use percentiles[0] as min and percentiles[len-1] as max
+    episodes_percentiles: number[];
+    size_percentiles: number[];
+    duration_percentiles: number[];
+    modified_percentiles: number[];
+    created_percentiles: number[];
+    downloaded_percentiles: number[];
+
+    // Type counts (special case - not a percentile distribution)
+    type: FilterBin[];
 }
 
 export interface PlaybackState {

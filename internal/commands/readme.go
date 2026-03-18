@@ -36,9 +36,13 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 
 	sb.WriteString("# discoteca\n\n")
 	sb.WriteString("Golang implementation of xklb/library\n\n")
-	sb.WriteString("## Quick Install\n\n")
+	sb.WriteString("## Quick Start\n\n")
 	sb.WriteString("```bash\n")
 	sb.WriteString("go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest\n")
+	sb.WriteString("\n")
+	sb.WriteString("disco add library.db ./audio\n")
+	sb.WriteString("disco add library.db ./video --scan-subtitles\n")
+	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
 
 	sb.WriteString("## Screenshots\n\n")

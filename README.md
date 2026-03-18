@@ -2,10 +2,14 @@
 
 Golang implementation of xklb/library
 
-## Quick Install
+## Quick Start
 
 ```bash
 go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest
+
+disco add library.db ./audio
+disco add library.db ./video --scan-subtitles
+disco serve library.db
 ```
 
 ## Screenshots

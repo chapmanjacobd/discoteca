@@ -90,14 +90,13 @@ export const state: State = {
     languages: [],
     ratings: [],
     filterBins: {
-        episodes: [], size: [], duration: [],
-        modified: [], created: [], downloaded: [],
-        episodes_min: 0, episodes_max: 100,
-        size_min: 0, size_max: 100 * 1024 * 1024,
-        duration_min: 0, duration_max: 3600,
-        modified_min: 0, modified_max: 100,
-        created_min: 0, created_max: 100,
-        downloaded_min: 0, downloaded_max: 100
+        episodes_percentiles: [],
+        size_percentiles: [],
+        duration_percentiles: [],
+        modified_percentiles: [],
+        created_percentiles: [],
+        downloaded_percentiles: [],
+        type: []
     },
     playlists: [],
     newCategories: [],

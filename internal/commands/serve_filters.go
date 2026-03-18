@@ -437,56 +437,31 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	createdOnly := q.Has("min_created") || q.Has("max_created")
 	downloadedOnly := q.Has("min_downloaded") || q.Has("max_downloaded")
 
-	// Get episode data
+	// Get episode data - only store percentiles
 	epData := c.computeFilterBinsData(r.Context(), flags, "episodes", dbs)
-	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
+	_, _, _, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
-	// Get size data
+	// Get size data - only store percentiles
 	sizeData := c.computeFilterBinsData(r.Context(), flags, "size", dbs)
-	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
+	_, _, _, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
 
-	// Get duration data
+	// Get duration data - only store percentiles
 	durData := c.computeFilterBinsData(r.Context(), flags, "duration", dbs)
-	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
+	_, _, _, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
-	// Get modified data
-	// Note: We might want to optimize this by not re-computing if not needed, but computeFilterBinsData is designed to be called per-filter-type to ignore that filter
-	// For time filters, we pass a dummy filter name to ignore if we were implementing "ignore self" logic, but computeFilterBinsData doesn't support "modified" yet for ignoring.
-	// Actually, computeFilterBinsData supports ignoring "size", "duration", "episodes", "type".
-	// Since we haven't updated computeFilterBinsData to support ignoring time filters, we can just use any of the existing data fetches if they include the time data.
-	// However, `computeFilterBinsData` ignores the *specified* filter.
-	// If I filter by `min_size`, `computeFilterBinsData(..., "size", ...)` will ignoring the size filter, giving me the full range of sizes.
-	// If I filter by `min_modified`, and I want the full range of modified times, I need `computeFilterBinsData` to ignore the modified filter.
-	// But `computeFilterBinsData` DOES NOT yet support ignoring modified/created/downloaded filters in the `if filterToIgnore == ...` block.
-	// I should update `computeFilterBinsData` to support ignoring time filters too.
-	// Let's assume I'll do that in a separate step or just accept that for now it won't ignore them (meaning the sliders will shrink to the current selection).
-	// For now, I'll just use the data I already have if possible? No, `epData`, `sizeData`, `durData` all have the time fields now.
-	// But they are filtered by *other* filters.
-	// `sizeData` is filtered by everything EXCEPT size.
-	// If I want `modified` bins, I want data filtered by everything EXCEPT modified.
-	// So I really should update `computeFilterBinsData` to support ignoring time filters.
-
-	// For now, let's use `sizeData` (which ignores size) as a proxy if we assume no time filters are active, or just fetch it again with no specific ignore (or add support).
-	// Let's add support for ignoring time filters in computeFilterBinsData in the next step.
-	// For now, I'll just reuse `sizeData` for time fields, which is not strictly correct if time filters are applied, but it gives us the data.
-	// Actually, wait. `computeFilterBinsData` returns `filterBinsData` which has ALL fields.
-	// `sizeData` has `modified`, `created`, `downloaded` fields, but they are filtered by `episodes`, `duration`, `type` AND `modified/created/downloaded` (since "size" was ignored, but time filters were NOT).
-	// So `sizeData.modified` contains modified times of items that match the current duration/episodes/type/time filters.
-	// This is "filtered" data.
-	// If we want "global" data (ignoring the time filter itself), we need to pass "modified" to `computeFilterBinsData`.
-	// Since I haven't implemented that yet, the time sliders will behave like "filtered" sliders (shrinking range). This is acceptable for a first pass or I can fix it.
-	// I'll fix it in `computeFilterBinsData` in a moment.
-
+	// Get modified data - only store percentiles
 	modData := c.computeFilterBinsData(r.Context(), flags, "modified", dbs)
-	resp.ModifiedMin, resp.ModifiedMax, resp.Modified, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
+	_, _, _, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
 
+	// Get created data - only store percentiles
 	creData := c.computeFilterBinsData(r.Context(), flags, "created", dbs)
-	resp.CreatedMin, resp.CreatedMax, resp.Created, resp.CreatedPercentiles = buildTimeBins(creData.created)
+	_, _, _, resp.CreatedPercentiles = buildTimeBins(creData.created)
 
+	// Get downloaded data - only store percentiles
 	dlData := c.computeFilterBinsData(r.Context(), flags, "downloaded", dbs)
-	resp.DownloadedMin, resp.DownloadedMax, resp.Downloaded, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
+	_, _, _, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
 
-	// Get type data
+	// Get type data - keep as bins (special case, not percentile-based)
 	typeData := c.computeFilterBinsData(r.Context(), flags, "type", dbs)
 	resp.Type = buildTypeBins(typeData.typeCounts)
 
@@ -515,22 +490,22 @@ func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.Globa
 	// Collect data for each filter type, ignoring that filter to get full distribution
 	// This prevents recursive constraints where filtering by duration would shrink the duration range itself
 	epData := c.computeFilterBinsData(ctx, flags, "episodes", dbs)
-	resp.EpisodesMin, resp.EpisodesMax, resp.Episodes, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
+	_, _, _, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
 	sizeData := c.computeFilterBinsData(ctx, flags, "size", dbs)
-	resp.SizeMin, resp.SizeMax, resp.Size, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
+	_, _, _, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
 
 	durData := c.computeFilterBinsData(ctx, flags, "duration", dbs)
-	resp.DurationMin, resp.DurationMax, resp.Duration, resp.DurationPercentiles = buildDurationBins(durData.durations)
+	_, _, _, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
 	modData := c.computeFilterBinsData(ctx, flags, "modified", dbs)
-	resp.ModifiedMin, resp.ModifiedMax, resp.Modified, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
+	_, _, _, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
 
 	creData := c.computeFilterBinsData(ctx, flags, "created", dbs)
-	resp.CreatedMin, resp.CreatedMax, resp.Created, resp.CreatedPercentiles = buildTimeBins(creData.created)
+	_, _, _, resp.CreatedPercentiles = buildTimeBins(creData.created)
 
 	dlData := c.computeFilterBinsData(ctx, flags, "downloaded", dbs)
-	resp.DownloadedMin, resp.DownloadedMax, resp.Downloaded, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
+	_, _, _, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
 
 	typeData := c.computeFilterBinsData(ctx, flags, "type", dbs)
 	resp.Type = buildTypeBins(typeData.typeCounts)

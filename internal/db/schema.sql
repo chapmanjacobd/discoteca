@@ -106,9 +106,21 @@ CREATE TABLE IF NOT EXISTS custom_keywords (
     PRIMARY KEY (category, keyword)
 ) STRICT;
 
+-- Core indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_time_deleted ON media(time_deleted);
 CREATE INDEX IF NOT EXISTS idx_time_last_played ON media(time_last_played);
 CREATE INDEX IF NOT EXISTS idx_path ON media(path);
+
+-- Composite indexes for common filtered queries (time_deleted is frequently used)
+CREATE INDEX IF NOT EXISTS idx_media_deleted_type ON media(time_deleted, type);
+CREATE INDEX IF NOT EXISTS idx_media_deleted_size ON media(time_deleted, size);
+CREATE INDEX IF NOT EXISTS idx_media_deleted_duration ON media(time_deleted, duration);
+CREATE INDEX IF NOT EXISTS idx_media_deleted_path ON media(time_deleted, path);
+
+-- Partial index for active media (most common query pattern)
+CREATE INDEX IF NOT EXISTS idx_media_active ON media(path, type) WHERE time_deleted = 0;
+
+-- Individual column indexes for non-composite queries
 CREATE INDEX IF NOT EXISTS idx_duration ON media(duration);
 CREATE INDEX IF NOT EXISTS idx_size ON media(size);
 CREATE INDEX IF NOT EXISTS idx_type ON media(type);

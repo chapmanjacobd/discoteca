@@ -639,6 +639,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 
 func migrateIndexes(db *sql.DB) error {
 	indexes := []string{
+		// Core indexes
 		"CREATE INDEX IF NOT EXISTS idx_path ON media(path)",
 		"CREATE INDEX IF NOT EXISTS idx_type ON media(type)",
 		"CREATE INDEX IF NOT EXISTS idx_genre ON media(genre)",
@@ -651,6 +652,13 @@ func migrateIndexes(db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_time_downloaded ON media(time_downloaded)",
 		"CREATE INDEX IF NOT EXISTS idx_size ON media(size)",
 		"CREATE INDEX IF NOT EXISTS idx_duration ON media(duration)",
+		// Composite indexes for common filtered queries
+		"CREATE INDEX IF NOT EXISTS idx_media_deleted_type ON media(time_deleted, type)",
+		"CREATE INDEX IF NOT EXISTS idx_media_deleted_size ON media(time_deleted, size)",
+		"CREATE INDEX IF NOT EXISTS idx_media_deleted_duration ON media(time_deleted, duration)",
+		"CREATE INDEX IF NOT EXISTS idx_media_deleted_path ON media(time_deleted, path)",
+		// Partial index for active media (most common query pattern)
+		"CREATE INDEX IF NOT EXISTS idx_media_active ON media(path, type) WHERE time_deleted = 0",
 	}
 
 	for _, idx := range indexes {
@@ -658,5 +666,11 @@ func migrateIndexes(db *sql.DB) error {
 			return fmt.Errorf("failed to create index: %w", err)
 		}
 	}
+
+	// Remove unused function-based index (SQLite can't use it efficiently)
+	if _, err := db.Exec("DROP INDEX IF EXISTS idx_path_prefix"); err != nil {
+		return fmt.Errorf("failed to drop idx_path_prefix: %w", err)
+	}
+
 	return nil
 }

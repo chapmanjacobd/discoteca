@@ -251,7 +251,7 @@ func logSlowQuery(query string, args []driver.NamedValue, startTime time.Time) {
 	}
 
 	duration := time.Since(startTime)
-	if duration > slowQueryThreshold {
+	if duration > SlowQueryThreshold {
 		slog.Debug("slow query detected",
 			"duration_ms", duration.Milliseconds(),
 			"query", query,
