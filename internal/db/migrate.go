@@ -236,6 +236,7 @@ func migrateColumns(db *sql.DB) error {
 		{"media", "width", "INTEGER"},
 		{"media", "height", "INTEGER"},
 		{"media", "fps", "REAL"},
+		{"media", "playhead", "INTEGER DEFAULT 0"},
 	}
 
 	for _, c := range cols {
