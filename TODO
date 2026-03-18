@@ -2,7 +2,7 @@ print less during tests except for assertions
 
 only print response details during verbose e2e
 
-
+lets falsify the tests to find tests that are not actually doing anything
 
 ### 🎯 **DU (Disk Usage) Mode Optimizations**
 
