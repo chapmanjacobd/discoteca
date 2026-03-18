@@ -145,9 +145,31 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 			os.Remove(d.DuplicatePath)
 		}
 
-		// Mark as deleted in DB
-		// We need to find which DB this file came from.
-		// For simplicity, we can just try to mark it in all provided DBs or track it in DedupeDuplicate
+		// Mark as deleted in DB - try all provided DBs
+		for _, dbPath := range c.Databases {
+			sqlDB, _, err := db.ConnectWithInit(dbPath)
+			if err == nil {
+				// Mark duplicate as deleted
+				_, _ = sqlDB.Exec("UPDATE media SET time_deleted = unixepoch() WHERE path = ?", d.DuplicatePath)
+				
+				// Mark keep file as deduped
+				_, _ = sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", d.KeepPath)
+				
+				// Update hash if not already set
+				if d.DuplicateSize > 0 {
+					h, err := utils.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
+					if err == nil && h != "" {
+						_, _ = sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, d.KeepPath)
+					}
+					h, err = utils.FullHashFile(d.KeepPath)
+					if err == nil && h != "" {
+						_, _ = sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, d.KeepPath)
+					}
+				}
+				
+				sqlDB.Close()
+			}
+		}
 	}
 
 	return nil
@@ -289,14 +311,19 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 			return nil, err
 		}
 
-		gRows, err := sqlDB.Query("SELECT path FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0", size)
+		gRows, err := sqlDB.Query("SELECT path, fasthash, sha256 FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0", size)
 		if err != nil {
 			continue
 		}
-		var paths []string
+		type pathInfo struct {
+			path     string
+			fasthash string
+			sha256   string
+		}
+		var paths []pathInfo
 		for gRows.Next() {
-			var p string
-			if err := gRows.Scan(&p); err == nil {
+			var p pathInfo
+			if err := gRows.Scan(&p.path, &p.fasthash, &p.sha256); err == nil {
 				paths = append(paths, p)
 			}
 		}
@@ -306,36 +333,58 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 			continue
 		}
 
-		// 2. Sample Hash within size group
-		sampleHashes := make(map[string][]string)
+		// 2. Group by fasthash (calculate if not exists)
+		fastHashGroups := make(map[string][]pathInfo)
 		for _, p := range paths {
-			h, err := utils.SampleHashFile(p, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
-			if err == nil && h != "" {
-				sampleHashes[h] = append(sampleHashes[h], p)
+			if p.fasthash == "" {
+				// Calculate fasthash if not exists
+				h, err := utils.SampleHashFile(p.path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
+				if err == nil && h != "" {
+					p.fasthash = h
+					// Save hash back to database
+					_, _ = sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, p.path)
+				} else {
+					continue // Skip files that can't be hashed
+				}
 			}
+			fastHashGroups[p.fasthash] = append(fastHashGroups[p.fasthash], p)
 		}
 
-		for _, sPaths := range sampleHashes {
-			if len(sPaths) < 2 {
+		for _, fhPaths := range fastHashGroups {
+			if len(fhPaths) < 2 {
 				continue
 			}
 
-			// 3. Full Hash within sample group
-			fullHashes := make(map[string][]string)
-			for _, p := range sPaths {
-				h, err := utils.FullHashFile(p)
-				if err == nil && h != "" {
-					fullHashes[h] = append(fullHashes[h], p)
+			// 3. Group by sha256 (calculate only if fasthash matches)
+			sha256Groups := make(map[string][]pathInfo)
+			for _, p := range fhPaths {
+				if p.sha256 == "" {
+					// Calculate sha256 only if fasthash matched
+					h, err := utils.FullHashFile(p.path)
+					if err == nil && h != "" {
+						p.sha256 = h
+						// Save hash back to database
+						_, _ = sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, p.path)
+					} else {
+						continue
+					}
 				}
+				sha256Groups[p.sha256] = append(sha256Groups[p.sha256], p)
 			}
 
-			for _, fPaths := range fullHashes {
-				if len(fPaths) < 2 {
+			for _, sPaths := range sha256Groups {
+				if len(sPaths) < 2 {
 					continue
 				}
-				sort.Strings(fPaths)
-				keep := fPaths[0]
-				for _, dup := range fPaths[1:] {
+				pathStrings := make([]string, len(sPaths))
+				for i, p := range sPaths {
+					pathStrings[i] = p.path
+				}
+				sort.Strings(pathStrings)
+				keep := pathStrings[0]
+				for _, dup := range pathStrings[1:] {
+					// Mark keep file as deduped
+					_, _ = sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", keep)
 					dups = append(dups, DedupeDuplicate{
 						KeepPath:      keep,
 						DuplicatePath: dup,

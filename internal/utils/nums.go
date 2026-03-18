@@ -550,3 +550,39 @@ func BoolToInt64(b bool) int64 {
 	}
 	return 0
 }
+
+// ParsePercentOrBytes parses a string like "5%" or "100MB" into a float64 ratio or bytes
+func ParsePercentOrBytes(s string) float64 {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "%") {
+		v, err := strconv.ParseFloat(strings.TrimSuffix(s, "%"), 64)
+		if err != nil {
+			return 0.05 // default 5%
+		}
+		return v / 100.0
+	}
+	// Parse as bytes
+	bytes, err := HumanToBytes(s)
+	if err != nil {
+		return 0.05
+	}
+	return float64(bytes)
+}
+
+// ParseSize parses a human-readable size string to int64 bytes
+func ParseSize(s string) int64 {
+	bytes, err := HumanToBytes(s)
+	if err != nil {
+		return 30 * 1024 // default 30KiB
+	}
+	return bytes
+}
+
+// ParseBitrate parses a human-readable bitrate string to int64 bits per second
+func ParseBitrate(s string) int64 {
+	bits, err := HumanToBits(s)
+	if err != nil {
+		return 128 * 1000 // default 128kbps
+	}
+	return bits
+}

@@ -3,9 +3,16 @@ package utils
 import (
 	"database/sql"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 )
+
+// CommandExists checks if a command is available in PATH
+func CommandExists(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
+}
 
 func GetString(v any) string {
 	if s, ok := v.(string); ok {

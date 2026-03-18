@@ -57,7 +57,13 @@ CREATE TABLE IF NOT EXISTS media (
 
     -- Metadata
     time_downloaded INTEGER, -- Repurposed as Time First Scanned
-    score REAL
+    score REAL,
+
+    -- Hash and processing status
+    fasthash TEXT,         -- Sample hash for quick deduplication
+    sha256 TEXT,           -- Full SHA256 hash for exact deduplication
+    is_deduped INTEGER DEFAULT 0,  -- Whether file has been deduplicated
+    is_shrinked INTEGER DEFAULT 0  -- Whether file has been shrunk/optimized
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS captions (
@@ -139,6 +145,14 @@ CREATE INDEX IF NOT EXISTS idx_media_active_duration ON media(duration) WHERE ti
 CREATE INDEX IF NOT EXISTS idx_media_active_time_modified ON media(time_modified) WHERE time_deleted = 0 AND time_modified > 0;
 CREATE INDEX IF NOT EXISTS idx_media_active_time_created ON media(time_created) WHERE time_deleted = 0 AND time_created > 0;
 CREATE INDEX IF NOT EXISTS idx_media_active_time_downloaded ON media(time_downloaded) WHERE time_deleted = 0 AND time_downloaded > 0;
+
+-- Indexes for hash and processing status filtering
+CREATE INDEX IF NOT EXISTS idx_media_fasthash ON media(fasthash) WHERE fasthash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_media_sha256 ON media(sha256) WHERE sha256 IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1;
+CREATE INDEX IF NOT EXISTS idx_media_is_shrinked ON media(is_shrinked) WHERE is_shrinked = 1;
+CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL;
+CREATE INDEX IF NOT EXISTS idx_media_unshrinked ON media(path) WHERE is_shrinked = 0 OR is_shrinked IS NULL;
 
 -- Materialized view for folder statistics (optimizes /api/du endpoint)
 -- This pre-aggregates folder-level stats to avoid expensive GROUP BY queries
