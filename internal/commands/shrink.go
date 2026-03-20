@@ -59,8 +59,6 @@ type ShrinkCmd struct {
 	MoveBroken       string  `help:"Directory to move unsuccessful files"`
 	DeleteUnplayable bool    `help:"Delete unplayable files"`
 	DeleteLarger     bool    `default:"true" help:"Delete larger of transcode or original files"`
-	DeleteNoVideo    bool    `help:"Delete files without video stream"`
-	DeleteNoAudio    bool    `help:"Delete files without audio stream"`
 	AlwaysSplit      bool    `help:"Always split audio on silence"`
 	SplitLongerThan  float64 `help:"Split audio longer than N seconds"`
 	MinSplitSegment  float64 `default:"60" help:"Minimum split segment duration in seconds"`
@@ -212,8 +210,6 @@ func (c *ShrinkCmd) buildProcessorConfig() *ProcessorConfig {
 		Keyframes:            c.Keyframes,
 		AudioOnly:            c.AudioOnly,
 		VideoOnly:            c.VideoOnly,
-		DeleteNoAudio:        c.DeleteNoAudio,
-		DeleteNoVideo:        c.DeleteNoVideo,
 		AlwaysSplit:          c.AlwaysSplit,
 		SplitLongerThan:      c.SplitLongerThan,
 		MinSplitSegment:      c.MinSplitSegment,
@@ -272,6 +268,24 @@ func (c *ShrinkCmd) loadMediaFromDB(sqlDB *sql.DB) ([]ShrinkMedia, error) {
 
 	if !c.ForceReshrink {
 		query += " AND COALESCE(is_shrinked, 0) = 0"
+	}
+
+	// Filter by media type (prefilter in database)
+	var typeConditions []string
+	if c.VideoOnly {
+		typeConditions = append(typeConditions, "type = 'video'")
+	}
+	if c.AudioOnly {
+		typeConditions = append(typeConditions, "type = 'audio'", "type = 'audiobook'")
+	}
+	if c.ImageOnly {
+		typeConditions = append(typeConditions, "type = 'image'")
+	}
+	if c.TextOnly {
+		typeConditions = append(typeConditions, "type = 'text'")
+	}
+	if len(typeConditions) > 0 {
+		query += " AND (" + strings.Join(typeConditions, " OR ") + ")"
 	}
 
 	rows, err := sqlDB.Query(query)

@@ -73,23 +73,13 @@ func (p *FFmpegProcessor) Process(ctx context.Context, m *ShrinkMedia, cfg *Proc
 	subtitleStream := getFirstStream(probe.SubtitleStreams)
 	albumArtStream := getFirstStream(probe.AlbumArtStreams)
 
-	// Stream validation
-	if videoStream == nil {
-		if cfg.DeleteNoVideo {
-			return ProcessResult{SourcePath: m.Path, ToDelete: []string{m.Path}, Success: false, Error: fmt.Errorf("no video stream")}
-		}
-		if cfg.VideoOnly {
-			return ProcessResult{SourcePath: m.Path, Success: true}
-		}
+	// Stream validation - skip files without expected streams
+	if videoStream == nil && cfg.VideoOnly {
+		return ProcessResult{SourcePath: m.Path, Success: true}
 	}
 
-	if audioStream == nil {
-		if cfg.DeleteNoAudio {
-			return ProcessResult{SourcePath: m.Path, ToDelete: []string{m.Path}, Success: false, Error: fmt.Errorf("no audio stream")}
-		}
-		if cfg.AudioOnly {
-			return ProcessResult{SourcePath: m.Path, Success: true}
-		}
+	if audioStream == nil && cfg.AudioOnly {
+		return ProcessResult{SourcePath: m.Path, Success: true}
 	}
 
 	// Check if already encoded optimally
@@ -549,7 +539,7 @@ func (p *FFmpegProcessor) validateTranscode(m ShrinkMedia, outputPath string, or
 	}
 
 	// Don't delete original if extracting audio from video and --no-preserve-video is not set
-	if originalProbe.VideoStreams != nil && len(originalProbe.VideoStreams) > 0 &&
+	if len(originalProbe.VideoStreams) > 0 &&
 		p.config.AudioOnly && !p.config.NoPreserveVideo {
 		deleteLarger = false
 	}

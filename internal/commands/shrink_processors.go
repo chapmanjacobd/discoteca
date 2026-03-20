@@ -75,8 +75,6 @@ type ProcessorConfig struct {
 	Keyframes       bool
 	AudioOnly       bool
 	VideoOnly       bool
-	DeleteNoAudio   bool
-	DeleteNoVideo   bool
 	AlwaysSplit     bool
 	SplitLongerThan float64
 	MinSplitSegment float64
