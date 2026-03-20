@@ -3,15 +3,59 @@ package utils
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
-// CommandExists checks if a command is available in PATH
+// commandExistsCache caches the result of command existence checks
+var commandExistsCache sync.Map
+
+// getExecutableDir returns the directory containing the current executable
+var getExecutableDir = sync.OnceValue(func() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return filepath.Dir(exe)
+})
+
+// CommandExists checks if a command is available in PATH or alongside the executable
+// Results are cached to avoid repeated syscalls
+// Prefers binaries in the same directory as the runtime executable over PATH
 func CommandExists(cmd string) bool {
+	if cached, ok := commandExistsCache.Load(cmd); ok {
+		return cached.(bool)
+	}
+
+	exeDir := getExecutableDir()
+
+	// Check for sibling binary with platform-specific extension
+	var siblingPaths []string
+	if exeDir != "" {
+		siblingPaths = append(siblingPaths, filepath.Join(exeDir, cmd))
+		// On Windows, also check .exe extension
+		if strings.HasSuffix(strings.ToLower(exeDir), ".exe") || filepath.Separator == '\\' {
+			siblingPaths = append(siblingPaths, filepath.Join(exeDir, cmd+".exe"))
+		}
+	}
+
+	// Check sibling paths first (prefer local binaries)
+	for _, path := range siblingPaths {
+		if _, err := os.Stat(path); err == nil {
+			commandExistsCache.Store(cmd, true)
+			return true
+		}
+	}
+
+	// Fall back to PATH lookup
 	_, err := exec.LookPath(cmd)
-	return err == nil
+	exists := err == nil
+	commandExistsCache.Store(cmd, exists)
+	return exists
 }
 
 func GetString(v any) string {
