@@ -41,6 +41,10 @@ type Media struct {
 	TimeDownloaded  *int64   `json:"time_downloaded,omitempty"`
 	Score           *float64 `json:"score,omitempty"`
 
+	Fasthash  *string `json:"fasthash,omitempty"`
+	Sha256    *string `json:"sha256,omitempty"`
+	IsDeduped *int64  `json:"is_deduped,omitempty"`
+
 	TrackNumber *int64 `json:"track_number,omitempty"`
 }
 
@@ -208,6 +212,9 @@ func FromDB(m db.Media) Media {
 		Language:        NullStringPtr(m.Language),
 		TimeDownloaded:  NullInt64Ptr(m.TimeDownloaded),
 		Score:           NullFloat64Ptr(m.Score),
+		Fasthash:        NullStringPtr(m.Fasthash),
+		Sha256:          NullStringPtr(m.Sha256),
+		IsDeduped:       NullInt64Ptr(m.IsDeduped),
 	}
 }
 
@@ -245,6 +252,9 @@ func ToDBUpsert(m Media) db.UpsertMediaParams {
 		Language:       ToNullString(m.Language),
 		TimeDownloaded: ToNullInt64(m.TimeDownloaded),
 		Score:          ToNullFloat64(m.Score),
+		Fasthash:       ToNullString(m.Fasthash),
+		Sha256:         ToNullString(m.Sha256),
+		IsDeduped:      ToNullInt64(m.IsDeduped),
 	}
 }
 

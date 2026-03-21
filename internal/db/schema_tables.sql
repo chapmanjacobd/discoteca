@@ -65,8 +65,7 @@ CREATE TABLE IF NOT EXISTS media (
     -- Hash and processing status
     fasthash TEXT,         -- Sample hash for quick deduplication
     sha256 TEXT,           -- Full SHA256 hash for exact deduplication
-    is_deduped INTEGER DEFAULT 0,  -- Whether file has been deduplicated
-    is_shrinked INTEGER DEFAULT 0  -- Whether file has been shrunk/optimized
+    is_deduped INTEGER DEFAULT 0  -- Whether file has been deduplicated
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS captions (

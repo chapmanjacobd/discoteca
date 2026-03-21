@@ -249,7 +249,7 @@ func (c *DedupeCmd) getDuplicatesBy(dbPath string, groupByCols, selectCols, wher
 			SELECT path, size, duration
 			FROM media
 			WHERE %s AND COALESCE(time_deleted, 0) = 0
-			ORDER BY size DESC, time_modified DESC
+			ORDER BY COALESCE(is_deduped, 0) DESC, size DESC, time_modified DESC
 		`, strings.Join(whereParts, " AND "))
 
 		gRows, err := sqlDB.Query(groupQuery, args...)
@@ -337,7 +337,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 		}
 		slog.Debug("Found potential duplicates by size", "size", size, "count", count)
 
-		gRows, err := sqlDB.Query("SELECT path, fasthash, sha256 FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0", size)
+		gRows, err := sqlDB.Query("SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0", size)
 		if err != nil {
 			continue
 		}
@@ -345,11 +345,14 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 			path     string
 			fasthash string
 			sha256   string
+			isDeduped bool
 		}
 		var paths []pathInfo
 		for gRows.Next() {
 			var p pathInfo
-			if err := gRows.Scan(&p.path, &p.fasthash, &p.sha256); err == nil {
+			var deduped int
+			if err := gRows.Scan(&p.path, &p.fasthash, &p.sha256, &deduped); err == nil {
+				p.isDeduped = deduped == 1
 				paths = append(paths, p)
 			}
 		}
@@ -402,18 +405,24 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 				if len(sPaths) < 2 {
 					continue
 				}
-				pathStrings := make([]string, len(sPaths))
-				for i, p := range sPaths {
-					pathStrings[i] = p.path
-				}
-				sort.Strings(pathStrings)
-				keep := pathStrings[0]
-				for _, dup := range pathStrings[1:] {
+
+				// Priority sorting for "keep" candidate
+				sort.Slice(sPaths, func(i, j int) bool {
+					// 1. Prioritize already deduped files
+					if sPaths[i].isDeduped != sPaths[j].isDeduped {
+						return sPaths[i].isDeduped
+					}
+					// 2. Alphabetical path
+					return sPaths[i].path < sPaths[j].path
+				})
+
+				keep := sPaths[0].path
+				for _, dup := range sPaths[1:] {
 					// Mark keep file as deduped
 					_, _ = sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", keep)
 					dups = append(dups, DedupeDuplicate{
 						KeepPath:      keep,
-						DuplicatePath: dup,
+						DuplicatePath: dup.path,
 						DuplicateSize: size,
 					})
 				}

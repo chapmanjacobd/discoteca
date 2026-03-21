@@ -435,7 +435,6 @@ func migrateColumns(db *sql.DB) error {
 		{"media", "fasthash", "TEXT"},
 		{"media", "sha256", "TEXT"},
 		{"media", "is_deduped", "INTEGER DEFAULT 0"},
-		{"media", "is_shrinked", "INTEGER DEFAULT 0"},
 	}
 
 	for _, c := range cols {

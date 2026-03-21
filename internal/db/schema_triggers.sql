@@ -41,9 +41,7 @@ CREATE INDEX IF NOT EXISTS idx_media_active_time_downloaded ON media(time_downlo
 CREATE INDEX IF NOT EXISTS idx_media_fasthash ON media(fasthash) WHERE fasthash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_media_sha256 ON media(sha256) WHERE sha256 IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1;
-CREATE INDEX IF NOT EXISTS idx_media_is_shrinked ON media(is_shrinked) WHERE is_shrinked = 1;
 CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL;
-CREATE INDEX IF NOT EXISTS idx_media_unshrinked ON media(path) WHERE is_shrinked = 0 OR is_shrinked IS NULL;
 
 -- Index for fast folder_stats queries
 CREATE INDEX IF NOT EXISTS idx_folder_stats_depth ON folder_stats(depth);

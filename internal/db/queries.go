@@ -1027,11 +1027,14 @@ type UpsertMediaParams struct {
 	Language       sql.NullString
 	TimeDownloaded sql.NullInt64
 	Score          sql.NullFloat64
+	Fasthash       sql.NullString
+	Sha256         sql.NullString
+	IsDeduped      sql.NullInt64
 }
 
 // UpsertMedia inserts or updates a media item
 func (q *Queries) UpsertMedia(ctx context.Context, arg UpsertMediaParams) error {
-	const query = `INSERT INTO media (path, path_tokenized, title, duration, size, time_created, time_modified, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET path_tokenized = excluded.path_tokenized, title = excluded.title, duration = excluded.duration, size = excluded.size, time_modified = excluded.time_modified, media_type = excluded.media_type, width = excluded.width, height = excluded.height, fps = excluded.fps, video_codecs = excluded.video_codecs, audio_codecs = excluded.audio_codecs, subtitle_codecs = excluded.subtitle_codecs, video_count = excluded.video_count, audio_count = excluded.audio_count, subtitle_count = excluded.subtitle_count, album = excluded.album, artist = excluded.artist, genre = excluded.genre, categories = excluded.categories, description = excluded.description, language = excluded.language, time_downloaded = COALESCE(media.time_downloaded, excluded.time_downloaded), score = excluded.score`
+	const query = `INSERT INTO media (path, path_tokenized, title, duration, size, time_created, time_modified, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET path_tokenized = excluded.path_tokenized, title = excluded.title, duration = excluded.duration, size = excluded.size, time_modified = excluded.time_modified, media_type = excluded.media_type, width = excluded.width, height = excluded.height, fps = excluded.fps, video_codecs = excluded.video_codecs, audio_codecs = excluded.audio_codecs, subtitle_codecs = excluded.subtitle_codecs, video_count = excluded.video_count, audio_count = excluded.audio_count, subtitle_count = excluded.subtitle_count, album = excluded.album, artist = excluded.artist, genre = excluded.genre, categories = excluded.categories, description = excluded.description, language = excluded.language, time_downloaded = COALESCE(media.time_downloaded, excluded.time_downloaded), score = excluded.score, fasthash = COALESCE(NULLIF(excluded.fasthash, ''), media.fasthash), sha256 = COALESCE(NULLIF(excluded.sha256, ''), media.sha256), is_deduped = COALESCE(NULLIF(excluded.is_deduped, 0), media.is_deduped)`
 	_, err := q.db.ExecContext(ctx, query,
 		arg.Path,
 		arg.PathTokenized,
@@ -1058,6 +1061,9 @@ func (q *Queries) UpsertMedia(ctx context.Context, arg UpsertMediaParams) error 
 		arg.Language,
 		arg.TimeDownloaded,
 		arg.Score,
+		arg.Fasthash,
+		arg.Sha256,
+		arg.IsDeduped,
 	)
 	return err
 }
