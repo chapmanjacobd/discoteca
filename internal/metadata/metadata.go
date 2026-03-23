@@ -69,24 +69,23 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 		return nil, err
 	}
 
-	// Detect mimetype first
-	mimeStr := utils.DetectMimeType(path)
-
-	// Advanced Type Detection
-	mediaType := ""
+	// Extension-based Type Detection
 	ext := strings.ToLower(filepath.Ext(path))
+	mediaType := ""
 
-	// Check extension first for formats that are archive-based but treated as documents
-	if ext == ".cbz" || ext == ".cbr" || ext == ".epub" || ext == ".pdf" || ext == ".zim" || ext == ".djvu" {
+	// Check extension for type detection (no mimetype dependency)
+	if utils.TextExtensionMap[ext] {
 		mediaType = "text"
-	} else if strings.HasPrefix(mimeStr, "image/") {
+	} else if utils.ComicExtensionMap[ext] {
+		mediaType = "text" // Comics are treated as text
+	} else if utils.ImageExtensionMap[ext] {
 		mediaType = "image"
-	} else if strings.HasPrefix(mimeStr, "text/") || mimeStr == "application/pdf" || mimeStr == "application/epub+zip" || mimeStr == "application/x-zim" {
-		mediaType = "text"
-	} else if mimeStr != "" {
-		// Fallback to coarse mimetype category
-		parts := strings.Split(mimeStr, "/")
-		mediaType = parts[0]
+	} else if utils.AudioExtensionMap[ext] {
+		mediaType = "audio"
+	} else if utils.VideoExtensionMap[ext] {
+		mediaType = "video"
+	} else if utils.ArchiveExtensionMap[ext] {
+		mediaType = "text" // Archives are treated as text
 	}
 
 	params := db.UpsertMediaParams{
@@ -103,7 +102,8 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 		Media: params,
 	}
 
-	if mediaType == "text" && utils.TextExtensionMap[strings.ToLower(filepath.Ext(path))] {
+	// Handle text files (including comics)
+	if mediaType == "text" {
 		if params.Duration.Int64 == 0 {
 			// Fast word count for duration estimation on ingest
 			wordCount, err := utils.QuickWordCount(path, stat.Size())
@@ -119,14 +119,14 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 		result.Media = params
 
 		// Extract text from comic archives (CBZ/CBR) using OCR if requested
-		if (ext == ".cbz" || ext == ".cbr") && ocr {
+		if utils.ComicExtensionMap[ext] && ocr {
 			captions, err := extractImageTextFromComicArchive(path, ocrEngine)
 			if err != nil {
 				slog.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
 			} else {
 				result.Captions = captions
 			}
-		} else if extractText {
+		} else if extractText && !utils.ComicExtensionMap[ext] {
 			// Extract full text from document if requested (non-comic documents)
 			captions, err := extractDocumentText(path)
 			if err != nil {
@@ -157,6 +157,12 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 		} else {
 			result.Captions = append(result.Captions, captions...)
 		}
+	}
+
+	// Skip ffprobe for non-media files (only run on video, audio, image)
+	if mediaType != "video" && mediaType != "audio" && mediaType != "image" {
+		result.Media = params
+		return result, nil
 	}
 
 	var duration int64
@@ -352,7 +358,7 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 		}
 	} else {
 		// If ffprobe fails, it might be a corrupted file or non-media file
-		// We already have some basic info from os.Stat and mimetype
+		// We already have some basic info from os.Stat and extension
 		// Don't estimate duration - leave it as zero/null
 		slog.Debug("ffprobe failed to extract metadata (empty output)", "path", path)
 	}
@@ -389,7 +395,7 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 	params.AudioCount = utils.ToNullInt64(aCount)
 	params.SubtitleCount = utils.ToNullInt64(sCount)
 
-	// Refine Type Detection
+	// Refine Type Detection based on stream counts
 	if vCount > 0 && mediaType != "image" {
 		mediaType = "video"
 		if vCount == 1 && aCount == 0 && duration == 0 {

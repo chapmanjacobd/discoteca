@@ -17,9 +17,9 @@ func TestFindMedia(t *testing.T) {
 	files := []string{
 		"movie.mp4",
 		"song.mp3",
-		"readme.txt", // should be ignored
+		"readme.txt", // text files are now considered media
 		"folder/clip.mkv",
-		"folder/image.jpg", // should be ignored by default if not in MediaExtensions
+		"folder/image.jpg",
 	}
 
 	for _, f := range files {
@@ -37,12 +37,12 @@ func TestFindMedia(t *testing.T) {
 		t.Fatalf("FindMedia failed: %v", err)
 	}
 
-	expectedCount := 4 // mp4, mp3, mkv, jpg
+	expectedCount := 5 // mp4, mp3, txt, mkv, jpg
 	if len(found) != expectedCount {
 		t.Errorf("Expected %d media files, got %d: %v", expectedCount, len(found), found)
 	}
 
-	expectedFiles := []string{"movie.mp4", "song.mp3", "clip.mkv", "image.jpg"}
+	expectedFiles := []string{"movie.mp4", "song.mp3", "readme.txt", "clip.mkv", "image.jpg"}
 	for _, ef := range expectedFiles {
 		matched := false
 		for path := range found {
