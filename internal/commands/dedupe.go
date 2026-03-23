@@ -342,9 +342,9 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 			continue
 		}
 		type pathInfo struct {
-			path     string
-			fasthash string
-			sha256   string
+			path      string
+			fasthash  string
+			sha256    string
 			isDeduped bool
 		}
 		var paths []pathInfo

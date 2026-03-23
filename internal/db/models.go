@@ -61,9 +61,9 @@ type Media struct {
 	Score           sql.NullFloat64 `json:"score"`
 
 	// Hash and processing status
-	Fasthash   sql.NullString `json:"fasthash"`
-	Sha256     sql.NullString `json:"sha256"`
-	IsDeduped  sql.NullInt64  `json:"is_deduped"`
+	Fasthash  sql.NullString `json:"fasthash"`
+	Sha256    sql.NullString `json:"sha256"`
+	IsDeduped sql.NullInt64  `json:"is_deduped"`
 }
 
 type MediaFts struct {

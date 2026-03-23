@@ -36,7 +36,7 @@ test('counts requests for 404 media', async ({ mediaPage, viewerPage, server }) 
   // Open player for the 404 item using POM
   await mediaPage.page.evaluate((path) => {
     // @ts-ignore
-    const item = { path: path, type: 'audio' };
+    const item = { path: path, media_type: 'audio' };
     // @ts-ignore
     window.disco.openActivePlayer(item);
 
