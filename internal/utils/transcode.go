@@ -138,7 +138,7 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 
 		targetMime := "video/mp4"
 		if preferWebm {
-			targetMime := "video/webm"
+			targetMime = "video/webm"
 		}
 
 		// Check if container already matches the target mime type

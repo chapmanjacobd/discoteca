@@ -71,12 +71,12 @@ func TestGetTranscodeStrategy(t *testing.T) {
 	t.Run("MP4_H264_AAC", func(t *testing.T) {
 		vCodec := "h264"
 		aCodec := "aac"
-		mime := "video/mp4"
+		mediaType := "video"
 		m := models.Media{
 			Path:        "video.mp4",
 			VideoCodecs: &vCodec,
 			AudioCodecs: &aCodec,
-			MediaType:   &mime,
+			MediaType:   &mediaType,
 		}
 		strategy := GetTranscodeStrategy(m)
 		if strategy.NeedsTranscode {
@@ -87,12 +87,12 @@ func TestGetTranscodeStrategy(t *testing.T) {
 	t.Run("MKV_H265_AC3", func(t *testing.T) {
 		vCodec := "hevc"
 		aCodec := "ac3"
-		mime := "video/x-matroska"
+		mediaType := "video"
 		m := models.Media{
 			Path:        "video.mkv",
 			VideoCodecs: &vCodec,
 			AudioCodecs: &aCodec,
-			MediaType:   &mime,
+			MediaType:   &mediaType,
 		}
 		strategy := GetTranscodeStrategy(m)
 		if !strategy.NeedsTranscode {

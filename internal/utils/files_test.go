@@ -218,20 +218,28 @@ func TestGetFileStats(t *testing.T) {
 }
 
 func TestDetectMimeType(t *testing.T) {
-	f, err := os.CreateTemp("", "mime-test.txt")
-	if err != nil {
-		t.Fatal(err)
+	// Test extension-based detection
+	tests := []struct {
+		path     string
+		expected string
+	}{
+		{"test.txt", "text/plain"},
+		{"test.pdf", "application/pdf"},
+		{"test.epub", "application/epub+zip"},
+		{"test.mp4", "video/mp4"},
+		{"test.mp3", "audio/mpeg"},
+		{"test.jpg", "image/jpeg"},
+		{"test.mkv", "video/x-matroska"},
+		{"test.unknown", "application/octet-stream"},
 	}
-	defer os.Remove(f.Name())
 
-	if _, err := f.WriteString("hello"); err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-
-	mime := DetectMimeType(f.Name())
-	if mime != "text/plain; charset=utf-8" {
-		t.Errorf("Expected text/plain; charset=utf-8, got %s", mime)
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			mime := DetectMimeType(tt.path)
+			if mime != tt.expected {
+				t.Errorf("DetectMimeType(%s) = %s, want %s", tt.path, mime, tt.expected)
+			}
+		})
 	}
 }
 

@@ -35,21 +35,6 @@ func TestAggregateExtensions(t *testing.T) {
 	}
 }
 
-func TestAggregateMimeTypes(t *testing.T) {
-	video := "video/mp4"
-	audio := "audio/mpeg"
-	media := []models.MediaWithDB{
-		{Media: models.Media{Path: "v1.mp4", MediaType: &video}},
-		{Media: models.Media{Path: "v2.mp4", MediaType: &video}},
-		{Media: models.Media{Path: "a1.mp3", MediaType: &audio}},
-	}
-
-	got := AggregateMimeTypes(media)
-	if len(got) != 2 {
-		t.Errorf("Expected 2 groups, got %d", len(got))
-	}
-}
-
 func TestAggregateSizeBuckets(t *testing.T) {
 	size1KB := int64(1024)
 	size2KB := int64(2048)
@@ -167,12 +152,6 @@ func TestAggregateMediaAllModes(t *testing.T) {
 	got := AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{GroupByExtensions: true}})
 	if len(got) != 1 || got[0].Path != ".mp4" {
 		t.Errorf("Extensions mode failed: %v", got)
-	}
-
-	// MimeTypes
-	got = AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{GroupByMimeTypes: true}})
-	if len(got) != 1 || got[0].Path != video {
-		t.Errorf("MimeTypes mode failed: %v", got)
 	}
 
 	// Size

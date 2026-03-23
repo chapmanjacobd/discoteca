@@ -133,29 +133,6 @@ func TestShortenMiddle(t *testing.T) {
 	}
 }
 
-func TestIsMimeMatch(t *testing.T) {
-	tests := []struct {
-		search   []string
-		mime     string
-		expected bool
-	}{
-		{[]string{"video"}, "video/mp4", true},
-		{[]string{"mp4"}, "video/mp4", true},
-		{[]string{"audio"}, "video/mp4", false},
-		{[]string{"VIDEO"}, "video/mp4", true},
-		{[]string{"video"}, "VIDEO/MP4", true},
-		{[]string{"plain"}, "text/plain", true},
-		{[]string{"text"}, "text/plain", true},
-		{[]string{}, "text/plain", false},
-		{[]string{"video"}, "", false},
-	}
-	for _, tt := range tests {
-		if got := IsMimeMatch(tt.search, tt.mime); got != tt.expected {
-			t.Errorf("IsMimeMatch(%v, %q) = %v, want %v", tt.search, tt.mime, got, tt.expected)
-		}
-	}
-}
-
 func TestStripEnclosingQuotes(t *testing.T) {
 	tests := []struct {
 		input    string
