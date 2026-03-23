@@ -940,14 +940,18 @@ func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
 func extractImageTextFromComicArchive(path string, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
-	if ext == ".cbz" || ext == ".zip" {
+	if !utils.ComicExtensionMap[ext] {
+		return nil, fmt.Errorf("unsupported archive format: %s", ext)
+	}
+
+	if ext == ".cbz" {
 		return extractImageTextFromCBZ(path, ocrEngine)
 	}
-	if ext == ".cbr" || ext == ".rar" {
+	if ext == ".cbr" {
 		return extractImageTextFromCBR(path, ocrEngine)
 	}
 
-	return nil, fmt.Errorf("unsupported archive format: %s", ext)
+	return nil, fmt.Errorf("unsupported comic format: %s", ext)
 }
 
 // extractImageTextFromCBZ extracts text from images in CBZ (ZIP-based) archives

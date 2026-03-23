@@ -70,8 +70,6 @@ type MediaFilterFlags struct {
 	ScanSubtitles   bool     `help:"Scan for external subtitles during import" group:"MediaFilter"`
 	OnlineMediaOnly bool     `help:"Exclude local media" group:"MediaFilter"`
 	LocalMediaOnly  bool     `help:"Exclude online media" group:"MediaFilter"`
-	MimeType        []string `help:"Filter by mimetype substring (e.g., video, mp4)" group:"MediaFilter"`
-	NoMimeType      []string `help:"Exclude by mimetype substring" group:"MediaFilter"`
 }
 
 type TimeFilterFlags struct {
@@ -116,7 +114,6 @@ type AggregateFlags struct {
 	BigDirs           bool     `short:"B" help:"Aggregate by parent directory" group:"Aggregate"`
 	FileCounts        string   `help:"Filter by number of files in directory (e.g., >5, 10%1)" group:"Aggregate"`
 	GroupByExtensions bool     `help:"Group by file extensions" group:"Aggregate"`
-	GroupByMimeTypes  bool     `help:"Group by mimetypes" group:"Aggregate"`
 	GroupBySize       bool     `help:"Group by size buckets" group:"Aggregate"`
 	GroupByParent     bool     `help:"Group media by parent directory with counts and totals" group:"Aggregate"`
 	Depth             int      `short:"D" help:"Aggregate at specific directory depth" group:"Aggregate"`

@@ -207,10 +207,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   -p, --parallel
         Number of parallel extractors (default: CPU count * 4)
   --extract-text
@@ -279,10 +275,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --dry-run
         Don't actually mark files as deleted
 ```
@@ -399,10 +391,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -453,8 +441,6 @@ Flags:
         Filter by number of files in directory (e.g., >5, 10%1)
   --group-by-extensions
         Group by file extensions
-  --group-by-mime-types
-        Group by mimetypes
   --group-by-size
         Group by size buckets
   --group-by-parent
@@ -614,10 +600,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -732,10 +714,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   -O, --play-in-order
         Play media in order
   --no-play-in-order
@@ -920,10 +898,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1076,10 +1050,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --hide-deleted
         Exclude deleted files from results
   --only-deleted
@@ -1204,10 +1174,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   -c, --columns
         Columns to display
   -j, --json
@@ -1323,10 +1289,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1377,8 +1339,6 @@ Flags:
         Filter by number of files in directory (e.g., >5, 10%1)
   --group-by-extensions
         Group by file extensions
-  --group-by-mime-types
-        Group by mimetypes
   --group-by-size
         Group by size buckets
   --group-by-parent
@@ -1505,10 +1465,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1677,10 +1633,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1903,10 +1855,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1937,8 +1885,6 @@ Flags:
         Filter by number of files in directory (e.g., >5, 10%1)
   --group-by-extensions
         Group by file extensions
-  --group-by-mime-types
-        Group by mimetypes
   --group-by-size
         Group by size buckets
   --group-by-parent
@@ -2085,10 +2031,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2235,10 +2177,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2411,10 +2349,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2603,10 +2537,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2872,10 +2802,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3126,10 +3052,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3269,10 +3191,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3407,10 +3325,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -3600,10 +3514,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3654,8 +3564,6 @@ Flags:
         Filter by number of files in directory (e.g., >5, 10%1)
   --group-by-extensions
         Group by file extensions
-  --group-by-mime-types
-        Group by mimetypes
   --group-by-size
         Group by size buckets
   --group-by-parent
@@ -3912,10 +3820,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -4074,10 +3978,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -4128,8 +4028,6 @@ Flags:
         Filter by number of files in directory (e.g., >5, 10%1)
   --group-by-extensions
         Group by file extensions
-  --group-by-mime-types
-        Group by mimetypes
   --group-by-size
         Group by size buckets
   --group-by-parent
@@ -4616,10 +4514,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   -u, --sort-by
         Sort by field
   -V, --reverse
@@ -4748,10 +4642,6 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
-  --mime-type
-        Filter by mimetype substring (e.g., video, mp4)
-  --no-mime-type
-        Exclude by mimetype substring
   -u, --sort-by
         Sort by field
   -V, --reverse

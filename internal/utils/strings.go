@@ -348,19 +348,6 @@ func UnParagraph(s string) string {
 	return StripEnclosingQuotes(s)
 }
 
-func IsMimeMatch(searchTerms []string, mimeType string) bool {
-	if mimeType == "" {
-		return false
-	}
-	mimeType = strings.ToLower(mimeType)
-	for _, term := range searchTerms {
-		if strings.Contains(mimeType, strings.ToLower(term)) {
-			return true
-		}
-	}
-	return false
-}
-
 func Title(s string) string {
 	if s == "" {
 		return ""

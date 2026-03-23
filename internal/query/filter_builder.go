@@ -652,22 +652,6 @@ func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 			return false
 		}
 
-		// Mimetype filters
-		if len(fb.flags.MimeType) > 0 {
-			match := false
-			if m.MediaType != nil && utils.IsMimeMatch(fb.flags.MimeType, *m.MediaType) {
-				match = true
-			}
-			if !match {
-				return false
-			}
-		}
-		if len(fb.flags.NoMimeType) > 0 {
-			if m.MediaType != nil && utils.IsMimeMatch(fb.flags.NoMimeType, *m.MediaType) {
-				return false
-			}
-		}
-
 		return true
 	}
 }

@@ -323,8 +323,6 @@ func AggregateMediaWithMode(media []models.MediaWithDB, flags models.GlobalFlags
 	var stats []models.FolderStats
 	if flags.GroupByExtensions {
 		stats = AggregateExtensions(media, fastMode)
-	} else if flags.GroupByMimeTypes {
-		stats = AggregateMimeTypes(media, fastMode)
 	} else if flags.GroupBySize {
 		stats = AggregateSizeBuckets(media, fastMode)
 	} else {
@@ -393,22 +391,6 @@ func AggregateExtensions(media []models.MediaWithDB, fastMode ...bool) []models.
 			groups[ext] = &models.FolderStats{Path: ext}
 		}
 		updateStats(groups[ext], m, true)
-	}
-	return finalizeStatsWithOptions(groups, !fast, !fast)
-}
-
-func AggregateMimeTypes(media []models.MediaWithDB, fastMode ...bool) []models.FolderStats {
-	fast := len(fastMode) > 0 && fastMode[0]
-	groups := make(map[string]*models.FolderStats)
-	for _, m := range media {
-		mime := "unknown"
-		if m.MediaType != nil {
-			mime = *m.MediaType
-		}
-		if _, ok := groups[mime]; !ok {
-			groups[mime] = &models.FolderStats{Path: mime}
-		}
-		updateStats(groups[mime], m, true)
 	}
 	return finalizeStatsWithOptions(groups, !fast, !fast)
 }

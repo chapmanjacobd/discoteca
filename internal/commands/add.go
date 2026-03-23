@@ -188,35 +188,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 				}
 			}
 
-			// Apply MimeType filter
-			if len(c.MimeType) > 0 || len(c.NoMimeType) > 0 {
-				mime := utils.DetectMimeType(path)
-				if len(c.MimeType) > 0 {
-					matched := false
-					for _, m := range c.MimeType {
-						if strings.Contains(mime, m) {
-							matched = true
-							break
-						}
-					}
-					if !matched {
-						continue
-					}
-				}
-				if len(c.NoMimeType) > 0 {
-					excluded := false
-					for _, m := range c.NoMimeType {
-						if strings.Contains(mime, m) {
-							excluded = true
-							break
-						}
-					}
-					if excluded {
-						continue
-					}
-				}
-			}
-
 			filteredFiles[path] = stat
 		}
 		foundFiles = filteredFiles

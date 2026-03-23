@@ -118,19 +118,17 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 		aCodecs = *m.AudioCodecs
 	}
 
-	mime := ""
+	mediaType := ""
 	if m.MediaType != nil && *m.MediaType != "" {
-		mime = *m.MediaType
-	} else {
-		mime = DetectMimeType(m.Path)
+		mediaType = *m.MediaType
 	}
 
-	if strings.HasPrefix(mime, "image") {
+	if mediaType == "image" {
 		return TranscodeStrategy{NeedsTranscode: false}
 	}
 
 	var strategy TranscodeStrategy
-	if strings.HasPrefix(mime, "video") {
+	if mediaType == "video" {
 		vNeeds := !isSupportedVideoCodec(vCodecs)
 		aNeeds := !isSupportedAudioCodec(aCodecs)
 
@@ -140,7 +138,7 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 
 		targetMime := "video/mp4"
 		if preferWebm {
-			targetMime = "video/webm"
+			targetMime := "video/webm"
 		}
 
 		// Check if container already matches the target mime type
@@ -166,7 +164,7 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 		} else {
 			strategy = TranscodeStrategy{NeedsTranscode: false}
 		}
-	} else if strings.HasPrefix(mime, "audio") {
+	} else if mediaType == "audio" {
 		if !isSupportedAudioCodec(aCodecs) || (ext != ".mp3" && ext != ".m4a" && ext != ".ogg" && ext != ".flac" && ext != ".wav" && ext != ".opus") {
 			strategy = TranscodeStrategy{
 				NeedsTranscode: true,

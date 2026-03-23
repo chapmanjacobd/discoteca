@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/gabriel-vasile/mimetype"
 )
 
 // SampleHashFile calculates a hash based on small file segments
@@ -147,30 +146,113 @@ func GetFileStats(path string) (FileStats, error) {
 	}, nil
 }
 
-// DetectMimeType returns the mimetype of a file
+// DetectMimeType returns the mimetype of a file based on extension
+// Used only for HTTP Content-Type headers in streaming
 func DetectMimeType(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext == ".apk" {
+	switch ext {
+	case ".apk":
 		return "application/vnd.android.package-archive"
-	}
-	if ext == ".zim" {
+	case ".zim":
 		return "application/x-zim"
-	}
-	if ext == ".epub" {
+	case ".epub":
 		return "application/epub+zip"
-	}
-	if ext == ".pdf" {
+	case ".pdf":
 		return "application/pdf"
-	}
-	if ext == ".mobi" {
+	case ".mobi":
 		return "application/x-mobipocket-ebook"
+	case ".azw", ".azw3":
+		return "application/vnd.amazon.ebook"
+	case ".fb2":
+		return "application/x-fictionbook"
+	case ".djvu", ".djv":
+		return "image/vnd.djvu"
+	case ".txt":
+		return "text/plain"
+	case ".html", ".htm":
+		return "text/html"
+	case ".css":
+		return "text/css"
+	case ".js":
+		return "application/javascript"
+	case ".json":
+		return "application/json"
+	case ".xml":
+		return "application/xml"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	case ".svg":
+		return "image/svg+xml"
+	case ".tiff", ".tif":
+		return "image/tiff"
+	case ".ico":
+		return "image/x-icon"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".mp4", ".m4v", ".m4a":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mkv":
+		return "video/x-matroska"
+	case ".avi":
+		return "video/x-msvideo"
+	case ".mov":
+		return "video/quicktime"
+	case ".wmv":
+		return "video/x-ms-wmv"
+	case ".flac":
+		return "audio/flac"
+	case ".ogg":
+		return "audio/ogg"
+	case ".wav":
+		return "audio/wav"
+	case ".opus":
+		return "audio/opus"
+	case ".aac":
+		return "audio/aac"
+	case ".cbz":
+		return "application/vnd.comicbook+zip"
+	case ".cbr":
+		return "application/vnd.comicbook-rar"
+	default:
+		return "application/octet-stream"
 	}
+}
 
-	mime, err := mimetype.DetectFile(path)
-	if err != nil {
-		return ""
+// GetContentTypeFromExt returns the content type based on file extension
+func GetContentTypeFromExt(ext string) string {
+	ext = strings.ToLower(ext)
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	case ".svg":
+		return "image/svg+xml"
+	case ".tiff", ".tif":
+		return "image/tiff"
+	case ".heic", ".heif":
+		return "image/heif"
+	case ".avif":
+		return "image/avif"
+	default:
+		return "application/octet-stream"
 	}
-	return mime.String()
 }
 
 // Rename renames a file, respecting simulation mode

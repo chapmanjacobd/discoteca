@@ -429,12 +429,16 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Verify path exists in database to prevent arbitrary file access
 	found := false
+	var mediaType string
 	for _, dbPath := range c.Databases {
 		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			_, err := queries.GetMediaByPathExact(r.Context(), path)
+			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
 			if err == nil {
 				found = true
+				if dbMedia.MediaType.Valid {
+					mediaType = dbMedia.MediaType.String
+				}
 			}
 			return err
 		})
@@ -461,14 +465,16 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Generate thumbnail
-	mimeType := utils.DetectMimeType(path)
+	// Generate thumbnail using media_type from database
+	ext := strings.ToLower(filepath.Ext(path))
 
-	if strings.HasPrefix(mimeType, "image/") {
+	// Handle image files
+	if mediaType == "image" {
 		if info, err := os.Stat(path); err == nil && info.Size() < 500*1024 {
 			data, err := os.ReadFile(path)
 			if err == nil {
-				w.Header().Set("Content-Type", mimeType)
+				contentType := utils.GetContentTypeFromExt(ext)
+				w.Header().Set("Content-Type", contentType)
 				if !c.Dev {
 					w.Header().Set("Cache-Control", "public, max-age=31536000")
 				} else {
@@ -481,7 +487,6 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle text-based documents with smart thumbnails
-	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".pdf":
 		thumb, contentType, err := c.generatePDFThumbnail(path)
@@ -523,10 +528,10 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Default: handle video/audio with ffmpeg
 	var args []string
-	is_video := strings.HasPrefix(mimeType, "video/")
+	is_video := mediaType == "video"
 	if is_video {
 		args = []string{"-ss", "25", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
-	} else if strings.HasPrefix(mimeType, "audio/") {
+	} else if mediaType == "audio" {
 		// For audio files, try to extract embedded album art first
 		// If no album art exists, ffmpeg will fail, so we return a placeholder
 		args = []string{"-i", path, "-an", "-vcodec", "copy", "-f", "image2", "pipe:1"}

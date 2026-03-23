@@ -57,7 +57,7 @@ func (c *PrintCmd) Run(ctx *kong.Context) error {
 
 		HideRedundantFirstPlayed(media)
 
-		isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupByMimeTypes || flags.GroupBySize || flags.Depth > 0 || flags.Parents || flags.FoldersOnly || len(flags.FolderSizes) > 0 || flags.FolderCounts != ""
+		isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize || flags.Depth > 0 || flags.Parents || flags.FoldersOnly || len(flags.FolderSizes) > 0 || flags.FolderCounts != ""
 
 		if flags.JSON {
 			if isAggregated {
