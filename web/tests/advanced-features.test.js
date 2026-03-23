@@ -301,7 +301,7 @@ describe('Search Functionality', () => {
         searchInput.value = 'filtered search';
 
         // Toggle a media type filter first
-        const videoBtn = document.querySelector('#media-type-list .category-btn[data-type="video"]');
+        const videoBtn = document.querySelector('#media-type-list .category-btn[data-media_type="video"]');
         if (videoBtn) {
             videoBtn.click();
             await vi.waitFor(() => {
