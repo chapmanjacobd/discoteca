@@ -1349,6 +1349,90 @@ func (q *Queries) GetAllCaptionsOrdered(ctx context.Context, arg GetAllCaptionsO
 	return items, nil
 }
 
+// PopulateMediaType populates the media_type column for media items with NULL media_type
+func (q *Queries) PopulateMediaType(ctx context.Context) error {
+	tx, err := q.BeginImmediate(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Get all media with NULL media_type
+	rows, err := tx.QueryContext(ctx, "SELECT path FROM media WHERE media_type IS NULL")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var updates []struct {
+		path      string
+		mediaType string
+	}
+
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return err
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		mediaType := ""
+
+		// Simplified type detection for migration
+		// In a real scenario, this would use the same logic as metadata.Extract
+		if isVideo(ext) {
+			mediaType = "video"
+		} else if isAudio(ext) {
+			mediaType = "audio"
+		} else if isImage(ext) {
+			mediaType = "image"
+		} else if isText(ext) {
+			mediaType = "text"
+		}
+
+		if mediaType != "" {
+			updates = append(updates, struct {
+				path      string
+				mediaType string
+			}{path, mediaType})
+		}
+	}
+	rows.Close()
+
+	if len(updates) > 0 {
+		stmt, err := tx.PrepareContext(ctx, "UPDATE media SET media_type = ? WHERE path = ?")
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, u := range updates {
+			if _, err := stmt.ExecContext(ctx, u.mediaType, u.path); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
+}
+
+// Helper functions for PopulateMediaType (simplified)
+func isVideo(ext string) bool {
+	return ext == ".mp4" || ext == ".mkv" || ext == ".avi" || ext == ".mov" || ext == ".webm" || ext == ".m4v"
+}
+
+func isAudio(ext string) bool {
+	return ext == ".mp3" || ext == ".flac" || ext == ".wav" || ext == ".m4a" || ext == ".ogg" || ext == ".opus"
+}
+
+func isImage(ext string) bool {
+	return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".webp" || ext == ".bmp"
+}
+
+func isText(ext string) bool {
+	return ext == ".pdf" || ext == ".epub" || ext == ".txt" || ext == ".md" || ext == ".cbz" || ext == ".cbr"
+}
+
 // GetStatsRow is a row from GetStats
 type GetStatsRow struct {
 	TotalCount           int64

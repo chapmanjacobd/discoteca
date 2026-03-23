@@ -277,7 +277,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			if len(currentBatch) == 0 {
 				return nil
 			}
-			tx, err := sqlDB.Begin()
+			tx, err := queries.BeginImmediate(context.Background())
 			if err != nil {
 				return err
 			}
