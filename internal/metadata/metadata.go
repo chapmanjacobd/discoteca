@@ -107,38 +107,40 @@ func Extract(ctx context.Context, path string, scanSubtitles bool, extractText b
 
 	// Handle text files (including comics)
 	if mediaType == "text" {
-		if params.Duration.Int64 == 0 {
-			// Fast word count for duration estimation on ingest
-			wordCount, err := utils.QuickWordCount(path, stat.Size())
-			if err != nil || wordCount <= 0 {
-				// Fallback to size-based estimate if word count fails
-				d := int64(float64(stat.Size())/4.2/220*60) + 10
-				params.Duration = utils.ToNullInt64(d)
-			} else {
-				// Calculate duration from word count (220 wpm average reading speed)
-				params.Duration = utils.ToNullInt64(utils.EstimateReadingDuration(wordCount))
+		if scanSubtitles || extractText {
+			if params.Duration.Int64 == 0 {
+				// Fast word count for duration estimation on ingest
+				wordCount, err := utils.QuickWordCount(path, stat.Size())
+				if err != nil || wordCount <= 0 {
+					// Fallback to size-based estimate if word count fails
+					d := int64(float64(stat.Size())/4.2/220*60) + 10
+					params.Duration = utils.ToNullInt64(d)
+				} else {
+					// Calculate duration from word count (220 wpm average reading speed)
+					params.Duration = utils.ToNullInt64(utils.EstimateReadingDuration(wordCount))
+				}
+			}
+			result.Media = params
+
+			// Extract text from comic archives (CBZ/CBR) using OCR if requested
+			if utils.ComicExtensionMap[ext] && ocr {
+				captions, err := extractImageTextFromComicArchive(path, ocrEngine)
+				if err != nil {
+					slog.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
+				} else {
+					result.Captions = captions
+				}
+			} else if extractText && !utils.ComicExtensionMap[ext] {
+				// Extract full text from document if requested (non-comic documents)
+				captions, err := extractDocumentText(path)
+				if err != nil {
+					slog.Warn("Document text extraction failed", "path", path, "error", err)
+				} else {
+					result.Captions = captions
+				}
 			}
 		}
-		result.Media = params
-
-		// Extract text from comic archives (CBZ/CBR) using OCR if requested
-		if utils.ComicExtensionMap[ext] && ocr {
-			captions, err := extractImageTextFromComicArchive(path, ocrEngine)
-			if err != nil {
-				slog.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
-			} else {
-				result.Captions = captions
-			}
-		} else if extractText && !utils.ComicExtensionMap[ext] {
-			// Extract full text from document if requested (non-comic documents)
-			captions, err := extractDocumentText(path)
-			if err != nil {
-				slog.Warn("Document text extraction failed", "path", path, "error", err)
-			} else {
-				result.Captions = captions
-			}
-		}
-
+		
 		return result, nil
 	}
 
