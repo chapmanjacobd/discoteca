@@ -1,4 +1,4 @@
-rename type column to media_type
+only calculate duration for text when --scan-subtitles is set
 
 print less during tests except for assertions
 
@@ -11,22 +11,6 @@ Slider filters min and max are shifting around. maybe better to keep percentiles
 no group / detail buttons on mobile?
 
 lets falsify the tests to find tests that are not actually doing anything
-
-### 🎯 **DU (Disk Usage) Mode Optimizations**
-
-#### 1. **Query-Level Optimizations**
-
-- **Materialized view for DU aggregation**: Pre-compute folder-level aggregates that update on `add`/`check` operations
-  ```sql
-  CREATE TABLE folder_stats (
-    path TEXT PRIMARY KEY,
-    parent_path TEXT,
-    depth INTEGER,
-    file_count INTEGER,
-    total_size INTEGER,
-    total_duration INTEGER
-  );
-  ```
 
 - **Batch filter resolution**: Instead of resolving percentiles separately for each DU request, cache percentile boundaries for common filters (p10, p25, p50, p75, p90)
 
@@ -265,6 +249,8 @@ lambda x: (
         x.get("folders") or 1,
         objects.Reverser(x.get("path")),
     )
+
+Support OEB and HTML "sites"
 
 e2e web safari
 e2e web mobile

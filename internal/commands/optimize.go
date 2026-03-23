@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -56,7 +57,7 @@ func (c *OptimizeCmd) Run(ctx *kong.Context) error {
 
 func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx *kong.Context, sqlDB *sql.DB, queries *db.Queries) error {
 	slog.Info("Running BulkMarkOptimizedExtensions...")
-	tx, err := queries.BeginImmediate(context.Background())
+	tx, err := sqlDB.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
 	}

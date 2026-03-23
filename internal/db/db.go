@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
 )
 
 type DBTX interface {
@@ -19,22 +18,6 @@ func New(db DBTX) *Queries {
 
 type Queries struct {
 	db DBTX
-}
-
-func (q *Queries) BeginImmediate(ctx context.Context) (*sql.Tx, error) {
-	if db, ok := q.db.(*sql.DB); ok {
-		tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
-		if err != nil {
-			return nil, err
-		}
-		_, err = tx.ExecContext(ctx, "BEGIN IMMEDIATE")
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-		return tx, nil
-	}
-	return nil, fmt.Errorf("underlying DBTX is not a *sql.DB")
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {

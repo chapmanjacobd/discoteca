@@ -3,6 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"path/filepath"
+	"strings"
 )
 
 // mediaColumns is the standard column list for media queries
@@ -1351,7 +1354,12 @@ func (q *Queries) GetAllCaptionsOrdered(ctx context.Context, arg GetAllCaptionsO
 
 // PopulateMediaType populates the media_type column for media items with NULL media_type
 func (q *Queries) PopulateMediaType(ctx context.Context) error {
-	tx, err := q.BeginImmediate(ctx)
+	db, ok := q.db.(*sql.DB)
+	if !ok {
+		return fmt.Errorf("underlying DBTX is not a *sql.DB")
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

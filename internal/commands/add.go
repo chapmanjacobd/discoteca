@@ -160,14 +160,24 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		slog.Info("Scanning", "path", absRoot)
-		foundFiles, err := fs.FindMedia(absRoot, filter)
-		if err != nil {
-			return err
-		}
+		foundFiles := make(chan struct {
+			Path string
+			Info os.FileInfo
+		}, 100)
+		var walkErr error
+		go func() {
+			defer close(foundFiles)
+			walkErr = fs.FindMediaChan(absRoot, filter, foundFiles)
+		}()
 
-		// Apply PathFilterFlags
-		filteredFiles := make(map[string]os.FileInfo)
-		for path, stat := range foundFiles {
+		// Step 2: Identify which files actually need probing using the cache
+		var toProbe []string
+		skipped := 0
+		for res := range foundFiles {
+			path := res.Path
+			stat := res.Info
+
+			// Apply PathFilterFlags
 			if !utils.FilterPath(path, flags.PathFilterFlags) {
 				continue
 			}
@@ -188,18 +198,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 				}
 			}
 
-			filteredFiles[path] = stat
-		}
-		foundFiles = filteredFiles
-
-		if dbExists {
-			slog.Info("Checking for updates", "count", len(foundFiles))
-		}
-
-		// Step 2: Identify which files actually need probing using the cache
-		var toProbe []string
-		skipped := 0
-		for path, stat := range foundFiles {
 			if len(c.Ext) > 0 {
 				matched := false
 				for _, e := range c.Ext {
@@ -222,6 +220,9 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			}
 			toProbe = append(toProbe, path)
 		}
+		if walkErr != nil {
+			return walkErr
+		}
 
 		if skipped > 0 {
 			slog.Info("Skipped unchanged files", "count", skipped)
@@ -240,12 +241,14 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		slog.Info("Extracting metadata", "count", len(toProbe), "parallelism", c.Parallel)
 
 		// Parallel extraction
-		jobs := make(chan string, len(toProbe))
-		results := make(chan *metadata.MediaMetadata, len(toProbe))
+		jobs := make(chan string, c.Parallel*2)
+		results := make(chan *metadata.MediaMetadata, c.Parallel*2)
 		var wg sync.WaitGroup
 
 		for i := 0; i < c.Parallel; i++ {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				for path := range jobs {
 					res, err := metadata.Extract(context.Background(), path, flags.ScanSubtitles, c.ExtractText, c.OCR, c.OCREngine, c.SpeechRecognition, c.SpeechRecognitionEngine)
 					if err != nil {
@@ -254,7 +257,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 					}
 					results <- res
 				}
-			})
+			}()
 		}
 
 		go func() {
@@ -277,7 +280,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			if len(currentBatch) == 0 {
 				return nil
 			}
-			tx, err := queries.BeginImmediate(context.Background())
+			tx, err := sqlDB.BeginTx(context.Background(), nil)
 			if err != nil {
 				return err
 			}

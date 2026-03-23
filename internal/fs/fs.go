@@ -10,13 +10,33 @@ import (
 
 func FindMedia(root string, filter map[string]bool) (map[string]os.FileInfo, error) {
 	files := make(map[string]os.FileInfo)
+	ch := make(chan struct {
+		Path string
+		Info os.FileInfo
+	})
 
+	var walkErr error
+	go func() {
+		defer close(ch)
+		walkErr = FindMediaChan(root, filter, ch)
+	}()
+
+	for res := range ch {
+		files[res.Path] = res.Info
+	}
+	return files, walkErr
+}
+
+func FindMediaChan(root string, filter map[string]bool, ch chan<- struct {
+	Path string
+	Info os.FileInfo
+}) error {
 	allowed := filter
 	if allowed == nil {
 		allowed = utils.MediaExtensionMap
 	}
 
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -30,10 +50,12 @@ func FindMedia(root string, filter map[string]bool) (map[string]os.FileInfo, err
 			if err != nil {
 				return nil // Skip files we can't access
 			}
-			// Use path as-is
-			files[path] = info
+			ch <- struct {
+				Path string
+				Info os.FileInfo
+			}{Path: path, Info: info}
 		}
 		return nil
 	})
-	return files, err
 }
+
