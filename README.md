@@ -207,6 +207,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   -p, --parallel
         Number of parallel extractors (default: CPU count * 4)
   --extract-text
@@ -275,6 +277,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --dry-run
         Don't actually mark files as deleted
 ```
@@ -391,6 +395,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -600,6 +606,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -714,6 +722,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   -O, --play-in-order
         Play media in order
   --no-play-in-order
@@ -898,6 +908,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1050,6 +1062,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --hide-deleted
         Exclude deleted files from results
   --only-deleted
@@ -1174,6 +1188,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   -c, --columns
         Columns to display
   -j, --json
@@ -1289,6 +1305,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1465,6 +1483,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1633,6 +1653,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1809,6 +1831,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1955,6 +1979,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2127,6 +2153,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2315,6 +2343,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2580,6 +2610,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2830,6 +2862,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -2969,6 +3003,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3103,6 +3139,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -3292,6 +3330,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3598,6 +3638,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -3756,6 +3798,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -4292,6 +4336,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   -u, --sort-by
         Sort by field
   -V, --reverse
@@ -4420,6 +4466,8 @@ Flags:
         Exclude local media
   --local-media-only
         Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
   -u, --sort-by
         Sort by field
   -V, --reverse
