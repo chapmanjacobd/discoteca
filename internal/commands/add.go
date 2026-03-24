@@ -168,7 +168,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			}
 		}
 
-		slog.Info("Scanning", "path", absRoot)
 		foundFiles := make(chan fs.FindMediaResult, 100)
 		var walkErr error
 		var totalFiles, totalDirs int
@@ -188,7 +187,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			// Print progress counter during scanning
 			if res,DirsCount% 100 == 0 || res.FilesCount%100 == 0 || res.FilesCount == 1 {
-				fmt.Printf("\rScanning: %d files, %d directories found\033[K", res.FilesCount, res.DirsCount)
+				fmt.Printf("\rScanning %s: %d files, %d directories found\033[K",absRoot, res.FilesCount, res.DirsCount)
 			}
 
 			// Apply PathFilterFlags
