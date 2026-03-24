@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -163,11 +162,9 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		slog.Info("Scanning", "path", absRoot)
-		foundFiles := make(chan struct {
-			Path string
-			Info os.FileInfo
-		}, 100)
+		foundFiles := make(chan fs.FindMediaResult, 100)
 		var walkErr error
+		var totalFiles, totalDirs int
 		go func() {
 			defer close(foundFiles)
 			walkErr = fs.FindMediaChan(absRoot, filter, foundFiles)
@@ -179,6 +176,13 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		for res := range foundFiles {
 			path := res.Path
 			stat := res.Info
+			totalFiles = res.FilesCount
+			totalDirs = res.DirsCount
+
+			// Print progress counter during scanning
+			if res.FilesCount%100 == 0 || res.FilesCount == 1 {
+				fmt.Printf("\rScanning: %d files, %d directories found\033[K", res.FilesCount, res.DirsCount)
+			}
 
 			// Apply PathFilterFlags
 			if !utils.FilterPath(path, flags.PathFilterFlags) {
@@ -226,6 +230,9 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		if walkErr != nil {
 			return walkErr
 		}
+
+		// Print final scanning summary
+		fmt.Printf("\rScanning: %d files, %d directories found\n", totalFiles, totalDirs)
 
 		if skipped > 0 {
 			slog.Info("Skipped unchanged files", "count", skipped)
@@ -311,12 +318,11 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 						direction = 1 // Gently push up if stable
 					}
 
-					newTarget := max(
+					newTarget := min(
 						// Step by 2
-						current+(direction*2), 1)
-					if newTarget > 1000 {
-						newTarget = 1000
-					}
+						max(
+
+							current+(direction*2), 1), 1000)
 
 					atomic.StoreInt32(&targetConcurrency, newTarget)
 
