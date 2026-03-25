@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -51,7 +52,9 @@ func (c *AddCmd) AfterApply() error {
 	}
 
 	// Smart DB detection: first arg MUST be a database for 'add'
-	isDB := strings.HasSuffix(c.Args[0], ".db") && (utils.IsSQLite(c.Args[0]) || !utils.FileExists(c.Args[0]))
+	fileInfo, err := os.Stat(c.Args[0])
+	isEmpty := err == nil && fileInfo.Size() == 0
+	isDB := strings.HasSuffix(c.Args[0], ".db") && (utils.IsSQLite(c.Args[0]) || os.IsNotExist(err) || isEmpty)
 	if isDB {
 		c.Database = c.Args[0]
 		c.ScanPaths = c.Args[1:]
@@ -266,6 +269,8 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 		slog.Info("Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel)
 
+		startTime := time.Now()
+
 		// Parallel extraction
 		jobs := make(chan string, len(toProbe))
 		for _, f := range toProbe {
@@ -425,16 +430,26 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 				count++
 				if count%10 == 0 || count == len(toProbe) {
+					etaStr := ""
+					if count > 2 {
+						elapsed := time.Since(startTime)
+						estimatedTotal := time.Duration(float64(elapsed) / float64(count) * float64(len(toProbe)))
+						remaining := (estimatedTotal - elapsed).Round(time.Second)
+						if remaining > 0 {
+							etaStr = fmt.Sprintf(" ETA: %v", remaining)
+						}
+					}
+
 					if c.Verbose > 0 {
 						workers := atomic.LoadInt32(&activeWorkers)
 						if workers == 0 && totalWorkerSamples > 0 {
 							avgWorkers := float64(workerSum) / float64(totalWorkerSamples)
-							fmt.Printf("\rProcessed %d/%d files (avg: %.1f workers)%s", count, len(toProbe), avgWorkers, utils.ClearSeq)
+							fmt.Printf("\rProcessed %d/%d files (avg: %.1f workers)%s%s", count, len(toProbe), avgWorkers, etaStr, utils.ClearSeq)
 						} else {
-							fmt.Printf("\rProcessed %d/%d files (%d workers)%s", count, len(toProbe), workers, utils.ClearSeq)
+							fmt.Printf("\rProcessed %d/%d files (%d workers)%s%s", count, len(toProbe), workers, etaStr, utils.ClearSeq)
 						}
 					} else {
-						fmt.Printf("\rProcessed %d/%d files%s", count, len(toProbe), utils.ClearSeq)
+						fmt.Printf("\rProcessed %d/%d files%s%s", count, len(toProbe), etaStr, utils.ClearSeq)
 					}
 				}
 			}

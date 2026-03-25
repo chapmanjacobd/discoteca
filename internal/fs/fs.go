@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+
+	"github.com/charlievieth/fastwalk"
 )
 
 func FindMedia(root string, filter map[string]bool) (map[string]os.FileInfo, error) {
@@ -30,21 +33,42 @@ type FindMediaResult struct {
 }
 
 func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResult) error {
-	var filesCount, dirsCount int
+	info, err := os.Stat(root)
+	if err != nil {
+		return err
+	}
 
-	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	if !info.IsDir() {
+		if filter != nil {
+			ext := strings.ToLower(filepath.Ext(root))
+			if !filter[ext] {
+				return nil
+			}
+		}
+		ch <- FindMediaResult{
+			Path:       root,
+			Info:       info,
+			FilesCount: 1,
+			DirsCount:  0,
+		}
+		return nil
+	}
+
+	var filesCount int64
+	var dirsCount int64
+
+	conf := fastwalk.Config{
+		Follow: false,
+	}
+
+	return fastwalk.Walk(&conf, root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			dirsCount++
+			atomic.AddInt64(&dirsCount, 1)
 			return nil
 		}
-
-		// Skip symlinks
-		// if d.Type()&os.ModeSymlink != 0 {
-		//	return nil
-		// }
 
 		if filter != nil {
 			ext := strings.ToLower(filepath.Ext(path))
@@ -53,12 +77,19 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 			}
 		}
 
-		info, err := d.Info()
+		i, err := d.Info()
 		if err != nil {
 			return nil // Skip files we can't access
 		}
-		filesCount++
-		ch <- FindMediaResult{Path: path, Info: info, FilesCount: filesCount, DirsCount: dirsCount}
+
+		fc := atomic.AddInt64(&filesCount, 1)
+		dc := atomic.LoadInt64(&dirsCount)
+		ch <- FindMediaResult{
+			Path:       path,
+			Info:       i,
+			FilesCount: int(fc),
+			DirsCount:  int(dc),
+		}
 		return nil
 	})
 }

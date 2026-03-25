@@ -6,6 +6,7 @@ require (
 	github.com/adrg/strutil v0.3.1
 	github.com/alecthomas/kong v1.14.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
+	github.com/charlievieth/fastwalk v1.0.14
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
