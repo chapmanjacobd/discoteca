@@ -89,29 +89,35 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	// Step 0: Load existing playlists (roots) to avoid redundant scans
 	existingPlaylists, _ := queries.GetPlaylists(context.Background())
 
-	// Step 1: Load all existing metadata into memory for O(1) checks
-	existingMedia, err := queries.GetAllMediaMetadata(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to load existing metadata: %w", err)
-	}
-
+	// Step 1: Load existing metadata for O(1) cache checks
+	// For large libraries, we load all metadata once at startup
 	type meta struct {
 		size    int64
 		mtime   int64
 		deleted bool
 	}
-	metaCache := make(map[string]meta, len(existingMedia))
-	for _, m := range existingMedia {
-		metaCache[m.Path] = meta{
-			size:    m.Size.Int64,
-			mtime:   m.TimeModified.Int64,
-			deleted: m.TimeDeleted.Int64 > 0,
-		}
-	}
-	existingMedia = nil // Allow GC
+	var metaCache map[string]meta
 	if dbExists {
+		existingMedia, err := queries.GetAllMediaMetadata(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to load existing metadata: %w", err)
+		}
+		metaCache = make(map[string]meta, len(existingMedia))
+		for _, m := range existingMedia {
+			metaCache[m.Path] = meta{
+				size:    m.Size.Int64,
+				mtime:   m.TimeModified.Int64,
+				deleted: m.TimeDeleted.Int64 > 0,
+			}
+		}
+		existingMedia = nil // Allow GC
 		slog.Info("Loaded metadata cache from database", "count", len(metaCache))
+	} else {
+		metaCache = make(map[string]meta)
 	}
+
+	// Track if we add new files across all scan paths (for folder_stats refresh)
+	var newFilesAdded bool
 
 	for _, root := range c.ScanPaths {
 		absRoot, err := filepath.Abs(root)
@@ -230,6 +236,10 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 					skipped++
 					continue
 				}
+				// File exists but changed - will be updated, not new
+			} else {
+				// File not in cache - it's new
+				newFilesAdded = true
 			}
 			toProbe = append(toProbe, path)
 		}
@@ -450,13 +460,19 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		fmt.Println()
 	}
 
-	// Refresh folder_stats and FTS after adding new media
-	slog.Info("Refreshing folder_stats and FTS after scan...")
-	if err := db.RefreshFolderStats(sqlDB); err != nil {
-		slog.Error("Failed to refresh folder_stats", "error", err)
-	}
+	// Refresh FTS after adding new media (always needed for search)
 	if err := db.RebuildFTS(sqlDB, dbPath); err != nil {
 		slog.Error("Failed to rebuild FTS", "error", err)
+	}
+
+	// Only refresh folder_stats if new files were added
+	if newFilesAdded {
+		slog.Info("Refreshing folder_stats after adding new files...")
+		if err := db.RefreshFolderStats(sqlDB); err != nil {
+			slog.Error("Failed to refresh folder_stats", "error", err)
+		}
+	} else {
+		slog.Debug("No new files added, skipping folder_stats refresh")
 	}
 
 	return nil
