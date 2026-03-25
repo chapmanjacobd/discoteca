@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -75,6 +74,7 @@ type ExtractOptions struct {
 	SpeechRecognition bool
 	SpeechRecEngine   string
 	ProbeImages       bool
+	ProbeBackend      ProbeBackend // Backend for media probing (default: ffprobe)
 }
 
 func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetadata, error) {
@@ -189,192 +189,168 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 	}
 
 	var duration int64
-	cmd := utils.FFProbe(ctx, path,
-		"-analyze_duration", "100000", // 0.1s
-		"-probesize", "500000", // 500KB
-	)
-
 	var vCodecs, aCodecs, sCodecs []string
 	var vCount, aCount, sCount int64
 
-	output, err := cmd.Output()
+	// Probe using the specified backend
+	probeData, err := probeMediaFile(ctx, path, opts.ProbeBackend)
 	if err != nil {
-		// Fallback without optimizations for corrupted or unusual files
-		cmdFallback := utils.FFProbe(ctx, path)
-		output, _ = cmdFallback.Output()
+		slog.Debug("Media probing failed", "path", path, "error", err)
 	}
 
-	if len(output) > 0 {
-		var data FFProbeOutput
-		if err := json.Unmarshal(output, &data); err == nil {
-			// Format info - including container format from ffprobe
-			if data.Format.FormatName != "" {
-				// Store the actual container format detected by ffprobe
-				result.ContainerFormat = &data.Format.FormatName
-			}
-
-			// Format info
-			if d, err := strconv.ParseFloat(data.Format.Duration, 64); err == nil {
-				duration = int64(d)
-				// Validate duration is reasonable (max 31 days for sanity)
-				if duration > 0 && duration < 2678400 {
-					// Check if we should override duration with format-specific estimate
-					ext := strings.ToLower(filepath.Ext(path))
-					if estimated, shouldOverride := utils.ShouldOverrideDuration(float64(duration), stat.Size(), ext); shouldOverride {
-						slog.Debug("Replacing suspiciously low duration with format-specific estimate",
-							"path", path, "reported", duration, "estimated", int64(estimated),
-							"bitrate", utils.GetEstimatedBitrate(ext))
-						duration = int64(estimated)
-					}
-					params.Duration = utils.ToNullInt64(duration)
-				}
-			}
-
-			if data.Format.Tags != nil {
-				tags := data.Format.Tags
-				if t := tags["title"]; t != "" {
-					params.Title = utils.ToNullString(t)
-				}
-				if a := tags["artist"]; a != "" {
-					params.Artist = utils.ToNullString(a)
-				}
-				if al := tags["album"]; al != "" {
-					params.Album = utils.ToNullString(al)
-				}
-				if g := tags["genre"]; g != "" {
-					params.Genre = utils.ToNullString(g)
-				}
-				if l := tags["language"]; l != "" {
-					params.Language = utils.ToNullString(l)
-				}
-
-				var extraInfo []string
-				bestDate := utils.SpecificDate(
-					tags["originalyear"],
-					tags["TDOR"],
-					tags["TORY"],
-					tags["date"],
-					tags["TDRC"],
-					tags["TDRL"],
-					tags["year"],
-				)
-
-				if bestDate != nil {
-					extraInfo = append(extraInfo, utils.ToDecade(bestDate.Year()))
-					if ts := bestDate.Unix(); ts < params.TimeCreated.Int64 {
-						params.TimeCreated = utils.ToNullInt64(ts)
-					}
-				}
-
-				if m := tags["mood"]; m != "" {
-					extraInfo = append(extraInfo, "Mood: "+m)
-				}
-				if b := tags["bpm"]; b != "" {
-					extraInfo = append(extraInfo, "BPM: "+b)
-				}
-				if k := tags["key"]; k != "" {
-					extraInfo = append(extraInfo, "Key: "+k)
-				}
-
-				desc := tags["description"]
-				if desc == "" {
-					desc = tags["comment"]
-				}
-
-				if len(extraInfo) > 0 {
-					if desc != "" {
-						desc += "\n\n"
-					}
-					desc += strings.Join(extraInfo, " | ")
-				}
-				params.Description = utils.ToNullString(desc)
-
-				params.Categories = utils.ToNullString(tags["categories"])
-			}
-
-			// Streams info
-			for _, s := range data.Streams {
-				switch s.CodecType {
-				case "video":
-					if s.Disposition["attached_pic"] == 1 || s.CodecName == "mjpeg" || s.CodecName == "png" {
-						continue
-					}
-					vCount++
-					codecInfo := s.CodecName
-					if s.Profile != "" && s.Profile != "unknown" {
-						codecInfo += " (" + s.Profile + ")"
-					}
-					if s.PixFmt != "" {
-						codecInfo += " [" + s.PixFmt + "]"
-					}
-					vCodecs = append(vCodecs, codecInfo)
-
-					if params.Width.Int64 == 0 {
-						params.Width = utils.ToNullInt64(int64(s.Width))
-						params.Height = utils.ToNullInt64(int64(s.Height))
-						params.Fps = utils.ToNullFloat64(parseFPS(s.AvgFrameRate))
-					}
-				case "audio":
-					aCount++
-					codecInfo := s.CodecName
-					if s.Channels > 0 {
-						codecInfo += " " + strconv.Itoa(s.Channels) + "ch"
-					}
-					if s.SampleRate != "" {
-						codecInfo += " " + s.SampleRate + "Hz"
-					}
-					var details []string
-					if lang := s.Tags["language"]; lang != "" {
-						details = append(details, lang)
-					}
-					if title := s.Tags["title"]; title != "" {
-						details = append(details, title)
-					}
-					if len(details) > 0 {
-						codecInfo += " (" + strings.Join(details, ", ") + ")"
-					}
-					aCodecs = append(aCodecs, codecInfo)
-				case "subtitle":
-					sCount++
-					var label string
-					if lang := s.Tags["language"]; lang != "" {
-						label = lang
-					}
-					if title := s.Tags["title"]; title != "" {
-						if label != "" {
-							label += " - " + title
-						} else {
-							label = title
-						}
-					}
-					if label == "" {
-						label = s.CodecName
-					}
-					sCodecs = append(sCodecs, label)
-				}
-			}
-
-			// Chapters
-			for _, ch := range data.Chapters {
-				title := ch.Tags["title"]
-				if title == "" {
-					continue
-				}
-				startTime, _ := strconv.ParseFloat(ch.StartTime, 64)
-				result.Captions = append(result.Captions, db.InsertCaptionParams{
-					MediaPath: path,
-					Time:      sql.NullFloat64{Float64: startTime, Valid: true},
-					Text:      sql.NullString{String: title, Valid: true},
-				})
-			}
-		} else {
-			slog.Debug("ffprobe returned invalid JSON", "path", path, "output", string(output))
+	if probeData != nil {
+		// Format info - including container format
+		if probeData.FormatName != "" {
+			result.ContainerFormat = &probeData.FormatName
 		}
-	} else {
-		// If ffprobe fails, it might be a corrupted file or non-media file
-		// We already have some basic info from os.Stat and extension
-		// Don't estimate duration - leave it as zero/null
-		slog.Debug("ffprobe failed to extract metadata (empty output)", "path", path)
+
+		// Duration
+		if probeData.Duration > 0 && probeData.Duration < 2678400 {
+			duration = int64(probeData.Duration)
+			// Check if we should override duration with format-specific estimate
+			ext := strings.ToLower(filepath.Ext(path))
+			if estimated, shouldOverride := utils.ShouldOverrideDuration(probeData.Duration, stat.Size(), ext); shouldOverride {
+				slog.Debug("Replacing suspiciously low duration with format-specific estimate",
+					"path", path, "reported", duration, "estimated", int64(estimated),
+					"bitrate", utils.GetEstimatedBitrate(ext))
+				duration = int64(estimated)
+			}
+			params.Duration = utils.ToNullInt64(duration)
+		}
+
+		// Format tags
+		if probeData.Tags != nil {
+			tags := probeData.Tags
+			if t := tags["title"]; t != "" {
+				params.Title = utils.ToNullString(t)
+			}
+			if a := tags["artist"]; a != "" {
+				params.Artist = utils.ToNullString(a)
+			}
+			if al := tags["album"]; al != "" {
+				params.Album = utils.ToNullString(al)
+			}
+			if g := tags["genre"]; g != "" {
+				params.Genre = utils.ToNullString(g)
+			}
+			if l := tags["language"]; l != "" {
+				params.Language = utils.ToNullString(l)
+			}
+
+			var extraInfo []string
+			bestDate := utils.SpecificDate(
+				tags["originalyear"],
+				tags["TDOR"],
+				tags["TORY"],
+				tags["date"],
+				tags["TDRC"],
+				tags["TDRL"],
+				tags["year"],
+			)
+
+			if bestDate != nil {
+				extraInfo = append(extraInfo, utils.ToDecade(bestDate.Year()))
+				if ts := bestDate.Unix(); ts < params.TimeCreated.Int64 {
+					params.TimeCreated = utils.ToNullInt64(ts)
+				}
+			}
+
+			if m := tags["mood"]; m != "" {
+				extraInfo = append(extraInfo, "Mood: "+m)
+			}
+			if b := tags["bpm"]; b != "" {
+				extraInfo = append(extraInfo, "BPM: "+b)
+			}
+			if k := tags["key"]; k != "" {
+				extraInfo = append(extraInfo, "Key: "+k)
+			}
+
+			desc := tags["description"]
+			if desc == "" {
+				desc = tags["comment"]
+			}
+
+			if len(extraInfo) > 0 {
+				if desc != "" {
+					desc += "\n\n"
+				}
+				desc += strings.Join(extraInfo, " | ")
+			}
+			params.Description = utils.ToNullString(desc)
+
+			params.Categories = utils.ToNullString(tags["categories"])
+		}
+
+		// Streams info
+		for _, s := range probeData.Streams {
+			switch s.CodecType {
+			case "video":
+				vCount++
+				codecInfo := s.CodecName
+				if s.Profile != "" && s.Profile != "unknown" {
+					codecInfo += " (" + s.Profile + ")"
+				}
+				if s.PixFmt != "" {
+					codecInfo += " [" + s.PixFmt + "]"
+				}
+				vCodecs = append(vCodecs, codecInfo)
+
+				if params.Width.Int64 == 0 {
+					params.Width = utils.ToNullInt64(int64(s.Width))
+					params.Height = utils.ToNullInt64(int64(s.Height))
+					params.Fps = utils.ToNullFloat64(parseFPS(s.AvgFrameRate))
+				}
+			case "audio":
+				aCount++
+				codecInfo := s.CodecName
+				if s.Channels > 0 {
+					codecInfo += " " + strconv.Itoa(s.Channels) + "ch"
+				}
+				if s.SampleRate != "" {
+					codecInfo += " " + s.SampleRate + "Hz"
+				}
+				var details []string
+				if lang := s.Tags["language"]; lang != "" {
+					details = append(details, lang)
+				}
+				if title := s.Tags["title"]; title != "" {
+					details = append(details, title)
+				}
+				if len(details) > 0 {
+					codecInfo += " (" + strings.Join(details, ", ") + ")"
+				}
+				aCodecs = append(aCodecs, codecInfo)
+			case "subtitle":
+				sCount++
+				var label string
+				if lang := s.Tags["language"]; lang != "" {
+					label = lang
+				}
+				if title := s.Tags["title"]; title != "" {
+					if label != "" {
+						label += " - " + title
+					} else {
+						label = title
+					}
+				}
+				if label == "" {
+					label = s.CodecName
+				}
+				sCodecs = append(sCodecs, label)
+			}
+		}
+
+		// Chapters
+		for _, ch := range probeData.Chapters {
+			if ch.Title == "" {
+				continue
+			}
+			result.Captions = append(result.Captions, db.InsertCaptionParams{
+				MediaPath: path,
+				Time:      sql.NullFloat64{Float64: ch.StartTime, Valid: true},
+				Text:      sql.NullString{String: ch.Title, Valid: true},
+			})
+		}
 	}
 
 	params.VideoCodecs = utils.ToNullString(utils.Combine(vCodecs))
@@ -1129,4 +1105,13 @@ func extractImageTextFromCBR(path string, ocrEngine string) ([]db.InsertCaptionP
 	}
 
 	return allCaptions, nil
+}
+
+// probeMediaFile probes a media file using the specified backend
+func probeMediaFile(ctx context.Context, path string, backend ProbeBackend) (*ProbeData, error) {
+	if backend == nil {
+		// Use default ffprobe backend
+		backend = &ffprobeBackend{}
+	}
+	return backend.Probe(ctx, path)
 }

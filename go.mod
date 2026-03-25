@@ -6,6 +6,7 @@ require (
 	github.com/adrg/strutil v0.3.1
 	github.com/alecthomas/kong v1.14.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
+	github.com/asticode/go-astiav v0.40.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -20,6 +21,7 @@ require (
 )
 
 require (
+	github.com/asticode/go-astikit v0.42.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect

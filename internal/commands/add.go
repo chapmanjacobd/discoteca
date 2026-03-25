@@ -29,6 +29,7 @@ type AddCmd struct {
 
 	Args                    []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
 	Parallel                int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
+	ProbeBackend            string   `default:"ffprobe" enum:"ffprobe,astiav" help:"Backend for media probing (astiav is faster but requires FFmpeg dev libs)"`
 	ExtractText             bool     `help:"Extract full text from documents (PDF, EPUB, TXT, MD) for caption search"`
 	OCR                     bool     `help:"Extract text from images using OCR (tesseract) for caption search"`
 	OCREngine               string   `default:"tesseract" enum:"tesseract,paddle" help:"OCR engine to use"`
@@ -264,7 +265,14 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			continue
 		}
 
-		slog.Info("Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel)
+		slog.Info("Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel, "backend", c.ProbeBackend)
+
+		// Create probe backend
+		probeBackend, err := metadata.NewProbeBackend(metadata.BackendType(c.ProbeBackend))
+		if err != nil {
+			slog.Warn("Failed to create probe backend, using ffprobe", "error", err)
+			probeBackend, _ = metadata.NewProbeBackend(metadata.BackendFFProbe)
+		}
 
 		// Parallel extraction
 		jobs := make(chan string, len(toProbe))
@@ -306,6 +314,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 						SpeechRecognition: c.SpeechRecognition,
 						SpeechRecEngine:   c.SpeechRecognitionEngine,
 						ProbeImages:       c.ProbeImages,
+						ProbeBackend:      probeBackend,
 					})
 					if err != nil {
 						slog.Error("Metadata extraction failed", "path", path, "error", err)

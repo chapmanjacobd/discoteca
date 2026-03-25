@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -333,5 +334,89 @@ Another caption here.
 		t.Error("Expected captions to be imported into the database, but found 0")
 	} else {
 		t.Logf("Found %d captions", count)
+	}
+}
+
+// TestE2E_MetadataTags tests that metadata tags are correctly read and saved
+func TestE2E_MetadataTags(t *testing.T) {
+	// Skip if ffmpeg is not available
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not found, skipping metadata tags test")
+	}
+
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+	sqlDB := fixture.GetDB()
+	defer sqlDB.Close()
+	if err := db.InitDB(sqlDB); err != nil {
+		t.Fatalf("database initialization failed: %v", err)
+	}
+
+	// Create a real video file with embedded metadata using ffmpeg
+	videoPath := filepath.Join(fixture.TempDir, "test_with_tags.mp4")
+	cmd := exec.Command("ffmpeg",
+		"-y",
+		"-f", "lavfi",
+		"-i", "testsrc=size=1920x1080:rate=30",
+		"-f", "lavfi",
+		"-i", "sine=frequency=440:duration=5",
+		"-c:v", "libx264",
+		"-preset", "ultrafast",
+		"-t", "5",
+		"-metadata", "title=Test Video Title",
+		"-metadata", "artist=Test Artist",
+		"-metadata", "album=Test Album",
+		"-metadata", "genre=Test Genre",
+		"-metadata", "comment=Test Comment",
+		videoPath,
+	)
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("ffmpeg failed to create test video: %v", err)
+	}
+
+	// Add the file to the database
+	addCmd := &commands.AddCmd{
+		MediaFilterFlags: models.MediaFilterFlags{ScanSubtitles: false},
+		Database:         fixture.DBPath,
+		ScanPaths:        []string{videoPath},
+		Parallel:         1,
+	}
+
+	if err := addCmd.Run(nil); err != nil {
+		t.Fatalf("AddCmd failed: %v", err)
+	}
+
+	// Verify metadata was saved correctly
+	sqlDB2 := fixture.GetDB()
+	defer sqlDB2.Close()
+
+	tests := []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{"title", "SELECT title FROM media WHERE path = ?", "Test Video Title"},
+		{"artist", "SELECT artist FROM media WHERE path = ?", "Test Artist"},
+		{"album", "SELECT album FROM media WHERE path = ?", "Test Album"},
+		{"genre", "SELECT genre FROM media WHERE path = ?", "Test Genre"},
+		{"description", "SELECT description FROM media WHERE path = ?", "Test Comment"},
+		{"width", "SELECT width FROM media WHERE path = ?", "1920"},
+		{"height", "SELECT height FROM media WHERE path = ?", "1080"},
+		{"duration", "SELECT duration FROM media WHERE path = ?", "5"},
+		{"media_type", "SELECT media_type FROM media WHERE path = ?", "video"},
+	}
+
+	for _, tt := range tests {
+		var got string
+		err := sqlDB2.QueryRow(tt.query, videoPath).Scan(&got)
+		if err != nil {
+			t.Errorf("%s: query failed: %v", tt.name, err)
+			continue
+		}
+		if got != tt.expected {
+			t.Errorf("%s: expected '%s', got '%s'", tt.name, tt.expected, got)
+		} else {
+			t.Logf("%s: OK ('%s')", tt.name, got)
+		}
 	}
 }
