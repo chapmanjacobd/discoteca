@@ -187,7 +187,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			// Print progress counter during scanning
 			if res.DirsCount%100 == 0 || res.FilesCount%100 == 0 || res.FilesCount == 1 {
-				fmt.Printf("\rScanning %s: %d files, %d directories found\033[K", absRoot, res.FilesCount, res.DirsCount)
+				fmt.Printf("\rScanning %s: %d files, %d folders found\033[K", absRoot, res.FilesCount, res.DirsCount)
 			}
 
 			// Apply PathFilterFlags
@@ -238,7 +238,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		// Print final scanning summary
-		fmt.Printf("\rScanning: %d files, %d directories found\n", totalFiles, totalDirs)
+		fmt.Printf("\rFound %d files in %d folders\033[K\n", totalFiles, totalDirs)
 
 		if skipped > 0 {
 			slog.Info("Skipped unchanged files", "count", skipped)
