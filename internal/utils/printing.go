@@ -31,7 +31,7 @@ func PrintOverwrite(text string) {
 	}
 
 	if IsLinux || IsMac {
-		fmt.Fprintf(Stdout, "\r%s\033[K", text)
+		fmt.Fprintf(Stdout, "\r%s%s", text, ClearSeq)
 	} else if IsWindows {
 		fmt.Fprintf(Stdout, "\r%s", text)
 	} else {

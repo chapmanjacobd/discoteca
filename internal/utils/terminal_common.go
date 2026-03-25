@@ -8,6 +8,9 @@ import (
 	"golang.org/x/term"
 )
 
+// ClearSeq is the escape sequence to clear from cursor to end of line
+const ClearSeq = "\033[K"
+
 // commandExistsCache caches the result of command existence checks
 var commandExistsCache sync.Map
 
@@ -76,12 +79,6 @@ func (t *TerminalSize) updateSize() {
 	t.width = w
 	t.height = h
 	t.mu.Unlock()
-}
-
-// GetClearLineSequence returns the escape sequence to clear/overwrite a line.
-// We use \x1b[K (Erase from cursor to end of line) which is standard for overwriting.
-func GetClearLineSequence() string {
-	return "\033[K"
 }
 
 // TruncateMiddle truncates a string in the middle with ellipsis

@@ -187,7 +187,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			// Print progress counter during scanning
 			if res.DirsCount%100 == 0 || res.FilesCount%100 == 0 || res.FilesCount == 1 {
-				fmt.Printf("\rScanning %s: %d files, %d folders found\033[K", absRoot, res.FilesCount, res.DirsCount)
+				fmt.Printf("\rScanning %s: %d files, %d folders found%s", absRoot, res.FilesCount, res.DirsCount, utils.ClearSeq)
 			}
 
 			// Apply PathFilterFlags
@@ -238,7 +238,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		// Print final scanning summary
-		fmt.Printf("\rFound %d files in %d folders\033[K\n", totalFiles, totalDirs)
+		fmt.Printf("\rScan of %s found %d files in %d folders%s\n", absRoot, totalFiles, totalDirs, utils.ClearSeq)
 
 		if skipped > 0 {
 			slog.Info("Skipped unchanged files", "count", skipped)
@@ -420,12 +420,12 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 					workers := atomic.LoadInt32(&activeWorkers)
 					if workers == 0 && totalWorkerSamples > 0 {
 						avgWorkers := float64(workerSum) / float64(totalWorkerSamples)
-						fmt.Printf("\rProcessed %d/%d files (avg: %.1f workers)\033[K", count, len(toProbe), avgWorkers)
+						fmt.Printf("\rProcessed %d/%d files (avg: %.1f workers)%s", count, len(toProbe), avgWorkers, utils.ClearSeq)
 					} else {
-						fmt.Printf("\rProcessed %d/%d files (%d workers)\033[K", count, len(toProbe), workers)
+						fmt.Printf("\rProcessed %d/%d files (%d workers)%s", count, len(toProbe), workers, utils.ClearSeq)
 					}
 				} else {
-					fmt.Printf("\rProcessed %d/%d files\033[K", count, len(toProbe))
+					fmt.Printf("\rProcessed %d/%d files%s", count, len(toProbe), utils.ClearSeq)
 				}
 			}
 		}
