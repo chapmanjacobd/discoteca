@@ -6,19 +6,15 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"unsafe"
 
 	"github.com/asticode/go-astiav"
 )
 
 // astiavBackend implements ProbeBackend using libavformat via CGO
-type astiavBackend struct {
-	formatCtx *astiav.FormatContext
-}
+type astiavBackend struct{}
 
 func newAstiavBackend() (*astiavBackend, error) {
-	b := &astiavBackend{}
-	return b, nil
+	return &astiavBackend{}, nil
 }
 
 func (b *astiavBackend) Probe(ctx context.Context, path string) (*ProbeData, error) {
@@ -51,15 +47,19 @@ func (b *astiavBackend) Probe(ctx context.Context, path string) (*ProbeData, err
 		result.FormatName = formatCtx.InputFormat().Name()
 	}
 
-	// Duration in seconds
-	result.Duration = float64(formatCtx.Duration()) / float64(astiav.TimeBaseQ.Denom)
+	// Duration in seconds (AV_TIME_BASE = 1000000)
+	const AV_TIME_BASE = 1000000
+	result.Duration = float64(formatCtx.Duration()) / float64(AV_TIME_BASE)
 
-	// Format tags
-	if formatCtx.Metadata() != nil {
-		entry := formatCtx.Metadata().Get("", "", astiav.MetadataMatchCaseInsensitive)
-		for entry != nil {
+	// Format tags using Dictionary API
+	if md := formatCtx.Metadata(); md != nil {
+		var entry *astiav.DictionaryEntry
+		for {
+			entry = md.Get("", entry, astiav.DictionaryFlags(0))
+			if entry == nil {
+				break
+			}
 			result.Tags[entry.Key()] = entry.Value()
-			entry = entry.Next()
 		}
 	}
 
@@ -72,74 +72,78 @@ func (b *astiavBackend) Probe(ctx context.Context, path string) (*ProbeData, err
 
 		codec := stream.CodecParameters()
 		streamInfo := StreamInfo{
-			CodecType:   codec.CodecType().String(),
+			CodecType:   codec.MediaType().String(),
 			CodecName:   codec.CodecID().String(),
-			Profile:     codec.Profile(),
+			Profile:     strconv.Itoa(int(codec.Profile())),
 			Disposition: make(map[string]int),
 		}
 
 		// Video-specific fields
-		if codec.CodecType() == astiav.CodecTypeVideo {
-			streamInfo.Width = int(codec.Width())
-			streamInfo.Height = int(codec.Height())
-			streamInfo.PixFmt = codec.Format().String()
+		if codec.MediaType() == astiav.MediaTypeVideo {
+			streamInfo.Width = codec.Width()
+			streamInfo.Height = codec.Height()
+			streamInfo.PixFmt = codec.PixelFormat().String()
 
 			// Frame rate
-			if stream.AvgFrameRate().Denom != 0 {
-				fps := float64(stream.AvgFrameRate().Num()) / float64(stream.AvgFrameRate().Denom)
+			avgFps := stream.AvgFrameRate()
+			if avgFps.Den() != 0 {
+				fps := float64(avgFps.Num()) / float64(avgFps.Den())
 				streamInfo.AvgFrameRate = strconv.FormatFloat(fps, 'f', 3, 64)
 			}
 		}
 
 		// Audio-specific fields
-		if codec.CodecType() == astiav.CodecTypeAudio {
-			streamInfo.SampleRate = strconv.Itoa(int(codec.SampleRate()))
-			streamInfo.Channels = int(codec.Channels())
+		if codec.MediaType() == astiav.MediaTypeAudio {
+			streamInfo.SampleRate = strconv.Itoa(codec.SampleRate())
+			streamInfo.Channels = codec.ChannelLayout().Channels()
 		}
 
 		// Stream tags
-		if stream.Metadata() != nil {
+		if md := stream.Metadata(); md != nil {
 			streamInfo.Tags = make(map[string]string)
-			entry := stream.Metadata().Get("", "", astiav.MetadataMatchCaseInsensitive)
-			for entry != nil {
+			var entry *astiav.DictionaryEntry
+			for {
+				entry = md.Get("", entry, astiav.DictionaryFlags(0))
+				if entry == nil {
+					break
+				}
 				streamInfo.Tags[entry.Key()] = entry.Value()
-				entry = entry.Next()
 			}
 		}
 
-		// Disposition
-		disposition := codec.Disposition()
-		if disposition&astiav.DispositionDefault != 0 {
+		// Disposition flags
+		disposition := stream.DispositionFlags()
+		if disposition.Has(astiav.DispositionFlagDefault) {
 			streamInfo.Disposition["default"] = 1
 		}
-		if disposition&astiav.DispositionDub != 0 {
+		if disposition.Has(astiav.DispositionFlagDub) {
 			streamInfo.Disposition["dub"] = 1
 		}
-		if disposition&astiav.DispositionOriginal != 0 {
+		if disposition.Has(astiav.DispositionFlagOriginal) {
 			streamInfo.Disposition["original"] = 1
 		}
-		if disposition&astiav.DispositionComment != 0 {
+		if disposition.Has(astiav.DispositionFlagComment) {
 			streamInfo.Disposition["comment"] = 1
 		}
-		if disposition&astiav.DispositionLyrics != 0 {
+		if disposition.Has(astiav.DispositionFlagLyrics) {
 			streamInfo.Disposition["lyrics"] = 1
 		}
-		if disposition&astiav.DispositionKaraoke != 0 {
+		if disposition.Has(astiav.DispositionFlagKaraoke) {
 			streamInfo.Disposition["karaoke"] = 1
 		}
-		if disposition&astiav.DispositionForced != 0 {
+		if disposition.Has(astiav.DispositionFlagForced) {
 			streamInfo.Disposition["forced"] = 1
 		}
-		if disposition&astiav.DispositionHearingImpaired != 0 {
+		if disposition.Has(astiav.DispositionFlagHearingImpaired) {
 			streamInfo.Disposition["hearing_impaired"] = 1
 		}
-		if disposition&astiav.DispositionVisualImpaired != 0 {
+		if disposition.Has(astiav.DispositionFlagVisualImpaired) {
 			streamInfo.Disposition["visual_impaired"] = 1
 		}
-		if disposition&astiav.DispositionCleanEffects != 0 {
+		if disposition.Has(astiav.DispositionFlagCleanEffects) {
 			streamInfo.Disposition["clean_effects"] = 1
 		}
-		if disposition&astiav.DispositionAttachedPic != 0 {
+		if disposition.Has(astiav.DispositionFlagAttachedPic) {
 			streamInfo.Disposition["attached_pic"] = 1
 		}
 
@@ -151,45 +155,8 @@ func (b *astiavBackend) Probe(ctx context.Context, path string) (*ProbeData, err
 		result.Streams = append(result.Streams, streamInfo)
 	}
 
-	// Chapters
-	for i := 0; i < formatCtx.NbChapters(); i++ {
-		chapter := formatCtx.Chapters()[i]
-		if chapter == nil || chapter.Metadata() == nil {
-			continue
-		}
-
-		titleEntry := chapter.Metadata().Get("title", "", astiav.MetadataMatchCaseInsensitive)
-		if titleEntry == nil {
-			continue
-		}
-
-		startTime := float64(chapter.Start()) * float64(chapter.TimeBase().Num()) / float64(chapter.TimeBase().Denom())
-		endTime := float64(chapter.End()) * float64(chapter.TimeBase().Num()) / float64(chapter.TimeBase().Denom())
-
-		result.Chapters = append(result.Chapters, ChapterInfo{
-			ID:        int(chapter.ID()),
-			StartTime: startTime,
-			EndTime:   endTime,
-			Title:     titleEntry.Value(),
-		})
-	}
+	// Note: Chapters API not directly exposed in astiav v0.40
+	// Would need to access AVFormatContext.chapters directly via CGO
 
 	return result, nil
-}
-
-// Helper to convert C string to Go string safely
-func cStringToString(cstr *uint8) string {
-	if cstr == nil {
-		return ""
-	}
-	return string(unsafe.Slice(cstr, findNullTerminator(cstr)))
-}
-
-func findNullTerminator(s *uint8) int {
-	p := unsafe.Pointer(s)
-	for i := 0; ; i++ {
-		if *(*byte)(unsafe.Pointer(uintptr(p) + uintptr(i))) == 0 {
-			return i
-		}
-	}
 }

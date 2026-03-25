@@ -1,5 +1,3 @@
-//go:build !astiav
-
 package metadata
 
 import (

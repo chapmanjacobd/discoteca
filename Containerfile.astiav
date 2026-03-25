@@ -1,0 +1,78 @@
+# Containerfile for building and testing with astiav backend (FFmpeg 8.0)
+# Uses Fedora Rawhide with RPM Fusion repositories
+# Builds FFmpeg from source with static libraries for static linking support
+#
+# Build: podman build -f Containerfile.astiav -t disco-astiav .
+# Run:   podman run --rm -v .:/src:z -w /src disco-astiav go build -tags "fts5 astiav" ./cmd/disco
+#
+# Note: This builds FFmpeg from source with --enable-static --disable-shared
+#       which creates a larger image but enables fully static binary builds
+
+FROM fedora:rawhide
+
+# Enable RPM Fusion repositories
+RUN dnf install -y \
+    https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-rawhide.noarch.rpm \
+    https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-rawhide.noarch.rpm
+
+# Install build dependencies
+RUN dnf install -y \
+    git wget curl \
+    gcc gcc-c++ make \
+    yasm nasm \
+    golang \
+    # Development libraries for codec support
+    gnutls-devel \
+    lame-devel \
+    x264-devel \
+    x265-devel \
+    libvpx-devel \
+    opus-devel \
+    libvorbis-devel \
+    freetype-devel \
+    fontconfig-devel \
+    alsa-lib-devel \
+    libxcb-devel \
+    zlib-devel \
+    bzip2-devel \
+    xz-devel \
+    glibc-static \
+    libstdc++-static \
+    && dnf clean all
+
+# Build FFmpeg 8.0 from source with static libraries
+# This takes ~10-15 minutes but creates static .a libraries
+RUN cd /tmp && \
+    git clone --depth 1 --branch n8.0 https://git.ffmpeg.org/ffmpeg.git ffmpeg-src && \
+    cd ffmpeg-src && \
+    ./configure \
+        --prefix=/usr/local \
+        --enable-static \
+        --disable-shared \
+        --enable-gpl \
+        --enable-nonfree \
+        --enable-libx264 \
+        --enable-libx265 \
+        --enable-libvpx \
+        --enable-libvorbis \
+        --enable-libopus \
+        --enable-libmp3lame \
+        --enable-gnutls \
+        --enable-libfreetype \
+        --enable-libfontconfig \
+        --extra-cflags="-fPIC -O2" \
+        --extra-ldflags="-static -L/usr/local/lib" && \
+    make -j$(nproc) && \
+    make install && \
+    cd / && \
+    rm -rf /tmp/ffmpeg-src && \
+    ldconfig
+
+# Verify FFmpeg static build
+RUN /usr/local/bin/ffmpeg -version | head -1
+
+# Set working directory
+WORKDIR /src
+
+# Default command
+CMD ["bash"]
