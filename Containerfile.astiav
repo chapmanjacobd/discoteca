@@ -1,12 +1,13 @@
 # Containerfile for building and testing with astiav backend (FFmpeg 8.0)
-# Uses Fedora Rawhide with RPM Fusion repositories
-# Builds FFmpeg from source with static libraries for static linking support
+# Builds FFmpeg 8.0 from source with comprehensive codec support (ffmpeg-full equivalent)
+# Enables static linking for standalone binary builds
 #
 # Build: podman build -f Containerfile.astiav -t disco-astiav .
 # Run:   podman run --rm -v .:/src:z -w /src disco-astiav go build -tags "fts5 astiav" ./cmd/disco
 #
 # Note: This builds FFmpeg from source with --enable-static --disable-shared
-#       which creates a larger image but enables fully static binary builds
+#       Build time: ~15-25 minutes depending on system
+#       Image size: ~2-3GB
 
 FROM fedora:rawhide
 
@@ -15,33 +16,64 @@ RUN dnf install -y \
     https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-rawhide.noarch.rpm \
     https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-rawhide.noarch.rpm
 
-# Install build dependencies
+# Install build dependencies and codec libraries
 RUN dnf install -y \
-    git wget curl \
-    gcc gcc-c++ make \
+    # Build tools
+    git wget curl make cmake autoconf automake libtool \
+    gcc gcc-c++ \
     yasm nasm \
     golang \
-    # Development libraries for codec support
-    gnutls-devel \
-    lame-devel \
+    pkgconfig \
+    # Static libraries for linking
+    glibc-static \
+    libstdc++-static \
+    # Video codecs
     x264-devel \
     x265-devel \
     libvpx-devel \
+    dav1d-devel \
+    svt-av1-devel \
+    aom-devel \
+    openjpeg-devel \
+    libtheora-devel \
+    # Audio codecs
+    lame-devel \
     opus-devel \
     libvorbis-devel \
+    flac-devel \
+    libsndfile-devel \
+    speex-devel \
+    # Text/graphics
     freetype-devel \
     fontconfig-devel \
+    libass-devel \
+    harfbuzz-devel \
+    fribidi-devel \
+    # Network/protocols
+    gnutls-devel \
+    openssl-devel \
+    libssh-devel \
+    libsrt-devel \
+    # Other dependencies
     alsa-lib-devel \
     libxcb-devel \
+    libX11-devel \
+    libXext-devel \
+    libXfixes-devel \
     zlib-devel \
     bzip2-devel \
     xz-devel \
-    glibc-static \
-    libstdc++-static \
+    lz4-devel \
+    zstd-devel \
+    # Additional codecs (RPM Fusion)
+    fdk-aac-devel \
+    libmodplug-devel \
+    libmfx-devel \
+    vulkan-loader-devel \
+    vulkan-headers \
     && dnf clean all
 
-# Build FFmpeg 8.0 from source with static libraries
-# This takes ~10-15 minutes but creates static .a libraries
+# Build FFmpeg 8.0 from source with comprehensive codec support
 RUN cd /tmp && \
     git clone --depth 1 --branch n8.0 https://git.ffmpeg.org/ffmpeg.git ffmpeg-src && \
     cd ffmpeg-src && \
@@ -51,25 +83,55 @@ RUN cd /tmp && \
         --disable-shared \
         --enable-gpl \
         --enable-nonfree \
+        --enable-version3 \
         --enable-libx264 \
         --enable-libx265 \
         --enable-libvpx \
-        --enable-libvorbis \
-        --enable-libopus \
+        --enable-libdav1d \
+        --enable-libsvtav1 \
+        --enable-libaom \
+        --enable-libopenjpeg \
+        --enable-libtheora \
         --enable-libmp3lame \
-        --enable-gnutls \
+        --enable-libopus \
+        --enable-libvorbis \
+        --enable-libflac \
+        --enable-libsndfile \
+        --enable-libspeex \
+        --enable-libass \
         --enable-libfreetype \
         --enable-libfontconfig \
-        --extra-cflags="-fPIC -O2" \
-        --extra-ldflags="-static -L/usr/local/lib" && \
+        --enable-libharfbuzz \
+        --enable-libfribidi \
+        --enable-gnutls \
+        --enable-openssl \
+        --enable-libssh \
+        --enable-libsrt \
+        --enable-alsa \
+        --enable-libxcb \
+        --enable-libx11 \
+        --enable-vulkan \
+        --enable-libdrm \
+        --enable-libmodplug \
+        --enable-openal \
+        --enable-zlib \
+        --enable-bzlib \
+        --enable-lzma \
+        --enable-libzmq \
+        --enable-libzvbi \
+        --enable-chromaprint \
+        --extra-cflags="-fPIC -O3 -march=x86-64 -mtune=generic" \
+        --extra-ldflags="-static -L/usr/local/lib -L/usr/lib64" \
+        --extra-libs="-lpthread -lm" && \
     make -j$(nproc) && \
     make install && \
     cd / && \
     rm -rf /tmp/ffmpeg-src && \
     ldconfig
 
-# Verify FFmpeg static build
-RUN /usr/local/bin/ffmpeg -version | head -1
+# Verify FFmpeg build
+RUN /usr/local/bin/ffmpeg -version | head -3 && \
+    /usr/local/bin/ffmpeg -buildconf
 
 # Set working directory
 WORKDIR /src
