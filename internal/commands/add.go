@@ -127,6 +127,8 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	var newFilesAdded bool
 
 	for _, root := range c.ScanPaths {
+		fmt.Printf("\n%s\n", strings.Repeat("#", 60))
+
 		absRoot, err := filepath.Abs(root)
 		if err != nil {
 			slog.Error("Failed to get absolute path", "path", root, "error", err)
@@ -255,9 +257,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		// Print scanning summary
-		fmt.Printf("%s\n", strings.Repeat("#", 60))
-		fmt.Printf("Scan of %s found %d files in %d folders%s\n", absRoot, totalFiles, totalDirs, utils.ClearSeq)
-
+		fmt.Printf("\rScan of %s found %d files in %d folders%s\n", absRoot, totalFiles, totalDirs, utils.ClearSeq)
 		if skipped > 0 {
 			slog.Info("  Skipped unchanged files", "count", skipped)
 		}
@@ -506,6 +506,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		fmt.Println()
 	}
 
+	fmt.Println()
 	// Refresh FTS after adding new media (always needed for search)
 	if err := db.RebuildFTS(sqlDB, dbPath); err != nil {
 		slog.Error("Failed to rebuild FTS", "error", err)
