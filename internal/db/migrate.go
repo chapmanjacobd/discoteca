@@ -34,7 +34,6 @@ func renameMediaTypeColumn(db *sql.DB) error {
 			hasMediaType = true
 		}
 	}
-	rows.Close()
 
 	if hasType && !hasMediaType {
 		if _, err := db.Exec("ALTER TABLE media RENAME COLUMN type TO media_type"); err != nil {
@@ -202,7 +201,6 @@ func convertHistoryMediaID(db *sql.DB) error {
 		}
 		return err
 	}
-	defer rows.Close()
 
 	for rows.Next() {
 		var cid int
@@ -210,6 +208,7 @@ func convertHistoryMediaID(db *sql.DB) error {
 		var notnull, pk int
 		var dfltValue any
 		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
+			rows.Close()
 			return err
 		}
 		if strings.EqualFold(name, "media_id") {
@@ -272,7 +271,6 @@ func convertCaptionsMediaID(db *sql.DB) error {
 		}
 		return err
 	}
-	defer rows.Close()
 
 	for rows.Next() {
 		var cid int
@@ -280,6 +278,7 @@ func convertCaptionsMediaID(db *sql.DB) error {
 		var notnull, pk int
 		var dfltValue any
 		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
+			rows.Close()
 			return err
 		}
 		if strings.EqualFold(name, "media_id") {
@@ -487,7 +486,6 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
 	hasDeadColumns := false
 	deadColumns := map[string]bool{
@@ -504,6 +502,7 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 		var notnull, pk int
 		var dfltValue any
 		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
+			rows.Close()
 			return err
 		}
 		if deadColumns[strings.ToLower(name)] {
@@ -613,7 +612,6 @@ func populatePathTokenized(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
 	var updates []struct {
 		path      string
@@ -622,6 +620,7 @@ func populatePathTokenized(db *sql.DB) error {
 	for rows.Next() {
 		var path string
 		if err := rows.Scan(&path); err != nil {
+			rows.Close()
 			return err
 		}
 		updates = append(updates, struct {

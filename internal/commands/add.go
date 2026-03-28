@@ -82,6 +82,10 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	}
 	defer sqlDB.Close()
 
+	// Create a context that can be cancelled for all operations
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -90,7 +94,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	}
 
 	// Step 0: Load existing playlists (roots) to avoid redundant scans
-	existingPlaylists, _ := queries.GetPlaylists(context.Background())
+	existingPlaylists, _ := queries.GetPlaylists(runCtx)
 
 	// Step 1: Load existing metadata for O(1) cache checks
 	// For large libraries, we load all metadata once at startup
@@ -101,7 +105,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	}
 	var metaCache map[string]meta
 	if dbExists {
-		existingMedia, err := queries.GetAllMediaMetadata(context.Background())
+		existingMedia, err := queries.GetAllMediaMetadata(runCtx)
 		if err != nil {
 			return fmt.Errorf("failed to load existing metadata: %w", err)
 		}
@@ -154,7 +158,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		// Record or update this scan root
 		// If path already exists as a playlist, this will be a no-op for the insert
 		// The actual scan logic below will process the files
-		queries.InsertPlaylist(context.Background(), db.InsertPlaylistParams{
+		queries.InsertPlaylist(runCtx, db.InsertPlaylistParams{
 			Path:         sql.NullString{String: absRoot, Valid: true},
 			ExtractorKey: sql.NullString{String: "Local", Valid: true},
 		})
@@ -302,25 +306,29 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 					if atomic.LoadInt32(&activeWorkers) > atomic.LoadInt32(&targetConcurrency) {
 						return // Scale down
 					}
-					path, ok := <-jobs
-					if !ok {
+					select {
+					case <-runCtx.Done():
 						return
+					case path, ok := <-jobs:
+						if !ok {
+							return
+						}
+						res, err := metadata.Extract(runCtx, path, metadata.ExtractOptions{
+							ScanSubtitles:     flags.ScanSubtitles,
+							ExtractText:       c.ExtractText,
+							OCR:               c.OCR,
+							OCREngine:         c.OCREngine,
+							SpeechRecognition: c.SpeechRecognition,
+							SpeechRecEngine:   c.SpeechRecognitionEngine,
+							ProbeImages:       c.ProbeImages,
+						})
+						if err != nil {
+							slog.Error("\nMetadata extraction failed", "path", path, "error", err)
+						} else if res != nil {
+							results <- res
+						}
+						atomic.AddInt64(&completedJobs, 1)
 					}
-					res, err := metadata.Extract(context.Background(), path, metadata.ExtractOptions{
-						ScanSubtitles:     flags.ScanSubtitles,
-						ExtractText:       c.ExtractText,
-						OCR:               c.OCR,
-						OCREngine:         c.OCREngine,
-						SpeechRecognition: c.SpeechRecognition,
-						SpeechRecEngine:   c.SpeechRecognitionEngine,
-						ProbeImages:       c.ProbeImages,
-					})
-					if err != nil {
-						slog.Error("Metadata extraction failed", "path", path, "error", err)
-					} else if res != nil {
-						results <- res
-					}
-					atomic.AddInt64(&completedJobs, 1)
 				}
 			})
 		}
@@ -340,6 +348,9 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			for {
 				select {
+				case <-runCtx.Done():
+					close(monitorDone)
+					return
 				case <-ticker.C:
 					completed := atomic.LoadInt64(&completedJobs)
 					throughput := completed - lastCompleted
@@ -399,29 +410,26 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 				// Retry logic for "database is locked" errors
 				const maxRetries = 10
 				var lastErr error
-				for attempt := 0; attempt < maxRetries; attempt++ {
+				for attempt := range maxRetries {
 					if attempt > 0 {
 						// Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s, 12.8s, 25.6s
-						backoff := time.Duration(100*(1<<attempt)) * time.Millisecond
-						if backoff > 30*time.Second {
-							backoff = 30 * time.Second
-						}
+						backoff := min(time.Duration(100*(1<<attempt))*time.Millisecond, 30*time.Second)
 						time.Sleep(backoff)
 					}
 
-					tx, err := sqlDB.BeginTx(context.Background(), nil)
+					tx, err := sqlDB.BeginTx(runCtx, nil)
 					if err != nil {
 						lastErr = err
 						continue
 					}
 
 					qtx := queries.WithTx(tx)
-					if err := qtx.BulkUpsertMedia(context.Background(), mediaBatch); err != nil {
+					if err := qtx.BulkUpsertMedia(runCtx, mediaBatch); err != nil {
 						tx.Rollback()
 						lastErr = fmt.Errorf("bulk upsert media failed: %w", err)
 						continue
 					}
-					if err := qtx.BulkInsertCaptions(context.Background(), captionsBatch); err != nil {
+					if err := qtx.BulkInsertCaptions(runCtx, captionsBatch); err != nil {
 						tx.Rollback()
 						lastErr = fmt.Errorf("bulk insert captions failed: %w", err)
 						continue
@@ -443,7 +451,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 				if len(currentBatch) >= batchSize {
 					if err := flush(); err != nil {
-						slog.Error("Failed to commit batch", "error", err)
+						slog.Error("\nFailed to commit batch", "error", err)
 					}
 					for i := range currentBatch {
 						currentBatch[i] = nil

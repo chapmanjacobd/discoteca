@@ -78,11 +78,13 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 	sqlQuery, args := fb.BuildSelect("path, size, duration, media_type, time_modified, time_created, time_downloaded")
 
 	var wg sync.WaitGroup
+	errChan := make(chan error, len(dbs))
+
 	for _, dbPath := range dbs {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			c.execDB(ctx, path, func(sqlDB *sql.DB) error {
+			err := c.execDB(ctx, path, func(sqlDB *sql.DB) error {
 				rows, err := sqlDB.QueryContext(ctx, sqlQuery, args...)
 				if err != nil {
 					return err
@@ -146,9 +148,24 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 				mu.Unlock()
 				return nil
 			})
+			if err != nil {
+				errChan <- fmt.Errorf("db %s: %w", path, err)
+			}
 		}(dbPath)
 	}
 	wg.Wait()
+	close(errChan)
+
+	// Collect and log any errors from database queries
+	var queryErrors []error
+	for err := range errChan {
+		queryErrors = append(queryErrors, err)
+	}
+	if len(queryErrors) > 0 {
+		for _, qErr := range queryErrors {
+			slog.Warn("Database query failed in filter bins", "error", qErr)
+		}
+	}
 
 	// Apply FileCounts (episodes) filter in post-processing if not being ignored
 	// This matches the logic in MediaQuery for consistent filtering

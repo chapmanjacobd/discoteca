@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,7 +26,8 @@ func main() {
 		kong.UsageOnError(),
 	)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize CLI parser: %v\n", err)
+		os.Exit(1)
 	}
 
 	args := os.Args[1:]

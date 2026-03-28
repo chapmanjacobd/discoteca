@@ -670,7 +670,8 @@ func convertImageForOCR(path string) (string, error) {
 			return "", err
 		}
 		tmpPath := tmpFile.Name()
-		tmpFile.Close()
+		defer os.Remove(tmpPath)
+		defer tmpFile.Close()
 
 		args := []string{
 			"-hide_banner",
@@ -684,7 +685,6 @@ func convertImageForOCR(path string) (string, error) {
 		if err := cmd.Run(); err == nil {
 			return tmpPath, nil
 		}
-		os.Remove(tmpPath)
 	}
 
 	// Try ImageMagick (convert)
@@ -695,14 +695,14 @@ func convertImageForOCR(path string) (string, error) {
 			return "", err
 		}
 		tmpPath := tmpFile.Name()
-		tmpFile.Close()
+		defer os.Remove(tmpPath)
+		defer tmpFile.Close()
 
 		args := []string{path, tmpPath}
 		cmd := exec.Command(convertBin, args...)
 		if err := cmd.Run(); err == nil {
 			return tmpPath, nil
 		}
-		os.Remove(tmpPath)
 	}
 
 	// No converter available, return original path
@@ -967,6 +967,12 @@ func extractImageTextFromComicArchive(path string, ocrEngine string) ([]db.Inser
 	return nil, fmt.Errorf("unsupported comic format: %s", ext)
 }
 
+// imageFile represents an image file within a comic archive
+type imageFile struct {
+	name string
+	idx  int
+}
+
 // extractImageTextFromCBZ extracts text from images in CBZ (ZIP-based) archives
 func extractImageTextFromCBZ(path string, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	r, err := zip.OpenReader(path)
@@ -976,10 +982,6 @@ func extractImageTextFromCBZ(path string, ocrEngine string) ([]db.InsertCaptionP
 	defer r.Close()
 
 	// Collect image files and sort them for consistent page ordering
-	type imageFile struct {
-		name string
-		idx  int
-	}
 	var imageFiles []imageFile
 
 	imageExts := map[string]bool{
@@ -1005,41 +1007,10 @@ func extractImageTextFromCBZ(path string, ocrEngine string) ([]db.InsertCaptionP
 	var allCaptions []db.InsertCaptionParams
 
 	for pageNum, imgFile := range imageFiles {
-		rc, err := r.File[imgFile.idx].Open()
+		captions, err := processComicPage(r, imgFile, ocrEngine, path, pageNum)
 		if err != nil {
-			slog.Warn("Failed to open image in archive", "archive", path, "image", imgFile.name, "error", err)
 			continue
 		}
-
-		// Extract image to temp file for OCR processing
-		tmpFile, err := os.CreateTemp("", "comic-ocr-*.img")
-		if err != nil {
-			rc.Close()
-			slog.Warn("Failed to create temp file for OCR", "error", err)
-			continue
-		}
-		tmpPath := tmpFile.Name()
-
-		_, err = io.Copy(tmpFile, rc)
-		rc.Close()
-		tmpFile.Close()
-
-		if err != nil {
-			os.Remove(tmpPath)
-			slog.Warn("Failed to extract image for OCR", "error", err)
-			continue
-		}
-
-		// Run OCR on the extracted image
-		captions, err := extractImageText(tmpPath, ocrEngine)
-		os.Remove(tmpPath)
-
-		if err != nil {
-			slog.Warn("OCR failed on comic page", "archive", path, "page", imgFile.name, "error", err)
-			continue
-		}
-
-		// Add page number as timestamp (page 1 = 0s, page 2 = 1s, etc.)
 		for _, cap := range captions {
 			cap.Time = sql.NullFloat64{Float64: float64(pageNum), Valid: true}
 			allCaptions = append(allCaptions, cap)
@@ -1047,6 +1018,40 @@ func extractImageTextFromCBZ(path string, ocrEngine string) ([]db.InsertCaptionP
 	}
 
 	return allCaptions, nil
+}
+
+// processComicPage extracts and OCRs a single comic page image
+func processComicPage(r *zip.ReadCloser, imgFile imageFile, ocrEngine, archivePath string, pageNum int) ([]db.InsertCaptionParams, error) {
+	rc, err := r.File[imgFile.idx].Open()
+	if err != nil {
+		slog.Warn("Failed to open image in archive", "archive", archivePath, "image", imgFile.name, "error", err)
+		return nil, err
+	}
+	defer rc.Close()
+
+	// Extract image to temp file for OCR processing
+	tmpFile, err := os.CreateTemp("", "comic-ocr-*.img")
+	if err != nil {
+		slog.Warn("Failed to create temp file for OCR", "error", err)
+		return nil, err
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+	defer tmpFile.Close()
+
+	if _, err := io.Copy(tmpFile, rc); err != nil {
+		slog.Warn("Failed to extract image for OCR", "error", err)
+		return nil, err
+	}
+
+	// Run OCR on the extracted image
+	captions, err := extractImageText(tmpPath, ocrEngine)
+	if err != nil {
+		slog.Warn("OCR failed on comic page", "archive", archivePath, "page", imgFile.name, "error", err)
+		return nil, err
+	}
+
+	return captions, nil
 }
 
 // extractImageTextFromCBR extracts text from images in CBR (RAR-based) archives

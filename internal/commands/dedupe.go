@@ -174,25 +174,41 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 		for _, dbPath := range c.Databases {
 			sqlDB, _, err := db.ConnectWithInit(dbPath)
 			if err == nil {
+				var dbErrs []error
+
 				// Mark duplicate as deleted
-				_, _ = sqlDB.Exec("UPDATE media SET time_deleted = unixepoch() WHERE path = ?", d.DuplicatePath)
+				if _, err := sqlDB.Exec("UPDATE media SET time_deleted = unixepoch() WHERE path = ?", d.DuplicatePath); err != nil {
+					dbErrs = append(dbErrs, fmt.Errorf("failed to mark duplicate as deleted: %w", err))
+				}
 
 				// Mark keep file as deduped
-				_, _ = sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", d.KeepPath)
+				if _, err := sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", d.KeepPath); err != nil {
+					dbErrs = append(dbErrs, fmt.Errorf("failed to mark keep file as deduped: %w", err))
+				}
 
 				// Update hash if not already set
 				if d.DuplicateSize > 0 {
 					h, err := utils.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 					if err == nil && h != "" {
-						_, _ = sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, d.KeepPath)
+						if _, err := sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, d.KeepPath); err != nil {
+							dbErrs = append(dbErrs, fmt.Errorf("failed to update fasthash: %w", err))
+						}
 					}
 					h, err = utils.FullHashFile(d.KeepPath)
 					if err == nil && h != "" {
-						_, _ = sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, d.KeepPath)
+						if _, err := sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, d.KeepPath); err != nil {
+							dbErrs = append(dbErrs, fmt.Errorf("failed to update sha256: %w", err))
+						}
 					}
 				}
 
 				sqlDB.Close()
+
+				if len(dbErrs) > 0 {
+					for _, dbErr := range dbErrs {
+						slog.Error("Database update failed during deduplication", "db", dbPath, "error", dbErr)
+					}
+				}
 			}
 		}
 	}
@@ -371,7 +387,9 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 				if err == nil && h != "" {
 					p.fasthash = h
 					// Save hash back to database
-					_, _ = sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, p.path)
+					if _, err := sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, p.path); err != nil {
+						slog.Warn("Failed to save fasthash to database", "path", p.path, "error", err)
+					}
 				} else {
 					continue // Skip files that can't be hashed
 				}
@@ -393,7 +411,9 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 					if err == nil && h != "" {
 						p.sha256 = h
 						// Save hash back to database
-						_, _ = sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, p.path)
+						if _, err := sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, p.path); err != nil {
+							slog.Warn("Failed to save sha256 to database", "path", p.path, "error", err)
+						}
 					} else {
 						continue
 					}
@@ -419,7 +439,9 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 				keep := sPaths[0].path
 				for _, dup := range sPaths[1:] {
 					// Mark keep file as deduped
-					_, _ = sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", keep)
+					if _, err := sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", keep); err != nil {
+						slog.Warn("Failed to mark file as deduped", "path", keep, "error", err)
+					}
 					dups = append(dups, DedupeDuplicate{
 						KeepPath:      keep,
 						DuplicatePath: dup.path,

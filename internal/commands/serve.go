@@ -220,11 +220,13 @@ func (c *ServeCmd) Mux() http.Handler {
 	// Serve other static files
 	fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set cookie on every load so the frontend has access to it
+		// Note: HttpOnly is set to true for security (prevents XSS token theft)
+		// The auth middleware checks both X-Disco-Token header and the cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     "disco_token",
 			Value:    c.APIToken,
 			Path:     "/",
-			HttpOnly: false, // Frontend needs to read it for CSRF/Auth headers
+			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		})
 
@@ -268,8 +270,8 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 		if val, ok := c.dbCache.Load(dbPath); ok {
 			sqlDB = val.(*sql.DB)
 		} else {
-			var err error
-			sqlDB, err = db.Connect(dbPath)
+			// Create a new connection
+			newDB, err := db.Connect(dbPath)
 			if err != nil {
 				// Connect error might be corruption too (e.g. invalid header)
 				if db.IsCorruptionError(err) && i < maxRetries {
@@ -282,7 +284,15 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 				}
 				return err
 			}
-			c.dbCache.Store(dbPath, sqlDB)
+
+			// Use LoadOrStore to avoid race condition where multiple goroutines
+			// create duplicate connections. If we lose the race, close our connection.
+			sqlDB = newDB
+			if loaded, ok := c.dbCache.LoadOrStore(dbPath, sqlDB); ok {
+				// Another goroutine stored a connection first; use theirs and close ours
+				sqlDB = loaded.(*sql.DB)
+				newDB.Close()
+			}
 		}
 
 		err := fn(sqlDB)
