@@ -254,8 +254,8 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			return walkErr
 		}
 
-		// Print final scanning summary
-		fmt.Printf("\r%s\n", strings.Repeat("#", 60))
+		// Print scanning summary
+		fmt.Printf("%s\n", strings.Repeat("#", 60))
 		fmt.Printf("Scan of %s found %d files in %d folders%s\n", absRoot, totalFiles, totalDirs, utils.ClearSeq)
 
 		if skipped > 0 {
@@ -263,8 +263,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 
 		if len(toProbe) == 0 {
-			fmt.Printf("  Processed %d/%d files\n", skipped, skipped)
-			fmt.Printf("%s\n\n", strings.Repeat("#", 60))
 			continue
 		}
 
@@ -272,8 +270,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		toProbe = sortFilesByType(toProbe)
 
 		if c.Simulate {
-			fmt.Printf("  Simulated: would process %d new files\n", len(toProbe))
-			fmt.Printf("%s\n\n", strings.Repeat("#", 60))
+			fmt.Printf("  (Simulated) would process %d new files\n", len(toProbe))
 			continue
 		}
 
@@ -507,7 +504,6 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		// Wait for DB writes to complete
 		<-dbWriteDone
 		fmt.Println()
-		fmt.Printf("%s\n\n", strings.Repeat("#", 60))
 	}
 
 	// Refresh FTS after adding new media (always needed for search)
