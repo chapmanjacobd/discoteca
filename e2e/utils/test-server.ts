@@ -129,7 +129,7 @@ export class TestServer {
         .then(() => {
           started = true;
           clearTimeout(timeout);
-          if (process.env.DEBUG) {
+          if (process.env.DEBUG || process.env.VERBOSE) {
             console.log('[disco] Server is healthy and ready');
           }
           resolve();
@@ -142,14 +142,14 @@ export class TestServer {
 
       this.process.stdout?.on('data', (data) => {
         const output = data.toString();
-        if (process.env.DEBUG) {
+        if (process.env.DEBUG || process.env.VERBOSE) {
           console.log('[disco]', output.trim());
         }
       });
 
       this.process.stderr?.on('data', (data) => {
         const output = data.toString();
-        if (process.env.DEBUG) {
+        if (process.env.DEBUG || process.env.VERBOSE) {
           console.error('[disco error]', output.trim());
         }
       });

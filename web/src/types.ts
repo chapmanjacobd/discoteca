@@ -67,6 +67,18 @@ export interface PlaybackState {
     markedPosition: number | null;
 }
 
+export interface DocumentViewSettings {
+    theme: 'light' | 'dark' | 'sepia' | 'solarized' | 'auto';
+    fontSize: number;
+    fontFamily: string;
+    textReflow: boolean;
+    columnSpread: 1 | 2;
+    lineHeight: number;
+    letterSpacing: number;
+    maxWidth: number;
+    textAlign: 'left' | 'justify';
+}
+
 export interface State {
     view: string;
     page: 'search' | 'trash' | 'history' | 'playlist' | 'du' | 'curation' | 'captions' | 'episodes';
@@ -145,4 +157,5 @@ export interface State {
     sidebarState: Record<string, boolean>;
     lastSuggestions: MediaItem[];
     playback: PlaybackState;
+    documentView: DocumentViewSettings;
 }

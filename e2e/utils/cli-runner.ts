@@ -15,6 +15,7 @@ export interface CLIOptions {
   cwd?: string;
   env?: Record<string, string>;
   binaryPath?: string;
+  verbose?: boolean;
 }
 
 /**
@@ -23,10 +24,12 @@ export interface CLIOptions {
 export class CLIRunner {
   private binaryPath: string;
   private defaultTimeout: number;
+  private verbose: boolean;
 
   constructor(options?: CLIOptions) {
     this.binaryPath = options?.binaryPath || this.findBinary();
     this.defaultTimeout = options?.timeout || 30000;
+    this.verbose = options?.verbose || false;
   }
 
   /**
@@ -74,10 +77,16 @@ export class CLIRunner {
 
       childProcess.stdout.on('data', (data) => {
         stdout += data.toString();
+        if (this.verbose) {
+          process.stdout.write(data);
+        }
       });
 
       childProcess.stderr.on('data', (data) => {
         stderr += data.toString();
+        if (this.verbose) {
+          process.stderr.write(data);
+        }
       });
 
       childProcess.on('error', (err) => {

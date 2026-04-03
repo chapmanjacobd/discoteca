@@ -72,6 +72,10 @@ jobs:
             make all
           fi
 
+      - name: Run race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-race
+
       - name: Install E2E dependencies
         if: matrix.os == 'ubuntu-latest'
         run: make e2e-install

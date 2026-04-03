@@ -79,7 +79,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 		// Total count should reflect filtered results
 		// Test DB has 5 videos out of 13 total media
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("media_type=video filter returns only video folders", func(t *testing.T) {
@@ -94,14 +93,12 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal unfiltered response: %v", err)
 		}
 		unfilteredTotal := resp1.TotalCount
-		t.Logf("Unfiltered - Folders: %d, Total: %d", resp1.FolderCount, unfilteredTotal)
 
 		// Get total file count from folders
 		unfilteredFileCount := 0
 		for _, f := range resp1.Folders {
 			unfilteredFileCount += f.Count
 		}
-		t.Logf("Unfiltered file count in folders: %d", unfilteredFileCount)
 
 		// Apply media_type=video filter (frontend uses this format)
 		req2 := httptest.NewRequest("GET", "/api/du?path=&media_type=video", nil)
@@ -118,14 +115,12 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("media_type=video - Folders: %d, Files: %d, Total: %d", resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 
 		// Get filtered file count from folders
 		filteredFileCount := 0
 		for _, f := range resp2.Folders {
 			filteredFileCount += f.Count
 		}
-		t.Logf("Filtered file count in folders: %d", filteredFileCount)
 
 		// File count within folders should be less (5 videos out of 13 total)
 		if filteredFileCount >= unfilteredFileCount {
@@ -151,7 +146,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("image-only filter returns only image folders", func(t *testing.T) {
@@ -169,7 +163,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("size filter returns only media matching size range", func(t *testing.T) {
@@ -188,7 +181,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("duration filter returns only media matching duration range", func(t *testing.T) {
@@ -207,7 +199,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("search filter returns only matching media", func(t *testing.T) {
@@ -226,7 +217,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("include_counts returns filter bins", func(t *testing.T) {
@@ -287,8 +277,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 		// Video count in filtered should be same as total video count
 		// but other types should be 0 or not present
-		t.Logf("Unfiltered types: %+v", resp1.Counts.MediaType)
-		t.Logf("Filtered types: %+v", resp2.Counts.MediaType)
 	})
 
 	t.Run("filters persist when navigating to subfolder", func(t *testing.T) {
@@ -309,7 +297,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 		// Get the first folder path (e.g., /home)
 		firstFolderPath := resp1.Folders[0].Path
-		t.Logf("Navigating to folder: %s", firstFolderPath)
 
 		// Navigate to subfolder with same video filter
 		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&video=true", nil)
@@ -326,10 +313,8 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		totalItems := len(resp2.Folders) + len(resp2.Files)
 		if totalItems == 0 {
 			t.Errorf("Expected folders or files in subfolder with video filter, got none")
-			t.Logf("Response: %+v", resp2)
 		}
 
-		t.Logf("Subfolder results - Folders: %d, Files: %d, Total: %d",
 			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 	})
 
@@ -367,7 +352,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Errorf("Expected folders or files in subfolder with audio filter, got none")
 		}
 
-		t.Logf("Audio filter - Subfolder results: Folders: %d, Files: %d",
 			resp2.FolderCount, resp2.FileCount)
 	})
 
@@ -424,7 +408,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if resp2.FolderCount == 0 && resp2.FileCount == 0 {
 			t.Errorf("Expected folders or files with size filter, got none")
 		}
-		t.Logf("Size filter - Subfolder results: Folders: %d, Files: %d",
 			resp2.FolderCount, resp2.FileCount)
 	})
 
@@ -454,7 +437,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if resp2.FolderCount == 0 && resp2.FileCount == 0 {
 			t.Errorf("Expected folders or files with duration filter, got none")
 		}
-		t.Logf("Duration filter - Subfolder results: Folders: %d, Files: %d",
 			resp2.FolderCount, resp2.FileCount)
 	})
 
@@ -469,9 +451,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
 			t.Fatalf("Failed to unmarshal unfiltered response: %v", err)
 		}
-
-		t.Logf("Unfiltered - Folders: %d, Files: %d, Total: %d",
-			resp1.FolderCount, resp1.FileCount, resp1.TotalCount)
 
 		// Apply filecounts filter (folders with exactly 1 file)
 		req2 := httptest.NewRequest("GET", "/api/du?path=&file_counts=1", nil)
@@ -488,7 +467,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal filtered response: %v", err)
 		}
 
-		t.Logf("FileCounts=1 - Folders: %d, Files: %d, Total: %d",
 			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 
 		// Should have fewer or equal results than unfiltered
@@ -515,7 +493,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		}
 
 		firstFolderPath := resp1.Folders[0].Path
-		t.Logf("Navigating to folder: %s with filecounts filter", firstFolderPath)
 
 		// Navigate to subfolder with same filecounts filter
 		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&file_counts=1", nil)
@@ -533,12 +510,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		}
 
 		totalItems := len(resp2.Folders) + len(resp2.Files)
-		t.Logf("Subfolder results - Folders: %d, Files: %d, Total: %d",
 			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 
 		// Should have some results (or at least not error)
 		if totalItems == 0 && resp2.TotalCount == 0 {
-			t.Logf("No results in subfolder with filecounts=1 filter (may be expected depending on test data)")
 		}
 	})
 }
@@ -610,7 +585,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 			t.Error("Expected video results")
 		}
 
-		t.Logf("Folders: %d, Files: %d, Total: %d", resp.FolderCount, resp.FileCount, resp.TotalCount)
 	})
 
 	t.Run("media_type=video filter returns only video folders", func(t *testing.T) {
@@ -625,14 +599,12 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal unfiltered response: %v", err)
 		}
 		unfilteredTotal := resp1.TotalCount
-		t.Logf("Unfiltered - Total: %d", unfilteredTotal)
 
 		// Get total file count from folders
 		unfilteredFileCount := 0
 		for _, f := range resp1.Folders {
 			unfilteredFileCount += f.Count
 		}
-		t.Logf("Unfiltered file count in folders: %d", unfilteredFileCount)
 
 		// Apply media_type=video filter
 		req2 := httptest.NewRequest("GET", "/api/du?media_type=video", nil)
@@ -649,14 +621,12 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("media_type=video - Total: %d", resp2.TotalCount)
 
 		// Get filtered file count from folders
 		filteredFileCount := 0
 		for _, f := range resp2.Folders {
 			filteredFileCount += f.Count
 		}
-		t.Logf("Filtered file count in folders: %d", filteredFileCount)
 
 		// File count within folders should be less (5 videos out of 13 total)
 		if filteredFileCount >= unfilteredFileCount {
@@ -685,7 +655,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		if resp.TotalCount == 0 {
 			t.Error("Expected audio results")
 		}
-		t.Logf("Audio - Total: %d", resp.TotalCount)
 	})
 
 	t.Run("image-only filter returns only image folders", func(t *testing.T) {
@@ -706,7 +675,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		if resp.TotalCount == 0 {
 			t.Error("Expected image results")
 		}
-		t.Logf("Image - Total: %d", resp.TotalCount)
 	})
 
 	t.Run("filters persist when navigating to subfolder", func(t *testing.T) {
@@ -727,7 +695,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 
 		// Get the first folder path
 		firstFolderPath := resp1.Folders[0].Path
-		t.Logf("Navigating to folder: %s", firstFolderPath)
 
 		// Navigate to subfolder with same video filter
 		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&video=true", nil)
@@ -744,10 +711,8 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		totalItems := len(resp2.Folders) + len(resp2.Files)
 		if totalItems == 0 {
 			t.Errorf("Expected folders or files in subfolder with video filter, got none")
-			t.Logf("Response: %+v", resp2)
 		}
 
-		t.Logf("Subfolder results - Folders: %d, Files: %d, Total: %d",
 			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 	})
 }
@@ -857,8 +822,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			}
 		}
 
-		t.Logf("Root paths found: %v", pathRoots)
-		t.Logf("Total folders: %d, Total files: %d, Total: %d",
 			resp.FolderCount, resp.FileCount, resp.TotalCount)
 
 		// Should have multiple root paths (home, var, C:, D:, Server, etc.)
@@ -882,7 +845,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("/home/user - Folders: %d, Files: %d, Total: %d",
 			resp.FolderCount, resp.FileCount, resp.TotalCount)
 
 		// Should have videos, music, docs subfolders
@@ -908,7 +870,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("C:\\Users\\John - Folders: %d, Files: %d, Total: %d",
 			resp.FolderCount, resp.FileCount, resp.TotalCount)
 
 		// Should have Videos, Music, Documents subfolders or files
@@ -925,7 +886,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			if w2.Code == http.StatusOK {
 				var resp2 models.DUResponse
 				if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err == nil {
-					t.Logf("C:/Users/John (forward slash) - Folders: %d, Files: %d, Total: %d",
 						resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 					if resp2.FolderCount > 0 || resp2.FileCount > 0 {
 						return // Success with forward slashes
@@ -952,7 +912,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		t.Logf("Video filter - Folders: %d, Files: %d, Total: %d",
 			resp.FolderCount, resp.FileCount, resp.TotalCount)
 
 		// Should only have video folders/files
@@ -989,7 +948,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Fatal("Expected counts to be populated")
 		}
 
-		t.Logf("MediaType counts: %v", resp.Counts.MediaType)
 
 		// Should have video, audio, and text types
 		typeMap := make(map[string]int64)
@@ -1007,7 +965,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Error("Expected text media_type count > 0")
 		}
 
-		t.Logf("Video: %d, Audio: %d, Text: %d",
 			typeMap["video"], typeMap["audio"], typeMap["text"])
 	})
 }

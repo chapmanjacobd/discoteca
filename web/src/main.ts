@@ -5073,6 +5073,75 @@ document.addEventListener('DOMContentLoaded', () => {
         return { scrollPercent, chapter };
     }
 
+    // Track progress for reader div (non-iframe)
+    function trackReaderProgress(reader: HTMLElement, path: string) {
+        const scrollable = reader;
+
+        const tryTrackScroll = () => {
+            try {
+                const scrollTop = scrollable.scrollTop;
+                const scrollHeight = scrollable.scrollHeight;
+                const clientHeight = scrollable.clientHeight;
+
+                if (scrollHeight > clientHeight) {
+                    const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+                    saveDocumentProgress(path, scrollPercent);
+                }
+            } catch (e) {
+                console.error('Error tracking reader progress:', e);
+            }
+        };
+
+        // Track periodically while reading
+        if (documentProgressTimer !== null) {
+            window.clearInterval(documentProgressTimer);
+        }
+        documentProgressTimer = window.setInterval(tryTrackScroll, DOCUMENT_PROGRESS_INTERVAL);
+
+        // Also track on scroll (throttled)
+        let lastTrack = 0;
+        scrollable.addEventListener('scroll', () => {
+            const now = Date.now();
+            if (now - lastTrack > 2000) { // Throttle to every 2 seconds
+                tryTrackScroll();
+                lastTrack = now;
+            }
+        });
+
+        // Save on close
+        reader.addEventListener('remove', () => {
+            tryTrackScroll();
+        });
+    }
+
+    function applyReaderProgress(reader: HTMLElement, path: string) {
+        const saved = restoreDocumentProgress(path);
+        if (!saved) return;
+
+        const { scrollPercent } = saved;
+
+        // Wait a bit for layout to stabilize
+        setTimeout(() => {
+            try {
+                const scrollHeight = reader.scrollHeight;
+                const clientHeight = reader.clientHeight;
+
+                if (scrollHeight > clientHeight) {
+                    const targetScroll = scrollPercent * (scrollHeight - clientHeight);
+                    reader.scrollTop = targetScroll;
+
+                    // Show toast with resume position
+                    if (scrollPercent > 0.05) {
+                        const percent = Math.round(scrollPercent * 100);
+                        showToast(`Resumed at ${percent}%`, '📖');
+                    }
+                }
+            } catch (e) {
+                console.error('Error applying reader progress:', e);
+            }
+        }, 500);
+    }
+
     function trackDocumentProgress(iframe: HTMLIFrameElement, path: string) {
         // Clear existing timer
         if (documentProgressTimer !== null) {
@@ -5151,7 +5220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function openInDocumentViewer(item) {
+    async function openInDocumentViewer(item) {
         const modal = document.getElementById('document-modal');
         const title = document.getElementById('document-title');
         const container = document.getElementById('document-container');
@@ -5215,27 +5284,80 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (item.doc_transcode) {
-                // Use calibre conversion endpoint - serves index.html from extracted HTML
+                // Use calibre conversion endpoint - fetch HTML and render in reader view
                 const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
                 const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
                 const htmlUrl = `/api/epub/${encodedPath}`;
 
-                const iframe = document.createElement('iframe');
-                iframe.src = htmlUrl;
-                iframe.style.width = '100%';
-                iframe.style.height = '100%';
-                iframe.style.border = 'none';
+                try {
+                    const response = await fetch(htmlUrl);
+                    if (!response.ok) throw new Error('Failed to load document');
 
-                iframe.onerror = () => {
-                    console.error('Failed to load converted document, falling back to raw');
-                    iframe.src = `/api/raw?path=${encodeURIComponent(item.path)}`;
-                };
+                    // The API returns index.html, fetch it
+                    const baseUrl = htmlUrl.endsWith('/') ? htmlUrl : htmlUrl + '/';
+                    const indexUrl = baseUrl + 'index.html';
+                    const indexResponse = await fetch(indexUrl);
+                    if (!indexResponse.ok) throw new Error('Failed to load document index');
 
-                container.appendChild(iframe);
+                    const htmlContent = await indexResponse.text();
 
-                // Track and restore reading progress
-                trackDocumentProgress(iframe, item.path);
-                applyDocumentProgress(iframe, item.path);
+                    // Create reader view
+                    const reader = document.createElement('div');
+                    reader.id = 'document-reader';
+
+                    const content = document.createElement('div');
+                    content.className = 'reader-content';
+
+                    // Parse the HTML and extract body content
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+                    // Move body content into reader content
+                    const bodyContent = doc.body.innerHTML;
+                    content.innerHTML = bodyContent;
+
+                    // Process images to use correct base URL
+                    content.querySelectorAll('img').forEach(img => {
+                        const src = img.getAttribute('src');
+                        if (src && !src.startsWith('http') && !src.startsWith('data:')) {
+                            img.src = baseUrl + src.replace(/^\//, '');
+                        }
+                    });
+
+                    // Process links to prevent navigation away
+                    content.querySelectorAll('a').forEach(a => {
+                        const href = a.getAttribute('href');
+                        if (href && !href.startsWith('http')) {
+                            a.onclick = (e) => {
+                                e.preventDefault();
+                                // Could implement internal navigation later
+                                console.log('Internal link:', href);
+                            };
+                        }
+                    });
+
+                    reader.appendChild(content);
+                    container.appendChild(reader);
+
+                    // Apply document view settings
+                    applyDocumentViewSettings();
+
+                    // Track and restore reading progress on the reader div
+                    trackReaderProgress(reader, item.path);
+                    applyReaderProgress(reader, item.path);
+                } catch (error) {
+                    console.error('Failed to load converted document, falling back to iframe:', error);
+                    // Fallback to iframe
+                    const iframe = document.createElement('iframe');
+                    iframe.src = htmlUrl;
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    container.appendChild(iframe);
+
+                    trackDocumentProgress(iframe, item.path);
+                    applyDocumentProgress(iframe, item.path);
+                }
             } else {
                 // Serve raw file directly (e.g. PDF or raw text/markdown)
                 const rawUrl = `/api/raw?path=${encodeURIComponent(item.path)}`;
@@ -7637,6 +7759,263 @@ document.addEventListener('DOMContentLoaded', () => {
         openModal('settings-modal');
     };
 
+    // -----------------------------------------------------------------------
+    // Document/Text View Settings Modal
+    // -----------------------------------------------------------------------
+    function applyDocumentViewSettings() {
+        const s = state.documentView;
+        // Apply theme to the document viewer container/reader
+        const container = document.getElementById('document-container');
+        if (container) {
+            const reader = container.querySelector('#document-reader');
+            if (reader) {
+                let theme = s.theme;
+                if (theme === 'auto') {
+                    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                }
+                (reader as HTMLElement).setAttribute('data-doc-theme', theme);
+                // Update CSS custom properties
+                const content = reader.querySelector('.reader-content');
+                if (content) {
+                    (content as HTMLElement).style.setProperty('--doc-font-size', s.fontSize + 'px');
+                    (content as HTMLElement).style.setProperty('--doc-line-height', String(s.lineHeight));
+                    (content as HTMLElement).style.setProperty('--doc-letter-spacing', s.letterSpacing + 'px');
+                    (content as HTMLElement).style.setProperty('--doc-max-width', s.maxWidth + 'px');
+                    (content as HTMLElement).style.setProperty('--doc-font-family', s.fontFamily);
+                    (content as HTMLElement).style.setProperty('--doc-text-align', s.textAlign);
+                    (content as HTMLElement).style.setProperty('font-family', s.fontFamily);
+                    (content as HTMLElement).style.setProperty('font-size', s.fontSize + 'px');
+                    (content as HTMLElement).style.setProperty('line-height', String(s.lineHeight));
+                    (content as HTMLElement).style.setProperty('letter-spacing', s.letterSpacing + 'px');
+                    (content as HTMLElement).style.setProperty('max-width', s.maxWidth + 'px');
+                    (content as HTMLElement).style.setProperty('text-align', s.textAlign);
+
+                    // Column spread
+                    if (s.columnSpread === 2) {
+                        content.classList.add('columns-2');
+                    } else {
+                        content.classList.remove('columns-2');
+                    }
+
+                    // Text reflow
+                    if (s.textReflow) {
+                        reader.classList.add('reflow');
+                    } else {
+                        reader.classList.remove('reflow');
+                    }
+                }
+            }
+        }
+    }
+
+    function saveDocumentViewSetting(key: string, value: any) {
+        localStorage.setItem(key, value);
+        applyDocumentViewSettings();
+    }
+
+    function openDocumentSettings() {
+        const s = state.documentView;
+
+        // Populate controls from state
+        const themeSwatches = document.querySelectorAll('#doc-settings-modal .theme-swatch');
+        themeSwatches.forEach(sw => {
+            sw.classList.toggle('active', sw.getAttribute('data-theme') === s.theme);
+        });
+
+        const fontsizeInput = document.getElementById('doc-fontsize') as HTMLInputElement;
+        if (fontsizeInput) fontsizeInput.value = String(s.fontSize);
+        const fontsizeValue = document.getElementById('doc-fontsize-value');
+        if (fontsizeValue) fontsizeValue.textContent = s.fontSize + 'px';
+
+        const fontSelect = document.getElementById('doc-font') as HTMLSelectElement;
+        if (fontSelect) fontSelect.value = s.fontFamily;
+        updateFontPreview();
+
+        const lineheightInput = document.getElementById('doc-lineheight') as HTMLInputElement;
+        if (lineheightInput) lineheightInput.value = String(s.lineHeight);
+        const lineheightValue = document.getElementById('doc-lineheight-value');
+        if (lineheightValue) lineheightValue.textContent = String(s.lineHeight);
+
+        const letterspacingInput = document.getElementById('doc-letterspacing') as HTMLInputElement;
+        if (letterspacingInput) letterspacingInput.value = String(s.letterSpacing);
+        const letterspacingValue = document.getElementById('doc-letterspacing-value');
+        if (letterspacingValue) letterspacingValue.textContent = s.letterSpacing + 'px';
+
+        const maxwidthInput = document.getElementById('doc-maxwidth') as HTMLInputElement;
+        if (maxwidthInput) maxwidthInput.value = String(s.maxWidth);
+        const maxwidthValue = document.getElementById('doc-maxwidth-value');
+        if (maxwidthValue) maxwidthValue.textContent = s.maxWidth + 'px';
+
+        const textAlignSelect = document.getElementById('doc-textalign') as HTMLSelectElement;
+        if (textAlignSelect) textAlignSelect.value = s.textAlign;
+
+        const reflowCheckbox = document.getElementById('doc-reflow') as HTMLInputElement;
+        if (reflowCheckbox) reflowCheckbox.checked = s.textReflow;
+
+        const columnButtons = document.querySelectorAll('#doc-settings-modal .column-toggle button');
+        columnButtons.forEach(btn => {
+            const cols = parseInt(btn.getAttribute('data-columns')!);
+            btn.classList.toggle('active', cols === s.columnSpread);
+        });
+
+        openModal('doc-settings-modal');
+    }
+
+    function updateFontPreview() {
+        const fontSelect = document.getElementById('doc-font') as HTMLSelectElement;
+        const preview = document.getElementById('doc-font-preview');
+        if (fontSelect && preview) {
+            preview.style.fontFamily = fontSelect.value;
+        }
+    }
+
+    function resetDocumentViewSettings() {
+        const defaults = {
+            theme: 'auto' as const,
+            fontSize: 18,
+            fontFamily: 'system-ui',
+            textReflow: true,
+            columnSpread: 1 as const,
+            lineHeight: 1.6,
+            letterSpacing: 0,
+            maxWidth: 720,
+            textAlign: 'left' as const
+        };
+        state.documentView = { ...defaults };
+        localStorage.setItem('disco-doc-theme', defaults.theme);
+        localStorage.setItem('disco-doc-fontsize', String(defaults.fontSize));
+        localStorage.setItem('disco-doc-font', defaults.fontFamily);
+        localStorage.setItem('disco-doc-reflow', String(defaults.textReflow));
+        localStorage.setItem('disco-doc-columns', String(defaults.columnSpread));
+        localStorage.setItem('disco-doc-lineheight', String(defaults.lineHeight));
+        localStorage.setItem('disco-doc-letterspacing', String(defaults.letterSpacing));
+        localStorage.setItem('disco-doc-maxwidth', String(defaults.maxWidth));
+        localStorage.setItem('disco-doc-textalign', defaults.textAlign);
+        openDocumentSettings(); // Refresh UI
+        applyDocumentViewSettings();
+    }
+
+    // Setup document settings button in document viewer header
+    const docSettingsBtn = document.getElementById('doc-settings');
+    if (docSettingsBtn) {
+        docSettingsBtn.onclick = openDocumentSettings;
+    }
+
+    // Setup document settings modal controls
+    // Theme swatches
+    document.querySelectorAll('#doc-settings-modal .theme-swatch').forEach(sw => {
+        (sw as HTMLElement).onclick = () => {
+            const theme = sw.getAttribute('data-theme')!;
+            state.documentView.theme = theme as any;
+            saveDocumentViewSetting('disco-doc-theme', theme);
+            document.querySelectorAll('#doc-settings-modal .theme-swatch').forEach(s => s.classList.remove('active'));
+            sw.classList.add('active');
+        };
+    });
+
+    // Font size
+    const fontsizeInput = document.getElementById('doc-fontsize');
+    if (fontsizeInput) {
+        fontsizeInput.oninput = () => {
+            const val = parseInt((fontsizeInput as HTMLInputElement).value);
+            state.documentView.fontSize = val;
+            const valueEl = document.getElementById('doc-fontsize-value');
+            if (valueEl) valueEl.textContent = val + 'px';
+            saveDocumentViewSetting('disco-doc-fontsize', val);
+        };
+    }
+
+    // Font family
+    const fontSelect = document.getElementById('doc-font');
+    if (fontSelect) {
+        fontSelect.onchange = () => {
+            const val = (fontSelect as HTMLSelectElement).value;
+            state.documentView.fontFamily = val;
+            saveDocumentViewSetting('disco-doc-font', val);
+            updateFontPreview();
+        };
+    }
+
+    // Line height
+    const lineheightInput = document.getElementById('doc-lineheight');
+    if (lineheightInput) {
+        lineheightInput.oninput = () => {
+            const val = parseFloat((lineheightInput as HTMLInputElement).value);
+            state.documentView.lineHeight = val;
+            const valueEl = document.getElementById('doc-lineheight-value');
+            if (valueEl) valueEl.textContent = String(val);
+            saveDocumentViewSetting('disco-doc-lineheight', val);
+        };
+    }
+
+    // Letter spacing
+    const letterspacingInput = document.getElementById('doc-letterspacing');
+    if (letterspacingInput) {
+        letterspacingInput.oninput = () => {
+            const val = parseFloat((letterspacingInput as HTMLInputElement).value);
+            state.documentView.letterSpacing = val;
+            const valueEl = document.getElementById('doc-letterspacing-value');
+            if (valueEl) valueEl.textContent = val + 'px';
+            saveDocumentViewSetting('disco-doc-letterspacing', val);
+        };
+    }
+
+    // Max width
+    const maxwidthInput = document.getElementById('doc-maxwidth');
+    if (maxwidthInput) {
+        maxwidthInput.oninput = () => {
+            const val = parseInt((maxwidthInput as HTMLInputElement).value);
+            state.documentView.maxWidth = val;
+            const valueEl = document.getElementById('doc-maxwidth-value');
+            if (valueEl) valueEl.textContent = val + 'px';
+            saveDocumentViewSetting('disco-doc-maxwidth', val);
+        };
+    }
+
+    // Text align
+    const textAlignSelect = document.getElementById('doc-textalign');
+    if (textAlignSelect) {
+        textAlignSelect.onchange = () => {
+            const val = (textAlignSelect as HTMLSelectElement).value;
+            state.documentView.textAlign = val as 'left' | 'justify';
+            saveDocumentViewSetting('disco-doc-textalign', val);
+        };
+    }
+
+    // Text reflow
+    const reflowCheckbox = document.getElementById('doc-reflow');
+    if (reflowCheckbox) {
+        reflowCheckbox.onchange = () => {
+            const val = (reflowCheckbox as HTMLInputElement).checked;
+            state.documentView.textReflow = val;
+            saveDocumentViewSetting('disco-doc-reflow', val ? 'true' : 'false');
+        };
+    }
+
+    // Column spread
+    document.querySelectorAll('#doc-settings-modal .column-toggle button').forEach(btn => {
+        (btn as HTMLElement).onclick = () => {
+            const cols = parseInt(btn.getAttribute('data-columns')!) as 1 | 2;
+            state.documentView.columnSpread = cols;
+            saveDocumentViewSetting('disco-doc-columns', cols);
+            document.querySelectorAll('#doc-settings-modal .column-toggle button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        };
+    });
+
+    // Reset button
+    const resetBtn = document.getElementById('doc-settings-reset');
+    if (resetBtn) {
+        resetBtn.onclick = resetDocumentViewSettings;
+    }
+
+    // Listen for system theme changes to update auto mode
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (state.documentView.theme === 'auto') {
+            applyDocumentViewSettings();
+        }
+    });
+
     document.querySelectorAll('.close-modal').forEach(btn => {
         (btn as any).onclick = (e) => {
             const modal = (e.target as HTMLElement).closest('.modal');
@@ -8640,6 +9019,8 @@ document.addEventListener('DOMContentLoaded', () => {
         startSlideshow,
         stopSlideshow,
         fetchDU,
+        openDocumentSettings,
+        applyDocumentViewSettings,
         state
     };
 });

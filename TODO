@@ -1,15 +1,3 @@
-text view, document modal settings modal for changing theme (light, dark, sepia, solarized, etc), text reflowing, font size, typeface, and one or two column spread (save as global browser settings in localStorage)
-
-print less during tests except for assertions
-
-only print response details during verbose e2e
-
-I don't think the dark thumbnail detector is working. Any thoughts?
-
-Slider filters min and max are shifting around. maybe better to keep percentiles but send the actual values set instead of p0 p99 and/or perhaps we need p100 or 99 instead of 100 as the default slider value (100 percentiles not 99 or 101)
-
-no group / detail buttons on mobile?
-
 lets falsify the tests to find tests that are not actually doing anything
 
 - **Batch filter resolution**: Instead of resolving percentiles separately for each DU request, cache percentile boundaries for common filters (p10, p25, p50, p75, p90)

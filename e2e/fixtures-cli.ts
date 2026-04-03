@@ -17,7 +17,8 @@ export const test = base.extend<{
   // CLI runner instance
   cli: async ({}, use) => {
     const binaryPath = process.env.DISCO_BINARY || path.join(__dirname, '../disco');
-    const cli = new CLIRunner({ binaryPath });
+    const verbose = process.env.VERBOSE === 'true' || process.env.DEBUG === 'true';
+    const cli = new CLIRunner({ binaryPath, verbose });
     await use(cli);
   },
 

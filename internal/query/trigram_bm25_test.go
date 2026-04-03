@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -86,12 +85,9 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 		{"All trigrams OR", "pyt OR yth OR tho OR hon OR on_"},
 	}
 
-	t.Log("\n=== BM25 Ranking with Different Query Strategies ===")
-	t.Log("Dataset: 15 documents with varying 'python' frequency")
-	t.Log(strings.Repeat("=", 80))
-
-	for _, tc := range strategies {
-		sql := `
+	t.Run("BM25 Ranking", func(t *testing.T) {
+		for _, tc := range strategies {
+			sql := `
 		SELECT m.path, m.title, media_fts.rank,
 			(LENGTH(m.title) + LENGTH(m.description) - LENGTH(REPLACE(LOWER(m.title || ' ' || m.description), 'python', ''))) / 6 as python_count
 		FROM media m, media_fts
@@ -100,31 +96,33 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 		ORDER BY media_fts.rank DESC
 		LIMIT 10
 		`
-		rows, err := sqlDB.QueryContext(ctx, sql, tc.query)
-		if err != nil {
-			t.Logf("\n%s: ERROR - %v", tc.name, err)
-			continue
-		}
+			rows, err := sqlDB.QueryContext(ctx, sql, tc.query)
+			if err != nil {
+				t.Errorf("%s: ERROR - %v", tc.name, err)
+				continue
+			}
 
-		t.Logf("\n%s:\n", tc.name)
-		t.Logf("%-6s %-25s %-12s %s\n", "Rank", "Path", "Python#", "BM25 Score")
-		t.Log(strings.Repeat("-", 60))
+			var results []string
+			rank := 0
+			for rows.Next() {
+				var path, title string
+				var bm25 float64
+				var pythonCount int
+				rows.Scan(&path, &title, &bm25, &pythonCount)
+				rank++
+				results = append(results, fmt.Sprintf("%d. %s (python#=%d, score=%.6f)", rank, path, pythonCount, bm25))
+			}
+			rows.Close()
 
-		rank := 0
-		for rows.Next() {
-			var path, title string
-			var bm25 float64
-			var pythonCount int
-			rows.Scan(&path, &title, &bm25, &pythonCount)
-			rank++
-			t.Logf("%-6d %-25s %-12d %.6f\n", rank, path, pythonCount, bm25)
+			if len(results) == 0 {
+				t.Errorf("%s: no results returned", tc.name)
+			}
 		}
-		rows.Close()
-	}
+	})
 
 	// Test correlation between term frequency and BM25 rank
-	t.Log("\n=== Term Frequency vs BM25 Rank Correlation ===")
-	sql := `
+	t.Run("Term Frequency vs BM25 Rank Correlation", func(t *testing.T) {
+		sql := `
 	SELECT m.path, media_fts.rank,
 		(LENGTH(m.title) + LENGTH(m.description) - LENGTH(REPLACE(LOWER(m.title || ' ' || m.description), 'python', ''))) / 6 as python_count
 	FROM media m, media_fts
@@ -132,35 +130,34 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 	AND media_fts MATCH 'pyt'
 	ORDER BY media_fts.rank DESC
 	`
-	rows, _ := sqlDB.QueryContext(ctx, sql)
-	defer rows.Close()
-
-	t.Logf("\n%-6s %-8s %-12s %s\n", "Rank", "Python#", "BM25", "Path")
-	t.Log(strings.Repeat("-", 65))
-
-	rank := 0
-	totalDocs := 0
-	correctOrder := 0
-	lastCount := 999
-	for rows.Next() {
-		var path string
-		var bm25 float64
-		var pythonCount int
-		rows.Scan(&path, &bm25, &pythonCount)
-		rank++
-		totalDocs++
-
-		// Check if ranking respects term frequency
-		if pythonCount <= lastCount {
-			correctOrder++
+		rows, err := sqlDB.QueryContext(ctx, sql)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
 		}
-		lastCount = pythonCount
+		defer rows.Close()
 
-		t.Logf("%-6d %-8d %-12.6f %s\n", rank, pythonCount, bm25, path)
-	}
+		totalDocs := 0
+		correctOrder := 0
+		lastCount := 999
+		for rows.Next() {
+			var path string
+			var bm25 float64
+			var pythonCount int
+			rows.Scan(&path, &bm25, &pythonCount)
+			totalDocs++
 
-	t.Logf("\nCorrelation: %d/%d documents ranked in term-frequency order (%.1f%%)",
-		correctOrder, totalDocs, float64(correctOrder)/float64(totalDocs)*100)
+			if pythonCount <= lastCount {
+				correctOrder++
+			}
+			lastCount = pythonCount
+		}
+
+		correlation := float64(correctOrder) / float64(totalDocs) * 100
+		if correlation < 70.0 {
+			t.Errorf("Low correlation: %d/%d documents in term-frequency order (%.1f%%)",
+				correctOrder, totalDocs, correlation)
+		}
+	})
 }
 
 // TestFirstTrigramOnly tests if using just the first trigram is sufficient
@@ -212,24 +209,27 @@ func TestFirstTrigramOnly(t *testing.T) {
 		{"All 'tutorial' trigrams", "tut AND utu AND tor"},
 	}
 
-	t.Log("\n=== First Trigram vs All Trigrams ===")
-	for _, tc := range tests {
-		sql := `SELECT m.path, m.title, media_fts.rank FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH ? ORDER BY media_fts.rank DESC`
-		rows, err := sqlDB.QueryContext(ctx, sql, tc.query)
-		if err != nil {
-			t.Logf("%-35s ERROR: %v", tc.name, err)
-			continue
-		}
+	t.Run("First Trigram vs All Trigrams", func(t *testing.T) {
+		for _, tc := range tests {
+			sql := `SELECT m.path, m.title, media_fts.rank FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH ? ORDER BY media_fts.rank DESC`
+			rows, err := sqlDB.QueryContext(ctx, sql, tc.query)
+			if err != nil {
+				t.Errorf("%-35s ERROR: %v", tc.name, err)
+				continue
+			}
 
-		var results []string
-		for rows.Next() {
-			var path, title string
-			var rank float64
-			rows.Scan(&path, &title, &rank)
-			results = append(results, fmt.Sprintf("%s(%.0f)", path, rank*1000000))
-		}
-		rows.Close()
+			var results []string
+			for rows.Next() {
+				var path, title string
+				var rank float64
+				rows.Scan(&path, &title, &rank)
+				results = append(results, fmt.Sprintf("%s(%.0f)", path, rank*1000000))
+			}
+			rows.Close()
 
-		t.Logf("%-35s -> %v", tc.name, results)
-	}
+			if len(results) == 0 {
+				t.Errorf("%s: no results returned", tc.name)
+			}
+		}
+	})
 }

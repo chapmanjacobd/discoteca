@@ -1,4 +1,4 @@
-.PHONY: build build-fts5 test cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build benchmark benchstat profiles screenshots
+.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build benchmark benchstat profiles screenshots
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
@@ -52,10 +52,7 @@ macos-deps:
 	-brew install --cask calibre
 
 go-deps:
-	go install honnef.co/go/tools/cmd/staticcheck@latest
-	go install golang.org/x/tools/cmd/goimports@latest
-	go install mvdan.cc/gofumpt@latest
-	go install github.com/daixiang0/gci@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install gotest.tools/gotestsum@latest
 
 deps-update:
@@ -81,6 +78,9 @@ dev: build
 test:
 	gotestsum --format pkgname-and-test-fails -- ./... -tags "$(BUILD_TAGS)"
 
+test-race:
+	gotestsum --format pkgname-and-test-fails -- ./... -tags "$(BUILD_TAGS)" -race
+
 cover:
 	gotestsum --format pkgname-and-test-fails -- ./... -tags "$(BUILD_TAGS)" -coverprofile=coverage.out
 	go tool cover -func=coverage.out | awk '{n=split($$NF,a,"%%"); if (a[1] < 85) print $$0}' | sort -k3 -n
@@ -99,8 +99,10 @@ fmt:
 	go fix -tags "$(BUILD_TAGS)" ./...
 
 lint:
-	-staticcheck -tags "$(BUILD_TAGS)" ./...
-	go vet -tags "$(BUILD_TAGS)" ./...
+	golangci-lint run --build-tags "$(BUILD_TAGS)" --fix ./...
+
+lint-no-fix:
+	golangci-lint run --build-tags "$(BUILD_TAGS)" ./...
 
 install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco

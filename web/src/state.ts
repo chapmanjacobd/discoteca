@@ -125,5 +125,18 @@ export const state: State = {
         consecutiveErrors: 0,
         seekHistory: [],
         markedPosition: null
+    },
+
+    // Document/Text view settings (global, persisted in localStorage)
+    documentView: {
+        theme: getLocalStorageItem('disco-doc-theme', 'auto') as 'light' | 'dark' | 'sepia' | 'solarized' | 'auto',
+        fontSize: parseInt(getLocalStorageItem('disco-doc-fontsize', '18')!),
+        fontFamily: getLocalStorageItem('disco-doc-font', 'system-ui')!,
+        textReflow: getLocalStorageItem('disco-doc-reflow') !== 'false',
+        columnSpread: (parseInt(getLocalStorageItem('disco-doc-columns', '1')!) as 1 | 2),
+        lineHeight: parseFloat(getLocalStorageItem('disco-doc-lineheight', '1.6')!),
+        letterSpacing: parseFloat(getLocalStorageItem('disco-doc-letterspacing', '0')!),
+        maxWidth: parseInt(getLocalStorageItem('disco-doc-maxwidth', '720')!),
+        textAlign: getLocalStorageItem('disco-doc-textalign', 'left') as 'left' | 'justify'
     }
 };

@@ -141,7 +141,7 @@ export const test = base.extend<{
     //   }
     // });
 
-    if (process.env.DEBUG) {
+    if (process.env.DEBUG || process.env.VERBOSE) {
 
     page.on('requestfailed', request => {
       const errorText = request.failure()?.errorText;
