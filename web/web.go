@@ -5,10 +5,10 @@ import (
 	"io/fs"
 )
 
-// FS_RAW embeds the static web assets from the dist folder
+// FsRaw embeds the static web assets from the dist folder
 //
 //go:embed dist/*
-var FS_RAW embed.FS
+var FsRaw embed.FS
 
 // FS is the web asset file system with "dist" prefix removed
-var FS, _ = fs.Sub(FS_RAW, "dist")
+var FS, _ = fs.Sub(FsRaw, "dist")

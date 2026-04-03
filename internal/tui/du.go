@@ -241,8 +241,8 @@ type duDelegate struct {
 	maxSize int64
 }
 
-func (d duDelegate) Height() int                               { return 2 }
-func (d duDelegate) Spacing() int                              { return 1 }
+func (d duDelegate) Height() int                             { return 2 }
+func (d duDelegate) Spacing() int                            { return 1 }
 func (d duDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d duDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	i, ok := listItem.(duItem)

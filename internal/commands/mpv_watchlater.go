@@ -93,7 +93,14 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 			// We use mtime as time_played
 			timePlayed := info.ModTime().Unix()
 
-			if err := history.UpdateHistoryWithTime(m.DB, []string{m.Path}, playhead, timePlayed, false); err != nil {
+			if err := history.UpdateHistoryWithTime(
+				ctx,
+				m.DB,
+				[]string{m.Path},
+				playhead,
+				timePlayed,
+				false,
+			); err != nil {
 				slog.Error("Failed to import watchlater", "path", m.Path, "error", err)
 			} else {
 				count++

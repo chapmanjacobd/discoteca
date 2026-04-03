@@ -3,6 +3,7 @@ package commands
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -150,9 +151,9 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 	found := false
 	hasSubtitles := false
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			media, err := queries.GetMediaByPathExact(r.Context(), path)
+			media, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				found = true
 				// Check if media has embedded subtitles
@@ -173,7 +174,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Simple check: does this directory contain ANY media we know with the same base name?
-			mediaInDir, _ := queries.GetMedia(r.Context(), 1000)
+			mediaInDir, _ := queries.GetMedia(ctx, 1000)
 			for _, m := range mediaInDir {
 				if filepath.Dir(m.Path) == dir {
 					mBase := strings.TrimSuffix(filepath.Base(m.Path), filepath.Ext(m.Path))
@@ -315,7 +316,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 
 // generateTextSnippetSVG creates a styled SVG thumbnail with text content preview
 // DEPRECATED: SVG thumbnails disabled, returning placeholder
-func (c *ServeCmd) generateTextSnippetSVG(_, _ string, _ string) []byte {
+func (c *ServeCmd) generateTextSnippetSVG(_, _, _ string) []byte {
 	// Return a simple placeholder instead of SVG
 	return []byte{}
 }
@@ -483,9 +484,9 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	found := false
 	var mediaType string
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
+			dbMedia, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				found = true
 				if dbMedia.MediaType.Valid {
@@ -673,9 +674,9 @@ func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 	var m models.Media
 	found := false
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
+			dbMedia, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				m = models.FromDB(dbMedia)
 				found = true
@@ -739,9 +740,9 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	var m models.Media
 	found := false
 	for _, dbPath := range c.Databases {
-		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
+			dbMedia, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				m = models.FromDB(dbMedia)
 				found = true

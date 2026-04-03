@@ -64,7 +64,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 		aggregate := q.Get("aggregate") == "true"
 
 		for _, dbPath := range dbs {
-			err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
 				var rows []database.SearchCaptionsRow
 				var err error
@@ -267,7 +267,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	if flags.WithCaptions && len(flags.Search) > 0 {
 		queryStr := strings.Join(flags.Search, " ")
 		for _, dbPath := range dbs {
-			err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
 				// Enrich existing results with matching caption segments
 				rows, err := queries.SearchCaptions(ctx, database.SearchCaptionsParams{
@@ -324,7 +324,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 	// Single DB queries are already sorted by SQL with proper LIMIT/OFFSET
 	if strings.Contains(sortConfig, "_related_media") && len(dbs) > 0 {
 		// Use expansion-aware sorting with first database
-		err := c.execDB(ctx, dbs[0], func(sqlDB *sql.DB) error {
+		err := c.execDB(ctx, dbs[0], func(ctx context.Context, sqlDB *sql.DB) error {
 			query.SortMediaWithExpansion(ctx, sqlDB, &media, flags)
 			return nil
 		})
@@ -406,7 +406,7 @@ func (c *ServeCmd) markDeletedInAllDBs(ctx context.Context, path string, deleted
 	}
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(ctx, dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
 			return queries.MarkDeleted(ctx, database.MarkDeletedParams{
 				Path:        path,
@@ -468,10 +468,10 @@ func (c *ServeCmd) handleProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			// Use raw SQL to update progress
 			// We want to increment play_count only once per session ideally, but for now we follow simple logic
-			if _, err := sqlDB.ExecContext(r.Context(), `
+			if _, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET time_last_played = ?,
 			    time_first_played = COALESCE(time_first_played, ?),
@@ -513,8 +513,8 @@ func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			if _, err := sqlDB.ExecContext(r.Context(), `
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			if _, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET play_count = 0,
 			    playhead = 0,
@@ -556,8 +556,8 @@ func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().Unix()
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			if _, err := sqlDB.ExecContext(r.Context(), `
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			if _, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET time_last_played = ?,
 			    time_first_played = COALESCE(time_first_played, ?),
@@ -600,9 +600,9 @@ func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			if _, err := sqlDB.ExecContext(
-				r.Context(),
+				ctx,
 				"UPDATE media SET score = ? WHERE path = ?",
 				req.Score,
 				req.Path,
@@ -696,19 +696,19 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int)
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			var rows *sql.Rows
 			var err error
 
 			if isPartial {
 				if searchDir == "" {
-					rows, err = sqlDB.QueryContext(r.Context(), `
+					rows, err = sqlDB.QueryContext(ctx, `
 						SELECT path, media_type FROM media
 						WHERE time_deleted = 0
 						  AND path LIKE '%' || ? || '%'
 						LIMIT 500`, searchBase)
 				} else {
-					rows, err = sqlDB.QueryContext(r.Context(), `
+					rows, err = sqlDB.QueryContext(ctx, `
 						SELECT path, media_type FROM media
 						WHERE time_deleted = 0
 						  AND path LIKE '%' || ? || '%' || ? || '%'
@@ -716,13 +716,13 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				if searchBase == "" {
-					rows, err = sqlDB.QueryContext(r.Context(), `
+					rows, err = sqlDB.QueryContext(ctx, `
 						SELECT path, media_type FROM media
 						WHERE time_deleted = 0
 						  AND path LIKE ? || '%'
 						LIMIT 500`, searchDir)
 				} else {
-					rows, err = sqlDB.QueryContext(r.Context(), `
+					rows, err = sqlDB.QueryContext(ctx, `
 						SELECT path, media_type FROM media
 						WHERE time_deleted = 0
 						  AND path LIKE ? || '%'

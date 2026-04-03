@@ -48,7 +48,14 @@ func (t *Tracker) MarkDeleted(ctx context.Context, path string) error {
 }
 
 // UpdateHistoryWithTime updates playback history in database with a specific timestamp
-func UpdateHistoryWithTime(dbPath string, paths []string, playhead int, timePlayed int64, markDone bool) error {
+func UpdateHistoryWithTime(
+	ctx context.Context,
+	dbPath string,
+	paths []string,
+	playhead int,
+	timePlayed int64,
+	markDone bool,
+) error {
 	sqlDB, err := db.Connect(dbPath)
 	if err != nil {
 		return err
@@ -70,7 +77,7 @@ func UpdateHistoryWithTime(dbPath string, paths []string, playhead int, timePlay
 	for _, path := range paths {
 		// Update media aggregate
 		// Note: UpdatePlayHistory in queries.sql only updates time_last_played if it's newer
-		if err := queries.UpdatePlayHistory(context.Background(), db.UpdatePlayHistoryParams{
+		if err := queries.UpdatePlayHistory(ctx, db.UpdatePlayHistoryParams{
 			TimeLastPlayed:  sql.NullInt64{Int64: timePlayed, Valid: true},
 			TimeFirstPlayed: sql.NullInt64{Int64: timePlayed, Valid: true},
 			Playhead:        sql.NullInt64{Int64: int64(playhead), Valid: true},
@@ -80,7 +87,7 @@ func UpdateHistoryWithTime(dbPath string, paths []string, playhead int, timePlay
 		}
 
 		// Insert granular history record
-		if err := queries.InsertHistory(context.Background(), db.InsertHistoryParams{
+		if err := queries.InsertHistory(ctx, db.InsertHistoryParams{
 			MediaPath:  path,
 			TimePlayed: sql.NullInt64{Int64: timePlayed, Valid: true},
 			Playhead:   sql.NullInt64{Int64: int64(playhead), Valid: true},
@@ -94,8 +101,8 @@ func UpdateHistoryWithTime(dbPath string, paths []string, playhead int, timePlay
 }
 
 // UpdateHistorySimple updates playback history in database without needing a Tracker
-func UpdateHistorySimple(dbPath string, paths []string, playhead int, markDone bool) error {
-	return UpdateHistoryWithTime(dbPath, paths, playhead, time.Now().Unix(), markDone)
+func UpdateHistorySimple(ctx context.Context, dbPath string, paths []string, playhead int, markDone bool) error {
+	return UpdateHistoryWithTime(ctx, dbPath, paths, playhead, time.Now().Unix(), markDone)
 }
 
 // DeleteHistoryByPaths removes history records for specified paths

@@ -22,8 +22,8 @@ func PrintOverwrite(text string) {
 	}
 
 	maxWidth := 80 // Default fallback
-	if TERMINAL_SIZE.columns > 0 {
-		maxWidth = TERMINAL_SIZE.columns - 1
+	if width := GetTerminalWidth(); width > 0 {
+		maxWidth = width - 1
 	}
 
 	if runewidth.StringWidth(text) > maxWidth {

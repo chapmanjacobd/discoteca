@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log/slog"
@@ -44,9 +45,9 @@ func (c *ServeCmd) handlePlaylistReorder(w http.ResponseWriter, r *http.Request)
 
 	// 1. Gather all items from all DBs
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			pls, err := queries.GetPlaylists(r.Context())
+			pls, err := queries.GetPlaylists(ctx)
 			if err != nil {
 				return err
 			}
@@ -63,7 +64,7 @@ func (c *ServeCmd) handlePlaylistReorder(w http.ResponseWriter, r *http.Request)
 				return nil
 			}
 
-			items, err := queries.GetPlaylistItems(r.Context(), playlistID)
+			items, err := queries.GetPlaylistItems(ctx, playlistID)
 			if err != nil {
 				return err
 			}
@@ -150,9 +151,9 @@ func (c *ServeCmd) handlePlaylistReorder(w http.ResponseWriter, r *http.Request)
 	for i, item := range finalItems {
 		newTrackNum := int64(i + 1)
 
-		err := c.execDB(r.Context(), item.DBPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), item.DBPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			return queries.AddPlaylistItem(r.Context(), database.AddPlaylistItemParams{
+			return queries.AddPlaylistItem(ctx, database.AddPlaylistItemParams{
 				PlaylistID:  item.PlaylistID,
 				MediaPath:   item.MediaPath,
 				TrackNumber: sql.NullInt64{Int64: newTrackNum, Valid: true},

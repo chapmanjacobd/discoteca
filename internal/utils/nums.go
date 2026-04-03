@@ -504,7 +504,7 @@ func SafeFloat(s string) *float64 {
 	return &f
 }
 
-func SqlHumanTime(s string) string {
+func SQLHumanTime(s string) string {
 	if _, err := strconv.Atoi(s); err == nil {
 		return s + " minutes"
 	}

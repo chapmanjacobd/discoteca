@@ -373,11 +373,9 @@ linters:
       - name: bare-return
       - name: confusing-naming
       - name: confusing-results
-      - name: unused-receiver
       - name: struct-tag
       - name: modifies-value-receiver
       - name: constant-logical-expr
-      - name: unused-parameter
       - name: argument-limit
         arguments: [ 5 ]
       - name: function-length
@@ -414,14 +412,6 @@ linters:
     testifylint:
       enable-all: true
 
-    unused:
-      field-writes-are-uses: false
-      post-statements-are-reads: false
-      exported-fields-are-used: false
-      parameters-are-used: false
-      local-variables-are-used: false
-      generated-is-used: false
-
     whitespace:
       multi-if: true
       multi-func: true
@@ -453,11 +443,6 @@ linters:
           - noctx
           - unused
           - funlen
-      # Exclude revive exported/unused-parameter/empty-block from tests
-      - path: _test\.go
-        text: "unused-parameter"
-        linters:
-          - revive
       - path: _test\.go
         text: "empty-block"
         linters:
@@ -497,14 +482,6 @@ linters:
         text: "ifElseChain"
         linters:
           - gocritic
-      # Exclude unused-receiver for methods where receiver is not needed (interface compliance, etc.)
-      - text: "unused-receiver"
-        linters:
-          - revive
-      # Exclude unused-parameter for interface methods (parameters may be unused by design)
-      - text: "unused-parameter"
-        linters:
-          - revive
       # Exclude gochecknoglobals for web package
       - path: web/
         linters:

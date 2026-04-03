@@ -35,7 +35,7 @@ func TestE2E_AddAndCheck(t *testing.T) {
 		Parallel:         1,
 	}
 
-	if err := addCmd.Run(nil); err != nil {
+	if err := addCmd.Run(context.Background()); err != nil {
 		t.Fatalf("AddCmd failed: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func TestE2E_AddAndCheck(t *testing.T) {
 		CheckPaths: []string{fixture.TempDir},
 	}
 
-	if err := checkCmd.Run(nil); err != nil {
+	if err := checkCmd.Run(context.Background()); err != nil {
 		t.Fatalf("CheckCmd failed: %v", err)
 	}
 
@@ -97,7 +97,7 @@ func TestE2E_HistoryAdd(t *testing.T) {
 		ScanPaths:        []string{dummyPath},
 		Parallel:         1,
 	}
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// 2. Add to history
 	histCmd := &commands.HistoryAddCmd{
@@ -105,7 +105,7 @@ func TestE2E_HistoryAdd(t *testing.T) {
 		Paths:    []string{dummyPath},
 		Done:     true,
 	}
-	if err := histCmd.Run(); err != nil {
+	if err := histCmd.Run(context.Background()); err != nil {
 		t.Fatalf("HistoryAddCmd failed: %v", err)
 	}
 
@@ -143,7 +143,7 @@ func TestE2E_PathConsolidation(t *testing.T) {
 		ScanPaths: []string{parentDir},
 		Parallel:  1,
 	}
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	sqlDB2 := fixture.GetDB()
 	defer sqlDB2.Close()
@@ -159,7 +159,7 @@ func TestE2E_PathConsolidation(t *testing.T) {
 		ScanPaths: []string{subDir},
 		Parallel:  1,
 	}
-	addCmdSub.Run(nil)
+	addCmdSub.Run(context.Background())
 
 	sqlDB3 := fixture.GetDB()
 	defer sqlDB3.Close()
@@ -193,7 +193,7 @@ func TestE2E_PathConsolidation_WindowsPaths(t *testing.T) {
 		ScanPaths: []string{parentDir},
 		Parallel:  1,
 	}
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	sqlDB2 := fixture.GetDB()
 	defer sqlDB2.Close()
@@ -210,7 +210,7 @@ func TestE2E_PathConsolidation_WindowsPaths(t *testing.T) {
 		ScanPaths: []string{winStyleSubDir},
 		Parallel:  1,
 	}
-	addCmdSub.Run(nil)
+	addCmdSub.Run(context.Background())
 
 	sqlDB3 := fixture.GetDB()
 	defer sqlDB3.Close()
@@ -233,14 +233,14 @@ func TestE2E_Stats(t *testing.T) {
 		ScanPaths:        []string{dummyPath},
 		Parallel:         1,
 	}
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// 2. Add to history
 	histCmd := &commands.HistoryAddCmd{
 		Database: fixture.DBPath,
 		Paths:    []string{dummyPath},
 	}
-	histCmd.Run()
+	histCmd.Run(context.Background())
 
 	// 3. Run Stats
 	statsCmd := &commands.StatsCmd{
@@ -263,12 +263,12 @@ func TestE2E_AddWithVTTCaptions(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	sqlDB_init, err := sql.Open("sqlite3", fixture.DBPath)
+	sqlDBInit, err := sql.Open("sqlite3", fixture.DBPath)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	defer sqlDB_init.Close()
-	if err := db.InitDB(sqlDB_init); err != nil {
+	defer sqlDBInit.Close()
+	if err := db.InitDB(sqlDBInit); err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
 
@@ -306,7 +306,7 @@ Another caption here.
 		t.Fatalf("AddCmd.AfterApply failed: %v", err)
 	}
 
-	if err := addCmd.Run(nil); err != nil {
+	if err := addCmd.Run(context.Background()); err != nil {
 		t.Fatalf("AddCmd failed: %v", err)
 	}
 

@@ -57,9 +57,9 @@ func TestIsSQLite(t *testing.T) {
 		t.Error("IsSQLite should be true for valid header")
 	}
 
-	notDbPath := filepath.Join(tmpDir, "not.db")
-	os.WriteFile(notDbPath, []byte("Not a sqlite file"), 0o644)
-	if IsSQLite(notDbPath) {
+	notDBPath := filepath.Join(tmpDir, "not.db")
+	os.WriteFile(notDBPath, []byte("Not a sqlite file"), 0o644)
+	if IsSQLite(notDBPath) {
 		t.Error("IsSQLite should be false for invalid header")
 	}
 

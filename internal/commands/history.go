@@ -117,7 +117,7 @@ func (c *HistoryAddCmd) AfterApply() error {
 	return nil
 }
 
-func (c *HistoryAddCmd) Run() error {
+func (c *HistoryAddCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
 	var absPaths []string
@@ -130,7 +130,7 @@ func (c *HistoryAddCmd) Run() error {
 		}
 	}
 
-	err := history.UpdateHistorySimple(c.Database, absPaths, 0, c.Done)
+	err := history.UpdateHistorySimple(ctx, c.Database, absPaths, 0, c.Done)
 	if err == nil {
 		slog.Info("History added", "count", len(absPaths), "database", c.Database)
 	}

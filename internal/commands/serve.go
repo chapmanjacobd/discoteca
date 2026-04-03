@@ -274,7 +274,7 @@ func (c *ServeCmd) Mux() http.Handler {
 
 // execDB connects to the database and executes fn. If a corruption error occurs,
 // it attempts to repair the database and retries the operation once.
-func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) error) error {
+func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(ctx context.Context, sqlDB *sql.DB) error) error {
 	const maxRetries = 1
 	var lastErr error
 
@@ -308,7 +308,7 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 			}
 		}
 
-		err := fn(sqlDB)
+		err := fn(ctx, sqlDB)
 		if err != nil {
 			if db.IsCorruptionError(err) && i < maxRetries {
 				c.dbCache.Delete(dbPath)

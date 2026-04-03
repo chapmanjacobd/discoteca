@@ -33,9 +33,9 @@ func (c *ServeCmd) handleMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, dp := range dbs {
-		_ = c.execDB(r.Context(), dp, func(sqlDB *sql.DB) error {
+		_ = c.execDB(r.Context(), dp, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
+			dbMedia, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				metadata = models.FromDB(dbMedia)
 				found = true
@@ -73,11 +73,11 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 	isCustom := make(map[string]bool)
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
 
 			// 1. Get categories already assigned to media
-			rows, err := queries.GetUsedCategories(r.Context())
+			rows, err := queries.GetUsedCategories(ctx)
 			if err != nil {
 				return err
 			}
@@ -97,7 +97,7 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// 2. Get categories from custom keywords
-			customCats, err := queries.GetCustomCategories(r.Context())
+			customCats, err := queries.GetCustomCategories(ctx)
 			if err == nil {
 				for _, cat := range customCats {
 					isCustom[cat] = true
@@ -116,9 +116,9 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 
 	// 3. Add Uncategorized count
 	for _, dbPath := range c.Databases {
-		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			var count int64
-			err := sqlDB.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND (categories IS NULL OR categories = '')").
+			err := sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND (categories IS NULL OR categories = '')").
 				Scan(&count)
 			if err == nil {
 				counts["Uncategorized"] += count
@@ -154,9 +154,9 @@ func (c *ServeCmd) handleGenres(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int64)
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			rows, err := queries.GetGenreStats(r.Context())
+			rows, err := queries.GetGenreStats(ctx)
 			if err != nil {
 				return err
 			}
@@ -194,9 +194,9 @@ func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[int64]int64)
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			stats, err := queries.GetRatingStats(r.Context())
+			stats, err := queries.GetRatingStats(ctx)
 			if err != nil {
 				return err
 			}
@@ -231,9 +231,9 @@ func (c *ServeCmd) handleLanguages(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int64)
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			rows, err := queries.GetLanguageStats(r.Context())
+			rows, err := queries.GetLanguageStats(ctx)
 			if err != nil {
 				return err
 			}

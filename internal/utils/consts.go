@@ -52,7 +52,6 @@ var (
 	IsWindows        = runtime.GOOS == "windows"
 	IsLinux          = runtime.GOOS == "linux"
 	IsMac            = runtime.GOOS == "darwin"
-	TERMINAL_SIZE    = struct{ columns, rows int }{80, 24}
 )
 
 var SQLiteExtensions = []string{".sqlite", ".sqlite3", ".db", ".db3", ".s3db", ".sl3"}

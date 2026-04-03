@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -17,14 +18,14 @@ func TestPrintCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	t.Run("PrintFromDB", func(t *testing.T) {
 		cmd := &PrintCmd{
 			Args: []string{fixture.DBPath},
 		}
 		cmd.AfterApply()
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("PrintCmd failed: %v", err)
 		}
 	})
@@ -34,7 +35,7 @@ func TestPrintCmd_Run(t *testing.T) {
 			Args: []string{fixture.TempDir},
 		}
 		cmd.AfterApply()
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("PrintCmd failed: %v", err)
 		}
 	})
@@ -46,7 +47,7 @@ func TestPrintCmd_Run(t *testing.T) {
 			Args:           []string{fixture.DBPath},
 		}
 		cmd.AfterApply()
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("PrintCmd failed: %v", err)
 		}
 	})

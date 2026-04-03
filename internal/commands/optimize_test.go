@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -24,7 +25,7 @@ func TestOptimizeCmd_Run(t *testing.T) {
 	cmd := &OptimizeCmd{
 		Databases: []string{fixture.DBPath},
 	}
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("OptimizeCmd failed: %v", err)
 	}
 }

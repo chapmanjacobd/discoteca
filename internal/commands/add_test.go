@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func TestAddCmd_Run(t *testing.T) {
 		t.Fatalf("AfterApply failed: %v", err)
 	}
 
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("AddCmd failed: %v", err)
 	}
 
@@ -53,14 +54,14 @@ func TestAddCmd_Skip(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	_ = cmd.AfterApply()
-	_ = cmd.Run(nil)
+	_ = cmd.Run(context.Background())
 
 	// Second run, should skip
 	cmd2 := &AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	_ = cmd2.AfterApply()
-	if err := cmd2.Run(nil); err != nil {
+	if err := cmd2.Run(context.Background()); err != nil {
 		t.Fatalf("AddCmd second run failed: %v", err)
 	}
 	// We check if it skipped by checking if the output says 1/1 processed from skip
@@ -74,7 +75,7 @@ func TestAddCmd_Skip(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	_ = cmd3.AfterApply()
-	if err := cmd3.Run(nil); err != nil {
+	if err := cmd3.Run(context.Background()); err != nil {
 		t.Fatalf("AddCmd third run failed: %v", err)
 	}
 
@@ -115,7 +116,7 @@ func TestAddCmd_AllFiles(t *testing.T) {
 		t.Fatalf("AfterApply failed: %v", err)
 	}
 
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("AddCmd failed: %v", err)
 	}
 
@@ -165,7 +166,7 @@ func TestAddCmd_FilterVideo(t *testing.T) {
 	}
 	cmd.VideoOnly = true // Only video
 	_ = cmd.AfterApply()
-	_ = cmd.Run(nil)
+	_ = cmd.Run(context.Background())
 
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()

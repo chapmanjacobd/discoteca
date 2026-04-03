@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -15,12 +16,12 @@ func TestPlaylistsCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, fixture.TempDir},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	cmd := &PlaylistsCmd{
 		Databases: []string{fixture.DBPath},
 	}
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("PlaylistsCmd failed: %v", err)
 	}
 }

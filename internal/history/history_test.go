@@ -108,7 +108,7 @@ func TestUpdateHistorySimple(t *testing.T) {
 	dbConn.Exec("INSERT INTO media (path) VALUES (?)", path)
 	dbConn.Close()
 
-	if err := UpdateHistorySimple(dbPath, []string{path}, 50, true); err != nil {
+	if err := UpdateHistorySimple(context.Background(), dbPath, []string{path}, 50, true); err != nil {
 		t.Fatalf("UpdateHistorySimple failed: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestUpdateHistoryWithTime(t *testing.T) {
 	dbConn.Close()
 
 	customTime := int64(1000000000)
-	if err := UpdateHistoryWithTime(dbPath, []string{path}, 10, customTime, false); err != nil {
+	if err := UpdateHistoryWithTime(context.Background(), dbPath, []string{path}, 10, customTime, false); err != nil {
 		t.Fatal(err)
 	}
 

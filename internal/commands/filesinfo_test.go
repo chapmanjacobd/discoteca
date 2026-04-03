@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"io"
 	"os"
 	"strings"
@@ -30,7 +31,7 @@ func TestFilesInfoCmd_Run(t *testing.T) {
 	if err := cmd.AfterApply(); err != nil {
 		t.Fatalf("AfterApply failed: %v", err)
 	}
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("FilesInfoCmd failed: %v", err)
 	}
 

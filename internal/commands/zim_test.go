@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"net"
@@ -314,7 +315,7 @@ func TestHandleZimView(t *testing.T) {
 		mockPort := 8181 + 50
 		// We need to intercept the waitForKiwixReady call
 		originalWaitFunc := waitForKiwixReady
-		waitForKiwixReady = func(port int, timeout time.Duration) error {
+		waitForKiwixReady = func(ctx context.Context, port int, timeout time.Duration) error {
 			// Skip actual check, assume server is ready
 			return nil
 		}
@@ -516,7 +517,7 @@ func TestWaitForKiwixReady(t *testing.T) {
 		// This would test the actual function, but it uses hardcoded URL patterns
 		// We document the expected behavior instead
 		start := time.Now()
-		err := waitForKiwixReady(port, 2*time.Second)
+		err := waitForKiwixReady(context.Background(), port, 2*time.Second)
 		elapsed := time.Since(start)
 
 		// Should return quickly if server is ready
@@ -530,7 +531,7 @@ func TestWaitForKiwixReady(t *testing.T) {
 		port := KIWIX_PORT_START + 999
 
 		start := time.Now()
-		err := waitForKiwixReady(port, 100*time.Millisecond)
+		err := waitForKiwixReady(context.Background(), port, 100*time.Millisecond)
 		elapsed := time.Since(start)
 
 		if err == nil {

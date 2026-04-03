@@ -122,8 +122,8 @@ func doUpdate(url string) bool {
 
 func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	// Try downloading checksum
-	checksumUrl := url + ".sha256"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checksumUrl, nil)
+	checksumURL := url + ".sha256"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checksumURL, nil)
 	if err != nil {
 		return err
 	}
@@ -236,13 +236,13 @@ func doUpdateAt(curp, url string) bool {
 	return true
 }
 
-var githubApiUrl = "https://api.github.com/repos/chapmanjacobd/discoteca/releases/latest"
+var githubAPIURL = "https://api.github.com/repos/chapmanjacobd/discoteca/releases/latest"
 
 func checkUpdate() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubApiUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubAPIURL, nil)
 	if err != nil {
 		return ""
 	}

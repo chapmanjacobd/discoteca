@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
@@ -18,7 +19,7 @@ func TestCheckCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// Delete file from FS
 	os.Remove(f1)
@@ -27,7 +28,7 @@ func TestCheckCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath},
 	}
 	cmd.AfterApply()
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("CheckCmd failed: %v", err)
 	}
 

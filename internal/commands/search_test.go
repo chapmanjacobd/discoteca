@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -18,7 +19,7 @@ func TestSearchCmd_Run(t *testing.T) {
 	}
 	// We need a title to search for
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// Manually set title so we can search it
 	dbConn := fixture.GetDB()
@@ -29,7 +30,7 @@ func TestSearchCmd_Run(t *testing.T) {
 		FilterFlags: models.FilterFlags{Search: []string{"Secret"}},
 		Databases:   []string{fixture.DBPath},
 	}
-	if err := cmd.Run(nil); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("SearchCmd failed: %v", err)
 	}
 }

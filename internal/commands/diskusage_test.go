@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -17,14 +18,14 @@ func TestDiskUsageCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, fixture.TempDir},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	t.Run("DefaultDU", func(t *testing.T) {
 		cmd := &DiskUsageCmd{
 			Args: []string{fixture.DBPath},
 		}
 		cmd.AfterApply()
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("DiskUsageCmd failed: %v", err)
 		}
 	})

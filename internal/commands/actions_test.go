@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ func TestMarkDeletedItem(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	m := models.MediaWithDB{
 		Media: models.Media{Path: f1},
@@ -54,7 +55,7 @@ func TestMoveMediaItem(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	destDir := filepath.Join(fixture.TempDir, "moved")
 	m := models.MediaWithDB{

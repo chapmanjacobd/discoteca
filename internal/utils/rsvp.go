@@ -1743,9 +1743,9 @@ func FindMainContentFile(oebDir string) string {
 	}
 
 	// Last resort: return index.html
-	indexHtml := filepath.Join(oebDir, "index.html")
-	if _, err := os.Stat(indexHtml); err == nil {
-		return indexHtml
+	indexHTML := filepath.Join(oebDir, "index.html")
+	if _, err := os.Stat(indexHTML); err == nil {
+		return indexHTML
 	}
 
 	return ""

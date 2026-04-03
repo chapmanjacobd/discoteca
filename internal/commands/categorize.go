@@ -64,7 +64,7 @@ func (c *CategorizeCmd) Run(ctx context.Context) error {
 		return c.mineCategories(media, compiled)
 	}
 
-	return c.applyCategories(media, compiled)
+	return c.applyCategories(ctx, media, compiled)
 }
 
 func (c *CategorizeCmd) CompileRegexes() map[string][]*regexp.Regexp {
@@ -97,7 +97,11 @@ func (c *CategorizeCmd) CompileRegexes() map[string][]*regexp.Regexp {
 	return compiled
 }
 
-func (c *CategorizeCmd) applyCategories(media []models.MediaWithDB, compiled map[string][]*regexp.Regexp) error {
+func (c *CategorizeCmd) applyCategories(
+	ctx context.Context,
+	media []models.MediaWithDB,
+	compiled map[string][]*regexp.Regexp,
+) error {
 	categorizedCount := 0
 	for _, m := range media {
 		foundCategories := []string{}
@@ -147,7 +151,7 @@ func (c *CategorizeCmd) applyCategories(media []models.MediaWithDB, compiled map
 					slog.Error("Failed to connect to database", "db", m.DB, "error", err)
 					continue
 				}
-				err = queries.UpdateMediaCategories(context.Background(), db.UpdateMediaCategoriesParams{
+				err = queries.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
 					Categories: utils.ToNullString(newCategories),
 					Path:       m.Path,
 				})

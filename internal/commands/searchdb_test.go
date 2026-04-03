@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
@@ -30,7 +31,7 @@ func TestSearchDBCmd_Run(t *testing.T) {
 			Table:        "tes", // fuzzy match for 'test'
 			Search:       []string{"apple"},
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchDBCmd failed: %v", err)
 		}
 	})
@@ -44,7 +45,7 @@ func TestSearchDBCmd_Run(t *testing.T) {
 			Table:    "test",
 			Search:   []string{"carrot"},
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchDBCmd failed: %v", err)
 		}
 
@@ -72,7 +73,7 @@ func TestSearchDBCmd_Run(t *testing.T) {
 			Table:    "test",
 			Search:   []string{"banana"},
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchDBCmd failed: %v", err)
 		}
 

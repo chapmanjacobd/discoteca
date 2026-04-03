@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -16,7 +17,7 @@ func TestMediaCheckCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	t.Run("QuickScan", func(t *testing.T) {
 		cmd := &MediaCheckCmd{
@@ -24,7 +25,7 @@ func TestMediaCheckCmd_Run(t *testing.T) {
 		}
 		// This will likely fail because ffmpeg is not there or file is invalid
 		// but we want to see if the code runs.
-		cmd.Run(nil)
+		cmd.Run(context.Background())
 	})
 
 	t.Run("FullScan", func(t *testing.T) {
@@ -32,6 +33,6 @@ func TestMediaCheckCmd_Run(t *testing.T) {
 			Databases: []string{fixture.DBPath},
 			FullScan:  true,
 		}
-		cmd.Run(nil)
+		cmd.Run(context.Background())
 	})
 }

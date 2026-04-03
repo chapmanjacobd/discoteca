@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -65,7 +66,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 			Search:   []string{"world"},
 		}
 
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchCaptionsCmd failed: %v", err)
 		}
 	})
@@ -77,7 +78,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 			Overlap:  10,
 		}
 
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchCaptionsCmd failed: %v", err)
 		}
 	})
@@ -91,7 +92,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 			},
 		}
 
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchCaptionsCmd with VideoOnly failed: %v", err)
 		}
 	})
@@ -105,7 +106,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 			},
 		}
 
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchCaptionsCmd with AudioOnly failed: %v", err)
 		}
 	})
@@ -119,7 +120,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 			},
 		}
 
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("SearchCaptionsCmd with ImageOnly failed: %v", err)
 		}
 	})

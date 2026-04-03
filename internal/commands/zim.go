@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -107,12 +108,12 @@ func (c *ServeCmd) handleZimView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := waitForKiwixReady(port, 10*time.Second); err != nil {
+	if err := waitForKiwixReady(r.Context(), port, 10*time.Second); err != nil {
 		http.Error(w, fmt.Sprintf("Kiwix server did not start in time: %s", err.Error()), http.StatusServiceUnavailable)
 		return
 	}
 
-	contentURL, err := getKiwixContentURL(port)
+	contentURL, err := getKiwixContentURL(r.Context(), port)
 	if err != nil {
 		slog.Warn("Could not parse ZIM catalog, using root URL", "error", err)
 		contentURL = fmt.Sprintf("/api/zim/proxy/%d/", port)
@@ -219,17 +220,20 @@ func isPortAvailable(port int) bool {
 
 var waitForKiwixReady = defaultWaitForKiwixReady
 
-func defaultWaitForKiwixReady(port int, timeout time.Duration) error {
+func defaultWaitForKiwixReady(ctx context.Context, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	urlRoot := fmt.Sprintf("/api/zim/proxy/%d/", port)
 	checkURL := fmt.Sprintf("http://127.0.0.1:%d%s", port, urlRoot)
 
 	for time.Now().Before(deadline) {
-		resp, err := http.Head(checkURL)
+		req, err := http.NewRequestWithContext(ctx, http.MethodHead, checkURL, nil)
 		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
+			resp, err := http.DefaultClient.Do(req)
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					return nil
+				}
 			}
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -237,11 +241,15 @@ func defaultWaitForKiwixReady(port int, timeout time.Duration) error {
 	return fmt.Errorf("timeout waiting for kiwix-serve on port %d", port)
 }
 
-func getKiwixContentURL(port int) (string, error) {
+func getKiwixContentURL(ctx context.Context, port int) (string, error) {
 	urlRoot := fmt.Sprintf("/api/zim/proxy/%d", port)
 	catalogURL := fmt.Sprintf("http://127.0.0.1:%d%s/catalog/v2/entries", port, urlRoot)
 
-	resp, err := http.Get(catalogURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, catalogURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
 	}

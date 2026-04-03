@@ -31,7 +31,7 @@ func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Reque
 	data := make(map[string]map[string]bool)
 
 	for _, dbPath := range c.Databases {
-		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			rows, err := sqlDB.QueryContext(r.Context(), "SELECT category, keyword FROM custom_keywords")
 			if err != nil {
 				return nil
@@ -87,8 +87,8 @@ func (c *ServeCmd) handleCategorizeDeleteCategory(w http.ResponseWriter, r *http
 	}
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			_, err := sqlDB.ExecContext(r.Context(), "DELETE FROM custom_keywords WHERE category = ?", category)
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			_, err := sqlDB.ExecContext(ctx, "DELETE FROM custom_keywords WHERE category = ?", category)
 			return err
 		})
 		if err != nil {
@@ -116,9 +116,9 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 		}
 
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				_, err := sqlDB.ExecContext(
-					r.Context(),
+					ctx,
 					"DELETE FROM custom_keywords WHERE category = ? AND keyword = ?",
 					req.Category,
 					req.Keyword,
@@ -148,9 +148,9 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 	}
 
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			_, err := sqlDB.ExecContext(
-				r.Context(),
+				ctx,
 				"INSERT OR IGNORE INTO custom_keywords (category, keyword) VALUES (?, ?)",
 				req.Category,
 				req.Keyword,
@@ -168,9 +168,9 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
 	var allMedia []models.MediaWithDB
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMedia(r.Context(), 1000000)
+			dbMedia, err := queries.GetMedia(ctx, 1000000)
 			if err != nil {
 				return err
 			}
@@ -288,9 +288,9 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 
 	var allMedia []models.MediaWithDB
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMedia(r.Context(), 1000000)
+			dbMedia, err := queries.GetMedia(ctx, 1000000)
 			if err != nil {
 				return err
 			}
@@ -310,8 +310,8 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 	// Fetch existing keywords to filter them out
 	existingKeywords := make(map[string]bool)
 	for _, dbPath := range c.Databases {
-		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			rows, err := sqlDB.QueryContext(r.Context(), "SELECT DISTINCT keyword FROM custom_keywords")
+		c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			rows, err := sqlDB.QueryContext(ctx, "SELECT DISTINCT keyword FROM custom_keywords")
 			if err != nil {
 				return nil
 			}
@@ -429,9 +429,9 @@ func (c *ServeCmd) handleCategorizeApply(w http.ResponseWriter, r *http.Request)
 
 	var allMedia []models.MediaWithDB
 	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMedia(r.Context(), 1000000)
+			dbMedia, err := queries.GetMedia(ctx, 1000000)
 			if err != nil {
 				return err
 			}
@@ -504,9 +504,9 @@ func (c *ServeCmd) handleCategorizeApply(w http.ResponseWriter, r *http.Request)
 			sort.Strings(combined)
 			newCategories := ";" + strings.Join(combined, ";") + ";"
 
-			err := c.execDB(r.Context(), m.DB, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), m.DB, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
-				return queries.UpdateMediaCategories(r.Context(), database.UpdateMediaCategoriesParams{
+				return queries.UpdateMediaCategories(ctx, database.UpdateMediaCategoriesParams{
 					Categories: utils.ToNullString(newCategories),
 					Path:       m.Path,
 				})
@@ -555,9 +555,9 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	localPath := path
 
 	for _, dbPath := range dbs {
-		_ = c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		_ = c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			dbMedia, err := queries.GetMediaByPathExact(r.Context(), path)
+			dbMedia, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				m = models.FromDB(dbMedia)
 				found = true
@@ -611,7 +611,7 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, localPath)
 }
 
-func (c *ServeCmd) handleTrash(w http.ResponseWriter, _ *http.Request) {
+func (c *ServeCmd) handleTrash(w http.ResponseWriter, r *http.Request) {
 	flags := c.GetGlobalFlags()
 	flags.OnlyDeleted = true
 	flags.HideDeleted = false
@@ -619,7 +619,7 @@ func (c *ServeCmd) handleTrash(w http.ResponseWriter, _ *http.Request) {
 	flags.SortBy = "time_deleted"
 	flags.Reverse = true
 
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(r.Context(), c.Databases, flags)
 	if err != nil {
 		slog.Error("Trash query failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -662,7 +662,7 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 		flags.All = true
 
 		var err error
-		media, err = query.MediaQuery(context.Background(), c.Databases, flags)
+		media, err = query.MediaQuery(r.Context(), c.Databases, flags)
 		if err != nil {
 			slog.Error("Trash query failed", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -681,7 +681,7 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 
 		// Remove from DB
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				result, err := sqlDB.Exec("DELETE FROM media WHERE path = ?", m.Path)
 				if err != nil {
 					return err
@@ -771,9 +771,9 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		titles := make(map[string]bool)
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
-				pls, err := queries.GetPlaylists(r.Context())
+				pls, err := queries.GetPlaylists(ctx)
 				if err != nil {
 					return err
 				}
@@ -821,9 +821,9 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 		playlistPath := "custom:" + utils.RandomString(12)
 
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
-				_, err := queries.InsertPlaylist(r.Context(), database.InsertPlaylistParams{
+				_, err := queries.InsertPlaylist(ctx, database.InsertPlaylistParams{
 					Title: sql.NullString{String: req.Title, Valid: true},
 					Path:  sql.NullString{String: playlistPath, Valid: true},
 				})
@@ -845,16 +845,16 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
 				// We need to find the ID by title first because DeletePlaylist takes ID
-				pls, err := queries.GetPlaylists(r.Context())
+				pls, err := queries.GetPlaylists(ctx)
 				if err != nil {
 					return err
 				}
 				for _, p := range pls {
 					if p.Title.Valid && strings.EqualFold(p.Title.String, title) {
-						err = queries.DeletePlaylist(r.Context(), database.DeletePlaylistParams{
+						err = queries.DeletePlaylist(ctx, database.DeletePlaylistParams{
 							ID:          p.ID,
 							TimeDeleted: sql.NullInt64{Int64: time.Now().Unix(), Valid: true},
 						})
@@ -884,9 +884,9 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 
 		allMedia := make([]models.MediaWithDB, 0)
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
-				pls, err := queries.GetPlaylists(r.Context())
+				pls, err := queries.GetPlaylists(ctx)
 				if err != nil {
 					return err
 				}
@@ -903,7 +903,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 					return nil
 				}
 
-				items, err := queries.GetPlaylistItems(r.Context(), playlistID)
+				items, err := queries.GetPlaylistItems(ctx, playlistID)
 				if err != nil {
 					return err
 				}
@@ -1001,9 +1001,9 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
-				pls, err := queries.GetPlaylists(r.Context())
+				pls, err := queries.GetPlaylists(ctx)
 				if err != nil {
 					return err
 				}
@@ -1022,7 +1022,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 
 				// Get max track number
 				var maxTrack sql.NullInt64
-				err = sqlDB.QueryRowContext(r.Context(), "SELECT MAX(track_number) FROM playlist_items WHERE playlist_id = ?", playlistID).
+				err = sqlDB.QueryRowContext(ctx, "SELECT MAX(track_number) FROM playlist_items WHERE playlist_id = ?", playlistID).
 					Scan(&maxTrack)
 				if err != nil {
 					return err
@@ -1037,7 +1037,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				return queries.AddPlaylistItem(r.Context(), database.AddPlaylistItemParams{
+				return queries.AddPlaylistItem(ctx, database.AddPlaylistItemParams{
 					PlaylistID:  playlistID,
 					MediaPath:   req.MediaPath,
 					TrackNumber: sql.NullInt64{Int64: trackNum, Valid: true},
@@ -1067,9 +1067,9 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 				queries := database.New(sqlDB)
-				pls, err := queries.GetPlaylists(r.Context())
+				pls, err := queries.GetPlaylists(ctx)
 				if err != nil {
 					return err
 				}
@@ -1086,7 +1086,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 					return nil
 				}
 
-				return queries.RemovePlaylistItem(r.Context(), database.RemovePlaylistItemParams{
+				return queries.RemovePlaylistItem(ctx, database.RemovePlaylistItemParams{
 					PlaylistID: playlistID,
 					MediaPath:  req.MediaPath,
 				})
@@ -1120,9 +1120,9 @@ func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
 	// Verify path in database
 	found := false
 	for _, dbPath := range c.Databases {
-		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
+		c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
-			_, err := queries.GetMediaByPathExact(r.Context(), path)
+			_, err := queries.GetMediaByPathExact(ctx, path)
 			if err == nil {
 				found = true
 			}

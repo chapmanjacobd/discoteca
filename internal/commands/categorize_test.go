@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestCategorizeCmd_Run(t *testing.T) {
 		cmd := &CategorizeCmd{
 			Databases: []string{dbPath},
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("CategorizeCmd failed: %v", err)
 		}
 
@@ -55,7 +56,7 @@ func TestCategorizeCmd_Run(t *testing.T) {
 			Databases: []string{dbPath},
 			Other:     true,
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("CategorizeCmd (Other) failed: %v", err)
 		}
 	})

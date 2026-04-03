@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -221,7 +222,7 @@ func CopyMediaItem(destDir string, m models.MediaWithDB) error {
 	return nil
 }
 
-func CastPlay(flags models.GlobalFlags, media []models.MediaWithDB, audioOnly bool) error {
+func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.MediaWithDB, audioOnly bool) error {
 	for _, m := range media {
 		if !utils.FileExists(m.Path) {
 			continue
@@ -291,7 +292,7 @@ func CastPlay(flags models.GlobalFlags, media []models.MediaWithDB, audioOnly bo
 				existingPlayhead = int(*m.Playhead)
 			}
 			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
-			history.UpdateHistorySimple(m.DB, []string{m.Path}, playhead, false)
+			history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false)
 		}
 	}
 	os.Remove(utils.GetCattNowPlayingFile())

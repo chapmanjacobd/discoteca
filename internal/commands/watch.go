@@ -148,7 +148,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 		if c.Cast {
 			// CastPlay handles its own loop, but we want to handle one by one for Cable?
 			// For now, let's just call it with the single item
-			if err := CastPlay(flags, []models.MediaWithDB{m}, false); err != nil {
+			if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, false); err != nil {
 				slog.Error("Cast failed", "path", m.Path, "error", err)
 			}
 			continue
@@ -175,7 +175,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 			}
 			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
 
-			if err := history.UpdateHistorySimple(m.DB, []string{m.Path}, playhead, false); err != nil {
+			if err := history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false); err != nil {
 				slog.Error("Warning: failed to update history", "path", m.Path, "error", err)
 			}
 		}
@@ -328,7 +328,7 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 		args = append(args, m.Path)
 
 		if c.Cast {
-			if err := CastPlay(flags, []models.MediaWithDB{m}, true); err != nil {
+			if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, true); err != nil {
 				slog.Error("Cast failed", "path", m.Path, "error", err)
 			}
 			continue
@@ -351,7 +351,7 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 				existingPlayhead = int(*m.Playhead)
 			}
 			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
-			history.UpdateHistorySimple(m.DB, []string{m.Path}, playhead, false)
+			history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false)
 		}
 
 		exitCode := 0

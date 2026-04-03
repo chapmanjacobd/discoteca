@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,7 @@ func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	cmd := &ServeCmd{
 		Databases: []string{fixture.DBPath},
@@ -79,7 +80,7 @@ func TestServeCmd_HandleMarkPlayed(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	cmd := &ServeCmd{
 		Databases: []string{fixture.DBPath},
@@ -124,7 +125,7 @@ func TestServeCmd_HandleMarkUnplayed(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	cmd := &ServeCmd{
 		Databases: []string{fixture.DBPath},

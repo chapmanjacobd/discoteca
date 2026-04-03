@@ -27,7 +27,7 @@ func TestHistoryCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addHist.AfterApply()
-	addHist.Run()
+	addHist.Run(context.Background())
 
 	t.Run("DefaultHistory", func(t *testing.T) {
 		cmd := &HistoryCmd{
@@ -65,7 +65,7 @@ func TestHistoryAddCmd_Run(t *testing.T) {
 		t.Fatalf("AfterApply failed: %v", err)
 	}
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("HistoryAddCmd failed: %v", err)
 	}
 }

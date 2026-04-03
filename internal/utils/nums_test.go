@@ -263,7 +263,7 @@ func TestSafeIntFloat(t *testing.T) {
 	}
 }
 
-func TestSqlHumanTime(t *testing.T) {
+func TestSQLHumanTime(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -274,8 +274,8 @@ func TestSqlHumanTime(t *testing.T) {
 		{"other", "other"},
 	}
 	for _, tt := range tests {
-		if got := SqlHumanTime(tt.input); got != tt.expected {
-			t.Errorf("SqlHumanTime(%q) = %q, want %q", tt.input, got, tt.expected)
+		if got := SQLHumanTime(tt.input); got != tt.expected {
+			t.Errorf("SQLHumanTime(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }
