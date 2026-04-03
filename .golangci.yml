@@ -49,9 +49,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - unused
-
-    # Additional strict linters (kept from your config, even if golden config disabled them)
     - asasalint
     - asciicheck
     - bidichk
@@ -500,10 +497,6 @@ linters:
         text: "ifElseChain"
         linters:
           - gocritic
-      # Exclude unused linter for blank identifiers (standard Go practice for unused parameters)
-      - text: "var _ is unused"
-        linters:
-          - unused
       # Exclude unused-receiver for methods where receiver is not needed (interface compliance, etc.)
       - text: "unused-receiver"
         linters:
@@ -512,14 +505,6 @@ linters:
       - text: "unused-parameter"
         linters:
           - revive
-      # Exclude unused interface parameters (parameters are named for documentation, implementations may not use them)
-      - path: internal/discoteca/engine\.go
-        linters:
-          - unused
-      # Exclude interfacebloat for Engine interface (large interface needed for REST API compatibility)
-      - path: internal/discoteca/engine\.go
-        linters:
-          - interfacebloat
       # Exclude gochecknoglobals for web package
       - path: web/
         linters:

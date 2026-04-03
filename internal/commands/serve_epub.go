@@ -310,7 +310,7 @@ func unescapePath(path string) (string, error) {
 }
 
 // serveHTMLFolderWithTOC serves an HTML folder with a sticky TOC header
-func serveHTMLFolderWithTOC(w http.ResponseWriter, r *http.Request, htmlDir, originalPath string) {
+func serveHTMLFolderWithTOC(w http.ResponseWriter, _ *http.Request, htmlDir, originalPath string) {
 	// Get list of HTML files for TOC
 	htmlFiles := utils.GetHTMLFiles(htmlDir)
 

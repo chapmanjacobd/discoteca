@@ -212,7 +212,26 @@ func (c *SearchDBCmd) markDeletedRows(sqlDB *sql.DB, table string, where []strin
 }
 
 func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string, where []string, args []any) error {
-	query := fmt.Sprintf("SELECT * FROM %s", table)
+	// Get column names explicitly
+	colRows, err := sqlDB.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return err
+	}
+	var columns []string
+	for colRows.Next() {
+		var cid int
+		var name, colType string
+		var notnull int
+		var dfltValue sql.NullString
+		if err := colRows.Scan(&cid, &name, &colType, &notnull, &dfltValue, nil); err != nil {
+			colRows.Close()
+			return err
+		}
+		columns = append(columns, name)
+	}
+	colRows.Close()
+
+	query := fmt.Sprintf("SELECT %s FROM %s", strings.Join(columns, ", "), table)
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}

@@ -315,7 +315,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 
 // generateTextSnippetSVG creates a styled SVG thumbnail with text content preview
 // DEPRECATED: SVG thumbnails disabled, returning placeholder
-func (c *ServeCmd) generateTextSnippetSVG(label, firstLine, _ string) []byte {
+func (c *ServeCmd) generateTextSnippetSVG(_, _ string, _ string) []byte {
 	// Return a simple placeholder instead of SVG
 	return []byte{}
 }

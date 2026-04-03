@@ -55,7 +55,7 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx context.Context, sqlDB *sql.DB, queries *db.Queries) error {
+func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx context.Context, sqlDB *sql.DB, _ *db.Queries) error {
 	slog.Info("Running BulkMarkOptimizedExtensions...")
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {

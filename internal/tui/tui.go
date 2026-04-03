@@ -34,7 +34,7 @@ type itemDelegate struct{}
 
 func (d itemDelegate) Height() int                               { return 2 }
 func (d itemDelegate) Spacing() int                              { return 1 }
-func (d itemDelegate) Update(msg tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	i, ok := listItem.(item)
 	if !ok {
@@ -118,9 +118,9 @@ func (i sidebarItem) FilterValue() string { return i.title }
 
 type sidebarDelegate struct{}
 
-func (d sidebarDelegate) Height() int                               { return 1 }
-func (d sidebarDelegate) Spacing() int                              { return 0 }
-func (d sidebarDelegate) Update(msg tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d sidebarDelegate) Height() int                                  { return 1 }
+func (d sidebarDelegate) Spacing() int                                 { return 0 }
+func (d sidebarDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd      { return nil }
 func (d sidebarDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	i, ok := listItem.(sidebarItem)
 	if !ok {

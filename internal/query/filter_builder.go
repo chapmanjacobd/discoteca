@@ -2235,7 +2235,7 @@ func (qe *QueryExecutor) FetchSiblings(
 			continue
 		}
 
-		query := "SELECT * FROM media WHERE time_deleted = 0 AND path LIKE ? ORDER BY path LIMIT ?"
+		query := "SELECT path, path_tokenized, title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped FROM media WHERE time_deleted = 0 AND path LIKE ? ORDER BY path LIMIT ?"
 		pattern := dir + "%"
 		siblings, err := QueryDatabase(ctx, dbPath, query, []any{pattern, limit})
 		if err != nil {

@@ -420,7 +420,7 @@ func TestQueryDatabase(t *testing.T) {
 	dbConn.Close()
 
 	ctx := context.Background()
-	results, err := QueryDatabase(ctx, dbPath, "SELECT * FROM media", nil)
+	results, err := QueryDatabase(ctx, dbPath, "SELECT path, title, duration, size, media_type FROM media", nil)
 	if err != nil {
 		t.Fatalf("QueryDatabase failed: %v", err)
 	}
