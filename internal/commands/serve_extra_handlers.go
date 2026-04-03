@@ -117,7 +117,12 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 
 		for _, dbPath := range c.Databases {
 			err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-				_, err := sqlDB.ExecContext(r.Context(), "DELETE FROM custom_keywords WHERE category = ? AND keyword = ?", req.Category, req.Keyword)
+				_, err := sqlDB.ExecContext(
+					r.Context(),
+					"DELETE FROM custom_keywords WHERE category = ? AND keyword = ?",
+					req.Category,
+					req.Keyword,
+				)
 				return err
 			})
 			if err != nil {
@@ -144,7 +149,12 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 
 	for _, dbPath := range c.Databases {
 		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			_, err := sqlDB.ExecContext(r.Context(), "INSERT OR IGNORE INTO custom_keywords (category, keyword) VALUES (?, ?)", req.Category, req.Keyword)
+			_, err := sqlDB.ExecContext(
+				r.Context(),
+				"INSERT OR IGNORE INTO custom_keywords (category, keyword) VALUES (?, ?)",
+				req.Category,
+				req.Keyword,
+			)
 			return err
 		})
 		if err != nil {
@@ -197,7 +207,8 @@ func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			// Default behavior: video or audio
-			if strings.HasPrefix(*m.MediaType, "video") || strings.HasPrefix(*m.MediaType, "audio") || *m.MediaType == "audiobook" {
+			if strings.HasPrefix(*m.MediaType, "video") || strings.HasPrefix(*m.MediaType, "audio") ||
+				*m.MediaType == "audiobook" {
 				playable = append(playable, m)
 			}
 		}
@@ -222,6 +233,7 @@ func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
 
 	type clipResponse struct {
 		models.MediaWithDB
+
 		Start int `json:"start"`
 		End   int `json:"end"`
 	}
@@ -571,7 +583,17 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	strategy := utils.GetTranscodeStrategy(m)
-	slog.Debug("handleRaw strategy", "path", path, "needs_transcode", strategy.NeedsTranscode, "vcopy", strategy.VideoCopy, "acopy", strategy.AudioCopy)
+	slog.Debug(
+		"handleRaw strategy",
+		"path",
+		path,
+		"needs_transcode",
+		strategy.NeedsTranscode,
+		"vcopy",
+		strategy.VideoCopy,
+		"acopy",
+		strategy.AudioCopy,
+	)
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filepath.Base(localPath)))
 
@@ -999,7 +1021,8 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 
 				// Get max track number
 				var maxTrack sql.NullInt64
-				err = sqlDB.QueryRowContext(r.Context(), "SELECT MAX(track_number) FROM playlist_items WHERE playlist_id = ?", playlistID).Scan(&maxTrack)
+				err = sqlDB.QueryRowContext(r.Context(), "SELECT MAX(track_number) FROM playlist_items WHERE playlist_id = ?", playlistID).
+					Scan(&maxTrack)
 				if err != nil {
 					return err
 				}
@@ -1068,7 +1091,17 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 				})
 			})
 			if err != nil {
-				slog.Error("Failed to delete playlist item", "db", dbPath, "title", req.PlaylistTitle, "path", req.MediaPath, "error", err)
+				slog.Error(
+					"Failed to delete playlist item",
+					"db",
+					dbPath,
+					"title",
+					req.PlaylistTitle,
+					"path",
+					req.MediaPath,
+					"error",
+					err,
+				)
 			}
 		}
 		w.WriteHeader(http.StatusOK)

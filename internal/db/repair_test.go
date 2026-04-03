@@ -13,7 +13,7 @@ import (
 
 func TestRepairRace(t *testing.T) {
 	// Create a temporary database
-	f, err := os.CreateTemp("", "race-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "race-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,8 @@ func TestRepairRace(t *testing.T) {
 	// Verify no backup directories are left
 	entries, _ := os.ReadDir(os.TempDir())
 	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "race-test-") && strings.Contains(entry.Name(), ".corrupt.") {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "race-test-") &&
+			strings.Contains(entry.Name(), ".corrupt.") {
 			t.Errorf("Found leftover backup directory: %s", entry.Name())
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -22,7 +23,7 @@ type MpvWatchlaterCmd struct {
 	models.DeletedFlags     `embed:""`
 	models.PlaybackFlags    `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *MpvWatchlaterCmd) Run(ctx *kong.Context) error {

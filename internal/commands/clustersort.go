@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -17,7 +18,7 @@ type ClusterSortCmd struct {
 	models.SimilarityFlags `embed:""`
 	models.TextFlags       `embed:""`
 
-	InputPath  string `arg:"" optional:"" help:"Input file path (default stdin)" default:"-"`
+	InputPath  string `help:"Input file path (default stdin)"   default:"-" arg:"" optional:""`
 	OutputPath string `help:"Output file path (default stdout)"`
 }
 

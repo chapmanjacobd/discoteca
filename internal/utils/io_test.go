@@ -10,7 +10,7 @@ import (
 )
 
 func TestFileExists(t *testing.T) {
-	f, _ := os.CreateTemp("", "exists-test")
+	f, _ := os.CreateTemp(t.TempDir(), "exists-test")
 	defer os.Remove(f.Name())
 	f.Close()
 

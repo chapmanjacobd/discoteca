@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -21,7 +22,7 @@ type FilesInfoCmd struct {
 	models.MediaFilterFlags `embed:""`
 	models.DisplayFlags     `embed:""`
 
-	Args []string `arg:"" required:"" help:"Database file(s) or files/directories to scan"`
+	Args []string `help:"Database file(s) or files/directories to scan" required:"" arg:""`
 
 	Databases []string `kong:"-"`
 	ScanPaths []string `kong:"-"`

@@ -8,7 +8,12 @@ import (
 )
 
 // RunQuery handles the common boilerplate for executing a media query
-func RunQuery(ctx context.Context, dbs []string, flags models.GlobalFlags, process func([]models.MediaWithDB) error) error {
+func RunQuery(
+	ctx context.Context,
+	dbs []string,
+	flags models.GlobalFlags,
+	process func([]models.MediaWithDB) error,
+) error {
 	models.SetupLogging(flags.Verbose)
 
 	media, err := query.MediaQuery(ctx, dbs, flags)

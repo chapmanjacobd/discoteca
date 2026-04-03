@@ -38,7 +38,7 @@ func LinearInterpolation(x float64, dataPoints [][2]float64) float64 {
 		return dataPoints[n-1][1]
 	}
 
-	for i := 0; i < n-1; i++ {
+	for i := range n - 1 {
 		if x >= dataPoints[i][0] && x <= dataPoints[i+1][0] {
 			x1, y1 := dataPoints[i][0], dataPoints[i][1]
 			x2, y2 := dataPoints[i+1][0], dataPoints[i+1][1]
@@ -371,7 +371,7 @@ func CalculatePercentiles(values []int64) []int64 {
 	res := make([]int64, 101)
 	cum := 0.0
 	uIdx := 0
-	for i := 0; i <= 100; i++ {
+	for i := range 101 {
 		target := float64(i) / 100.0
 		for uIdx < len(unique)-1 && cum+unique[uIdx].freq < target {
 			cum += unique[uIdx].freq
@@ -429,7 +429,7 @@ func ParsePercentileRange(s string) (min, max float64, ok bool) {
 	return min, max, true
 }
 
-func CalculateSegments(total float64, chunk float64, gap float64) []float64 {
+func CalculateSegments(total, chunk, gap float64) []float64 {
 	if total <= 0 || chunk <= 0 {
 		return nil
 	}
@@ -454,7 +454,7 @@ func CalculateSegments(total float64, chunk float64, gap float64) []float64 {
 	return append(segments, endSegmentStart)
 }
 
-func CalculateSegmentsInt(total int64, chunk int64, gap float64) []int64 {
+func CalculateSegmentsInt(total, chunk int64, gap float64) []int64 {
 	if total <= 0 || chunk <= 0 {
 		return nil
 	}

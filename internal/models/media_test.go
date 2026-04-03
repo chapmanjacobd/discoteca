@@ -127,7 +127,14 @@ func TestMedia_ParentAtDepth(t *testing.T) {
 			gotNorm := strings.ReplaceAll(got, "\\", "/")
 			wantNorm := strings.ReplaceAll(tt.want, "\\", "/")
 			if gotNorm != wantNorm {
-				t.Errorf("Media.ParentAtDepth(%v) = %v (normalized: %q), want %v (normalized: %q)", tt.depth, got, gotNorm, tt.want, wantNorm)
+				t.Errorf(
+					"Media.ParentAtDepth(%v) = %v (normalized: %q), want %v (normalized: %q)",
+					tt.depth,
+					got,
+					gotNorm,
+					tt.want,
+					wantNorm,
+				)
 			}
 		})
 	}

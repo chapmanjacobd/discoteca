@@ -10,7 +10,7 @@ import (
 )
 
 type ExplodeCmd struct {
-	TargetDir string `arg:"" optional:"" default:"." help:"Directory to create symlinks in"`
+	TargetDir string `help:"Directory to create symlinks in" default:"." arg:"" optional:""`
 }
 
 func (c *ExplodeCmd) Run(ctx *kong.Context) error {

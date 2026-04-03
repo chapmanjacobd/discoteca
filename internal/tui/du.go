@@ -6,12 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 var (
@@ -100,7 +101,7 @@ func buildDUTree(media []models.MediaWithDB) *duTreeNode {
 }
 
 // getNodesAtDepth returns nodes at the specified depth from the tree
-func getNodesAtDepth(node *duTreeNode, targetDepth int, currentDepth int, pathPrefix string) []duItem {
+func getNodesAtDepth(node *duTreeNode, targetDepth, currentDepth int, pathPrefix string) []duItem {
 	var results []duItem
 
 	if currentDepth == targetDepth {
@@ -226,7 +227,11 @@ func (m *DUModel) updateList() {
 	m.totalSize = maxSize
 
 	l := list.New(items, duDelegate{maxSize: maxSize}, 0, 0)
-	l.Title = "🪩  " + StyleLogoPrefix.Render("Disco") + StyleLogoSuffix.Render("theque") + " Disk Usage: " + m.currentPath
+	l.Title = "🪩  " + StyleLogoPrefix.Render(
+		"Disco",
+	) + StyleLogoSuffix.Render(
+		"theque",
+	) + " Disk Usage: " + m.currentPath
 	if m.currentPath == "" {
 		l.Title = "🪩  " + StyleLogoPrefix.Render("Disco") + StyleLogoSuffix.Render("theque") + " Disk Usage: Root"
 	}
@@ -265,7 +270,11 @@ func (d duDelegate) Render(w io.Writer, m list.Model, index int, listItem list.I
 	if d.maxSize > 0 {
 		filled = int(float64(i.stats.TotalSize) / float64(d.maxSize) * float64(barWidth))
 	}
-	bar := "[" + barFullStyle.Render(strings.Repeat("#", filled)) + sizeBarStyle.Render(strings.Repeat("-", barWidth-filled)) + "]"
+	bar := "[" + barFullStyle.Render(
+		strings.Repeat("#", filled),
+	) + sizeBarStyle.Render(
+		strings.Repeat("-", barWidth-filled),
+	) + "]"
 
 	fmt.Fprintf(w, "%s %s\n%s", title, bar, desc)
 }

@@ -86,13 +86,13 @@ func MpvCall(socketPath string, args ...any) (*MpvResponse, error) {
 }
 
 // MpvSetProperty sets a property in mpv
-func MpvSetProperty(socketPath string, name string, value any) error {
+func MpvSetProperty(socketPath, name string, value any) error {
 	_, err := MpvCall(socketPath, "set_property", name, value)
 	return err
 }
 
 // MpvGetProperty gets a property from mpv
-func MpvGetProperty(socketPath string, name string) (any, error) {
+func MpvGetProperty(socketPath, name string) (any, error) {
 	resp, err := MpvCall(socketPath, "get_property", name)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func MpvSeek(socketPath string, value float64, mode string) error {
 }
 
 // MpvLoadFile loads a file into mpv
-func MpvLoadFile(socketPath string, path string, mode string) error {
+func MpvLoadFile(socketPath, path, mode string) error {
 	// mode can be "replace", "append", "append-play"
 	if mode == "" {
 		mode = "replace"
@@ -164,7 +164,7 @@ func MpvWatchLaterValue(path, key string) (string, error) {
 }
 
 // GetPlayhead calculates the playhead position based on session duration, existing playhead and mpv watch_later
-func GetPlayhead(flags models.GlobalFlags, path string, startTime time.Time, existingPlayhead int, mediaDuration int) int {
+func GetPlayhead(flags models.GlobalFlags, path string, startTime time.Time, existingPlayhead, mediaDuration int) int {
 	endTime := time.Now()
 	sessionDuration := int(endTime.Sub(startTime).Seconds())
 	pythonPlayhead := sessionDuration

@@ -6,9 +6,10 @@ import (
 	"os"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // TestMultiDBPagination verifies that limit and offset are applied correctly

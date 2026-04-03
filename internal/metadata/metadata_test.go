@@ -10,7 +10,7 @@ import (
 )
 
 func TestExtract_BasicInfo(t *testing.T) {
-	f, err := os.CreateTemp("", "meta-test-*.txt")
+	f, err := os.CreateTemp(t.TempDir(), "meta-test-*.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestExtract_MimeTypes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		f, _ := os.CreateTemp("", tt.filename)
+		f, _ := os.CreateTemp(t.TempDir(), tt.filename)
 		name := f.Name()
 		f.Close()
 		defer os.Remove(name)
@@ -102,8 +102,10 @@ func TestExtract_WithMockFFProbe(t *testing.T) {
 	os.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
 	defer os.Setenv("PATH", oldPath)
 
-	f, _ := os.CreateTemp("", "mock-video-*.mp4")
-	f.Write([]byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'}) // Basic mp4 header to avoid text detection
+	f, _ := os.CreateTemp(t.TempDir(), "mock-video-*.mp4")
+	f.Write(
+		[]byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'},
+	) // Basic mp4 header to avoid text detection
 	defer os.Remove(f.Name())
 
 	meta, err := Extract(context.Background(), f.Name(), ExtractOptions{})
@@ -440,7 +442,11 @@ func TestExtract_Audio_SpeechRecognition_Enabled(t *testing.T) {
 
 	// Test with speech recognition enabled (vosk)
 	// This will fail gracefully when vosk is not installed, but we verify the flow
-	meta, err := Extract(context.Background(), audioPath, ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"})
+	meta, err := Extract(
+		context.Background(),
+		audioPath,
+		ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"},
+	)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -527,7 +533,11 @@ func TestExtract_Video_SpeechRecognition(t *testing.T) {
 	}
 
 	// Test with speech recognition enabled for video
-	meta, err := Extract(context.Background(), videoPath, ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"})
+	meta, err := Extract(
+		context.Background(),
+		videoPath,
+		ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"},
+	)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -629,7 +639,10 @@ func TestExtract_Image_WithoutOCR_NoTesseract(t *testing.T) {
 		t.Errorf("Expected type image, got %s", meta2.Media.MediaType.String)
 	}
 	if len(meta2.Captions) != 0 {
-		t.Errorf("Expected 0 captions with extractText=true but OCR=false (images don't use extractText), got %d", len(meta2.Captions))
+		t.Errorf(
+			"Expected 0 captions with extractText=true but OCR=false (images don't use extractText), got %d",
+			len(meta2.Captions),
+		)
 	}
 
 	t.Log("Confirmed: images are not passed through tesseract without --OCR flag")

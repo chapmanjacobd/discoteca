@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -31,7 +33,7 @@ type WatchCmd struct {
 	models.MpvActionFlags   `embed:""`
 	models.PostActionFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *WatchCmd) Run(ctx *kong.Context) error {
@@ -63,7 +65,7 @@ func (c *WatchCmd) Run(ctx *kong.Context) error {
 	}
 
 	if len(media) == 0 {
-		return fmt.Errorf("no media found")
+		return errors.New("no media found")
 	}
 
 	for i, m := range media {
@@ -115,8 +117,8 @@ func (c *WatchCmd) Run(ctx *kong.Context) error {
 				}
 				if duration > c.InterdimensionalCable {
 					s := utils.RandomInt(0, duration-c.InterdimensionalCable)
-					start = fmt.Sprintf("%d", s)
-					end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+					start = strconv.Itoa(s)
+					end = strconv.Itoa(s + c.InterdimensionalCable)
 				}
 			}
 
@@ -183,7 +185,8 @@ func (c *WatchCmd) Run(ctx *kong.Context) error {
 		// Handle Exit Code Hooks
 		exitCode := 0
 		if err != nil {
-			if exitError, ok := err.(*exec.ExitError); ok {
+			exitError := &exec.ExitError{}
+			if errors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			} else {
 				return err
@@ -236,7 +239,7 @@ type ListenCmd struct {
 	models.MpvActionFlags   `embed:""`
 	models.PostActionFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *ListenCmd) Run(ctx *kong.Context) error {
@@ -268,7 +271,7 @@ func (c *ListenCmd) Run(ctx *kong.Context) error {
 	}
 
 	if len(media) == 0 {
-		return fmt.Errorf("no media found")
+		return errors.New("no media found")
 	}
 
 	for _, m := range media {
@@ -307,8 +310,8 @@ func (c *ListenCmd) Run(ctx *kong.Context) error {
 				}
 				if duration > c.InterdimensionalCable {
 					s := utils.RandomInt(0, duration-c.InterdimensionalCable)
-					start = fmt.Sprintf("%d", s)
-					end = fmt.Sprintf("%d", s+c.InterdimensionalCable)
+					start = strconv.Itoa(s)
+					end = strconv.Itoa(s + c.InterdimensionalCable)
 				}
 			}
 			if start != "" {
@@ -355,7 +358,8 @@ func (c *ListenCmd) Run(ctx *kong.Context) error {
 
 		exitCode := 0
 		if err != nil {
-			if exitError, ok := err.(*exec.ExitError); ok {
+			exitError := &exec.ExitError{}
+			if errors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
 		}

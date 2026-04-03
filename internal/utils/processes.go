@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -28,10 +29,15 @@ func Cmd(name string, args ...string) (CmdResult, error) {
 	}
 
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
 			res.ExitCode = exitErr.ExitCode()
 			if strings.TrimSpace(res.Stderr) != "" {
-				return res, fmt.Errorf("command failed with exit code %d: %s", res.ExitCode, strings.TrimSpace(res.Stderr))
+				return res, fmt.Errorf(
+					"command failed with exit code %d: %s",
+					res.ExitCode,
+					strings.TrimSpace(res.Stderr),
+				)
 			}
 			return res, fmt.Errorf("command failed with exit code %d", res.ExitCode)
 		}
@@ -65,10 +71,15 @@ func CmdWithTimeout(ctx context.Context, name string, args ...string) (CmdResult
 	}
 
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
 			res.ExitCode = exitErr.ExitCode()
 			if strings.TrimSpace(res.Stderr) != "" {
-				return res, fmt.Errorf("command failed with exit code %d: %s", res.ExitCode, strings.TrimSpace(res.Stderr))
+				return res, fmt.Errorf(
+					"command failed with exit code %d: %s",
+					res.ExitCode,
+					strings.TrimSpace(res.Stderr),
+				)
 			}
 			return res, fmt.Errorf("command failed with exit code %d", res.ExitCode)
 		}
@@ -100,7 +111,8 @@ func FzfSelect(items []string, multi bool) ([]string, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 130 {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
 			return nil, nil // No selection
 		}
 		return nil, err
@@ -113,7 +125,7 @@ func FzfSelect(items []string, multi bool) ([]string, error) {
 	return selected, nil
 }
 
-func AdjustDuration(duration int, start *int, end *int) int {
+func AdjustDuration(duration int, start, end *int) int {
 	if start != nil && *start > 0 {
 		duration -= *start
 	}

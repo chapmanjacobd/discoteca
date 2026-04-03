@@ -12,7 +12,7 @@ import (
 )
 
 func TestFileCountsFiltering(t *testing.T) {
-	f, _ := os.CreateTemp("", "episodic-test-*.db")
+	f, _ := os.CreateTemp(t.TempDir(), "episodic-test-*.db")
 	dbPath := f.Name()
 	f.Close()
 	defer os.Remove(dbPath)
@@ -52,7 +52,7 @@ func TestFileCountsFiltering(t *testing.T) {
 }
 
 func TestFileCountsMediaQueryCount(t *testing.T) {
-	f, _ := os.CreateTemp("", "episodic-count-test-*.db")
+	f, _ := os.CreateTemp(t.TempDir(), "episodic-count-test-*.db")
 	dbPath := f.Name()
 	f.Close()
 	defer os.Remove(dbPath)
@@ -94,7 +94,7 @@ func TestFileCountsMediaQueryCount(t *testing.T) {
 }
 
 func TestFetchSiblings(t *testing.T) {
-	f, _ := os.CreateTemp("", "siblings-test-*.db")
+	f, _ := os.CreateTemp(t.TempDir(), "siblings-test-*.db")
 	dbPath := f.Name()
 	f.Close()
 	defer os.Remove(dbPath)
@@ -113,7 +113,11 @@ func TestFetchSiblings(t *testing.T) {
 	}
 
 	// Fetch all siblings in the same directory
-	got, err := FetchSiblings(context.Background(), media, models.GlobalFlags{FilterFlags: models.FilterFlags{FetchSiblings: "all"}})
+	got, err := FetchSiblings(
+		context.Background(),
+		media,
+		models.GlobalFlags{FilterFlags: models.FilterFlags{FetchSiblings: "all"}},
+	)
 	if err != nil {
 		t.Fatalf("FetchSiblings failed: %v", err)
 	}

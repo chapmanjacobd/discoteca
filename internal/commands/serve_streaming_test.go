@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // TestHandleSubtitles tests the subtitles endpoint
@@ -33,7 +34,10 @@ Test subtitle
 		t.Fatal(err)
 	}
 
-	_, err := sqlDB.Exec(`INSERT INTO media (path, title, media_type, time_deleted) VALUES (?, 'Test', 'video', 0)`, subPath)
+	_, err := sqlDB.Exec(
+		`INSERT INTO media (path, title, media_type, time_deleted) VALUES (?, 'Test', 'video', 0)`,
+		subPath,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +50,7 @@ Test subtitle
 	mux := cmd.Mux()
 
 	t.Run("ValidVTTSubtitle", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/subtitles?path="+subPath, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+subPath, nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -61,7 +65,7 @@ Test subtitle
 	})
 
 	t.Run("MissingPath", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/subtitles", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/subtitles", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -72,7 +76,7 @@ Test subtitle
 	})
 
 	t.Run("UnauthorizedPath", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/subtitles?path=/etc/passwd", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path=/etc/passwd", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -121,7 +125,7 @@ func TestHandleDU(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("RootLevel", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -155,7 +159,7 @@ func TestHandleDU(t *testing.T) {
 	})
 
 	t.Run("SpecificPath", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?path=/videos", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -181,7 +185,7 @@ func TestHandleDU(t *testing.T) {
 
 	t.Run("DirectFiles", func(t *testing.T) {
 		// Test that direct files are returned in the files array, not as fake folders
-		req := httptest.NewRequest("GET", "/api/du?path=/videos/movies", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos/movies", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -212,7 +216,7 @@ func TestHandleDU(t *testing.T) {
 	t.Run("WindowsStylePath", func(t *testing.T) {
 		// Test that Windows-style backslash paths work correctly
 		// This ensures cross-platform compatibility
-		req := httptest.NewRequest("GET", "/api/du?path=\\videos\\movies", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=\\videos\\movies", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -235,7 +239,7 @@ func TestHandleDU(t *testing.T) {
 
 	t.Run("MixedStylePath", func(t *testing.T) {
 		// Test that mixed separator paths work correctly
-		req := httptest.NewRequest("GET", "/api/du?path=/videos\\movies", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos\\movies", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -258,7 +262,7 @@ func TestHandleDU(t *testing.T) {
 	t.Run("WindowsAbsolutePath", func(t *testing.T) {
 		// Test Windows absolute path with drive letter
 		// This simulates how Windows clients would query paths
-		req := httptest.NewRequest("GET", "/api/du?path=C:\\videos\\movies", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=C:\\videos\\movies", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -281,7 +285,7 @@ func TestHandleDU(t *testing.T) {
 
 	t.Run("WindowsRootPath", func(t *testing.T) {
 		// Test Windows root path (drive letter only)
-		req := httptest.NewRequest("GET", "/api/du?path=C:\\", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=C:\\", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -302,7 +306,7 @@ func TestHandleDU(t *testing.T) {
 
 	t.Run("UNCPath", func(t *testing.T) {
 		// Test UNC path (network share)
-		req := httptest.NewRequest("GET", "/api/du?path=\\\\server\\share\\videos", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=\\\\server\\share\\videos", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -324,7 +328,7 @@ func TestHandleDU(t *testing.T) {
 	t.Run("PathWithDotComponents", func(t *testing.T) {
 		// Test path with . and .. components
 		// FromURL normalizes the path: /videos/./movies/../music -> /videos/music
-		req := httptest.NewRequest("GET", "/api/du?path=/videos/./movies/../music", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos/./movies/../music", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -347,7 +351,7 @@ func TestHandleDU(t *testing.T) {
 	t.Run("PathWithDoubleSeparators", func(t *testing.T) {
 		// Test path with double separators
 		// FromURL normalizes: /videos//movies -> /videos/movies
-		req := httptest.NewRequest("GET", "/api/du?path=/videos//movies", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos//movies", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -370,7 +374,7 @@ func TestHandleDU(t *testing.T) {
 	t.Run("WindowsPathWithDotDot", func(t *testing.T) {
 		// Test Windows path with .. components
 		// FromURL normalizes: \videos\movies\..\music -> /videos/music (on Linux)
-		req := httptest.NewRequest("GET", "/api/du?path=\\videos\\movies\\..\\music", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=\\videos\\movies\\..\\music", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -416,7 +420,7 @@ func TestHandleEpisodes(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("GroupEpisodes", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/episodes", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/episodes", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)

@@ -14,7 +14,7 @@ import (
 
 func TestHandleCategorizeApply(t *testing.T) {
 	t.Parallel()
-	tmpDB, err := os.CreateTemp("", "disco_test_apply_*.db")
+	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_apply_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 
 	t.Run("ApplyCategorization with no matches returns count 0", func(t *testing.T) {
 		// Create database with media that won't match any keywords
-		emptyDB, err := os.CreateTemp("", "disco_test_empty_*.db")
+		emptyDB, err := os.CreateTemp(t.TempDir(), "disco_test_empty_*.db")
 		if err != nil {
 			t.Fatalf("Failed to create temp db: %v", err)
 		}

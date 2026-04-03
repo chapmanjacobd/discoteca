@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -13,7 +14,8 @@ import (
 type PlaylistsCmd struct {
 	models.CoreFlags    `embed:""`
 	models.DisplayFlags `embed:""`
-	Databases           []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *PlaylistsCmd) Run(ctx *kong.Context) error {
@@ -36,7 +38,11 @@ func (c *PlaylistsCmd) Run(ctx *kong.Context) error {
 
 		fmt.Printf("Playlists in %s:\n", dbPath)
 		for _, pl := range playlists {
-			fmt.Printf("  %s (%s)\n", utils.StringValue(models.NullStringPtr(pl.Path)), utils.StringValue(models.NullStringPtr(pl.ExtractorKey)))
+			fmt.Printf(
+				"  %s (%s)\n",
+				utils.StringValue(models.NullStringPtr(pl.Path)),
+				utils.StringValue(models.NullStringPtr(pl.ExtractorKey)),
+			)
 		}
 		fmt.Println()
 	}

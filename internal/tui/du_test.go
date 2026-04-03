@@ -4,8 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestDUModel(t *testing.T) {

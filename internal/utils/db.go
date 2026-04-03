@@ -36,7 +36,7 @@ func MostSimilarSchema(keys []string, existingTables map[string]map[string]strin
 }
 
 // BlockDictsLikeSQL filters data by removing items that match any pattern in the blocklist
-func BlockDictsLikeSQL(data []map[string]any, blocklist []map[string]any) []map[string]any {
+func BlockDictsLikeSQL(data, blocklist []map[string]any) []map[string]any {
 	var res []map[string]any
 	for _, item := range data {
 		blocked := false
@@ -66,7 +66,7 @@ func BlockDictsLikeSQL(data []map[string]any, blocklist []map[string]any) []map[
 }
 
 // AllowDictsLikeSQL filters data by keeping only items that match at least one pattern in the allowlist
-func AllowDictsLikeSQL(data []map[string]any, allowlist []map[string]any) []map[string]any {
+func AllowDictsLikeSQL(data, allowlist []map[string]any) []map[string]any {
 	var res []map[string]any
 	for _, item := range data {
 		allowed := false

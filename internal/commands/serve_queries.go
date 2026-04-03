@@ -156,7 +156,7 @@ func (c *ServeCmd) handleQueries(w http.ResponseWriter, r *http.Request) {
 }
 
 // TimedQuery executes a query function and records timing if it exceeds the threshold
-func TimedQuery[T any](ctx context.Context, dbPath string, query string, args []any, fn func() (T, error)) (T, error) {
+func TimedQuery[T any](ctx context.Context, dbPath, query string, args []any, fn func() (T, error)) (T, error) {
 	start := time.Now()
 	result, err := fn()
 	duration := time.Since(start)

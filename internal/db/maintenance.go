@@ -36,7 +36,8 @@ func GetMaintenanceStatus(db *sql.DB) (MaintenanceStatus, error) {
 	// Get folder_stats last refresh
 	var folderStatsStr string
 	var folderStatsTime int64
-	err := db.QueryRow("SELECT value, last_updated FROM _maintenance_meta WHERE key = 'folder_stats_last_refresh'").Scan(&folderStatsStr, &folderStatsTime)
+	err := db.QueryRow("SELECT value, last_updated FROM _maintenance_meta WHERE key = 'folder_stats_last_refresh'").
+		Scan(&folderStatsStr, &folderStatsTime)
 	if err == nil && folderStatsTime > 0 {
 		status.FolderStatsLastRefresh = time.Unix(folderStatsTime, 0)
 	}
@@ -44,7 +45,8 @@ func GetMaintenanceStatus(db *sql.DB) (MaintenanceStatus, error) {
 	// Get FTS last rebuild
 	var ftsStr string
 	var ftsTime int64
-	err = db.QueryRow("SELECT value, last_updated FROM _maintenance_meta WHERE key = 'fts_last_rebuild'").Scan(&ftsStr, &ftsTime)
+	err = db.QueryRow("SELECT value, last_updated FROM _maintenance_meta WHERE key = 'fts_last_rebuild'").
+		Scan(&ftsStr, &ftsTime)
 	if err == nil && ftsTime > 0 {
 		status.FTSLastRebuild = time.Unix(ftsTime, 0)
 	}

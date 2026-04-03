@@ -148,10 +148,22 @@ func TestParseSortConfig(t *testing.T) {
 					break
 				}
 				if f.Field != tt.wantFields[i].Field {
-					t.Errorf("parseSortConfig(%q) field[%d] = %q, want %q", tt.config, i, f.Field, tt.wantFields[i].Field)
+					t.Errorf(
+						"parseSortConfig(%q) field[%d] = %q, want %q",
+						tt.config,
+						i,
+						f.Field,
+						tt.wantFields[i].Field,
+					)
 				}
 				if f.Reverse != tt.wantFields[i].Reverse {
-					t.Errorf("parseSortConfig(%q) field[%d].Reverse = %v, want %v", tt.config, i, f.Reverse, tt.wantFields[i].Reverse)
+					t.Errorf(
+						"parseSortConfig(%q) field[%d].Reverse = %v, want %v",
+						tt.config,
+						i,
+						f.Reverse,
+						tt.wantFields[i].Reverse,
+					)
 				}
 			}
 			if alg != tt.wantAlg {
@@ -515,21 +527,41 @@ func TestParseSortConfigWithGroups(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			groups := parseSortConfigWithGroups(tt.config)
 			if len(groups) != tt.wantGroups {
-				t.Errorf("parseSortConfigWithGroups(%q) returned %d groups, want %d", tt.config, len(groups), tt.wantGroups)
+				t.Errorf(
+					"parseSortConfigWithGroups(%q) returned %d groups, want %d",
+					tt.config,
+					len(groups),
+					tt.wantGroups,
+				)
 			}
 			if tt.wantWeighted >= 0 {
 				if groups[tt.wantWeighted].Alg != "weighted" {
-					t.Errorf("parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'weighted'", tt.config, tt.wantWeighted, groups[tt.wantWeighted].Alg)
+					t.Errorf(
+						"parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'weighted'",
+						tt.config,
+						tt.wantWeighted,
+						groups[tt.wantWeighted].Alg,
+					)
 				}
 			}
 			if tt.wantNatural >= 0 {
 				if groups[tt.wantNatural].Alg != "natural" {
-					t.Errorf("parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'natural'", tt.config, tt.wantNatural, groups[tt.wantNatural].Alg)
+					t.Errorf(
+						"parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'natural'",
+						tt.config,
+						tt.wantNatural,
+						groups[tt.wantNatural].Alg,
+					)
 				}
 			}
 			if tt.wantRelated >= 0 {
 				if groups[tt.wantRelated].Alg != "related" {
-					t.Errorf("parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'related'", tt.config, tt.wantRelated, groups[tt.wantRelated].Alg)
+					t.Errorf(
+						"parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'related'",
+						tt.config,
+						tt.wantRelated,
+						groups[tt.wantRelated].Alg,
+					)
 				}
 			}
 		})

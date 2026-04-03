@@ -1,11 +1,14 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -31,7 +34,7 @@ func (c *NowCmd) Run(ctx *kong.Context) error {
 	pathResp, err := utils.MpvCall(socketPath, "get_property", "path")
 	if err != nil {
 		if !utils.FileExists(cattFile) {
-			return fmt.Errorf("no playback detected (mpv or chromecast)")
+			return errors.New("no playback detected (mpv or chromecast)")
 		}
 		return nil
 	}
@@ -89,7 +92,8 @@ func (c *NextCmd) Run(ctx *kong.Context) error {
 
 type SeekCmd struct {
 	MpvControlBase
-	Time string `arg:"" help:"Time to seek to (e.g. 10, +10, -10, 00:01:30)"`
+
+	Time string `help:"Time to seek to (e.g. 10, +10, -10, 00:01:30)" arg:""`
 }
 
 func (c *SeekCmd) Run(ctx *kong.Context) error {
@@ -137,5 +141,11 @@ func (c *SeekCmd) Run(ctx *kong.Context) error {
 		mode = "relative"
 	}
 
-	return DispatchPlaybackCommand(c.ControlFlags, "seek", []any{seconds, mode}, castCmd, fmt.Sprintf("%d", int64(seconds)))
+	return DispatchPlaybackCommand(
+		c.ControlFlags,
+		"seek",
+		[]any{seconds, mode},
+		castCmd,
+		strconv.FormatInt(int64(seconds), 10),
+	)
 }

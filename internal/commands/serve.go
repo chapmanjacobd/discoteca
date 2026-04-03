@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -68,17 +69,17 @@ type ServeCmd struct {
 	models.PostActionFlags  `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Databases            []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
-	Port                 int      `short:"p" default:"5555" help:"Port to listen on"`
+	Databases            []string `help:"SQLite database files"                                                           required:"" arg:"" type:"existingfile"`
+	Port                 int      `help:"Port to listen on"                                                                                                      default:"5555" short:"p"`
 	PublicDir            string   `help:"Override embedded web assets with local directory"`
 	Dev                  bool     `help:"Enable development mode (auto-reload)"`
 	ReadOnly             bool     `help:"Disable write operations (progress tracking, playlist modifications, deletions)"`
 	NoBrowser            bool     `help:"Don't open browser on startup"`
-	ApplicationStartTime int64    `kong:"-"`
-	APIToken             string   `kong:"-"`
-	thumbnailCache       sync.Map `kong:"-"`
-	dbCache              sync.Map `kong:"-"`
-	hasFfmpeg            bool     `kong:"-"`
+	ApplicationStartTime int64    `                                                                                                                                                       kong:"-"`
+	APIToken             string   `                                                                                                                                                       kong:"-"`
+	thumbnailCache       sync.Map `                                                                                                                                                       kong:"-"`
+	dbCache              sync.Map `                                                                                                                                                       kong:"-"`
+	hasFfmpeg            bool     `                                                                                                                                                       kong:"-"`
 }
 
 // authMiddleware validates API token for authenticated endpoints
@@ -233,14 +234,24 @@ func (c *ServeCmd) Mux() http.Handler {
 		// Set Cache-Control headers for static assets (1 week cache)
 		// Disable caching in dev mode for easier development
 		if !c.Dev {
-			if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".mjs") || strings.HasSuffix(r.URL.Path, ".ts") {
+			if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".mjs") ||
+				strings.HasSuffix(r.URL.Path, ".ts") {
 				w.Header().Set("Content-Type", "text/javascript")
 				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week
-			} else if strings.HasSuffix(r.URL.Path, ".css") {
+			} else if strings.HasSuffix(
+				r.URL.Path,
+				".css",
+			) {
 				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week
-			} else if strings.HasSuffix(r.URL.Path, ".html") {
+			} else if strings.HasSuffix(
+				r.URL.Path,
+				".html",
+			) {
 				w.Header().Set("Cache-Control", "no-cache, must-revalidate") // HTML should not be cached
-			} else if strings.HasPrefix(r.URL.Path, "/lib/") {
+			} else if strings.HasPrefix(
+				r.URL.Path,
+				"/lib/",
+			) {
 				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week for library files
 			}
 		} else {
@@ -277,7 +288,7 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(*sql.DB) e
 				if db.IsCorruptionError(err) && i < maxRetries {
 					slog.Warn("Database corruption detected on connect, attempting repair", "db", dbPath)
 					if repErr := db.Repair(dbPath); repErr != nil {
-						return fmt.Errorf("repair failed: %w (original error: %v)", repErr, err)
+						return fmt.Errorf("repair failed: %w (original error: %w)", repErr, err)
 					}
 					slog.Info("Database repaired, retrying connect", "db", dbPath)
 					continue

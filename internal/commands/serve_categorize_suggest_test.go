@@ -14,7 +14,7 @@ import (
 
 func TestHandleCategorizeSuggest(t *testing.T) {
 	t.Parallel()
-	tmpDB, err := os.CreateTemp("", "disco_test_suggest_*.db")
+	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_suggest_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestHandleCategorizeSuggest(t *testing.T) {
 	})
 
 	t.Run("SuggestKeywords with empty database returns empty array", func(t *testing.T) {
-		emptyDB, err := os.CreateTemp("", "disco_test_empty_*.db")
+		emptyDB, err := os.CreateTemp(t.TempDir(), "disco_test_empty_*.db")
 		if err != nil {
 			t.Fatalf("Failed to create temp db: %v", err)
 		}

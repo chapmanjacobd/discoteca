@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"path/filepath"
@@ -456,14 +457,14 @@ func FromTimestampSeconds(s string) float64 {
 
 func PartialStartswith(s string, list []string) (string, error) {
 	if s == "" {
-		return "", fmt.Errorf("empty string")
+		return "", errors.New("empty string")
 	}
 	for _, item := range list {
 		if strings.HasPrefix(item, s) {
 			return item, nil
 		}
 	}
-	return "", fmt.Errorf("no match found")
+	return "", errors.New("no match found")
 }
 
 func GlobMatchAny(path string, patterns []string) bool {

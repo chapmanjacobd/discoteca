@@ -27,7 +27,7 @@ func TestGenerateRSVPAss(t *testing.T) {
 
 func TestExtractText(t *testing.T) {
 	// Test plain text
-	tmpFile, _ := os.CreateTemp("", "test*.txt")
+	tmpFile, _ := os.CreateTemp(t.TempDir(), "test*.txt")
 	defer os.Remove(tmpFile.Name())
 	content := "Test content"
 	os.WriteFile(tmpFile.Name(), []byte(content), 0o644)
@@ -41,7 +41,7 @@ func TestExtractText(t *testing.T) {
 	}
 
 	// Test empty file
-	emptyFile, _ := os.CreateTemp("", "empty*.txt")
+	emptyFile, _ := os.CreateTemp(t.TempDir(), "empty*.txt")
 	defer os.Remove(emptyFile.Name())
 	text, err = ExtractText(emptyFile.Name())
 	if err != nil {
@@ -60,7 +60,7 @@ func TestExtractText(t *testing.T) {
 	// Test malformed PDF/EPUB (if ebook-convert is available)
 	ebookConvertPath, _ := exec.LookPath("ebook-convert")
 	if ebookConvertPath != "" {
-		badPdf, _ := os.CreateTemp("", "bad*.pdf")
+		badPdf, _ := os.CreateTemp(t.TempDir(), "bad*.pdf")
 		defer os.Remove(badPdf.Name())
 		os.WriteFile(badPdf.Name(), []byte("not a pdf"), 0o644)
 		_, err = ExtractText(badPdf.Name())
@@ -68,7 +68,7 @@ func TestExtractText(t *testing.T) {
 			t.Error("expected error for malformed PDF, got nil")
 		}
 
-		badEpub, _ := os.CreateTemp("", "bad*.epub")
+		badEpub, _ := os.CreateTemp(t.TempDir(), "bad*.epub")
 		defer os.Remove(badEpub.Name())
 		os.WriteFile(badEpub.Name(), []byte("not a zip"), 0o644)
 		_, err = ExtractText(badEpub.Name())
@@ -117,7 +117,7 @@ func TestCountWordsFast(t *testing.T) {
 
 func TestQuickWordCount(t *testing.T) {
 	// Test plain text file with enough content to avoid size fallback
-	tmpFile, _ := os.CreateTemp("", "test*.txt")
+	tmpFile, _ := os.CreateTemp(t.TempDir(), "test*.txt")
 	defer os.Remove(tmpFile.Name())
 	// Create content with >300 words to avoid size-based fallback
 	var content strings.Builder
@@ -137,13 +137,13 @@ func TestQuickWordCount(t *testing.T) {
 	}
 
 	// Test HTML file with sufficient content
-	htmlFile, _ := os.CreateTemp("", "test*.html")
+	htmlFile, _ := os.CreateTemp(t.TempDir(), "test*.html")
 	defer os.Remove(htmlFile.Name())
 	var htmlContent strings.Builder
 	htmlContent.WriteString("<html><body>")
 	for i := range 35 {
 		htmlContent.WriteString("<p>Hello world test paragraph number ")
-		htmlContent.WriteString(fmt.Sprintf("%d", i))
+		fmt.Fprintf(&htmlContent, "%d", i)
 		htmlContent.WriteString("</p>")
 	}
 	htmlContent.WriteString("</body></html>")
@@ -186,7 +186,13 @@ func TestEstimateReadingDuration(t *testing.T) {
 			diff = -diff
 		}
 		if diff > tt.tolerance {
-			t.Errorf("EstimateReadingDuration(%d) = %d, expected ~%d (±%d)", tt.wordCount, result, tt.expected, tt.tolerance)
+			t.Errorf(
+				"EstimateReadingDuration(%d) = %d, expected ~%d (±%d)",
+				tt.wordCount,
+				result,
+				tt.expected,
+				tt.tolerance,
+			)
 		}
 	}
 }
@@ -227,14 +233,14 @@ func BenchmarkCountWordsFast(b *testing.B) {
 		"Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		CountWordsFast(text)
 	}
 }
 
 func BenchmarkQuickWordCount_PlainText(b *testing.B) {
 	// Create a temporary text file with ~1000 words
-	tmpFile, _ := os.CreateTemp("", "benchmark*.txt")
+	tmpFile, _ := os.CreateTemp(b.TempDir(), "benchmark*.txt")
 	defer os.Remove(tmpFile.Name())
 
 	var content strings.Builder
@@ -246,14 +252,14 @@ func BenchmarkQuickWordCount_PlainText(b *testing.B) {
 	stat, _ := os.Stat(tmpFile.Name())
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		QuickWordCount(tmpFile.Name(), stat.Size())
 	}
 }
 
 func BenchmarkQuickWordCount_HTML(b *testing.B) {
 	// Create a temporary HTML file with ~1000 words
-	tmpFile, _ := os.CreateTemp("", "benchmark*.html")
+	tmpFile, _ := os.CreateTemp(b.TempDir(), "benchmark*.html")
 	defer os.Remove(tmpFile.Name())
 
 	var content strings.Builder
@@ -267,7 +273,7 @@ func BenchmarkQuickWordCount_HTML(b *testing.B) {
 	stat, _ := os.Stat(tmpFile.Name())
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		QuickWordCount(tmpFile.Name(), stat.Size())
 	}
 }

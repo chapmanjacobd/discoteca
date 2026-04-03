@@ -8,14 +8,15 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestResolvePercentileFlags(t *testing.T) {
 	// Create a temporary database
-	f, _ := os.CreateTemp("", "percentile-test-*.db")
+	f, _ := os.CreateTemp(t.TempDir(), "percentile-test-*.db")
 	dbPath := f.Name()
 	f.Close()
 	defer os.Remove(dbPath)

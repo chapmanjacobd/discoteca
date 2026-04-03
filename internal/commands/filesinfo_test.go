@@ -10,7 +10,7 @@ import (
 )
 
 func TestFilesInfoCmd_Run(t *testing.T) {
-	f, err := os.CreateTemp("", "test-*.txt")
+	f, err := os.CreateTemp(t.TempDir(), "test-*.txt")
 	if err != nil {
 		t.Fatal(err)
 	}

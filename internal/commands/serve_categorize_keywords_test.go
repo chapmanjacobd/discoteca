@@ -14,7 +14,7 @@ import (
 func TestHandleCategorizeKeywords(t *testing.T) {
 	t.Parallel()
 	// Create temporary test database
-	tmpDB, err := os.CreateTemp("", "disco_test_cat_*.db")
+	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_cat_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestHandleCategorizeKeywords(t *testing.T) {
 
 	t.Run("GetKeywords with empty database returns empty array", func(t *testing.T) {
 		// Create empty database
-		emptyDB, err := os.CreateTemp("", "disco_test_empty_*.db")
+		emptyDB, err := os.CreateTemp(t.TempDir(), "disco_test_empty_*.db")
 		if err != nil {
 			t.Fatalf("Failed to create temp db: %v", err)
 		}

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -84,7 +85,7 @@ func SampleHashFile(path string, threads int, gap float64, chunkSize int64) (str
 		}
 	}
 
-	return fmt.Sprintf("%x", finalHash.Sum(nil)), nil
+	return hex.EncodeToString(finalHash.Sum(nil)), nil
 }
 
 // FullHashFile calculates a full sha256 hash of a file
@@ -100,7 +101,7 @@ func FullHashFile(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // FilterDeleted returns only the paths that currently exist on the filesystem
@@ -722,7 +723,7 @@ func GetLanguageCode(name string) string {
 		"yoruba": "yo", "igbo": "ig", "hausa": "ha",
 		// Native names (non-English only)
 		"deutsch": "de", "español": "es", "français": "fr", "italiano": "it",
-		"português": "pt", "portugues": "pt", "русский": "ru", "russkij": "ru",
+		"português": "pt", "portuguese": "pt", "русский": "ru", "russkij": "ru",
 		"日本語": "ja", "한국어": "ko", "hangugeo": "ko", "中文": "zh",
 		"العربية": "ar", "arabi": "ar", "हिन्दी": "hi", "nederlands": "nl",
 		"polski": "pl", "türkçe": "tr", "turkce": "tr", "svenska": "sv",

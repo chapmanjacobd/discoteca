@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestNewFilterBuilder(t *testing.T) {
@@ -282,8 +283,16 @@ func TestFilterMedia(t *testing.T) {
 		expected int
 	}{
 		{"No filters", models.GlobalFlags{}, 2},
-		{"Include filter", models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Include: []string{"test1.mp4"}}}, 1},
-		{"Exclude filter", models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Exclude: []string{"test1.mp4"}}}, 1},
+		{
+			"Include filter",
+			models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Include: []string{"test1.mp4"}}},
+			1,
+		},
+		{
+			"Exclude filter",
+			models.GlobalFlags{PathFilterFlags: models.PathFilterFlags{Exclude: []string{"test1.mp4"}}},
+			1,
+		},
 		{"Size filter", models.GlobalFlags{FilterFlags: models.FilterFlags{Size: []string{">150B"}}}, 1},
 	}
 
@@ -388,7 +397,7 @@ func TestSortFolders(t *testing.T) {
 }
 
 func TestQueryDatabase(t *testing.T) {
-	f, err := os.CreateTemp("", "query-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "query-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,12 +464,12 @@ func TestSummarizeMedia(t *testing.T) {
 }
 
 func TestMediaQuery(t *testing.T) {
-	f1, _ := os.CreateTemp("", "query-test1-*.db")
+	f1, _ := os.CreateTemp(t.TempDir(), "query-test1-*.db")
 	dbPath1 := f1.Name()
 	f1.Close()
 	defer os.Remove(dbPath1)
 
-	f2, _ := os.CreateTemp("", "query-test2-*.db")
+	f2, _ := os.CreateTemp(t.TempDir(), "query-test2-*.db")
 	dbPath2 := f2.Name()
 	f2.Close()
 	defer os.Remove(dbPath2)
@@ -539,14 +548,18 @@ func TestRegexSortMedia(t *testing.T) {
 }
 
 func TestHistoricalUsage(t *testing.T) {
-	f, _ := os.CreateTemp("", "hist-usage-test-*.db")
+	f, _ := os.CreateTemp(t.TempDir(), "hist-usage-test-*.db")
 	dbPath := f.Name()
 	f.Close()
 	defer os.Remove(dbPath)
 
 	dbConn, _ := sql.Open("sqlite3", dbPath)
-	dbConn.Exec("CREATE TABLE media (path TEXT PRIMARY KEY, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER, time_last_played INTEGER)")
-	dbConn.Exec("INSERT INTO media (path, size, duration, time_last_played) VALUES ('a', 100, 10, 1704067200)") // 2024-01-01
+	dbConn.Exec(
+		"CREATE TABLE media (path TEXT PRIMARY KEY, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER, time_last_played INTEGER)",
+	)
+	dbConn.Exec(
+		"INSERT INTO media (path, size, duration, time_last_played) VALUES ('a', 100, 10, 1704067200)",
+	) // 2024-01-01
 	dbConn.Close()
 
 	stats, err := HistoricalUsage(context.Background(), dbPath, "monthly", "time_last_played")

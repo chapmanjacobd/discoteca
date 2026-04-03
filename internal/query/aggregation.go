@@ -90,7 +90,11 @@ func hasBasicFilters(flags models.GlobalFlags) bool {
 
 // AggregateDUByPath performs SQL-level aggregation for DU mode
 // This is much faster than fetching all media and aggregating in Go
-func AggregateDUByPath(ctx context.Context, dbPath string, pathPrefix string, targetDepth int, currentDepth int) ([]DUQueryResult, error) {
+func AggregateDUByPath(
+	ctx context.Context,
+	dbPath, pathPrefix string,
+	targetDepth, currentDepth int,
+) ([]DUQueryResult, error) {
 	sqlDB, err := db.Connect(dbPath)
 	if err != nil {
 		return nil, err
@@ -207,7 +211,12 @@ func AggregateDUByPath(ctx context.Context, dbPath string, pathPrefix string, ta
 }
 
 // AggregateDUByPathMultiDB performs SQL-level aggregation across multiple databases
-func AggregateDUByPathMultiDB(ctx context.Context, dbPaths []string, pathPrefix string, targetDepth int, currentDepth int) ([]DUQueryResult, error) {
+func AggregateDUByPathMultiDB(
+	ctx context.Context,
+	dbPaths []string,
+	pathPrefix string,
+	targetDepth, currentDepth int,
+) ([]DUQueryResult, error) {
 	allResults := make([]DUQueryResult, 0)
 
 	for _, dbPath := range dbPaths {
@@ -239,7 +248,12 @@ func AggregateDUByPathMultiDB(ctx context.Context, dbPaths []string, pathPrefix 
 }
 
 // FetchDUDirectFiles fetches files at the target depth for DU mode
-func FetchDUDirectFiles(ctx context.Context, dbPaths []string, pathPrefix string, targetDepth int) ([]models.MediaWithDB, error) {
+func FetchDUDirectFiles(
+	ctx context.Context,
+	dbPaths []string,
+	pathPrefix string,
+	targetDepth int,
+) ([]models.MediaWithDB, error) {
 	allFiles := make([]models.MediaWithDB, 0)
 
 	for _, dbPath := range dbPaths {
@@ -330,7 +344,8 @@ func AggregateMediaWithMode(media []models.MediaWithDB, flags models.GlobalFlags
 	}
 
 	// Post-aggregation filtering (unchanged)
-	if flags.FoldersOnly || flags.FilesOnly || flags.FolderSizes != nil || flags.FileCounts != "" || flags.FolderCounts != "" {
+	if flags.FoldersOnly || flags.FilesOnly || flags.FolderSizes != nil || flags.FileCounts != "" ||
+		flags.FolderCounts != "" {
 		var filtered []models.FolderStats
 		for _, f := range stats {
 			keep := true
@@ -433,9 +448,13 @@ func AggregateSizeBuckets(media []models.MediaWithDB, fastMode ...bool) []models
 		}
 
 		var label string
-		for i := 0; i < len(binEdges)-1; i++ {
+		for i := range len(binEdges) - 1 {
 			if size >= binEdges[i] && size < binEdges[i+1] {
-				label = fmt.Sprintf("%s-%s", utils.FormatSize(int64(binEdges[i])), utils.FormatSize(int64(binEdges[i+1])))
+				label = fmt.Sprintf(
+					"%s-%s",
+					utils.FormatSize(int64(binEdges[i])),
+					utils.FormatSize(int64(binEdges[i+1])),
+				)
 				if binEdges[i+1] == math.Inf(1) {
 					label = fmt.Sprintf(">%s", utils.FormatSize(int64(binEdges[i])))
 				}
@@ -540,7 +559,11 @@ func updateStats(f *models.FolderStats, m models.MediaWithDB, isFolder bool) {
 // finalizeStatsWithOptions finalizes stats with optional expensive calculations
 // calculateMedians: whether to calculate median size/duration (expensive)
 // storeFiles: whether to store file references (memory intensive)
-func finalizeStatsWithOptions(groups map[string]*models.FolderStats, calculateMedians bool, storeFiles ...bool) []models.FolderStats {
+func finalizeStatsWithOptions(
+	groups map[string]*models.FolderStats,
+	calculateMedians bool,
+	storeFiles ...bool,
+) []models.FolderStats {
 	shouldStoreFiles := len(storeFiles) > 0 && storeFiles[0]
 
 	// Identify parents to count subdirectories
@@ -601,7 +624,13 @@ func finalizeStatsWithOptions(groups map[string]*models.FolderStats, calculateMe
 }
 
 // AggregateDUByPathMultiDBWithFilters performs SQL-level aggregation with filter support
-func AggregateDUByPathMultiDBWithFilters(ctx context.Context, dbPaths []string, pathPrefix string, targetDepth int, currentDepth int, flags models.GlobalFlags) ([]DUQueryResult, error) {
+func AggregateDUByPathMultiDBWithFilters(
+	ctx context.Context,
+	dbPaths []string,
+	pathPrefix string,
+	targetDepth, currentDepth int,
+	flags models.GlobalFlags,
+) ([]DUQueryResult, error) {
 	allResults := make([]DUQueryResult, 0)
 
 	for _, dbPath := range dbPaths {
@@ -634,7 +663,12 @@ func AggregateDUByPathMultiDBWithFilters(ctx context.Context, dbPaths []string, 
 
 // getMatchingParentDirs queries the database to find parent directories that match the given filters
 // Returns a map of parent directory paths to their file counts
-func getMatchingParentDirs(ctx context.Context, dbPath string, pathPrefix string, targetDepth int, flags models.GlobalFlags) (map[string]int64, error) {
+func getMatchingParentDirs(
+	ctx context.Context,
+	dbPath, pathPrefix string,
+	targetDepth int,
+	flags models.GlobalFlags,
+) (map[string]int64, error) {
 	sqlDB, err := db.Connect(dbPath)
 	if err != nil {
 		return nil, err
@@ -790,7 +824,12 @@ func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFla
 // Uses two-path approach:
 // - Fast path: no FileCounts/FolderCounts/FolderSizes filters - direct SQL aggregation
 // - Slow path: folder backfiltering for FileCounts/FolderCounts/FolderSizes
-func AggregateDUByPathWithFilters(ctx context.Context, dbPath string, pathPrefix string, targetDepth int, currentDepth int, flags models.GlobalFlags) ([]DUQueryResult, error) {
+func AggregateDUByPathWithFilters(
+	ctx context.Context,
+	dbPath, pathPrefix string,
+	targetDepth, currentDepth int,
+	flags models.GlobalFlags,
+) ([]DUQueryResult, error) {
 	sqlDB, err := db.Connect(dbPath)
 	if err != nil {
 		return nil, err
@@ -825,7 +864,13 @@ func AggregateDUByPathWithFilters(ctx context.Context, dbPath string, pathPrefix
 }
 
 // aggregateDUWithBasicFilters performs SQL aggregation with only basic filters (fast path)
-func aggregateDUWithBasicFilters(ctx context.Context, sqlDB *sql.DB, pathPrefix string, targetDepth int, currentDepth int, flags models.GlobalFlags) ([]DUQueryResult, error) {
+func aggregateDUWithBasicFilters(
+	ctx context.Context,
+	sqlDB *sql.DB,
+	pathPrefix string,
+	targetDepth, currentDepth int,
+	flags models.GlobalFlags,
+) ([]DUQueryResult, error) {
 	var query string
 	var args []any
 
@@ -933,7 +978,14 @@ func aggregateDUWithBasicFilters(ctx context.Context, sqlDB *sql.DB, pathPrefix 
 }
 
 // aggregateDUWithParentFilter performs SQL aggregation filtered by matching parent directories (slow path)
-func aggregateDUWithParentFilter(ctx context.Context, sqlDB *sql.DB, pathPrefix string, targetDepth int, currentDepth int, flags models.GlobalFlags, matchingParents map[string]struct{}) ([]DUQueryResult, error) {
+func aggregateDUWithParentFilter(
+	ctx context.Context,
+	sqlDB *sql.DB,
+	pathPrefix string,
+	targetDepth, currentDepth int,
+	flags models.GlobalFlags,
+	matchingParents map[string]struct{},
+) ([]DUQueryResult, error) {
 	var query string
 	var args []any
 
@@ -979,7 +1031,10 @@ func aggregateDUWithParentFilter(ctx context.Context, sqlDB *sql.DB, pathPrefix 
 				placeholders[i] = "?"
 				args = append(args, p)
 			}
-			query += fmt.Sprintf(" AND CASE WHEN substr(replace(path, '\\\\', '/'), 1, 1) = '/' THEN substr(replace(path, '\\\\', '/'), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), 2), '/') ELSE length(replace(path, '\\\\', '/')) END) ELSE CASE WHEN instr(replace(path, '\\\\', '/'), '/') > 0 THEN substr(replace(path, '\\\\', '/'), 1, instr(replace(path, '\\\\', '/'), '/') - 1) ELSE replace(path, '\\\\', '/') END END IN (%s)", strings.Join(placeholders, ", "))
+			query += fmt.Sprintf(
+				" AND CASE WHEN substr(replace(path, '\\\\', '/'), 1, 1) = '/' THEN substr(replace(path, '\\\\', '/'), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), 2), '/') ELSE length(replace(path, '\\\\', '/')) END) ELSE CASE WHEN instr(replace(path, '\\\\', '/'), '/') > 0 THEN substr(replace(path, '\\\\', '/'), 1, instr(replace(path, '\\\\', '/'), '/') - 1) ELSE replace(path, '\\\\', '/') END END IN (%s)",
+				strings.Join(placeholders, ", "),
+			)
 		}
 	} else {
 		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
@@ -1027,7 +1082,10 @@ func aggregateDUWithParentFilter(ctx context.Context, sqlDB *sql.DB, pathPrefix 
 				args = append(args, p)
 			}
 			// Reuse the same CASE expression for extracting parent path
-			query += fmt.Sprintf(" AND CASE WHEN substr(?, 1, 1) = '/' THEN ? || substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') ELSE length(substr(replace(path, '\\\\', '/'), length(?) + 1)) END) ELSE ? || CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 1), '/') > 0 THEN substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') - 1) ELSE substr(replace(path, '\\\\', '/'), length(?) + 1) END END IN (%s)", strings.Join(placeholders, ", "))
+			query += fmt.Sprintf(
+				" AND CASE WHEN substr(?, 1, 1) = '/' THEN ? || substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') ELSE length(substr(replace(path, '\\\\', '/'), length(?) + 1)) END) ELSE ? || CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 1), '/') > 0 THEN substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') - 1) ELSE substr(replace(path, '\\\\', '/'), length(?) + 1) END END IN (%s)",
+				strings.Join(placeholders, ", "),
+			)
 			// Add the same args again for the CASE expression (11 total)
 			args = append(args,
 				normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
@@ -1121,7 +1179,13 @@ func applyPostAggregationFilters(results []DUQueryResult, flags models.GlobalFla
 // Uses two-path approach:
 // - Fast path: no filters - direct SQL query
 // - Filter path: applies SQL-level filters
-func FetchDUDirectFilesWithFilters(ctx context.Context, dbPaths []string, pathPrefix string, targetDepth int, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
+func FetchDUDirectFilesWithFilters(
+	ctx context.Context,
+	dbPaths []string,
+	pathPrefix string,
+	targetDepth int,
+	flags models.GlobalFlags,
+) ([]models.MediaWithDB, error) {
 	allFiles := make([]models.MediaWithDB, 0)
 
 	// Check if any filters are active

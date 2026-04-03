@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -24,7 +25,7 @@ type PrintCmd struct {
 	models.TextFlags        `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Args []string `arg:"" required:"" help:"Database file(s) or files/directories to scan"`
+	Args []string `help:"Database file(s) or files/directories to scan" required:"" arg:""`
 
 	Databases []string `kong:"-"`
 	ScanPaths []string `kong:"-"`
@@ -57,7 +58,11 @@ func (c *PrintCmd) Run(ctx *kong.Context) error {
 
 		HideRedundantFirstPlayed(media)
 
-		isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize || flags.Depth > 0 || flags.Parents || flags.FoldersOnly || len(flags.FolderSizes) > 0 || flags.FolderCounts != ""
+		isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize || flags.Depth > 0 ||
+			flags.Parents ||
+			flags.FoldersOnly ||
+			len(flags.FolderSizes) > 0 ||
+			flags.FolderCounts != ""
 
 		if flags.JSON {
 			if isAggregated {

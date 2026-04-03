@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -17,7 +18,8 @@ import (
 
 type OptimizeCmd struct {
 	models.CoreFlags `embed:""`
-	Databases        []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *OptimizeCmd) Run(ctx *kong.Context) error {
@@ -123,7 +125,8 @@ type SampleHashCmd struct {
 	models.CoreFlags    `embed:""`
 	models.HashingFlags `embed:""`
 	models.DisplayFlags `embed:""`
-	Paths               []string `arg:"" required:"" help:"Files to hash" type:"existingfile"`
+
+	Paths []string `help:"Files to hash" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *SampleHashCmd) Run(ctx *kong.Context) error {

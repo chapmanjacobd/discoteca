@@ -369,7 +369,10 @@ func TestQueries(t *testing.T) {
 		}
 
 		// GetWatchedMedia
-		q.UpdatePlayHistory(ctx, UpdatePlayHistoryParams{Path: "random.mp4", TimeLastPlayed: sql.NullInt64{Int64: 1, Valid: true}})
+		q.UpdatePlayHistory(
+			ctx,
+			UpdatePlayHistoryParams{Path: "random.mp4", TimeLastPlayed: sql.NullInt64{Int64: 1, Valid: true}},
+		)
 		res, _ = q.GetWatchedMedia(ctx, 10)
 		if len(res) == 0 {
 			t.Error("GetWatchedMedia failed")
@@ -406,7 +409,8 @@ func TestQueries(t *testing.T) {
 			t.Error("Expected error when inserting string into INTEGER column in STRICT table, but got none")
 		} else {
 			msg := err.Error()
-			if strings.Contains(msg, "datatype mismatch") || strings.Contains(msg, "cannot store TEXT value in INTEGER column") {
+			if strings.Contains(msg, "datatype mismatch") ||
+				strings.Contains(msg, "cannot store TEXT value in INTEGER column") {
 				// This is the expected behavior for STRICT tables
 				t.Logf("Caught expected STRICT error: %v", msg)
 			} else {

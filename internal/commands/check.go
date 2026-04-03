@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -21,7 +23,7 @@ type CheckCmd struct {
 	models.PathFilterFlags  `embed:""`
 	models.MediaFilterFlags `embed:""`
 
-	Args   []string `arg:"" required:"" help:"Database file followed by optional paths to check"`
+	Args   []string `help:"Database file followed by optional paths to check" required:"" arg:""`
 	DryRun bool     `help:"Don't actually mark files as deleted"`
 
 	CheckPaths []string `kong:"-"`
@@ -36,7 +38,7 @@ func (c *CheckCmd) AfterApply() error {
 		return err
 	}
 	if len(c.Args) < 1 {
-		return fmt.Errorf("at least one database file is required")
+		return errors.New("at least one database file is required")
 	}
 
 	if utils.IsSQLite(c.Args[0]) || strings.HasSuffix(c.Args[0], ".db") {

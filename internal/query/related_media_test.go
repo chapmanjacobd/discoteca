@@ -6,13 +6,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 	// Create test database
-	f, err := os.CreateTemp("", "related-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "related-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 
 func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 	// Create test database
-	f, err := os.CreateTemp("", "related-phrase-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "related-phrase-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +306,7 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 
 func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 	// Create test database
-	f, err := os.CreateTemp("", "related-noterms-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "related-noterms-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}

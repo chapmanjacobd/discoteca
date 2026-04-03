@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -148,13 +150,13 @@ func (m *KiwixManager) ensureKiwixServing(zimPath string) (int, error) {
 
 	port := m.findAvailablePort()
 	if port == 0 {
-		return 0, fmt.Errorf("no available ports for kiwix-serve")
+		return 0, errors.New("no available ports for kiwix-serve")
 	}
 
 	cmd := exec.Command(
 		KIWIX_BIN,
 		"--nolibrarybutton",
-		"-p", fmt.Sprintf("%d", port),
+		"-p", strconv.Itoa(port),
 		fmt.Sprintf("--urlRootLocation=/api/zim/proxy/%d/", port),
 		zimPath,
 	)

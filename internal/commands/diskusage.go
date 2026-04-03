@@ -2,16 +2,18 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/tui"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type DiskUsageCmd struct {
@@ -26,7 +28,7 @@ type DiskUsageCmd struct {
 	models.AggregateFlags   `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Args []string `arg:"" required:"" help:"Database file(s) or files/directories to scan"`
+	Args []string `help:"Database file(s) or files/directories to scan" required:"" arg:""`
 
 	Databases []string `kong:"-"`
 	ScanPaths []string `kong:"-"`
@@ -103,7 +105,7 @@ func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
 
 	if c.TUI {
 		if len(allMedia) == 0 {
-			return fmt.Errorf("no media found")
+			return errors.New("no media found")
 		}
 
 		m := tui.NewDUModel(allMedia, flags)

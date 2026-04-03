@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -21,8 +22,8 @@ type SearchCaptionsCmd struct {
 	models.MediaFilterFlags `embed:""`
 	models.PlaybackFlags    `embed:""`
 
-	Database string   `arg:"" required:"" help:"SQLite database file" type:"existingfile"`
-	Search   []string `arg:"" required:"" help:"Search terms"`
+	Database string   `help:"SQLite database file" required:"" arg:"" type:"existingfile"`
+	Search   []string `help:"Search terms"         required:"" arg:""`
 
 	Open    bool `help:"Open results in media player"`
 	Overlap int  `help:"Overlap in seconds for merging captions" default:"8"`
@@ -118,6 +119,7 @@ func (c *SearchCaptionsCmd) mergeCaptions(rows []db.SearchCaptionsRow) []MergedC
 		if current.Path == row.MediaPath &&
 			(math.Abs(timeVal-current.End) <= float64(c.Overlap) ||
 				math.Abs(timeVal-current.Time) <= float64(c.Overlap)) {
+
 			current.End = end
 			if !strings.Contains(current.Text, textVal) {
 				current.Text += ". " + textVal

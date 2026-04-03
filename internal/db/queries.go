@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"strings"
 )
@@ -1160,6 +1160,7 @@ func (q *Queries) RemovePlaylistItem(ctx context.Context, arg RemovePlaylistItem
 // GetPlaylistItemsRow is a row from GetPlaylistItems
 type GetPlaylistItemsRow struct {
 	Media
+
 	TrackNumber sql.NullInt64 `json:"track_number"`
 	TimeAdded   sql.NullInt64 `json:"time_added"`
 }
@@ -1320,7 +1321,10 @@ type GetAllCaptionsOrderedParams struct {
 }
 
 // GetAllCaptionsOrdered retrieves captions ordered by media path and time
-func (q *Queries) GetAllCaptionsOrdered(ctx context.Context, arg GetAllCaptionsOrderedParams) ([]GetAllCaptionsOrderedRow, error) {
+func (q *Queries) GetAllCaptionsOrdered(
+	ctx context.Context,
+	arg GetAllCaptionsOrderedParams,
+) ([]GetAllCaptionsOrderedRow, error) {
 	const query = `SELECT c.media_path, c.time, c.text, m.title, m.media_type, m.size, m.duration FROM captions c JOIN media m ON c.media_path = m.path WHERE m.time_deleted = 0 AND c.text IS NOT NULL AND c.text != '' AND ((CAST(? AS INT) = 0 AND CAST(? AS INT) = 0 AND CAST(? AS INT) = 0 AND CAST(? AS INT) = 0) OR (CAST(? AS INT) = 1 AND m.media_type = 'video') OR (CAST(? AS INT) = 1 AND m.media_type IN ('audio', 'audiobook')) OR (CAST(? AS INT) = 1 AND m.media_type = 'image') OR (CAST(? AS INT) = 1 AND m.media_type = 'text')) ORDER BY c.media_path, c.time LIMIT ?`
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.VideoOnly,
@@ -1356,7 +1360,7 @@ func (q *Queries) GetAllCaptionsOrdered(ctx context.Context, arg GetAllCaptionsO
 func (q *Queries) PopulateMediaType(ctx context.Context) error {
 	db, ok := q.db.(*sql.DB)
 	if !ok {
-		return fmt.Errorf("underlying DBTX is not a *sql.DB")
+		return errors.New("underlying DBTX is not a *sql.DB")
 	}
 
 	tx, err := db.BeginTx(ctx, nil)

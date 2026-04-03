@@ -7,13 +7,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type Pane int
@@ -174,15 +175,42 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 	// Prepare sidebar items
 	sidebarItems := []list.Item{
 		sidebarItem{title: "🏠 All Media", filter: func(m models.MediaWithDB) bool { return true }},
-		sidebarItem{title: "🕒 History", filter: func(m models.MediaWithDB) bool { return m.TimeLastPlayed != nil && *m.TimeLastPlayed > 0 }},
-		sidebarItem{title: "🎵 Audio", filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "audio" }},
-		sidebarItem{title: "🎬 Video", filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "video" }},
-		sidebarItem{title: "🖼️ Image", filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "image" }},
-		sidebarItem{title: "📄 Text", filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "text" }},
-		sidebarItem{title: "⭐ 5 Stars", filter: func(m models.MediaWithDB) bool { return m.Score != nil && *m.Score >= 5 }},
-		sidebarItem{title: "⭐ 4+ Stars", filter: func(m models.MediaWithDB) bool { return m.Score != nil && *m.Score >= 4 }},
-		sidebarItem{title: "⭐ 3+ Stars", filter: func(m models.MediaWithDB) bool { return m.Score != nil && *m.Score >= 3 }},
-		sidebarItem{title: "🗑️ Trash", filter: func(m models.MediaWithDB) bool { return m.TimeDeleted != nil && *m.TimeDeleted > 0 }},
+		sidebarItem{
+			title:  "🕒 History",
+			filter: func(m models.MediaWithDB) bool { return m.TimeLastPlayed != nil && *m.TimeLastPlayed > 0 },
+		},
+		sidebarItem{
+			title:  "🎵 Audio",
+			filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "audio" },
+		},
+		sidebarItem{
+			title:  "🎬 Video",
+			filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "video" },
+		},
+		sidebarItem{
+			title:  "🖼️ Image",
+			filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "image" },
+		},
+		sidebarItem{
+			title:  "📄 Text",
+			filter: func(m models.MediaWithDB) bool { return m.MediaType != nil && *m.MediaType == "text" },
+		},
+		sidebarItem{
+			title:  "⭐ 5 Stars",
+			filter: func(m models.MediaWithDB) bool { return m.Score != nil && *m.Score >= 5 },
+		},
+		sidebarItem{
+			title:  "⭐ 4+ Stars",
+			filter: func(m models.MediaWithDB) bool { return m.Score != nil && *m.Score >= 4 },
+		},
+		sidebarItem{
+			title:  "⭐ 3+ Stars",
+			filter: func(m models.MediaWithDB) bool { return m.Score != nil && *m.Score >= 3 },
+		},
+		sidebarItem{
+			title:  "🗑️ Trash",
+			filter: func(m models.MediaWithDB) bool { return m.TimeDeleted != nil && *m.TimeDeleted > 0 },
+		},
 	}
 
 	isCustom := make(map[string]bool)
@@ -337,12 +365,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activePane = PaneSearch
 			return m, m.searchInput.Focus()
 		case "tab":
-			if m.activePane == PaneSidebar {
+			switch m.activePane {
+			case PaneSidebar:
 				m.activePane = PaneMediaList
-			} else if m.activePane == PaneMediaList {
+			case PaneMediaList:
 				m.activePane = PaneSearch
 				return m, m.searchInput.Focus()
-			} else {
+			default:
 				m.activePane = PaneSidebar
 				m.searchInput.Blur()
 			}
@@ -363,13 +392,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "enter":
-			if m.activePane == PaneMediaList {
+			switch m.activePane {
+			case PaneMediaList:
 				i, ok := m.mediaList.SelectedItem().(item)
 				if ok {
 					m.choice = &i.media
 					return m, tea.Quit
 				}
-			} else if m.activePane == PaneSidebar {
+			case PaneSidebar:
 				m.updateMediaList()
 				m.activePane = PaneMediaList
 				return m, nil
@@ -433,13 +463,14 @@ func (m *Model) View() string {
 	sidebarView := m.sidebar.View()
 	mediaListView := m.mediaList.View()
 
-	if m.activePane == PaneSidebar {
+	switch m.activePane {
+	case PaneSidebar:
 		sidebarView = StyleActivePane.Render(sidebarView)
 		mediaListView = StyleInactivePane.Render(mediaListView)
-	} else if m.activePane == PaneMediaList {
+	case PaneMediaList:
 		sidebarView = StyleInactivePane.Render(sidebarView)
 		mediaListView = StyleActivePane.Render(mediaListView)
-	} else {
+	default:
 		sidebarView = StyleInactivePane.Render(sidebarView)
 		mediaListView = StyleInactivePane.Render(mediaListView)
 	}

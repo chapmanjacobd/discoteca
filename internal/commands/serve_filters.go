@@ -30,7 +30,12 @@ type filterBinsData struct {
 
 // computeFilterBinsData queries specified databases and collects size, duration, and parent count data
 // This is the single source of truth for filter bins data collection
-func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.GlobalFlags, filterToIgnore string, dbs []string) filterBinsData {
+func (c *ServeCmd) computeFilterBinsData(
+	ctx context.Context,
+	flags models.GlobalFlags,
+	filterToIgnore string,
+	dbs []string,
+) filterBinsData {
 	var mu sync.Mutex
 	// Track sizes and durations with their parent paths for filtering
 	type itemWithParent struct {
@@ -52,24 +57,25 @@ func (c *ServeCmd) computeFilterBinsData(ctx context.Context, flags models.Globa
 	tempFlags.All = true
 	tempFlags.Limit = 0
 
-	if filterToIgnore == "size" {
+	switch filterToIgnore {
+	case "size":
 		tempFlags.Size = nil
-	} else if filterToIgnore == "duration" {
+	case "duration":
 		tempFlags.Duration = nil
-	} else if filterToIgnore == "episodes" {
+	case "episodes":
 		tempFlags.FileCounts = ""
-	} else if filterToIgnore == "media_type" {
+	case "media_type":
 		tempFlags.VideoOnly = false
 		tempFlags.AudioOnly = false
 		tempFlags.ImageOnly = false
 		tempFlags.TextOnly = false
-	} else if filterToIgnore == "modified" {
+	case "modified":
 		tempFlags.ModifiedAfter = ""
 		tempFlags.ModifiedBefore = ""
-	} else if filterToIgnore == "created" {
+	case "created":
 		tempFlags.CreatedAfter = ""
 		tempFlags.CreatedBefore = ""
-	} else if filterToIgnore == "downloaded" {
+	case "downloaded":
 		tempFlags.DownloadedAfter = ""
 		tempFlags.DownloadedBefore = ""
 	}
@@ -385,14 +391,22 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 // calculateFilterCounts computes filter bin counts for the current query
 // This is used with include_counts to provide filter UI data alongside query results
 // Each filter dimension is calculated independently (ignoring that filter) to avoid recursive constraints
-func (c *ServeCmd) calculateFilterCounts(ctx context.Context, flags models.GlobalFlags, dbs []string) *models.FilterBinsResponse {
+func (c *ServeCmd) calculateFilterCounts(
+	ctx context.Context,
+	flags models.GlobalFlags,
+	dbs []string,
+) *models.FilterBinsResponse {
 	// Use optimized version that uses SQL aggregation instead of fetching all rows
 	return c.calculateFilterCountsOptimized(ctx, flags, dbs)
 }
 
 // calculateFilterCountsOptimized computes filter bin counts using optimized SQL queries
 // This is MUCH faster than the original version for large libraries
-func (c *ServeCmd) calculateFilterCountsOptimized(ctx context.Context, flags models.GlobalFlags, dbs []string) *models.FilterBinsResponse {
+func (c *ServeCmd) calculateFilterCountsOptimized(
+	ctx context.Context,
+	flags models.GlobalFlags,
+	dbs []string,
+) *models.FilterBinsResponse {
 	resp := &models.FilterBinsResponse{}
 
 	// Collect data for each filter type, ignoring that filter to get full distribution
@@ -423,7 +437,12 @@ func (c *ServeCmd) calculateFilterCountsOptimized(ctx context.Context, flags mod
 
 // computeFilterBinsDataOptimized is an optimized version that uses SQL aggregation
 // instead of fetching all rows. This is MUCH faster for large libraries.
-func (c *ServeCmd) computeFilterBinsDataOptimized(ctx context.Context, flags models.GlobalFlags, filterToIgnore string, dbs []string) filterBinsData {
+func (c *ServeCmd) computeFilterBinsDataOptimized(
+	ctx context.Context,
+	flags models.GlobalFlags,
+	filterToIgnore string,
+	dbs []string,
+) filterBinsData {
 	var mu sync.Mutex
 	allParentCounts := make(map[string]int64)
 	allTypeCounts := make(map[string]int64)
@@ -444,24 +463,25 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(ctx context.Context, flags mod
 	tempFlags.All = true
 	tempFlags.Limit = 0
 
-	if filterToIgnore == "size" {
+	switch filterToIgnore {
+	case "size":
 		tempFlags.Size = nil
-	} else if filterToIgnore == "duration" {
+	case "duration":
 		tempFlags.Duration = nil
-	} else if filterToIgnore == "episodes" {
+	case "episodes":
 		tempFlags.FileCounts = ""
-	} else if filterToIgnore == "media_type" {
+	case "media_type":
 		tempFlags.VideoOnly = false
 		tempFlags.AudioOnly = false
 		tempFlags.ImageOnly = false
 		tempFlags.TextOnly = false
-	} else if filterToIgnore == "modified" {
+	case "modified":
 		tempFlags.ModifiedAfter = ""
 		tempFlags.ModifiedBefore = ""
-	} else if filterToIgnore == "created" {
+	case "created":
 		tempFlags.CreatedAfter = ""
 		tempFlags.CreatedBefore = ""
-	} else if filterToIgnore == "downloaded" {
+	case "downloaded":
 		tempFlags.DownloadedAfter = ""
 		tempFlags.DownloadedBefore = ""
 	}
@@ -525,7 +545,13 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(ctx context.Context, flags mod
 									localParentCounts[parent]++
 								}
 							}
-							slog.Debug("Fallback parent count", "paths_scanned", fallbackCount, "unique_parents", len(localParentCounts))
+							slog.Debug(
+								"Fallback parent count",
+								"paths_scanned",
+								fallbackCount,
+								"unique_parents",
+								len(localParentCounts),
+							)
 							mu.Lock()
 							for p, cnt := range localParentCounts {
 								allParentCounts[p] += cnt
@@ -533,7 +559,13 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(ctx context.Context, flags mod
 							mu.Unlock()
 						}
 					} else {
-						slog.Debug("folder_stats data", "rows", folderStatsCount, "unique_parents", len(allParentCounts))
+						slog.Debug(
+							"folder_stats data",
+							"rows",
+							folderStatsCount,
+							"unique_parents",
+							len(allParentCounts),
+						)
 					}
 				}
 

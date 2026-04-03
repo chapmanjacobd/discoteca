@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/fs"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
@@ -28,13 +30,13 @@ type AddCmd struct {
 	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
 
-	Args                    []string `arg:"" name:"args" required:"" help:"Database file followed by paths to scan"`
-	Parallel                int      `short:"p" help:"Number of parallel extractors (default: CPU count * 4)"`
+	Args                    []string `help:"Database file followed by paths to scan"                                  required:"" name:"args" arg:""`
+	Parallel                int      `help:"Number of parallel extractors (default: CPU count * 4)"                                                  short:"p"`
 	ExtractText             bool     `help:"Extract full text from documents (PDF, EPUB, TXT, MD) for caption search"`
 	OCR                     bool     `help:"Extract text from images using OCR (tesseract) for caption search"`
-	OCREngine               string   `default:"tesseract" enum:"tesseract,paddle" help:"OCR engine to use"`
+	OCREngine               string   `help:"OCR engine to use"                                                                                                 default:"tesseract" enum:"tesseract,paddle"`
 	SpeechRecognition       bool     `help:"Extract speech-to-text from audio/video files for caption search"`
-	SpeechRecognitionEngine string   `default:"vosk" enum:"vosk,whisper" help:"Speech recognition engine to use"`
+	SpeechRecognitionEngine string   `help:"Speech recognition engine to use"                                                                                  default:"vosk"      enum:"vosk,whisper"`
 
 	ScanPaths []string `kong:"-"`
 	Database  string   `kong:"-"`
@@ -48,7 +50,7 @@ func (c *AddCmd) AfterApply() error {
 		return err
 	}
 	if len(c.Args) < 2 {
-		return fmt.Errorf("at least one database file and one path to scan are required")
+		return errors.New("at least one database file and one path to scan are required")
 	}
 
 	// Smart DB detection: first arg MUST be a database for 'add'
@@ -202,7 +204,13 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			// Print progress counter during scanning
 			if res.DirsCount%100 == 0 || res.FilesCount%100 == 0 || res.FilesCount == 1 {
-				fmt.Printf("\rScanning %s: %d files, %d folders found%s", absRoot, res.FilesCount, res.DirsCount, utils.ClearSeq)
+				fmt.Printf(
+					"\rScanning %s: %d files, %d folders found%s",
+					absRoot,
+					res.FilesCount,
+					res.DirsCount,
+					utils.ClearSeq,
+				)
 			}
 
 			// Apply PathFilterFlags
@@ -298,8 +306,8 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 			results := make(chan *metadata.MediaMetadata, 2000)
 			var wg sync.WaitGroup
 
-			var completedJobs int64
-			var activeWorkers int32
+			var completedJobs atomic.Int64
+			var activeWorkers atomic.Int32
 			var totalWorkerSamples int64
 			var workerSum int64
 			// Reset parallelism to initial value for each media type
@@ -310,10 +318,10 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 			startWorker := func() {
 				wg.Go(func() {
-					atomic.AddInt32(&activeWorkers, 1)
-					defer atomic.AddInt32(&activeWorkers, -1)
+					activeWorkers.Add(1)
+					defer activeWorkers.Add(-1)
 					for {
-						if atomic.LoadInt32(&activeWorkers) > atomic.LoadInt32(&targetConcurrency) {
+						if activeWorkers.Load() > atomic.LoadInt32(&targetConcurrency) {
 							return // Scale down
 						}
 						select {
@@ -337,13 +345,13 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 							} else if res != nil {
 								results <- res
 							}
-							atomic.AddInt64(&completedJobs, 1)
+							completedJobs.Add(1)
 						}
 					}
 				})
 			}
 
-			for i := int32(0); i < targetConcurrency; i++ {
+			for range targetConcurrency {
 				startWorker()
 			}
 
@@ -362,7 +370,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 						close(monitorDone)
 						return
 					case <-ticker.C:
-						completed := atomic.LoadInt64(&completedJobs)
+						completed := completedJobs.Load()
 						throughput := completed - lastCompleted
 						lastCompleted = completed
 
@@ -381,7 +389,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 						atomic.StoreInt32(&targetConcurrency, newTarget)
 
-						active := atomic.LoadInt32(&activeWorkers)
+						active := activeWorkers.Load()
 						for active < newTarget {
 							startWorker()
 							active++
@@ -474,7 +482,9 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 						etaStr := ""
 						if count > 2 {
 							elapsed := time.Since(startTime)
-							estimatedTotal := time.Duration(float64(elapsed) / float64(count) * float64(len(mediaType.files)))
+							estimatedTotal := time.Duration(
+								float64(elapsed) / float64(count) * float64(len(mediaType.files)),
+							)
 							remaining := (estimatedTotal - elapsed).Round(time.Second)
 							if remaining > 0 {
 								etaStr = fmt.Sprintf(" ETA: %v", remaining)
@@ -483,15 +493,38 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 
 						typeTotal := totalProcessed + count
 						if c.Verbose > 0 {
-							workers := atomic.LoadInt32(&activeWorkers)
+							workers := activeWorkers.Load()
 							if workers == 0 && totalWorkerSamples > 0 {
 								avgWorkers := float64(workerSum) / float64(totalWorkerSamples)
-								fmt.Printf("\r  %s: Processed %d/%d files (avg: %.1f workers)%s%s", mediaType.name, typeTotal, len(mediaType.files), avgWorkers, etaStr, utils.ClearSeq)
+								fmt.Printf(
+									"\r  %s: Processed %d/%d files (avg: %.1f workers)%s%s",
+									mediaType.name,
+									typeTotal,
+									len(mediaType.files),
+									avgWorkers,
+									etaStr,
+									utils.ClearSeq,
+								)
 							} else {
-								fmt.Printf("\r  %s: Processed %d/%d files (%d workers)%s%s", mediaType.name, typeTotal, len(mediaType.files), workers, etaStr, utils.ClearSeq)
+								fmt.Printf(
+									"\r  %s: Processed %d/%d files (%d workers)%s%s",
+									mediaType.name,
+									typeTotal,
+									len(mediaType.files),
+									workers,
+									etaStr,
+									utils.ClearSeq,
+								)
 							}
 						} else {
-							fmt.Printf("\r  %s: Processed %d/%d files%s%s", mediaType.name, typeTotal, len(mediaType.files), etaStr, utils.ClearSeq)
+							fmt.Printf(
+								"\r  %s: Processed %d/%d files%s%s",
+								mediaType.name,
+								typeTotal,
+								len(mediaType.files),
+								etaStr,
+								utils.ClearSeq,
+							)
 						}
 					}
 				}

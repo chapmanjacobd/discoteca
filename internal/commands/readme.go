@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -69,7 +70,9 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 
 	sb.WriteString("## Optional dependencies\n\n")
 	sb.WriteString("### Core Media Features\n\n")
-	sb.WriteString("- `ffmpeg` - Media transcoding, streaming, duration detection, subtitle extraction, image conversion\n")
+	sb.WriteString(
+		"- `ffmpeg` - Media transcoding, streaming, duration detection, subtitle extraction, image conversion\n",
+	)
 	sb.WriteString("- `mpv` - Playback control, keyboard shortcuts, playlist management\n\n")
 	sb.WriteString("### Document & Ebook Support\n\n")
 	sb.WriteString("- `calibre` - Ebook conversion (mobi, azw, fb2, djvu, cbz, cbr, old Office formats)\n")
@@ -82,7 +85,9 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	sb.WriteString("- `imagemagick` - Image format conversion and manipulation\n\n")
 	sb.WriteString("### Speech Recognition\n\n")
 	sb.WriteString("- `vosk` + `python3` - Speech-to-text extraction from audio/video (offline, lightweight)\n")
-	sb.WriteString("- `whisper` (openai-whisper) - High-accuracy speech-to-text (optional, requires Python, GPU recommended)\n\n")
+	sb.WriteString(
+		"- `whisper` (openai-whisper) - High-accuracy speech-to-text (optional, requires Python, GPU recommended)\n\n",
+	)
 	sb.WriteString("### Archive & Legacy Formats\n\n")
 	sb.WriteString("- `catdoc` - Old Microsoft Office formats (.doc, .xls, .ppt)\n")
 	sb.WriteString("- `xls2csv` - Excel .xls spreadsheet extraction\n")
@@ -154,20 +159,20 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 		if node.Hidden {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("### %s\n\n", node.Name))
-		sb.WriteString(fmt.Sprintf("%s\n\n", node.Help))
+		fmt.Fprintf(&sb, "### %s\n\n", node.Name)
+		fmt.Fprintf(&sb, "%s\n\n", node.Help)
 
 		if ex, ok := examples[node.Name]; ok {
 			sb.WriteString("Examples:\n\n```bash\n")
 			for _, line := range ex {
-				sb.WriteString(fmt.Sprintf("$ %s\n", line))
+				fmt.Fprintf(&sb, "$ %s\n", line)
 			}
 			sb.WriteString("```\n\n")
 		}
 
 		sb.WriteString("<details><summary>All Options</summary>\n\n")
 		sb.WriteString("```bash\n")
-		sb.WriteString(fmt.Sprintf("$ disco %s --help\n", node.Name))
+		fmt.Fprintf(&sb, "$ disco %s --help\n", node.Name)
 
 		if len(node.Flags) > 0 {
 			sb.WriteString("\nFlags:\n")
@@ -179,8 +184,8 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 				if flag.Short != 0 {
 					short = fmt.Sprintf("-%c, ", flag.Short)
 				}
-				sb.WriteString(fmt.Sprintf("  %s--%s\n", short, flag.Name))
-				sb.WriteString(fmt.Sprintf("        %s\n", flag.Help))
+				fmt.Fprintf(&sb, "  %s--%s\n", short, flag.Name)
+				fmt.Fprintf(&sb, "        %s\n", flag.Help)
 			}
 		}
 

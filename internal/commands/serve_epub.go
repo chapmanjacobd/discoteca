@@ -47,7 +47,24 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	docPath := pathParts
 	assetPath := ""
 
-	ebookExts := []string{".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".docx", ".odt", ".rtf", ".txt", ".md", ".html", ".htm", ".pdf"}
+	ebookExts := []string{
+		".epub",
+		".mobi",
+		".azw",
+		".azw3",
+		".fb2",
+		".djvu",
+		".cbz",
+		".cbr",
+		".docx",
+		".odt",
+		".rtf",
+		".txt",
+		".md",
+		".html",
+		".htm",
+		".pdf",
+	}
 
 	for _, ext := range ebookExts {
 		lowerParts := strings.ToLower(pathParts)
@@ -123,7 +140,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveHTMLWithTOC serves calibre HTML output with a sticky TOC header
-func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir string, originalPath string) {
+func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir, originalPath string) {
 	// Get list of HTML files for TOC
 	htmlFiles := utils.GetHTMLFiles(htmlDir)
 
@@ -147,7 +164,7 @@ func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir string, or
 }
 
 // createWrapperHTML creates HTML with sticky TOC header
-func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir string, originalPath string) string {
+func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir, originalPath string) string {
 	// Extract title from originalPath or use filename
 	title := filepath.Base(originalPath)
 
@@ -167,7 +184,7 @@ func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir string, or
 			strings.TrimPrefix(originalPath, "/"),
 			file)
 
-		tocOptions.WriteString(fmt.Sprintf(`<option value="%s">%s</option>`, val, baseName))
+		fmt.Fprintf(&tocOptions, `<option value="%s">%s</option>`, val, baseName)
 		if i == 0 {
 			tocOptions.WriteString("\n")
 		}

@@ -48,11 +48,36 @@ func (q *Queries) bulkUpsertMediaBatch(ctx context.Context, batch []UpsertMediaP
 
 	for i, item := range batch {
 		placeholders[i] = "(" + strings.Repeat("?, ", len(columns)-1) + "?)"
-		args = append(args,
-			item.Path, item.PathTokenized, item.Title, item.Duration, item.Size, item.TimeCreated, item.TimeModified,
-			item.MediaType, item.Width, item.Height, item.Fps, item.VideoCodecs, item.AudioCodecs, item.SubtitleCodecs,
-			item.VideoCount, item.AudioCount, item.SubtitleCount, item.Album, item.Artist, item.Genre, item.Categories,
-			item.Description, item.Language, item.TimeDownloaded, item.Score, item.Fasthash, item.Sha256, item.IsDeduped,
+		args = append(
+			args,
+			item.Path,
+			item.PathTokenized,
+			item.Title,
+			item.Duration,
+			item.Size,
+			item.TimeCreated,
+			item.TimeModified,
+			item.MediaType,
+			item.Width,
+			item.Height,
+			item.Fps,
+			item.VideoCodecs,
+			item.AudioCodecs,
+			item.SubtitleCodecs,
+			item.VideoCount,
+			item.AudioCount,
+			item.SubtitleCount,
+			item.Album,
+			item.Artist,
+			item.Genre,
+			item.Categories,
+			item.Description,
+			item.Language,
+			item.TimeDownloaded,
+			item.Score,
+			item.Fasthash,
+			item.Sha256,
+			item.IsDeduped,
 		)
 	}
 

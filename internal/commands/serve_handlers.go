@@ -71,7 +71,16 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 				if queryStr != "" {
 					// Search with context - get all captions for matched media
-					rows, err = c.getCaptionsWithContext(ctx, queries, queryStr, int64(limit), flags.VideoOnly, flags.AudioOnly, flags.ImageOnly, flags.TextOnly)
+					rows, err = c.getCaptionsWithContext(
+						ctx,
+						queries,
+						queryStr,
+						int64(limit),
+						flags.VideoOnly,
+						flags.AudioOnly,
+						flags.ImageOnly,
+						flags.TextOnly,
+					)
 				} else {
 					// No search - return captions ordered by path and time for captions view
 					// Apply media type filters
@@ -86,7 +95,15 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 					if err2 != nil {
 						return err2
 					}
-					slog.Info("Fetched captions", "count", len(rawRows), "video_only", params.VideoOnly, "audio_only", params.AudioOnly)
+					slog.Info(
+						"Fetched captions",
+						"count",
+						len(rawRows),
+						"video_only",
+						params.VideoOnly,
+						"audio_only",
+						params.AudioOnly,
+					)
 					// Convert GetAllCaptionsOrderedRow to SearchCaptionsRow (rank=0 for non-search)
 					for _, r := range rawRows {
 						rows = append(rows, database.SearchCaptionsRow{
@@ -584,7 +601,12 @@ func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
 
 	for _, dbPath := range c.Databases {
 		err := c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
-			if _, err := sqlDB.ExecContext(r.Context(), "UPDATE media SET score = ? WHERE path = ?", req.Score, req.Path); err != nil {
+			if _, err := sqlDB.ExecContext(
+				r.Context(),
+				"UPDATE media SET score = ? WHERE path = ?",
+				req.Score,
+				req.Path,
+			); err != nil {
 				return err
 			}
 			return nil
@@ -733,7 +755,12 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 								entryPath = current + seg
 								counts[entryPath]++
 								if _, ok := resultsMap[entryPath]; !ok {
-									resultsMap[entryPath] = LsEntry{Name: entryName, Path: entryPath, IsDir: false, MediaType: t.String}
+									resultsMap[entryPath] = LsEntry{
+										Name:      entryName,
+										Path:      entryPath,
+										IsDir:     false,
+										MediaType: t.String,
+									}
 								}
 								break
 							}
@@ -911,7 +938,14 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use DU aggregation with filter support
-	folderResults, err := query.AggregateDUByPathMultiDBWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, currentDepth, resolvedFlags)
+	folderResults, err := query.AggregateDUByPathMultiDBWithFilters(
+		r.Context(),
+		c.Databases,
+		cleanPath,
+		targetDepth,
+		currentDepth,
+		resolvedFlags,
+	)
 	if err != nil {
 		slog.Error("Failed to fetch DU folders", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
@@ -919,7 +953,13 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch direct files at target depth with filter support
-	directFiles, err := query.FetchDUDirectFilesWithFilters(r.Context(), c.Databases, cleanPath, targetDepth, resolvedFlags)
+	directFiles, err := query.FetchDUDirectFilesWithFilters(
+		r.Context(),
+		c.Databases,
+		cleanPath,
+		targetDepth,
+		resolvedFlags,
+	)
 	if err != nil {
 		slog.Error("Failed to fetch DU files", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)

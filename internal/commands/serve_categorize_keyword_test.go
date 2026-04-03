@@ -13,7 +13,7 @@ import (
 
 func TestHandleCategorizeKeyword(t *testing.T) {
 	t.Parallel()
-	tmpDB, err := os.CreateTemp("", "disco_test_keyword_*.db")
+	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_keyword_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)
 	}
@@ -57,7 +57,8 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		defer db.Close()
 
 		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM custom_keywords WHERE category = 'Genre' AND keyword = 'Rock'").Scan(&count)
+		err = db.QueryRow("SELECT COUNT(*) FROM custom_keywords WHERE category = 'Genre' AND keyword = 'Rock'").
+			Scan(&count)
 		if err != nil {
 			t.Fatalf("Failed to count keywords: %v", err)
 		}
@@ -109,7 +110,8 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		defer db.Close()
 
 		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM custom_keywords WHERE category = 'Mood' AND keyword = 'Happy'").Scan(&count)
+		err = db.QueryRow("SELECT COUNT(*) FROM custom_keywords WHERE category = 'Mood' AND keyword = 'Happy'").
+			Scan(&count)
 		if err != nil {
 			t.Fatalf("Failed to count keywords: %v", err)
 		}

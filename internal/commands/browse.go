@@ -2,12 +2,13 @@ package commands
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -21,7 +22,7 @@ type OpenCmd struct {
 	models.SortFlags        `embed:""`
 	models.PostActionFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *OpenCmd) Run(ctx *kong.Context) error {
@@ -71,7 +72,7 @@ type BrowseCmd struct {
 	models.MediaFilterFlags `embed:""`
 	models.SortFlags        `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 	Browser   string   `help:"Browser to use"`
 }
 
@@ -104,7 +105,7 @@ func (c *BrowseCmd) Run(ctx *kong.Context) error {
 	}
 
 	if len(urls) == 0 {
-		return fmt.Errorf("no URLs found")
+		return errors.New("no URLs found")
 	}
 
 	var cmd *exec.Cmd

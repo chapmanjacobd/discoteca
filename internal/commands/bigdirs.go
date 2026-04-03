@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -16,7 +17,7 @@ type BigDirsCmd struct {
 	models.SortFlags        `embed:""`
 	models.DisplayFlags     `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *BigDirsCmd) Run(ctx *kong.Context) error {

@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +46,7 @@ func ExecutePostAction(flags models.GlobalFlags, media []models.MediaWithDB) err
 	}
 
 	var totalSize int64 = 0
-	var count int = 0
+	count := 0
 
 	for _, m := range media {
 		if flags.ActionLimit > 0 && count >= flags.ActionLimit {
@@ -176,7 +178,7 @@ func MoveMediaItem(destDir string, m models.MediaWithDB) error {
 	}
 
 	if !utils.FileExists(m.Path) {
-		return fmt.Errorf("file not found")
+		return errors.New("file not found")
 	}
 
 	dest := filepath.Join(destDir, filepath.Base(m.Path))
@@ -203,7 +205,7 @@ func CopyMediaItem(destDir string, m models.MediaWithDB) error {
 	}
 
 	if !utils.FileExists(m.Path) {
-		return fmt.Errorf("file not found")
+		return errors.New("file not found")
 	}
 
 	dest := filepath.Join(destDir, filepath.Base(m.Path))
@@ -240,7 +242,7 @@ func CastPlay(flags models.GlobalFlags, media []models.MediaWithDB, audioOnly bo
 			// Convert start time to seconds if needed
 			seconds := flags.Start
 			if strings.Contains(flags.Start, ":") {
-				seconds = fmt.Sprintf("%d", int64(utils.FromTimestampSeconds(flags.Start)))
+				seconds = strconv.FormatInt(int64(utils.FromTimestampSeconds(flags.Start)), 10)
 			}
 			args = append(args, "--seek-to", seconds)
 		}

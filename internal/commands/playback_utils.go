@@ -8,7 +8,13 @@ import (
 )
 
 // DispatchPlaybackCommand handles common logic for sending commands to mpv or Chromecast
-func DispatchPlaybackCommand(c models.ControlFlags, mpvCmd string, mpvArgs []any, castCmd string, castArgs ...string) error {
+func DispatchPlaybackCommand(
+	c models.ControlFlags,
+	mpvCmd string,
+	mpvArgs []any,
+	castCmd string,
+	castArgs ...string,
+) error {
 	cattFile := utils.GetCattNowPlayingFile()
 	if utils.FileExists(cattFile) {
 		args := append([]string{castCmd}, castArgs...)

@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // setupTestDB creates a test database with sample data
@@ -57,7 +58,7 @@ func BenchmarkSearch(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := queries.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
 			Query: "video",
 			Limit: 10,
@@ -101,7 +102,7 @@ func BenchmarkAddMedia(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		// Simulate adding media
 		err := queries.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:      filepath.Join(mediaDir, fmt.Sprintf("video_%d.mp4", i%10)),
@@ -123,7 +124,7 @@ func BenchmarkFTSSearch(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := queries.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
 			Query: "Sample",
 			Limit: 10,
@@ -143,7 +144,7 @@ func BenchmarkAggregateStats(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := queries.GetStats(ctx)
 		if err != nil {
 			b.Fatalf("GetStats failed: %v", err)
@@ -192,7 +193,7 @@ func BenchmarkHistoryQueries(b *testing.B) {
 
 	b.Run("GetUnfinished", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			_, err := queries.GetUnfinishedMedia(ctx, 10)
 			if err != nil {
 				b.Fatalf("GetUnfinishedMedia failed: %v", err)
@@ -202,7 +203,7 @@ func BenchmarkHistoryQueries(b *testing.B) {
 
 	b.Run("GetUnwatched", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			_, err := queries.GetUnwatchedMedia(ctx, 10)
 			if err != nil {
 				b.Fatalf("GetUnwatchedMedia failed: %v", err)
@@ -212,7 +213,7 @@ func BenchmarkHistoryQueries(b *testing.B) {
 
 	b.Run("GetWatched", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			_, err := queries.GetWatchedMedia(ctx, 10)
 			if err != nil {
 				b.Fatalf("GetWatchedMedia failed: %v", err)

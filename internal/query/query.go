@@ -59,7 +59,11 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 }
 
 // FetchSiblings fetches sibling files for the given media (Re-exported for tests)
-func FetchSiblings(ctx context.Context, media []models.MediaWithDB, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
+func FetchSiblings(
+	ctx context.Context,
+	media []models.MediaWithDB,
+	flags models.GlobalFlags,
+) ([]models.MediaWithDB, error) {
 	executor := NewQueryExecutor(flags)
 	return executor.FetchSiblings(ctx, media, flags)
 }
@@ -325,7 +329,7 @@ func SummarizeMedia(media []models.MediaWithDB) []FrequencyStats {
 	}
 }
 
-func HistoricalUsage(ctx context.Context, dbPath string, freq string, timeColumn string) ([]FrequencyStats, error) {
+func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]FrequencyStats, error) {
 	sqlDB, err := db.Connect(dbPath)
 	if err != nil {
 		return nil, err
@@ -341,7 +345,11 @@ func HistoricalUsage(ctx context.Context, dbPath string, freq string, timeColumn
 	case "monthly":
 		freqSql = fmt.Sprintf("strftime('%%Y-%%m', datetime(%s, 'unixepoch'))", timeColumn)
 	case "quarterly":
-		freqSql = fmt.Sprintf("strftime('%%Y', datetime(%s, 'unixepoch', '-3 months')) || '-Q' || ((strftime('%%m', datetime(%s, 'unixepoch', '-3 months')) - 1) / 3 + 1)", timeColumn, timeColumn)
+		freqSql = fmt.Sprintf(
+			"strftime('%%Y', datetime(%s, 'unixepoch', '-3 months')) || '-Q' || ((strftime('%%m', datetime(%s, 'unixepoch', '-3 months')) - 1) / 3 + 1)",
+			timeColumn,
+			timeColumn,
+		)
 	case "yearly":
 		freqSql = fmt.Sprintf("strftime('%%Y', datetime(%s, 'unixepoch'))", timeColumn)
 	case "decadally":

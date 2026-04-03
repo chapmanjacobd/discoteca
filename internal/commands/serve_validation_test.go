@@ -53,7 +53,12 @@ func TestServeCmd_Validation(t *testing.T) {
 	})
 
 	t.Run("HandleMarkUnplayed_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/mark-unplayed", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(
+			http.MethodPost,
+			"/api/mark-unplayed",
+			bytes.NewBufferString("invalid json"),
+			cmd.APIToken,
+		)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -98,7 +103,12 @@ func TestServeCmd_Validation(t *testing.T) {
 	})
 
 	t.Run("HandlePlaylistItems_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/playlists/items", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(
+			http.MethodPost,
+			"/api/playlists/items",
+			bytes.NewBufferString("invalid json"),
+			cmd.APIToken,
+		)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -107,7 +117,12 @@ func TestServeCmd_Validation(t *testing.T) {
 	})
 
 	t.Run("HandlePlaylistReorder_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(
+			http.MethodPost,
+			"/api/playlists/reorder",
+			bytes.NewBufferString("invalid json"),
+			cmd.APIToken,
+		)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {

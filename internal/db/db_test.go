@@ -10,7 +10,7 @@ import (
 )
 
 func TestConnect(t *testing.T) {
-	f, err := os.CreateTemp("", "db-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "db-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestIsCorruptionError(t *testing.T) {
 
 func TestIsHealthy(t *testing.T) {
 	// Unhealthy test
-	f, _ := os.CreateTemp("", "unhealthy-test-*.db")
+	f, _ := os.CreateTemp(t.TempDir(), "unhealthy-test-*.db")
 	unhealthyPath := f.Name()
 	f.WriteString("Not a SQLite database")
 	f.Close()
@@ -54,7 +54,7 @@ func TestIsHealthy(t *testing.T) {
 	}
 
 	// Healthy test
-	f2, _ := os.CreateTemp("", "healthy-test-*.db")
+	f2, _ := os.CreateTemp(t.TempDir(), "healthy-test-*.db")
 	healthyPath := f2.Name()
 	f2.Close()
 	defer os.Remove(healthyPath)

@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 // TestHandleRate tests the rate endpoint
@@ -40,7 +41,7 @@ func TestHandleRate(t *testing.T) {
 			"path":  filepath.FromSlash("/tmp/test1.mp4"),
 			"score": 4.5,
 		})
-		req := httptest.NewRequest("POST", "/api/rate", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/rate", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -65,7 +66,7 @@ func TestHandleRate(t *testing.T) {
 			"path":  filepath.FromSlash("/tmp/test1.mp4"),
 			"score": 3.0,
 		})
-		req := httptest.NewRequest("POST", "/api/rate", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/rate", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -77,7 +78,7 @@ func TestHandleRate(t *testing.T) {
 	})
 
 	t.Run("InvalidMethod", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/rate", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/rate", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -115,7 +116,7 @@ func TestHandleDelete(t *testing.T) {
 			"path":    filepath.FromSlash("/tmp/test1.mp4"),
 			"restore": false,
 		})
-		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/delete", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -128,7 +129,8 @@ func TestHandleDelete(t *testing.T) {
 		sqlDB, _ := sql.Open("sqlite3", dbPath)
 		defer sqlDB.Close()
 		var timeDeleted int64
-		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&timeDeleted)
+		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).
+			Scan(&timeDeleted)
 		if timeDeleted == 0 {
 			t.Error("Expected time_deleted to be set")
 		}
@@ -139,7 +141,7 @@ func TestHandleDelete(t *testing.T) {
 			"path":    filepath.FromSlash("/tmp/test1.mp4"),
 			"restore": true,
 		})
-		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/delete", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -152,7 +154,8 @@ func TestHandleDelete(t *testing.T) {
 		sqlDB, _ := sql.Open("sqlite3", dbPath)
 		defer sqlDB.Close()
 		var timeDeleted int64
-		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&timeDeleted)
+		sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).
+			Scan(&timeDeleted)
 		if timeDeleted != 0 {
 			t.Error("Expected time_deleted to be 0 after restore")
 		}
@@ -164,7 +167,7 @@ func TestHandleDelete(t *testing.T) {
 			"path":    filepath.FromSlash("/tmp/test1.mp4"),
 			"restore": false,
 		})
-		req := httptest.NewRequest("POST", "/api/delete", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/delete", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -204,7 +207,7 @@ func TestHandleProgress(t *testing.T) {
 			"playhead":  120,
 			"completed": false,
 		})
-		req := httptest.NewRequest("POST", "/api/progress", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -218,7 +221,8 @@ func TestHandleProgress(t *testing.T) {
 		defer sqlDB.Close()
 		var playhead int64
 		var playCount int64
-		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&playhead, &playCount)
+		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).
+			Scan(&playhead, &playCount)
 		if playhead != 120 {
 			t.Errorf("Expected playhead 120, got %d", playhead)
 		}
@@ -233,7 +237,7 @@ func TestHandleProgress(t *testing.T) {
 			"playhead":  600,
 			"completed": true,
 		})
-		req := httptest.NewRequest("POST", "/api/progress", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -247,7 +251,8 @@ func TestHandleProgress(t *testing.T) {
 		defer sqlDB.Close()
 		var playhead int64
 		var playCount int64
-		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).Scan(&playhead, &playCount)
+		sqlDB.QueryRow("SELECT playhead, play_count FROM media WHERE path = ?", filepath.FromSlash("/tmp/test1.mp4")).
+			Scan(&playhead, &playCount)
 		if playCount != 1 {
 			t.Errorf("Expected play_count 1 after completion, got %d", playCount)
 		}
@@ -260,7 +265,7 @@ func TestHandleProgress(t *testing.T) {
 			"playhead":  50,
 			"completed": false,
 		})
-		req := httptest.NewRequest("POST", "/api/progress", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)

@@ -2,12 +2,14 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -21,10 +23,10 @@ type MediaCheckCmd struct {
 	models.MediaFilterFlags `embed:""`
 	models.DeletedFlags     `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 
-	ChunkSize         float64 `help:"Chunk size in seconds. If set, recommended to use >0.1 seconds" default:"0.5"`
-	Gap               string  `help:"Width between chunks to skip. Values greater than 1 are treated as number of seconds" default:"5%"`
+	ChunkSize         float64 `help:"Chunk size in seconds. If set, recommended to use >0.1 seconds"                                                                                     default:"0.5"`
+	Gap               string  `help:"Width between chunks to skip. Values greater than 1 are treated as number of seconds"                                                               default:"5%"`
 	DeleteCorrupt     string  `help:"Delete media that is more corrupt or equal to this threshold. Values greater than 1 are treated as number of seconds"`
 	FullScanIfCorrupt string  `help:"Full scan as second pass if initial scan result more corruption or equal to this threshold. Values greater than 1 are treated as number of seconds"`
 	FullScan          bool    `help:"Decode the full media file"`
@@ -46,7 +48,7 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 
 	return RunQuery(context.Background(), c.Databases, flags, func(media []models.MediaWithDB) error {
 		if len(media) == 0 {
-			return fmt.Errorf("no media found")
+			return errors.New("no media found")
 		}
 
 		for _, m := range media {
@@ -71,7 +73,13 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 					corruption = metadata.DecodeQuickScan(context.Background(), m.Path, scans, c.ChunkSize)
 
 					if fullScanThreshold > 0 && corruption >= fullScanThreshold {
-						slog.Info("Corruption threshold reached, performing full scan", "path", m.Path, "corruption", corruption)
+						slog.Info(
+							"Corruption threshold reached, performing full scan",
+							"path",
+							m.Path,
+							"corruption",
+							corruption,
+						)
 						var err error
 						corruption, err = metadata.DecodeFullScan(context.Background(), m.Path)
 						if err != nil {

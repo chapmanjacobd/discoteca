@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestRawNotFound(t *testing.T) {
@@ -26,7 +27,11 @@ func TestRawNotFound(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("MediaNotFound", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/raw?db="+dbPath+"&path="+filepath.FromSlash("/nonexistent.mp4"), nil)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/raw?db="+dbPath+"&path="+filepath.FromSlash("/nonexistent.mp4"),
+			nil,
+		)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -37,7 +42,7 @@ func TestRawNotFound(t *testing.T) {
 	})
 
 	t.Run("DatabaseNotFound", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/raw?db=missing.db&path="+filepath.FromSlash("/some.mp4"), nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/raw?db=missing.db&path="+filepath.FromSlash("/some.mp4"), nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)

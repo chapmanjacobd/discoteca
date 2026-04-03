@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -26,7 +28,7 @@ type CategorizeCmd struct {
 	models.DeletedFlags     `embed:""`
 	models.PostActionFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 
 	Other    bool `help:"Analyze 'other' category to find potential new categories"`
 	FullPath bool `help:"Use full path for categorization suggestions instead of just filename"`
@@ -55,7 +57,7 @@ func (c *CategorizeCmd) Run(ctx *kong.Context) error {
 	media = query.FilterMedia(media, flags)
 
 	if len(media) == 0 {
-		return fmt.Errorf("no media found")
+		return errors.New("no media found")
 	}
 
 	compiled := c.CompileRegexes()

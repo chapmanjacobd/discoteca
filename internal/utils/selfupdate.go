@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -122,7 +123,7 @@ func doUpdate(url string) bool {
 func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	// Try downloading checksum
 	checksumUrl := url + ".sha256"
-	req, err := http.NewRequestWithContext(ctx, "GET", checksumUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checksumUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -145,7 +146,7 @@ func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	}
 
 	actualHash := sha256.Sum256(data)
-	actualHex := fmt.Sprintf("%x", actualHash)
+	actualHex := hex.EncodeToString(actualHash[:])
 
 	if strings.TrimSpace(string(expectedHex)) != actualHex {
 		return fmt.Errorf("expected %s, got %s", string(expectedHex), actualHex)
@@ -169,7 +170,7 @@ func doUpdateAt(curp, url string) bool {
 	}
 	defer f.Close()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		fmt.Fprintln(Stderr,
 			"error creating request:", err)
@@ -241,7 +242,7 @@ func checkUpdate() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", githubApiUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubApiUrl, nil)
 	if err != nil {
 		return ""
 	}

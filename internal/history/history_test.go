@@ -11,7 +11,7 @@ import (
 )
 
 func setupTestDB(t *testing.T) (*sql.DB, string) {
-	f, err := os.CreateTemp("", "history-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "history-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,8 @@ func TestTracker_UpdatePlayback(t *testing.T) {
 
 	// Verify media update
 	var lastPlayed, playhead int64
-	err := sqlDB.QueryRow("SELECT time_last_played, playhead FROM media WHERE path = ?", path).Scan(&lastPlayed, &playhead)
+	err := sqlDB.QueryRow("SELECT time_last_played, playhead FROM media WHERE path = ?", path).
+		Scan(&lastPlayed, &playhead)
 	if err != nil {
 		t.Fatalf("Failed to query media: %v", err)
 	}

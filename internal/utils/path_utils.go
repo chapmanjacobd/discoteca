@@ -101,7 +101,7 @@ func TrimPathSegments(path string, desiredLength int) string {
 }
 
 // SafeJoin joins a base path with a user-provided path, preventing directory traversal
-func SafeJoin(base string, userPath string) string {
+func SafeJoin(base, userPath string) string {
 	// Clean the user path to remove .. and other traversal elements
 	userPath = filepath.Clean(userPath)
 

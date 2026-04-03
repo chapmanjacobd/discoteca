@@ -91,7 +91,7 @@ func TestMpvCall(t *testing.T) {
 }
 
 func TestMpvWatchLaterValue(t *testing.T) {
-	f, _ := os.CreateTemp("", "watch-later")
+	f, _ := os.CreateTemp(t.TempDir(), "watch-later")
 	defer os.Remove(f.Name())
 	f.WriteString("key1=val1\nkey2=val2\n")
 	f.Close()

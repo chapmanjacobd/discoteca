@@ -9,7 +9,7 @@ import (
 )
 
 type VersionCmd struct {
-	Verbose int `short:"v" type:"counter" help:"Show verbose output including dependencies" env:"DISCO_VERBOSE"`
+	Verbose int `help:"Show verbose output including dependencies" short:"v" env:"DISCO_VERBOSE" type:"counter"`
 }
 
 func (c *VersionCmd) Run() error {

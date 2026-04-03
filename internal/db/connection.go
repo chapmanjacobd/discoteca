@@ -183,6 +183,7 @@ func (c *traceConn) QueryContext(ctx context.Context, query string, args []drive
 // traceStmt wraps a driver.Stmt to trace query execution
 type traceStmt struct {
 	driver.Stmt
+
 	query string
 }
 

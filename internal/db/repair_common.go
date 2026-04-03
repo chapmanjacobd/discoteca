@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -96,7 +97,13 @@ func isHealthy(dbPath string) bool {
 		// If we only update a non-existent row, the triggers will not fire and we won't detect FTS corruption.
 		if somePath != "" {
 			if _, err = tx.Exec("UPDATE media SET time_deleted = time_deleted WHERE path = ?", somePath); err != nil {
-				slog.Warn("Health check: write consistency check (media triggers) failed", "path", somePath, "error", err)
+				slog.Warn(
+					"Health check: write consistency check (media triggers) failed",
+					"path",
+					somePath,
+					"error",
+					err,
+				)
 				return false
 			}
 		} else {
@@ -117,7 +124,7 @@ func isHealthy(dbPath string) bool {
 	var hasFTS bool
 	_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").Scan(&hasFTS)
 	if hasFTS {
-		if _, err = tx.Exec("SELECT rowid FROM media_fts LIMIT 1"); err != nil && err != sql.ErrNoRows {
+		if _, err = tx.Exec("SELECT rowid FROM media_fts LIMIT 1"); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			slog.Warn("Health check: FTS check (media_fts) failed", "error", err)
 			return false
 		}

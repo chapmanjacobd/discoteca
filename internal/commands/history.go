@@ -2,11 +2,13 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -24,7 +26,7 @@ type HistoryCmd struct {
 	models.DisplayFlags     `embed:""`
 	models.PostActionFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *HistoryCmd) Run(ctx *kong.Context) error {
@@ -97,8 +99,9 @@ func (c *HistoryCmd) Run(ctx *kong.Context) error {
 
 type HistoryAddCmd struct {
 	models.CoreFlags `embed:""`
-	Done             bool     `help:"Mark as done"`
-	Args             []string `arg:"" name:"args" required:"" help:"Database file followed by paths to mark as played"`
+
+	Done bool     `help:"Mark as done"`
+	Args []string `help:"Database file followed by paths to mark as played" required:"" name:"args" arg:""`
 
 	Paths    []string `kong:"-"`
 	Database string   `kong:"-"`
@@ -109,7 +112,7 @@ func (c *HistoryAddCmd) AfterApply() error {
 		return err
 	}
 	if len(c.Args) < 2 {
-		return fmt.Errorf("at least one database file and one path are required")
+		return errors.New("at least one database file and one path are required")
 	}
 	c.Database = c.Args[0]
 	c.Paths = c.Args[1:]

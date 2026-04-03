@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
@@ -17,8 +18,8 @@ type MergeDBsCmd struct {
 	models.FilterFlags `embed:""`
 	models.MergeFlags  `embed:""`
 
-	TargetDB  string   `arg:"" required:"" help:"Target SQLite database file"`
-	SourceDBs []string `arg:"" required:"" help:"Source SQLite database files" type:"existingfile"`
+	TargetDB  string   `help:"Target SQLite database file"  required:"" arg:""`
+	SourceDBs []string `help:"Source SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *MergeDBsCmd) Run(ctx *kong.Context) error {
@@ -72,7 +73,9 @@ func (c *MergeDBsCmd) mergeDatabase(srcPath string, targetConn *sql.DB) error {
 }
 
 func (c *MergeDBsCmd) getTables(conn *sql.DB) ([]string, error) {
-	rows, err := conn.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fts%'")
+	rows, err := conn.Query(
+		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fts%'",
+	)
 	if err != nil {
 		return nil, err
 	}

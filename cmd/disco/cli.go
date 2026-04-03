@@ -6,46 +6,46 @@ import (
 
 // CLI defines the command-line interface
 type CLI struct {
-	Add            commands.AddCmd            `cmd:"" help:"Add media to database"`
-	Check          commands.CheckCmd          `cmd:"" help:"Check for missing files and mark as deleted"`
-	Print          commands.PrintCmd          `cmd:"" help:"Print media information"`
-	Search         commands.SearchCmd         `cmd:"" help:"Search media using FTS"`
-	SearchCaptions commands.SearchCaptionsCmd `cmd:"" help:"Search captions using FTS" aliases:"sc"`
-	Playlists      commands.PlaylistsCmd      `cmd:"" help:"List scan roots (playlists)"`
-	SearchDB       commands.SearchDBCmd       `cmd:"" help:"Search arbitrary database table" aliases:"sdb"`
-	MediaCheck     commands.MediaCheckCmd     `cmd:"" help:"Check media files for corruption" aliases:"mc"`
-	FilesInfo      commands.FilesInfoCmd      `cmd:"" help:"Show information about files" aliases:"fs"`
-	DiskUsage      commands.DiskUsageCmd      `cmd:"" help:"Show disk usage aggregation" aliases:"du"`
-	Dedupe         commands.DedupeCmd         `cmd:"" name:"dedupe" help:"Dedupe similar media" aliases:"dedupe-media"`
-	BigDirs        commands.BigDirsCmd        `cmd:"" help:"Show big directories aggregation" aliases:"bigdirs,bd"`
-	Categorize     commands.CategorizeCmd     `cmd:"" help:"Auto-group media into categories"`
-	SimilarFiles   commands.SimilarFilesCmd   `cmd:"" help:"Find similar files" aliases:"sf"`
-	SimilarFolders commands.SimilarFoldersCmd `cmd:"" help:"Find similar folders" aliases:"sh"`
-	Watch          commands.WatchCmd          `cmd:"" help:"Watch videos with mpv"`
-	Listen         commands.ListenCmd         `cmd:"" help:"Listen to audio with mpv"`
-	Stats          commands.StatsCmd          `cmd:"" help:"Show library statistics"`
-	History        commands.HistoryCmd        `cmd:"" help:"Show playback history"`
-	HistoryAdd     commands.HistoryAddCmd     `cmd:"" help:"Add paths to playback history"`
-	MpvWatchlater  commands.MpvWatchlaterCmd  `cmd:"" name:"mpv-watchlater" help:"Import mpv watchlater files to history"`
-	Serve          commands.ServeCmd          `cmd:"" help:"Start Web UI server"`
-	Optimize       commands.OptimizeCmd       `cmd:"" help:"Optimize database (VACUUM, ANALYZE, FTS optimize)"`
-	Repair         commands.RepairCmd         `cmd:"" help:"Repair malformed database using sqlite3"`
-	Tui            commands.TuiCmd            `cmd:"" help:"Interactive TUI media picker"`
-	Readme         commands.ReadmeCmd         `cmd:"" help:"Generate README.md content"`
-	RegexSort      commands.RegexSortCmd      `cmd:"" help:"Sort by splitting lines and sorting words" aliases:"rs"`
-	ClusterSort    commands.ClusterSortCmd    `cmd:"" help:"Group items by similarity" aliases:"cs"`
-	SampleHash     commands.SampleHashCmd     `cmd:"" name:"sample-hash" help:"Calculate a hash based on small file segments" aliases:"hash"`
-	Open           commands.OpenCmd           `cmd:"" help:"Open files with default application"`
-	Browse         commands.BrowseCmd         `cmd:"" help:"Open URLs in browser"`
-	Now            commands.NowCmd            `cmd:"" help:"Show current mpv playback status"`
-	Next           commands.NextCmd           `cmd:"" help:"Skip to next file in mpv"`
-	Stop           commands.StopCmd           `cmd:"" help:"Stop mpv playback"`
-	Pause          commands.PauseCmd          `cmd:"" help:"Toggle mpv pause state" aliases:"play"`
-	Seek           commands.SeekCmd           `cmd:"" help:"Seek mpv playback" aliases:"ffwd,rewind"`
-	MergeDBs       commands.MergeDBsCmd       `cmd:"" name:"merge-dbs" help:"Merge multiple SQLite databases" aliases:"mergedbs"`
-	Explode        commands.ExplodeCmd        `cmd:"" help:"Create symlinks for all subcommands (busybox-style)"`
-	Update         commands.UpdateCmd         `cmd:"" help:"Check for and install updates from GitHub"`
-	Version        commands.VersionCmd        `cmd:"" help:"Show version and build information"`
+	Add            commands.AddCmd            `help:"Add media to database"                               cmd:""`
+	Check          commands.CheckCmd          `help:"Check for missing files and mark as deleted"         cmd:""`
+	Print          commands.PrintCmd          `help:"Print media information"                             cmd:""`
+	Search         commands.SearchCmd         `help:"Search media using FTS"                              cmd:""`
+	SearchCaptions commands.SearchCaptionsCmd `help:"Search captions using FTS"                           cmd:"" aliases:"sc"`
+	Playlists      commands.PlaylistsCmd      `help:"List scan roots (playlists)"                         cmd:""`
+	SearchDB       commands.SearchDBCmd       `help:"Search arbitrary database table"                     cmd:"" aliases:"sdb"`
+	MediaCheck     commands.MediaCheckCmd     `help:"Check media files for corruption"                    cmd:"" aliases:"mc"`
+	FilesInfo      commands.FilesInfoCmd      `help:"Show information about files"                        cmd:"" aliases:"fs"`
+	DiskUsage      commands.DiskUsageCmd      `help:"Show disk usage aggregation"                         cmd:"" aliases:"du"`
+	Dedupe         commands.DedupeCmd         `help:"Dedupe similar media"                                cmd:"" aliases:"dedupe-media" name:"dedupe"`
+	BigDirs        commands.BigDirsCmd        `help:"Show big directories aggregation"                    cmd:"" aliases:"bigdirs,bd"`
+	Categorize     commands.CategorizeCmd     `help:"Auto-group media into categories"                    cmd:""`
+	SimilarFiles   commands.SimilarFilesCmd   `help:"Find similar files"                                  cmd:"" aliases:"sf"`
+	SimilarFolders commands.SimilarFoldersCmd `help:"Find similar folders"                                cmd:"" aliases:"sh"`
+	Watch          commands.WatchCmd          `help:"Watch videos with mpv"                               cmd:""`
+	Listen         commands.ListenCmd         `help:"Listen to audio with mpv"                            cmd:""`
+	Stats          commands.StatsCmd          `help:"Show library statistics"                             cmd:""`
+	History        commands.HistoryCmd        `help:"Show playback history"                               cmd:""`
+	HistoryAdd     commands.HistoryAddCmd     `help:"Add paths to playback history"                       cmd:""`
+	MpvWatchlater  commands.MpvWatchlaterCmd  `help:"Import mpv watchlater files to history"              cmd:""                        name:"mpv-watchlater"`
+	Serve          commands.ServeCmd          `help:"Start Web UI server"                                 cmd:""`
+	Optimize       commands.OptimizeCmd       `help:"Optimize database (VACUUM, ANALYZE, FTS optimize)"   cmd:""`
+	Repair         commands.RepairCmd         `help:"Repair malformed database using sqlite3"             cmd:""`
+	Tui            commands.TuiCmd            `help:"Interactive TUI media picker"                        cmd:""`
+	Readme         commands.ReadmeCmd         `help:"Generate README.md content"                          cmd:""`
+	RegexSort      commands.RegexSortCmd      `help:"Sort by splitting lines and sorting words"           cmd:"" aliases:"rs"`
+	ClusterSort    commands.ClusterSortCmd    `help:"Group items by similarity"                           cmd:"" aliases:"cs"`
+	SampleHash     commands.SampleHashCmd     `help:"Calculate a hash based on small file segments"       cmd:"" aliases:"hash"         name:"sample-hash"`
+	Open           commands.OpenCmd           `help:"Open files with default application"                 cmd:""`
+	Browse         commands.BrowseCmd         `help:"Open URLs in browser"                                cmd:""`
+	Now            commands.NowCmd            `help:"Show current mpv playback status"                    cmd:""`
+	Next           commands.NextCmd           `help:"Skip to next file in mpv"                            cmd:""`
+	Stop           commands.StopCmd           `help:"Stop mpv playback"                                   cmd:""`
+	Pause          commands.PauseCmd          `help:"Toggle mpv pause state"                              cmd:"" aliases:"play"`
+	Seek           commands.SeekCmd           `help:"Seek mpv playback"                                   cmd:"" aliases:"ffwd,rewind"`
+	MergeDBs       commands.MergeDBsCmd       `help:"Merge multiple SQLite databases"                     cmd:"" aliases:"mergedbs"     name:"merge-dbs"`
+	Explode        commands.ExplodeCmd        `help:"Create symlinks for all subcommands (busybox-style)" cmd:""`
+	Update         commands.UpdateCmd         `help:"Check for and install updates from GitHub"           cmd:""`
+	Version        commands.VersionCmd        `help:"Show version and build information"                  cmd:""`
 
 	ExitCalled bool `kong:"-"`
 }

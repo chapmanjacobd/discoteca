@@ -106,7 +106,7 @@ func isTableStrict(db *sql.DB, tableName string) (bool, error) {
 	return isStrict, nil
 }
 
-func migrateToStrict(db *sql.DB, tableName string, createSql string) error {
+func migrateToStrict(db *sql.DB, tableName, createSql string) error {
 	strict, err := isTableStrict(db, tableName)
 	if err != nil {
 		return err
@@ -164,7 +164,9 @@ func migrateToStrict(db *sql.DB, tableName string, createSql string) error {
 	rows.Close()
 
 	colStr := strings.Join(cols, ", ")
-	if _, err := tx.Exec(fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM %s", tableName, colStr, colStr, oldTable)); err != nil {
+	if _, err := tx.Exec(
+		fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM %s", tableName, colStr, colStr, oldTable),
+	); err != nil {
 		return fmt.Errorf("failed to copy data for %s: %w", tableName, err)
 	}
 
@@ -436,7 +438,6 @@ func migrateColumns(db *sql.DB) error {
 	}
 
 	for _, c := range cols {
-
 		rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", c.table))
 		if err != nil {
 			if strings.Contains(err.Error(), "no such table") {
@@ -463,7 +464,9 @@ func migrateColumns(db *sql.DB) error {
 		rows.Close()
 
 		if !exists {
-			if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.schema)); err != nil {
+			if _, err := db.Exec(
+				fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.schema),
+			); err != nil {
 				if !strings.Contains(err.Error(), "no such table") {
 					return fmt.Errorf("failed to add column %s to table %s: %w", c.column, c.table, err)
 				}
@@ -766,10 +769,14 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 	}
 
 	// Initialize maintenance tracking keys
-	if _, err := db.Exec(`INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES ('folder_stats_last_refresh', '0', 0)`); err != nil {
+	if _, err := db.Exec(
+		`INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES ('folder_stats_last_refresh', '0', 0)`,
+	); err != nil {
 		return fmt.Errorf("failed to initialize maintenance metadata: %w", err)
 	}
-	if _, err := db.Exec(`INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES ('fts_last_rebuild', '0', 0)`); err != nil {
+	if _, err := db.Exec(
+		`INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES ('fts_last_rebuild', '0', 0)`,
+	); err != nil {
 		return fmt.Errorf("failed to initialize maintenance metadata: %w", err)
 	}
 
@@ -779,7 +786,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 	}
 
 	// Check if FTS tables need upgrade to trigram or new columns
-	upgradeFTS := func(tableName string, expectedSqlPart string) error {
+	upgradeFTS := func(tableName, expectedSqlPart string) error {
 		var existingSql string
 		err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&existingSql)
 		if err != nil {
@@ -790,7 +797,8 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 		}
 
 		// Normalize whitespace for comparison
-		if !strings.Contains(existingSql, "trigram") || (expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
+		if !strings.Contains(existingSql, "trigram") ||
+			(expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
 			// Needs upgrade - drop it
 			if _, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
 				return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)
@@ -798,7 +806,8 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 
 			// Recreate immediately
 			var createSql string
-			if tableName == "media_fts" {
+			switch tableName {
+			case "media_fts":
 				createSql = `CREATE VIRTUAL TABLE media_fts USING fts5(
 					path,
 					path_tokenized,
@@ -810,7 +819,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 					tokenize = 'trigram',
 					detail = 'full'
 				);`
-			} else if tableName == "captions_fts" {
+			case "captions_fts":
 				createSql = `CREATE VIRTUAL TABLE captions_fts USING fts5(
 					media_path UNINDEXED,
 					text,
@@ -847,12 +856,17 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			}
 
 			// Rebuild data
-			if tableName == "media_fts" {
-				if _, err := db.Exec("INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) SELECT rowid, path, path_tokenized, title, description, time_deleted FROM media"); err != nil {
+			switch tableName {
+			case "media_fts":
+				if _, err := db.Exec(
+					"INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) SELECT rowid, path, path_tokenized, title, description, time_deleted FROM media",
+				); err != nil {
 					return nil
 				}
-			} else if tableName == "captions_fts" {
-				if _, err := db.Exec("INSERT INTO captions_fts(rowid, media_path, text) SELECT rowid, media_path, text FROM captions"); err != nil {
+			case "captions_fts":
+				if _, err := db.Exec(
+					"INSERT INTO captions_fts(rowid, media_path, text) SELECT rowid, media_path, text FROM captions",
+				); err != nil {
 					return nil
 				}
 			}

@@ -109,7 +109,7 @@ func TestCopyMediaItem(t *testing.T) {
 
 func TestDeleteMediaItem(t *testing.T) {
 	t.Parallel()
-	f, err := os.CreateTemp("", "delete-test")
+	f, err := os.CreateTemp(t.TempDir(), "delete-test")
 	if err != nil {
 		t.Fatal(err)
 	}

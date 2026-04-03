@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"github.com/adrg/strutil"
 	"github.com/adrg/strutil/metrics"
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
@@ -30,7 +32,7 @@ type DedupeCmd struct {
 	models.PostActionFlags  `embed:""`
 	models.HashingFlags     `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 type DedupeDuplicate struct {
@@ -56,8 +58,14 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 			return err
 		}
 		err = db.EnsureIndexes(sqlDB, []db.IndexDef{
-			{Name: "idx_media_is_deduped", SQL: "CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1"},
-			{Name: "idx_media_unprocessed", SQL: "CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL"},
+			{
+				Name: "idx_media_is_deduped",
+				SQL:  "CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1",
+			},
+			{
+				Name: "idx_media_unprocessed",
+				SQL:  "CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL",
+			},
 		})
 		if err != nil {
 			sqlDB.Close()
@@ -94,7 +102,7 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 		} else if c.Filesystem {
 			dbDups, err = c.getFSDuplicates(dbPath, flags)
 		} else {
-			return fmt.Errorf("profile not set. Use --audio, --id, --title, --duration, or --fs")
+			return errors.New("profile not set. Use --audio, --id, --title, --duration, or --fs")
 		}
 
 		if err != nil {
@@ -114,13 +122,21 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 		}
 
 		if c.Dirname {
-			if strutil.Similarity(filepath.Dir(d.KeepPath), filepath.Dir(d.DuplicatePath), metric) < c.MinSimilarityRatio {
+			if strutil.Similarity(
+				filepath.Dir(d.KeepPath),
+				filepath.Dir(d.DuplicatePath),
+				metric,
+			) < c.MinSimilarityRatio {
 				continue
 			}
 		}
 
 		if c.Basename {
-			if strutil.Similarity(filepath.Base(d.KeepPath), filepath.Base(d.DuplicatePath), metric) < c.MinSimilarityRatio {
+			if strutil.Similarity(
+				filepath.Base(d.KeepPath),
+				filepath.Base(d.DuplicatePath),
+				metric,
+			) < c.MinSimilarityRatio {
 				continue
 			}
 		}
@@ -177,7 +193,10 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 				var dbErrs []error
 
 				// Mark duplicate as deleted
-				if _, err := sqlDB.Exec("UPDATE media SET time_deleted = unixepoch() WHERE path = ?", d.DuplicatePath); err != nil {
+				if _, err := sqlDB.Exec(
+					"UPDATE media SET time_deleted = unixepoch() WHERE path = ?",
+					d.DuplicatePath,
+				); err != nil {
 					dbErrs = append(dbErrs, fmt.Errorf("failed to mark duplicate as deleted: %w", err))
 				}
 
@@ -190,13 +209,21 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 				if d.DuplicateSize > 0 {
 					h, err := utils.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 					if err == nil && h != "" {
-						if _, err := sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, d.KeepPath); err != nil {
+						if _, err := sqlDB.Exec(
+							"UPDATE media SET fasthash = ? WHERE path = ?",
+							h,
+							d.KeepPath,
+						); err != nil {
 							dbErrs = append(dbErrs, fmt.Errorf("failed to update fasthash: %w", err))
 						}
 					}
 					h, err = utils.FullHashFile(d.KeepPath)
 					if err == nil && h != "" {
-						if _, err := sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, d.KeepPath); err != nil {
+						if _, err := sqlDB.Exec(
+							"UPDATE media SET sha256 = ? WHERE path = ?",
+							h,
+							d.KeepPath,
+						); err != nil {
 							dbErrs = append(dbErrs, fmt.Errorf("failed to update sha256: %w", err))
 						}
 					}
@@ -216,7 +243,7 @@ func (c *DedupeCmd) Run(ctx *kong.Context) error {
 	return nil
 }
 
-func (c *DedupeCmd) getDuplicatesBy(dbPath string, groupByCols, selectCols, whereClause string) ([]DedupeDuplicate, error) {
+func (c *DedupeCmd) getDuplicatesBy(dbPath, groupByCols, selectCols, whereClause string) ([]DedupeDuplicate, error) {
 	sqlDB, _, err := db.ConnectWithInit(dbPath)
 	if err != nil {
 		return nil, err
@@ -353,7 +380,10 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 		}
 		slog.Debug("Found potential duplicates by size", "size", size, "count", count)
 
-		gRows, err := sqlDB.Query("SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0", size)
+		gRows, err := sqlDB.Query(
+			"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0",
+			size,
+		)
 		if err != nil {
 			continue
 		}

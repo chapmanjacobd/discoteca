@@ -12,7 +12,7 @@ import (
 // TestInMemoryRankingEffectiveness demonstrates that in-memory Go ranking
 // provides meaningful relevance scoring compared to FTS5 BM25 with trigram
 func TestInMemoryRankingEffectiveness(t *testing.T) {
-	f, err := os.CreateTemp("", "ranking-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "ranking-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +286,11 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 			var path, title, desc string
 			rows.Scan(&path, &title, &desc)
 			results = append(results, SearchMediaFTSResult{
-				Media: Media{Path: path, Title: sql.NullString{String: title, Valid: true}, Description: sql.NullString{String: desc, Valid: true}},
+				Media: Media{
+					Path:        path,
+					Title:       sql.NullString{String: title, Valid: true},
+					Description: sql.NullString{String: desc, Valid: true},
+				},
 			})
 		}
 		rows.Close()
@@ -388,7 +392,7 @@ func TestRankingEdgeCases(t *testing.T) {
 
 // TestRankingReorderAmount measures how much the in-memory ranking reorders results
 func TestRankingReorderAmount(t *testing.T) {
-	f, err := os.CreateTemp("", "reorder-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "reorder-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +497,11 @@ func TestRankingReorderAmount(t *testing.T) {
 		rows2.Scan(&path, &title, &desc)
 		results = append(results, trackedResult{
 			result: SearchMediaFTSResult{
-				Media: Media{Path: path, Title: sql.NullString{String: title, Valid: true}, Description: sql.NullString{String: desc, Valid: true}},
+				Media: Media{
+					Path:        path,
+					Title:       sql.NullString{String: title, Valid: true},
+					Description: sql.NullString{String: desc, Valid: true},
+				},
 			},
 			origPos: idx,
 		})
@@ -542,7 +550,7 @@ func TestRankingReorderAmount(t *testing.T) {
 
 	// Count inversions (pairs that flipped relative order)
 	inversions := 0
-	for i := 0; i < len(results); i++ {
+	for i := range len(results) {
 		for j := i + 1; j < len(results); j++ {
 			// Check if this pair is inverted
 			origI := results[i].origPos

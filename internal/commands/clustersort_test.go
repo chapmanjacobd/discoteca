@@ -16,7 +16,7 @@ path/to/video3.mp4
 
 	t.Run("DefaultStdin", func(t *testing.T) {
 		// Mocking stdin is hard, let's use a file instead for the basic test
-		tmpFile, err := os.CreateTemp("", "clustersort-input-*.txt")
+		tmpFile, err := os.CreateTemp(t.TempDir(), "clustersort-input-*.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -32,7 +32,7 @@ path/to/video3.mp4
 		// let's just make sure it runs without error for now.
 		// Actually, it uses a writer if OutputPath is set.
 
-		outputFile, err := os.CreateTemp("", "clustersort-output-*.txt")
+		outputFile, err := os.CreateTemp(t.TempDir(), "clustersort-output-*.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,7 +52,7 @@ path/to/video3.mp4
 	})
 
 	t.Run("PrintGroups", func(t *testing.T) {
-		tmpFile, _ := os.CreateTemp("", "clustersort-input-*.txt")
+		tmpFile, _ := os.CreateTemp(t.TempDir(), "clustersort-input-*.txt")
 		defer os.Remove(tmpFile.Name())
 		tmpFile.WriteString(input)
 		tmpFile.Close()

@@ -2,16 +2,18 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/alecthomas/kong"
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/tui"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type TuiCmd struct {
@@ -26,7 +28,7 @@ type TuiCmd struct {
 	models.DisplayFlags     `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *TuiCmd) Run(ctx *kong.Context) error {
@@ -56,7 +58,7 @@ func (c *TuiCmd) Run(ctx *kong.Context) error {
 	}
 
 	if len(media) == 0 {
-		return fmt.Errorf("no media found")
+		return errors.New("no media found")
 	}
 
 	query.SortMedia(media, flags)

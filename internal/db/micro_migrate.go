@@ -43,7 +43,9 @@ func EnsureColumns(db *sql.DB, cols []ColumnDef) error {
 		rows.Close()
 
 		if !exists {
-			if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.Table, c.Column, c.Schema)); err != nil {
+			if _, err := db.Exec(
+				fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.Table, c.Column, c.Schema),
+			); err != nil {
 				return fmt.Errorf("failed to add column %s to table %s: %w", c.Column, c.Table, err)
 			}
 		}

@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -47,7 +48,7 @@ func GetHLSSegmentArgs(path string, startTime float64, segmentDuration int, stra
 	args := []string{
 		"-ss", fmt.Sprintf("%f", startTime),
 		"-i", path,
-		"-t", fmt.Sprintf("%d", segmentDuration),
+		"-t", strconv.Itoa(segmentDuration),
 	}
 
 	if strategy.VideoCopy {
@@ -83,7 +84,9 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 
 	isSupportedVideoCodec := func(codec string) bool {
 		codec = strings.ToLower(codec)
-		return strings.Contains(codec, "h264") || strings.Contains(codec, "avc1") || strings.Contains(codec, "vp8") || strings.Contains(codec, "vp9") || strings.Contains(codec, "av1")
+		return strings.Contains(codec, "h264") || strings.Contains(codec, "avc1") || strings.Contains(codec, "vp8") ||
+			strings.Contains(codec, "vp9") ||
+			strings.Contains(codec, "av1")
 	}
 
 	isSupportedAudioCodec := func(codec string) bool {
@@ -136,13 +139,17 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 	}
 
 	var strategy TranscodeStrategy
-	if mediaType == "video" {
+	switch mediaType {
+	case "video":
 		vNeeds := !isSupportedVideoCodec(vCodecs)
 		aNeeds := !isSupportedAudioCodec(aCodecs)
 
 		// Prefer WebM for VP9/VP8/AV1/Opus/Vorbis
-		preferWebm := strings.Contains(strings.ToLower(vCodecs), "vp9") || strings.Contains(strings.ToLower(vCodecs), "vp8") || strings.Contains(strings.ToLower(vCodecs), "av1") ||
-			strings.Contains(strings.ToLower(aCodecs), "opus") || strings.Contains(strings.ToLower(aCodecs), "vorbis")
+		preferWebm := strings.Contains(strings.ToLower(vCodecs), "vp9") ||
+			strings.Contains(strings.ToLower(vCodecs), "vp8") ||
+			strings.Contains(strings.ToLower(vCodecs), "av1") ||
+			strings.Contains(strings.ToLower(aCodecs), "opus") ||
+			strings.Contains(strings.ToLower(aCodecs), "vorbis")
 
 		targetMime := "video/mp4"
 		if preferWebm {
@@ -151,12 +158,14 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 
 		// Check if container already matches the target mime type using ffprobe format_name
 		containerMatches := false
-		if targetMime == "video/mp4" {
+		switch targetMime {
+		case "video/mp4":
 			// Most browsers support H264/AAC in MKV, MOV, MP4, M4V
-			if container == "mp4" || container == "m4v" || container == "mov" || container == "mkv" || container == "matroska" {
+			if container == "mp4" || container == "m4v" || container == "mov" || container == "mkv" ||
+				container == "matroska" {
 				containerMatches = true
 			}
-		} else if targetMime == "video/webm" {
+		case "video/webm":
 			if container == "webm" || container == "mkv" || container == "matroska" {
 				containerMatches = true
 			}
@@ -172,9 +181,10 @@ func GetTranscodeStrategy(m models.Media) TranscodeStrategy {
 		} else {
 			strategy = TranscodeStrategy{NeedsTranscode: false}
 		}
-	} else if mediaType == "audio" {
+	case "audio":
 		// Audio container validation using ffprobe format_name
-		if !isSupportedAudioCodec(aCodecs) || (container != "mp3" && container != "mp4" && container != "m4a" && container != "ogg" && container != "flac" && container != "wav" && container != "opus" && container != "webm") {
+		if !isSupportedAudioCodec(aCodecs) ||
+			(container != "mp3" && container != "mp4" && container != "m4a" && container != "ogg" && container != "flac" && container != "wav" && container != "opus" && container != "webm") {
 			strategy = TranscodeStrategy{
 				NeedsTranscode: true,
 				AudioCopy:      isSupportedAudioCodec(aCodecs),

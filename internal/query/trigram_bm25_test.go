@@ -12,7 +12,7 @@ import (
 
 // TestTrigramBM25WithMoreData tests BM25 ranking with a larger dataset
 func TestTrigramBM25WithMoreData(t *testing.T) {
-	f, err := os.CreateTemp("", "trigram-large-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "trigram-large-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 
 // TestFirstTrigramOnly tests if using just the first trigram is sufficient
 func TestFirstTrigramOnly(t *testing.T) {
-	f, err := os.CreateTemp("", "first-tri-test-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "first-tri-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}

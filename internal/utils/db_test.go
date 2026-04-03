@@ -85,7 +85,10 @@ func TestConstructSearchBindings(t *testing.T) {
 
 	t.Run("Excludes", func(t *testing.T) {
 		sql, bindings := ConstructSearchBindings([]string{}, []string{"test"}, []string{"col1", "col2"}, false)
-		if !strings.Contains(sql, "AND ((COALESCE(col1,'') NOT LIKE :S_exclude0 AND COALESCE(col2,'') NOT LIKE :S_exclude0))") {
+		if !strings.Contains(
+			sql,
+			"AND ((COALESCE(col1,'') NOT LIKE :S_exclude0 AND COALESCE(col2,'') NOT LIKE :S_exclude0))",
+		) {
 			t.Errorf("ConstructSearchBindings() sql = %q", sql)
 		}
 		if bindings["S_exclude0"] != "%test%" {

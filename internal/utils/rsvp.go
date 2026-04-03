@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -47,7 +48,16 @@ func QuickWordCount(path string, size int64) (int, error) {
 		for {
 			n, err := f.Read(buf)
 			if n > 0 {
-				count += bytes.Count(buf[:n], []byte{' '}) + bytes.Count(buf[:n], []byte{'\n'}) + bytes.Count(buf[:n], []byte{'\t'})
+				count += bytes.Count(
+					buf[:n],
+					[]byte{' '},
+				) + bytes.Count(
+					buf[:n],
+					[]byte{'\n'},
+				) + bytes.Count(
+					buf[:n],
+					[]byte{'\t'},
+				)
 			}
 			if err == io.EOF {
 				break
@@ -81,7 +91,7 @@ func QuickWordCount(path string, size int64) (int, error) {
 
 		content := make([]byte, readSize)
 		_, err = io.ReadFull(f, content)
-		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 			return 0, err
 		}
 
@@ -113,11 +123,13 @@ func QuickWordCount(path string, size int64) (int, error) {
 				strings.Contains(name, "titlepage") ||
 				strings.Contains(name, "metadata") ||
 				strings.Contains(name, "nav.") {
+
 				continue
 			}
 
 			if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".xhtml") ||
 				strings.HasSuffix(name, ".htm") || strings.HasSuffix(name, ".xml") {
+
 				rc, err := f.Open()
 				if err != nil {
 					continue
@@ -264,7 +276,7 @@ func ExtractText(path string) (string, error) {
 		defer f.Close()
 		content := make([]byte, readSize)
 		n, err := io.ReadFull(f, content)
-		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 			return "", err
 		}
 		return string(content[:n]), nil
@@ -525,7 +537,7 @@ func extractTextFromPDF(path string) (string, error) {
 	// Check for pdftotext (poppler-utils)
 	pdftotextBin := "pdftotext"
 	if _, err := exec.LookPath(pdftotextBin); err != nil {
-		return "", fmt.Errorf("pdftotext not found")
+		return "", errors.New("pdftotext not found")
 	}
 
 	// Run pdftotext with layout preservation
@@ -559,7 +571,7 @@ func extractTextFromPS(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no PostScript text extractor found")
+	return "", errors.New("no PostScript text extractor found")
 }
 
 // extractTextFromRTF extracts text from RTF using unrtf
@@ -567,7 +579,7 @@ func extractTextFromRTF(path string) (string, error) {
 	// Check for unrtf
 	unrtfBin := "unrtf"
 	if _, err := exec.LookPath(unrtfBin); err != nil {
-		return "", fmt.Errorf("unrtf not found")
+		return "", errors.New("unrtf not found")
 	}
 
 	// Run unrtf with text output
@@ -600,7 +612,7 @@ func extractTextFromEPUB(path string) (string, error) {
 	}
 
 	if len(contentFiles) == 0 {
-		return "", fmt.Errorf("no content files found in EPUB")
+		return "", errors.New("no content files found in EPUB")
 	}
 
 	var fullText strings.Builder
@@ -643,7 +655,7 @@ func extractTextFromOpenDocument(path string) (string, error) {
 	}
 
 	if contentFile == nil {
-		return "", fmt.Errorf("content.xml not found in OpenDocument")
+		return "", errors.New("content.xml not found in OpenDocument")
 	}
 
 	rc, err := contentFile.Open()
@@ -680,7 +692,7 @@ func extractTextFromDOCX(path string) (string, error) {
 	}
 
 	if docFile == nil {
-		return "", fmt.Errorf("document.xml not found in DOCX")
+		return "", errors.New("document.xml not found in DOCX")
 	}
 
 	rc, err := docFile.Open()
@@ -717,7 +729,7 @@ func extractTextFromXLSX(path string) (string, error) {
 	}
 
 	if len(worksheetFiles) == 0 {
-		return "", fmt.Errorf("no worksheets found in XLSX")
+		return "", errors.New("no worksheets found in XLSX")
 	}
 
 	var fullText strings.Builder
@@ -764,7 +776,7 @@ func extractTextFromPPTX(path string) (string, error) {
 	}
 
 	if len(slideFiles) == 0 {
-		return "", fmt.Errorf("no slides found in PPTX")
+		return "", errors.New("no slides found in PPTX")
 	}
 
 	var fullText strings.Builder
@@ -877,7 +889,7 @@ func extractTextFromIWork(path string) (string, error) {
 	}
 
 	if indexFile == nil {
-		return "", fmt.Errorf("index.xml not found in iWork file")
+		return "", errors.New("index.xml not found in iWork file")
 	}
 
 	rc, err := indexFile.Open()
@@ -918,7 +930,7 @@ func extractTextFromDOC(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no DOC extractor found (install catdoc)")
+	return "", errors.New("no DOC extractor found (install catdoc)")
 }
 
 // extractTextFromXLS extracts text from old .xls files
@@ -943,7 +955,7 @@ func extractTextFromXLS(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no XLS extractor found (install xls2csv or catdoc)")
+	return "", errors.New("no XLS extractor found (install xls2csv or catdoc)")
 }
 
 // extractTextFromPPT extracts text from old .ppt files
@@ -958,7 +970,7 @@ func extractTextFromPPT(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no PPT extractor found (install catdoc)")
+	return "", errors.New("no PPT extractor found (install catdoc)")
 }
 
 // listArchiveContents lists file names in a ZIP-based archive
@@ -1015,14 +1027,15 @@ func listTarContents(path string) (string, error) {
 	// Handle compression
 	var reader io.Reader = f
 	ext = strings.ToLower(filepath.Ext(path))
-	if ext == ".gz" || ext == ".tgz" {
+	switch ext {
+	case ".gz", ".tgz":
 		gzReader, err := gzip.NewReader(f)
 		if err != nil {
 			return "", err
 		}
 		defer gzReader.Close()
 		reader = gzReader
-	} else if ext == ".zst" || ext == ".tzst" {
+	case ".zst", ".tzst":
 		// Zstd compression - use external zstd command
 		zstdBin := "zstd"
 		if _, err := exec.LookPath(zstdBin); err == nil {
@@ -1033,7 +1046,7 @@ func listTarContents(path string) (string, error) {
 			}
 			reader = bytes.NewReader(output)
 		} else {
-			return "", fmt.Errorf("zstd not found")
+			return "", errors.New("zstd not found")
 		}
 	}
 
@@ -1077,7 +1090,7 @@ func list7zContents(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("7z extractor not found (install p7zip-full or unar)")
+	return "", errors.New("7z extractor not found (install p7zip-full or unar)")
 }
 
 // parse7zOutput extracts file names from 7z list output
@@ -1160,7 +1173,7 @@ func listRarContents(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no RAR extractor found (install unrar, p7zip-full, or unar)")
+	return "", errors.New("no RAR extractor found (install unrar, p7zip-full, or unar)")
 }
 
 // extractTorrentMetadata extracts metadata from a .torrent file
@@ -1244,7 +1257,8 @@ func extractCHMContents(path string) (string, error) {
 			if err != nil {
 				return err
 			}
-			if !info.IsDir() && (strings.HasSuffix(strings.ToLower(path), ".html") || strings.HasSuffix(strings.ToLower(path), ".htm")) {
+			if !info.IsDir() &&
+				(strings.HasSuffix(strings.ToLower(path), ".html") || strings.HasSuffix(strings.ToLower(path), ".htm")) {
 				data, err := os.ReadFile(path)
 				if err == nil {
 					content.WriteString(stripHTMLTags(string(data)))
@@ -1267,7 +1281,7 @@ func extractCHMContents(path string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no CHM extractor found (install chmextractor or libmspack-tools)")
+	return "", errors.New("no CHM extractor found (install chmextractor or libmspack-tools)")
 }
 
 // extractTextWithCalibre uses calibre's ebook-convert as fallback
@@ -1555,9 +1569,13 @@ func GenerateRSVPAss(text string, wpm int) (string, float64) {
 	sb.WriteString("PlayResY: 720\n")
 	sb.WriteString("\n")
 	sb.WriteString("[V4+ Styles]\n")
-	sb.WriteString("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
+	sb.WriteString(
+		"Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n",
+	)
 	// Centered large text
-	sb.WriteString("Style: Default,Arial,80,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,0,5,10,10,10,1\n")
+	sb.WriteString(
+		"Style: Default,Arial,80,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,0,5,10,10,10,1\n",
+	)
 	sb.WriteString("\n")
 	sb.WriteString("[Events]\n")
 	sb.WriteString("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
@@ -1575,7 +1593,7 @@ func GenerateRSVPAss(text string, wpm int) (string, float64) {
 
 		// Highlight the middle character/part if possible (ORP - Optimal Recognition Point)
 		// Simple implementation: just show the word
-		sb.WriteString(fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n", startStr, endStr, word))
+		fmt.Fprintf(&sb, "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n", startStr, endStr, word)
 		startTime = endTime
 	}
 
@@ -1590,20 +1608,20 @@ func formatAssTime(seconds float64) string {
 }
 
 // GenerateTTS generates a WAV file from text using espeak-ng.
-func GenerateTTS(text string, outputPath string, wpm int) error {
+func GenerateTTS(text, outputPath string, wpm int) error {
 	// Check for espeak-ng
 	espeakBin := "espeak-ng"
 	if _, err := exec.LookPath(espeakBin); err != nil {
-		return fmt.Errorf("espeak-ng not found")
+		return errors.New("espeak-ng not found")
 	}
 
 	// Boost espeak speed slightly as it tends to drift slower than the calculated word timing
 	espeakWpm := int(float64(wpm) * 1.1)
-	cmd := exec.Command(espeakBin, "-w", outputPath, "-s", fmt.Sprintf("%d", espeakWpm))
+	cmd := exec.Command(espeakBin, "-w", outputPath, "-s", strconv.Itoa(espeakWpm))
 	cmd.Stdin = strings.NewReader(text)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("espeak-ng failed: %s: %s", err, string(output))
+		return fmt.Errorf("espeak-ng failed: %w: %s", err, string(output))
 	}
 	return nil
 }
@@ -1625,6 +1643,7 @@ func GetHTMLFiles(dir string) []string {
 					!strings.Contains(base, "title_page") &&
 					!strings.Contains(base, "nav.xhtml") &&
 					!strings.Contains(base, "content.opf") {
+
 					relPath, _ := filepath.Rel(dir, path)
 					files = append(files, relPath)
 				}
@@ -1699,13 +1718,16 @@ func FindMainContentFile(oebDir string) string {
 					strings.Contains(base, "titlepage") ||
 					strings.Contains(base, "title_page") ||
 					strings.Contains(base, "nav.xhtml") {
+
 					return nil
 				}
 				if firstContentHTML == "" {
 					firstContentHTML = path
 				}
 				// Prefer files with chapter/content in the name
-				if strings.Contains(base, "chapter") || strings.Contains(base, "content") || strings.Contains(base, "ch0") || strings.Contains(base, "split_") {
+				if strings.Contains(base, "chapter") || strings.Contains(base, "content") ||
+					strings.Contains(base, "ch0") ||
+					strings.Contains(base, "split_") {
 					firstContentHTML = path
 					return filepath.SkipAll
 				}

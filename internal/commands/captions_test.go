@@ -9,14 +9,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestHandleDU_CaptionsView(t *testing.T) {
 	t.Parallel()
 	// Create temporary test database
-	tmpDB, err := os.CreateTemp("", "disco_test_*.db")
+	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)
 	}
@@ -178,7 +179,7 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 	t.Parallel()
 	// Create temporary test database
-	tmpDB, err := os.CreateTemp("", "disco_test_empty_*.db")
+	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_empty_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)
 	}
@@ -243,14 +244,14 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 	t.Parallel()
 	// Create two temporary test databases
-	tmpDB1, err := os.CreateTemp("", "disco_test_multi1_*.db")
+	tmpDB1, err := os.CreateTemp(t.TempDir(), "disco_test_multi1_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db1: %v", err)
 	}
 	defer os.Remove(tmpDB1.Name())
 	tmpDB1.Close()
 
-	tmpDB2, err := os.CreateTemp("", "disco_test_multi2_*.db")
+	tmpDB2, err := os.CreateTemp(t.TempDir(), "disco_test_multi2_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db2: %v", err)
 	}

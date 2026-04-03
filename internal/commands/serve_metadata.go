@@ -118,7 +118,8 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 	for _, dbPath := range c.Databases {
 		c.execDB(r.Context(), dbPath, func(sqlDB *sql.DB) error {
 			var count int64
-			err := sqlDB.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND (categories IS NULL OR categories = '')").Scan(&count)
+			err := sqlDB.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND (categories IS NULL OR categories = '')").
+				Scan(&count)
 			if err == nil {
 				counts["Uncategorized"] += count
 			}
@@ -265,7 +266,13 @@ func (c *ServeCmd) handleLanguages(w http.ResponseWriter, r *http.Request) {
 }
 
 // getCaptionsWithContext fetches captions matching a query along with 2 captions before and after each match
-func (c *ServeCmd) getCaptionsWithContext(ctx context.Context, queries *database.Queries, queryStr string, limit int64, videoOnly, audioOnly, imageOnly, textOnly bool) ([]database.SearchCaptionsRow, error) {
+func (c *ServeCmd) getCaptionsWithContext(
+	ctx context.Context,
+	queries *database.Queries,
+	queryStr string,
+	limit int64,
+	videoOnly, audioOnly, imageOnly, textOnly bool,
+) ([]database.SearchCaptionsRow, error) {
 	// First, get the matching captions with media type filters
 	matches, err := queries.SearchCaptions(ctx, database.SearchCaptionsParams{
 		Query:     queryStr,

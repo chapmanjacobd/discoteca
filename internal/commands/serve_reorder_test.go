@@ -10,8 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestServeReorder_Playlist(t *testing.T) {
@@ -22,7 +23,10 @@ func TestServeReorder_Playlist(t *testing.T) {
 	db.InitDB(sqlDB)
 
 	// Setup: 1 playlist with 3 items
-	res := sqlDB.QueryRow(`INSERT INTO playlists (path, title) VALUES (?, 'Test Playlist') RETURNING id`, filepath.FromSlash("/plist"))
+	res := sqlDB.QueryRow(
+		`INSERT INTO playlists (path, title) VALUES (?, 'Test Playlist') RETURNING id`,
+		filepath.FromSlash("/plist"),
+	)
 	var pid int64
 	res.Scan(&pid)
 
@@ -46,7 +50,7 @@ func TestServeReorder_Playlist(t *testing.T) {
 		"new_index":      0, // 0-based index means track_number 1
 	}
 	body, _ := json.Marshal(reorderReq)
-	req := httptest.NewRequest("POST", "/api/playlists/reorder", bytes.NewBuffer(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -58,7 +62,10 @@ func TestServeReorder_Playlist(t *testing.T) {
 	// Verify track numbers in DB
 	sqlDB, _ = sql.Open("sqlite3", dbPath)
 	defer sqlDB.Close()
-	rows, _ := sqlDB.Query(`SELECT media_path, track_number FROM playlist_items WHERE playlist_id = ? ORDER BY track_number`, pid)
+	rows, _ := sqlDB.Query(
+		`SELECT media_path, track_number FROM playlist_items WHERE playlist_id = ? ORDER BY track_number`,
+		pid,
+	)
 	defer rows.Close()
 
 	expected := map[string]int64{
@@ -100,7 +107,7 @@ func TestServeReorder_Security(t *testing.T) {
 			"new_index":      0,
 		}
 		body, _ := json.Marshal(reorderReq)
-		req := httptest.NewRequest("POST", "/api/playlists/reorder", bytes.NewBuffer(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -132,7 +139,7 @@ func TestServeReorder_Security(t *testing.T) {
 			"new_index":      0,
 		}
 		body, _ := json.Marshal(reorderReq)
-		req := httptest.NewRequest("POST", "/api/playlists/reorder", bytes.NewBuffer(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
 		req.Header.Set("X-Disco-Token", cmd2.APIToken)
 		w := httptest.NewRecorder()
 		mux2.ServeHTTP(w, req)

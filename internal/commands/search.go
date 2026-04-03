@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -22,7 +23,7 @@ type SearchCmd struct {
 	models.DisplayFlags     `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *SearchCmd) Run(ctx *kong.Context) error {
@@ -44,7 +45,8 @@ func (c *SearchCmd) Run(ctx *kong.Context) error {
 		if len(c.Databases) > 0 {
 			if sqlDB, err := db.Connect(c.Databases[0]); err == nil {
 				var name string
-				err := sqlDB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='media_fts'").Scan(&name)
+				err := sqlDB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='media_fts'").
+					Scan(&name)
 				if err == nil {
 					// Verify FTS5 actually works by running a simple query
 					_, testErr := sqlDB.Query("SELECT 1 FROM media_fts LIMIT 1")

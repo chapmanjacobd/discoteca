@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // TestHandleCategories tests the categories endpoint
@@ -39,7 +40,7 @@ func TestHandleCategories(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	req := httptest.NewRequest("GET", "/api/categories", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/categories", nil)
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -94,7 +95,7 @@ func TestHandleGenres(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	req := httptest.NewRequest("GET", "/api/genres", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/genres", nil)
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -149,7 +150,7 @@ func TestHandleRatings(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	req := httptest.NewRequest("GET", "/api/ratings", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/ratings", nil)
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

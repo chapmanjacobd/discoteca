@@ -22,10 +22,10 @@ func (h *PlainHandler) Handle(_ context.Context, r slog.Record) error {
 	var msg strings.Builder
 	msg.WriteString(r.Message)
 	for _, a := range h.Attrs {
-		msg.WriteString(fmt.Sprintf("\n    %s=%v", a.Key, a.Value.Any()))
+		fmt.Fprintf(&msg, "\n    %s=%v", a.Key, a.Value.Any())
 	}
 	r.Attrs(func(a slog.Attr) bool {
-		msg.WriteString(fmt.Sprintf("\n    %s=%v", a.Key, a.Value.Any()))
+		fmt.Fprintf(&msg, "\n    %s=%v", a.Key, a.Value.Any())
 		return true
 	})
 	_, err := fmt.Fprintln(h.Out, msg.String())

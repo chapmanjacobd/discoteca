@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -20,8 +21,8 @@ type StatsCmd struct {
 	models.DeletedFlags     `embed:""`
 	models.DisplayFlags     `embed:""`
 
-	Facet     string   `arg:"" required:"" help:"One of: watched, deleted, created, modified"`
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Facet     string   `help:"One of: watched, deleted, created, modified" required:"" arg:""`
+	Databases []string `help:"SQLite database files"                       required:"" arg:"" type:"existingfile"`
 }
 
 func (c *StatsCmd) Run(ctx *kong.Context) error {

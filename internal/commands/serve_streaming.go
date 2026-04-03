@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,7 +22,13 @@ import (
 
 const HLS_SEGMENT_DURATION = 10
 
-func (c *ServeCmd) handleTranscode(w http.ResponseWriter, r *http.Request, path string, m models.Media, strategy utils.TranscodeStrategy) {
+func (c *ServeCmd) handleTranscode(
+	w http.ResponseWriter,
+	r *http.Request,
+	path string,
+	m models.Media,
+	strategy utils.TranscodeStrategy,
+) {
 	w.Header().Set("Content-Type", strategy.TargetMime)
 	// Note: We don't support HTTP Range requests for transcoded content.
 	// Seeking is handled via the "start" query parameter instead.
@@ -41,7 +48,7 @@ func (c *ServeCmd) handleTranscode(w http.ResponseWriter, r *http.Request, path 
 
 	// If we have duration in metadata, tell ffmpeg so it can write it to headers
 	if m.Duration != nil && *m.Duration > 0 {
-		args = append(args, "-t", fmt.Sprintf("%d", *m.Duration))
+		args = append(args, "-t", strconv.FormatInt(*m.Duration, 10))
 	}
 
 	if strategy.VideoCopy {
@@ -51,7 +58,19 @@ func (c *ServeCmd) handleTranscode(w http.ResponseWriter, r *http.Request, path 
 			args = append(args, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28")
 		} else {
 			// WebM
-			args = append(args, "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-crf", "30", "-b:v", "0")
+			args = append(
+				args,
+				"-c:v",
+				"libvpx-vp9",
+				"-deadline",
+				"realtime",
+				"-cpu-used",
+				"8",
+				"-crf",
+				"30",
+				"-b:v",
+				"0",
+			)
 		}
 	}
 
@@ -70,10 +89,30 @@ func (c *ServeCmd) handleTranscode(w http.ResponseWriter, r *http.Request, path 
 
 	if strategy.TargetMime == "video/mp4" {
 		// frag_keyframe+empty_moov+default_base_moof+global_sidx is the standard for fragmented streaming
-		args = append(args, "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof+global_sidx", "pipe:1")
+		args = append(
+			args,
+			"-f",
+			"mp4",
+			"-movflags",
+			"frag_keyframe+empty_moov+default_base_moof+global_sidx",
+			"pipe:1",
+		)
 	} else {
 		// Matroska with index space reserved and cluster limits can help browsers determine duration
-		args = append(args, "-f", "matroska", "-live", "1", "-reserve_index_space", "1024k", "-cluster_size_limit", "2M", "-cluster_time_limit", "5100", "pipe:1")
+		args = append(
+			args,
+			"-f",
+			"matroska",
+			"-live",
+			"1",
+			"-reserve_index_space",
+			"1024k",
+			"-cluster_size_limit",
+			"2M",
+			"-cluster_time_limit",
+			"5100",
+			"pipe:1",
+		)
 	}
 
 	ffmpegArgs := append([]string{"-hide_banner", "-loglevel", "error"}, args...)
@@ -153,7 +192,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 		if found {
 			break
 		}
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			slog.Error("Database error in handleSubtitles", "db", dbPath, "error", err)
 		}
 	}
@@ -185,7 +224,13 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 					if strings.ToLower(filepath.Ext(sub)) == "."+requestedExt {
 						path = sub
 						ext = strings.ToLower(filepath.Ext(path))
-						slog.Debug("Found matching sidecar for media file", "media", r.URL.Query().Get("path"), "sidecar", path)
+						slog.Debug(
+							"Found matching sidecar for media file",
+							"media",
+							r.URL.Query().Get("path"),
+							"sidecar",
+							path,
+						)
 						break
 					}
 				}
@@ -193,7 +238,13 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 				if ext != "."+requestedExt && len(sidecars) > 0 {
 					path = sidecars[0]
 					ext = strings.ToLower(filepath.Ext(path))
-					slog.Debug("Requested extension not found, using first sidecar", "media", r.URL.Query().Get("path"), "sidecar", path)
+					slog.Debug(
+						"Requested extension not found, using first sidecar",
+						"media",
+						r.URL.Query().Get("path"),
+						"sidecar",
+						path,
+					)
 				}
 			} else {
 				// Serve the first found sidecar
@@ -277,7 +328,8 @@ func (c *ServeCmd) generatePDFThumbnail(path string) ([]byte, string, error) {
 		tmpPath := tmpFile.Name()
 		tmpFile.Close()
 		defer os.Remove(tmpPath + ".png")
-		if err = exec.Command("pdftoppm", "-png", "-f", "1", "-singlefile", "-scale-to", "320", path, tmpPath).Run(); err == nil {
+		if err = exec.Command("pdftoppm", "-png", "-f", "1", "-singlefile", "-scale-to", "320", path, tmpPath).
+			Run(); err == nil {
 			if data, err := os.ReadFile(tmpPath + ".png"); err == nil {
 				return data, "image/png", nil
 			}
@@ -366,7 +418,7 @@ func (c *ServeCmd) extractEpubCover(path string) ([]byte, error) {
 		return io.ReadAll(rc)
 	}
 
-	return nil, fmt.Errorf("no cover image found")
+	return nil, errors.New("no cover image found")
 }
 
 // generateEpubThumbnail generates a thumbnail for EPUB files
@@ -445,7 +497,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 		if found {
 			break
 		}
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			slog.Error("Database error in handleThumbnail", "db", dbPath, "error", err)
 		}
 	}
@@ -530,7 +582,21 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	var args []string
 	is_video := mediaType == "video"
 	if is_video {
-		args = []string{"-ss", "25", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
+		args = []string{
+			"-ss",
+			"25",
+			"-i",
+			path,
+			"-frames:v",
+			"1",
+			"-q:v",
+			"4",
+			"-vf",
+			"scale=320:-1",
+			"-f",
+			"image2",
+			"pipe:1",
+		}
 	} else if mediaType == "audio" {
 		// For audio files, try to extract embedded album art first
 		// If no album art exists, ffmpeg will fail, so we return a placeholder
@@ -541,14 +607,34 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
+	cmd := exec.CommandContext(
+		r.Context(),
+		"ffmpeg",
+		append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
 	thumb, err := cmd.Output()
 
 	// If video thumbnail is too dark, try seeking further (e.g. 60 seconds later)
 	if err == nil && is_video && utils.IsImageTooDark(thumb, 0.05) {
 		slog.Debug("Thumbnail too dark, retrying further in the video", "path", path)
-		retryArgs := []string{"-ss", "85", "-i", path, "-frames:v", "1", "-q:v", "4", "-vf", "scale=320:-1", "-f", "image2", "pipe:1"}
-		cmdRetry := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, retryArgs...)...)
+		retryArgs := []string{
+			"-ss",
+			"85",
+			"-i",
+			path,
+			"-frames:v",
+			"1",
+			"-q:v",
+			"4",
+			"-vf",
+			"scale=320:-1",
+			"-f",
+			"image2",
+			"pipe:1",
+		}
+		cmdRetry := exec.CommandContext(
+			r.Context(),
+			"ffmpeg",
+			append([]string{"-hide_banner", "-loglevel", "error"}, retryArgs...)...)
 		if retryThumb, retryErr := cmdRetry.Output(); retryErr == nil {
 			thumb = retryThumb
 		}
@@ -599,7 +685,7 @@ func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 		if found {
 			break
 		}
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			slog.Error("Database error in handleHLSPlaylist", "db", dbPath, "error", err)
 		}
 	}
@@ -675,7 +761,10 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	// Skip logging for segments to avoid spam
 	// slog.Debug("HLS Segment", "index", index, "start", startTime)
 
-	cmd := exec.CommandContext(r.Context(), "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
+	cmd := exec.CommandContext(
+		r.Context(),
+		"ffmpeg",
+		append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
 	cmd.Stdout = w
 
 	if err := cmd.Run(); err != nil {

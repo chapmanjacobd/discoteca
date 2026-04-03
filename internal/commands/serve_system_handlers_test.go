@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestServeHandlers_Health(t *testing.T) {
@@ -26,7 +27,7 @@ func TestServeHandlers_Health(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -45,7 +46,7 @@ func TestServeHandlers_Favicon(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	req := httptest.NewRequest("GET", "/favicon.ico", nil)
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

@@ -9,7 +9,7 @@ import (
 )
 
 func TestSampleHashFile(t *testing.T) {
-	f, err := os.CreateTemp("", "hash-test")
+	f, err := os.CreateTemp(t.TempDir(), "hash-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestSampleHashFile(t *testing.T) {
 }
 
 func TestFullHashFile(t *testing.T) {
-	f, err := os.CreateTemp("", "hash-full-test")
+	f, err := os.CreateTemp(t.TempDir(), "hash-full-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestSimulationFunctions(t *testing.T) {
 }
 
 func TestAltName(t *testing.T) {
-	f, err := os.CreateTemp("", "alt-test.txt")
+	f, err := os.CreateTemp(t.TempDir(), "alt-test.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestFilterDeleted(t *testing.T) {
 }
 
 func TestGetFileStats(t *testing.T) {
-	f, err := os.CreateTemp("", "stats-test")
+	f, err := os.CreateTemp(t.TempDir(), "stats-test")
 	if err != nil {
 		t.Fatal(err)
 	}

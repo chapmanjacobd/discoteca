@@ -3,6 +3,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,8 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
 
 func Repair(dbPath string) error {
@@ -49,7 +51,7 @@ func Repair(dbPath string) error {
 	}
 
 	if _, err := exec.LookPath("sqlite3"); err != nil {
-		return fmt.Errorf("sqlite3 command line tool is required for auto-repair")
+		return errors.New("sqlite3 command line tool is required for auto-repair")
 	}
 
 	// 4. Backup
@@ -91,7 +93,11 @@ func Repair(dbPath string) error {
 
 		// Fallback to .recover
 		// We use .quit to ensure it doesn't hang if it somehow enters interactive mode
-		cmdRecover := exec.Command("bash", "-c", fmt.Sprintf("sqlite3 %s \".recover\" \".quit\" | sqlite3 %s", quotedCorrupt, quotedDB))
+		cmdRecover := exec.Command(
+			"bash",
+			"-c",
+			fmt.Sprintf("sqlite3 %s \".recover\" \".quit\" | sqlite3 %s", quotedCorrupt, quotedDB),
+		)
 		out, err = cmdRecover.CombinedOutput()
 		if err == nil {
 			slog.Info("Initial recovery step successful via .recover")
@@ -114,7 +120,8 @@ func Repair(dbPath string) error {
 
 			// FTS rebuilding is critical as corruption often hides here
 			var hasMediaFTS bool
-			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").Scan(&hasMediaFTS)
+			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
+				Scan(&hasMediaFTS)
 			if hasMediaFTS {
 				if _, err := db.Exec("INSERT INTO media_fts(media_fts) VALUES('rebuild');"); err != nil {
 					slog.Warn("media_fts rebuild failed", "error", err)
@@ -122,7 +129,8 @@ func Repair(dbPath string) error {
 			}
 
 			var hasCaptionsFTS bool
-			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").Scan(&hasCaptionsFTS)
+			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").
+				Scan(&hasCaptionsFTS)
 			if hasCaptionsFTS {
 				if _, err := db.Exec("INSERT INTO captions_fts(captions_fts) VALUES('rebuild');"); err != nil {
 					slog.Warn("captions_fts rebuild failed", "error", err)
@@ -141,5 +149,5 @@ func Repair(dbPath string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("all recovery attempts failed to produce a healthy database")
+	return errors.New("all recovery attempts failed to produce a healthy database")
 }

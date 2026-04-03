@@ -81,7 +81,14 @@ func TestSplit(t *testing.T) {
 		t.Run(tt.path, func(t *testing.T) {
 			parts, isAbs := Split(tt.path)
 			if len(parts) != len(tt.wantParts) {
-				t.Errorf("Split(%q) parts = %v (len=%d), want %v (len=%d)", tt.path, parts, len(parts), tt.wantParts, len(tt.wantParts))
+				t.Errorf(
+					"Split(%q) parts = %v (len=%d), want %v (len=%d)",
+					tt.path,
+					parts,
+					len(parts),
+					tt.wantParts,
+					len(tt.wantParts),
+				)
 			}
 			for i := range parts {
 				if i < len(tt.wantParts) && parts[i] != tt.wantParts[i] {

@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestServeAPI_Query(t *testing.T) {
@@ -23,7 +24,9 @@ func TestServeAPI_Query(t *testing.T) {
 	db.InitDB(sqlDB)
 
 	// Add test data
-	_, err = sqlDB.Exec(`INSERT INTO media (path, title, media_type, size, time_deleted) VALUES ('/tmp/test.mp4', 'Test Video', 'video', 1024, 0)`)
+	_, err = sqlDB.Exec(
+		`INSERT INTO media (path, title, media_type, size, time_deleted) VALUES ('/tmp/test.mp4', 'Test Video', 'video', 1024, 0)`,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +39,7 @@ func TestServeAPI_Query(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("ValidQuery", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/query?db="+dbPath, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+dbPath, nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -56,7 +59,7 @@ func TestServeAPI_Query(t *testing.T) {
 	})
 
 	t.Run("InvalidToken", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/query", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/query", nil)
 		req.Header.Set("X-Disco-Token", "wrong")
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -73,7 +76,9 @@ func TestServeAPI_Metadata(t *testing.T) {
 
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(sqlDB)
-	sqlDB.Exec(`INSERT INTO media (path, title, media_type, time_deleted) VALUES ('/tmp/meta.mp4', 'Meta Video', 'video', 0)`)
+	sqlDB.Exec(
+		`INSERT INTO media (path, title, media_type, time_deleted) VALUES ('/tmp/meta.mp4', 'Meta Video', 'video', 0)`,
+	)
 	sqlDB.Close()
 
 	cmd := &ServeCmd{
@@ -82,7 +87,7 @@ func TestServeAPI_Metadata(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	req := httptest.NewRequest("GET", "/api/metadata?db="+dbPath+"&path=/tmp/meta.mp4", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metadata?db="+dbPath+"&path=/tmp/meta.mp4", nil)
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

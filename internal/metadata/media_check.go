@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -86,7 +87,7 @@ func DecodeFullScan(ctx context.Context, path string) (float64, error) {
 	}
 
 	if len(data.Streams) == 0 {
-		return 0.5, fmt.Errorf("no video streams found")
+		return 0.5, errors.New("no video streams found")
 	}
 
 	stream := data.Streams[0]

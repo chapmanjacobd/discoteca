@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 )
 
@@ -59,7 +59,7 @@ func TestParseRange(t *testing.T) {
 		if s == "100" {
 			return 100, nil
 		}
-		return 0, fmt.Errorf("invalid")
+		return 0, errors.New("invalid")
 	}
 
 	tests := []struct {

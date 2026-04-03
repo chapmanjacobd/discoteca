@@ -8,10 +8,11 @@ import (
 
 	"github.com/adrg/strutil"
 	"github.com/adrg/strutil/metrics"
-	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 	"github.com/muesli/clusters"
 	"github.com/muesli/kmeans"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // IsSameGroup checks if two media items are similar enough to be grouped

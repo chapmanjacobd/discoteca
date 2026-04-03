@@ -13,7 +13,7 @@ import (
 
 func TestFTSRepair(t *testing.T) {
 	// 1. Setup
-	f, err := os.CreateTemp("", "fts-repair-*.db")
+	f, err := os.CreateTemp(t.TempDir(), "fts-repair-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}

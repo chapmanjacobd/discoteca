@@ -88,7 +88,14 @@ func TestFormatPlaybackDuration(t *testing.T) {
 	for _, tt := range tests {
 		result := FormatPlaybackDuration(tt.duration, tt.segmentStart, tt.segmentEnd)
 		if result != tt.expected {
-			t.Errorf("FormatPlaybackDuration(%d, %d, %d) = %q, want %q", tt.duration, tt.segmentStart, tt.segmentEnd, result, tt.expected)
+			t.Errorf(
+				"FormatPlaybackDuration(%d, %d, %d) = %q, want %q",
+				tt.duration,
+				tt.segmentStart,
+				tt.segmentEnd,
+				result,
+				tt.expected,
+			)
 		}
 	}
 }

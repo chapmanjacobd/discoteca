@@ -54,8 +54,8 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 		return nil
 	}
 
-	var filesCount int64
-	var dirsCount int64
+	var filesCount atomic.Int64
+	var dirsCount atomic.Int64
 
 	conf := fastwalk.Config{
 		Follow: false,
@@ -66,7 +66,7 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 			return err
 		}
 		if d.IsDir() {
-			atomic.AddInt64(&dirsCount, 1)
+			dirsCount.Add(1)
 			return nil
 		}
 
@@ -82,8 +82,8 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 			return nil // Skip files we can't access
 		}
 
-		fc := atomic.AddInt64(&filesCount, 1)
-		dc := atomic.LoadInt64(&dirsCount)
+		fc := filesCount.Add(1)
+		dc := dirsCount.Load()
 		ch <- FindMediaResult{
 			Path:       path,
 			Info:       i,

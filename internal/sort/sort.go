@@ -20,7 +20,7 @@ const (
 	ByPlayCount    Method = "play_count"
 )
 
-func Apply(media []models.Media, method Method, reverse bool, natural bool) {
+func Apply(media []models.Media, method Method, reverse, natural bool) {
 	less := makeLessFunc(media, method, natural)
 
 	if reverse {

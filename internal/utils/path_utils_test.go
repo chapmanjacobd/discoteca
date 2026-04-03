@@ -29,7 +29,14 @@ func TestCleanPath(t *testing.T) {
 		gotNorm := strings.ReplaceAll(got, "\\", "/")
 		expectedNorm := strings.ReplaceAll(tt.expected, "\\", "/")
 		if gotNorm != expectedNorm {
-			t.Errorf("CleanPath(%q) = %q (normalized: %q), want %q (normalized: %q)", tt.input, got, gotNorm, tt.expected, expectedNorm)
+			t.Errorf(
+				"CleanPath(%q) = %q (normalized: %q), want %q (normalized: %q)",
+				tt.input,
+				got,
+				gotNorm,
+				tt.expected,
+				expectedNorm,
+			)
 		}
 	}
 }
@@ -54,7 +61,15 @@ func TestTrimPathSegments(t *testing.T) {
 		gotNorm := strings.ReplaceAll(got, "\\", "/")
 		expectedNorm := strings.ReplaceAll(tt.expected, "\\", "/")
 		if gotNorm != expectedNorm {
-			t.Errorf("TrimPathSegments(%q, %d) = %q (normalized: %q), want %q (normalized: %q)", tt.path, tt.desiredLength, got, gotNorm, tt.expected, expectedNorm)
+			t.Errorf(
+				"TrimPathSegments(%q, %d) = %q (normalized: %q), want %q (normalized: %q)",
+				tt.path,
+				tt.desiredLength,
+				got,
+				gotNorm,
+				tt.expected,
+				expectedNorm,
+			)
 		}
 	}
 }
@@ -102,7 +117,14 @@ func TestPathTupleFromURL(t *testing.T) {
 	for _, tt := range tests {
 		gotParent, gotFilename := PathTupleFromURL(tt.url)
 		if gotParent != tt.expectedParent || gotFilename != tt.expectedFilename {
-			t.Errorf("PathTupleFromURL(%q) = (%q, %q), want (%q, %q)", tt.url, gotParent, gotFilename, tt.expectedParent, tt.expectedFilename)
+			t.Errorf(
+				"PathTupleFromURL(%q) = (%q, %q), want (%q, %q)",
+				tt.url,
+				gotParent,
+				gotFilename,
+				tt.expectedParent,
+				tt.expectedFilename,
+			)
 		}
 	}
 }

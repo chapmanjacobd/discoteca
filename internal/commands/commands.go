@@ -22,7 +22,11 @@ func GetSchema() string {
 
 // ParseDatabaseAndScanPaths separates .db files from scan paths
 // Returns databases, scan paths, and any error
-func ParseDatabaseAndScanPaths(args []string, coreFlags *models.CoreFlags, mediaFlags *models.MediaFilterFlags) ([]string, []string, error) {
+func ParseDatabaseAndScanPaths(
+	args []string,
+	coreFlags *models.CoreFlags,
+	mediaFlags *models.MediaFilterFlags,
+) ([]string, []string, error) {
 	if err := coreFlags.AfterApply(); err != nil {
 		return nil, nil, err
 	}

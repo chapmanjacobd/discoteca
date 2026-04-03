@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -24,9 +25,9 @@ type SearchDBCmd struct {
 	models.DisplayFlags     `embed:""`
 	models.PostActionFlags  `embed:""`
 
-	Database string   `arg:"" required:"" help:"SQLite database file" type:"existingfile"`
-	Table    string   `arg:"" required:"" help:"Table name (fuzzy matching supported)"`
-	Search   []string `arg:"" required:"" help:"Search terms"`
+	Database string   `help:"SQLite database file"                  required:"" arg:"" type:"existingfile"`
+	Table    string   `help:"Table name (fuzzy matching supported)" required:"" arg:""`
+	Search   []string `help:"Search terms"                          required:"" arg:""`
 }
 
 func (c *SearchDBCmd) Run(ctx *kong.Context) error {

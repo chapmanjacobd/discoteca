@@ -127,8 +127,24 @@ func TestApply_ByOtherFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			media := []models.Media{
-				{Path: "2", Title: &titleB, Duration: &dur200, TimeCreated: &time200, TimeModified: &time200, TimeLastPlayed: &time200, PlayCount: &time200},
-				{Path: "1", Title: &titleA, Duration: &dur100, TimeCreated: &time100, TimeModified: &time100, TimeLastPlayed: &time100, PlayCount: &time100},
+				{
+					Path:           "2",
+					Title:          &titleB,
+					Duration:       &dur200,
+					TimeCreated:    &time200,
+					TimeModified:   &time200,
+					TimeLastPlayed: &time200,
+					PlayCount:      &time200,
+				},
+				{
+					Path:           "1",
+					Title:          &titleA,
+					Duration:       &dur100,
+					TimeCreated:    &time100,
+					TimeModified:   &time100,
+					TimeLastPlayed: &time100,
+					PlayCount:      &time100,
+				},
 			}
 			Apply(media, tt.method, tt.reverse, tt.natural)
 			if !tt.checkFunc(media) {

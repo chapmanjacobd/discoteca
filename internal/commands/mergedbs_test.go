@@ -9,7 +9,7 @@ import (
 func TestMergeDBsCmd_Run(t *testing.T) {
 	t.Parallel()
 	// 1. Setup Source 1
-	src1, _ := os.CreateTemp("", "merge-src1-*.db")
+	src1, _ := os.CreateTemp(t.TempDir(), "merge-src1-*.db")
 	src1Path := src1.Name()
 	src1.Close()
 	defer os.Remove(src1Path)
@@ -19,7 +19,7 @@ func TestMergeDBsCmd_Run(t *testing.T) {
 	db1.Close()
 
 	// 2. Setup Source 2
-	src2, _ := os.CreateTemp("", "merge-src2-*.db")
+	src2, _ := os.CreateTemp(t.TempDir(), "merge-src2-*.db")
 	src2Path := src2.Name()
 	src2.Close()
 	defer os.Remove(src2Path)
@@ -29,7 +29,7 @@ func TestMergeDBsCmd_Run(t *testing.T) {
 	db2.Close()
 
 	// 3. Setup Target
-	target, _ := os.CreateTemp("", "merge-target-*.db")
+	target, _ := os.CreateTemp(t.TempDir(), "merge-target-*.db")
 	targetPath := target.Name()
 	target.Close()
 	defer os.Remove(targetPath)

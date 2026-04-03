@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -220,7 +221,11 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 				if duration > 0 && duration < 2678400 {
 					// Check if we should override duration with format-specific estimate
 					ext := strings.ToLower(filepath.Ext(path))
-					if estimated, shouldOverride := utils.ShouldOverrideDuration(float64(duration), stat.Size(), ext); shouldOverride {
+					if estimated, shouldOverride := utils.ShouldOverrideDuration(
+						float64(duration),
+						stat.Size(),
+						ext,
+					); shouldOverride {
 						slog.Debug("Replacing suspiciously low duration with format-specific estimate",
 							"path", path, "reported", duration, "estimated", int64(estimated),
 							"bitrate", utils.GetEstimatedBitrate(ext))
@@ -621,7 +626,7 @@ func cleanCaptionText(s string) string {
 
 // extractImageText extracts text from images using OCR.
 // Returns captions with detected text (time=0 for images).
-func extractImageText(path string, engine string) ([]db.InsertCaptionParams, error) {
+func extractImageText(path, engine string) ([]db.InsertCaptionParams, error) {
 	// Convert image to PNG if it's in a format that OCR engines might struggle with
 	convertedPath, err := convertImageForOCR(path)
 	if err != nil {
@@ -715,7 +720,7 @@ func extractImageTextTesseract(path string) ([]db.InsertCaptionParams, error) {
 	// Check for tesseract
 	tesseractBin := "tesseract"
 	if _, err := exec.LookPath(tesseractBin); err != nil {
-		return nil, fmt.Errorf("tesseract not found")
+		return nil, errors.New("tesseract not found")
 	}
 
 	// Run tesseract with stdout output
@@ -757,13 +762,25 @@ func extractImageTextPaddleOCR(path string) ([]db.InsertCaptionParams, error) {
 	if _, err := exec.LookPath(pythonBin); err != nil {
 		pythonBin = "python"
 		if _, err := exec.LookPath(pythonBin); err != nil {
-			return nil, fmt.Errorf("python not found")
+			return nil, errors.New("python not found")
 		}
 	}
 
 	// Run paddleocr with image
 	// --type ocr for OCR only, --lang for language (default en)
-	cmd := exec.Command(pythonBin, "-m", "paddleocr", "-i", path, "--type", "ocr", "--lang", "en", "--show_log", "false")
+	cmd := exec.Command(
+		pythonBin,
+		"-m",
+		"paddleocr",
+		"-i",
+		path,
+		"--type",
+		"ocr",
+		"--lang",
+		"en",
+		"--show_log",
+		"false",
+	)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -794,7 +811,7 @@ func extractImageTextPaddleOCR(path string) ([]db.InsertCaptionParams, error) {
 }
 
 // extractSpeechToText extracts speech-to-text from audio/video files
-func extractSpeechToText(path string, engine string) ([]db.InsertCaptionParams, error) {
+func extractSpeechToText(path, engine string) ([]db.InsertCaptionParams, error) {
 	switch engine {
 	case "whisper":
 		return extractSpeechToTextWhisper(path)
@@ -812,7 +829,7 @@ func extractSpeechToTextVosk(path string) ([]db.InsertCaptionParams, error) {
 	if _, err := exec.LookPath(pythonBin); err != nil {
 		pythonBin = "python"
 		if _, err := exec.LookPath(pythonBin); err != nil {
-			return nil, fmt.Errorf("python not found")
+			return nil, errors.New("python not found")
 		}
 	}
 
@@ -824,7 +841,10 @@ func extractSpeechToTextVosk(path string) ([]db.InsertCaptionParams, error) {
 
 	// Check if model exists
 	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("vosk model not found at %s (download from https://alphacephei.com/vosk/models)", modelDir)
+		return nil, fmt.Errorf(
+			"vosk model not found at %s (download from https://alphacephei.com/vosk/models)",
+			modelDir,
+		)
 	}
 
 	// Run vosk transcription
@@ -900,7 +920,7 @@ func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
 	// Check for whisper CLI (pip install openai-whisper)
 	whisperBin := "whisper"
 	if _, err := exec.LookPath(whisperBin); err != nil {
-		return nil, fmt.Errorf("whisper not found (pip install openai-whisper)")
+		return nil, errors.New("whisper not found (pip install openai-whisper)")
 	}
 
 	// Create temp directory for output
@@ -912,7 +932,18 @@ func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
 
 	// Run whisper with txt output
 	// --model tiny for speed, use base/small/medium/large for better accuracy
-	cmd := exec.Command(whisperBin, path, "--model", "tiny", "--output_dir", tmpDir, "--output_format", "txt", "--language", "en")
+	cmd := exec.Command(
+		whisperBin,
+		path,
+		"--model",
+		"tiny",
+		"--output_dir",
+		tmpDir,
+		"--output_format",
+		"txt",
+		"--language",
+		"en",
+	)
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
@@ -950,7 +981,7 @@ func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
 
 // extractImageTextFromComicArchive extracts text from images in CBZ/CBR archives using OCR.
 // Returns captions with page numbers as timestamps (page 1 = 0s, page 2 = 1s, etc.)
-func extractImageTextFromComicArchive(path string, ocrEngine string) ([]db.InsertCaptionParams, error) {
+func extractImageTextFromComicArchive(path, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
 	if !utils.ComicExtensionMap[ext] {
@@ -974,7 +1005,7 @@ type imageFile struct {
 }
 
 // extractImageTextFromCBZ extracts text from images in CBZ (ZIP-based) archives
-func extractImageTextFromCBZ(path string, ocrEngine string) ([]db.InsertCaptionParams, error) {
+func extractImageTextFromCBZ(path, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	r, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err
@@ -1021,7 +1052,12 @@ func extractImageTextFromCBZ(path string, ocrEngine string) ([]db.InsertCaptionP
 }
 
 // processComicPage extracts and OCRs a single comic page image
-func processComicPage(r *zip.ReadCloser, imgFile imageFile, ocrEngine, archivePath string, pageNum int) ([]db.InsertCaptionParams, error) {
+func processComicPage(
+	r *zip.ReadCloser,
+	imgFile imageFile,
+	ocrEngine, archivePath string,
+	pageNum int,
+) ([]db.InsertCaptionParams, error) {
 	rc, err := r.File[imgFile.idx].Open()
 	if err != nil {
 		slog.Warn("Failed to open image in archive", "archive", archivePath, "image", imgFile.name, "error", err)
@@ -1055,7 +1091,7 @@ func processComicPage(r *zip.ReadCloser, imgFile imageFile, ocrEngine, archivePa
 }
 
 // extractImageTextFromCBR extracts text from images in CBR (RAR-based) archives
-func extractImageTextFromCBR(path string, ocrEngine string) ([]db.InsertCaptionParams, error) {
+func extractImageTextFromCBR(path, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	// Try unrar first
 	unrarBin := "unrar"
 	unrarErr := false
@@ -1072,7 +1108,7 @@ func extractImageTextFromCBR(path string, ocrEngine string) ([]db.InsertCaptionP
 
 	// Both not found
 	if unrarErr && unarErr {
-		return nil, fmt.Errorf("no RAR extractor found (install unrar or unar)")
+		return nil, errors.New("no RAR extractor found (install unrar or unar)")
 	}
 
 	// Extract to temp directory

@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestHandleDU_WithFilters(t *testing.T) {
@@ -58,7 +59,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("video-only filter returns only video folders", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?path=&video=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&video=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -83,7 +84,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 	t.Run("media_type=video filter returns only video folders", func(t *testing.T) {
 		// Get unfiltered results first
-		req1 := httptest.NewRequest("GET", "/api/du?path=&include_counts=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&include_counts=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -92,7 +93,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
 			t.Fatalf("Failed to unmarshal unfiltered response: %v", err)
 		}
-		unfilteredTotal := resp1.TotalCount
 
 		// Get total file count from folders
 		unfilteredFileCount := 0
@@ -101,7 +101,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		}
 
 		// Apply media_type=video filter (frontend uses this format)
-		req2 := httptest.NewRequest("GET", "/api/du?path=&media_type=video", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path=&media_type=video", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -115,7 +115,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-
 		// Get filtered file count from folders
 		filteredFileCount := 0
 		for _, f := range resp2.Folders {
@@ -124,7 +123,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 		// File count within folders should be less (5 videos out of 13 total)
 		if filteredFileCount >= unfilteredFileCount {
-			t.Errorf("Expected filtered file count (%d) to be less than unfiltered (%d)", filteredFileCount, unfilteredFileCount)
+			t.Errorf(
+				"Expected filtered file count (%d) to be less than unfiltered (%d)",
+				filteredFileCount,
+				unfilteredFileCount,
+			)
 		}
 		if filteredFileCount == 0 {
 			t.Error("Expected some video results")
@@ -132,7 +135,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 	})
 
 	t.Run("audio-only filter returns only audio folders", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?path=&audio=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&audio=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -145,11 +148,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
 	})
 
 	t.Run("image-only filter returns only image folders", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?path=&image=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&image=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -162,12 +164,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
 	})
 
 	t.Run("size filter returns only media matching size range", func(t *testing.T) {
 		// Filter for media > 100KB
-		req := httptest.NewRequest("GET", "/api/du?path=&size=>100KB", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&size=>100KB", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -180,12 +181,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
 	})
 
 	t.Run("duration filter returns only media matching duration range", func(t *testing.T) {
 		// Filter for media > 10 seconds
-		req := httptest.NewRequest("GET", "/api/du?path=&duration=>10", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&duration=>10", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -198,12 +198,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
 	})
 
 	t.Run("search filter returns only matching media", func(t *testing.T) {
 		// Search for "test"
-		req := httptest.NewRequest("GET", "/api/du?path=&search=test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&search=test", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -216,11 +215,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
 	})
 
 	t.Run("include_counts returns filter bins", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?path=&include_counts=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=&include_counts=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -254,7 +252,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 	t.Run("filter with include_counts returns filtered bins", func(t *testing.T) {
 		// Get unfiltered counts
-		req1 := httptest.NewRequest("GET", "/api/du?path=&include_counts=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&include_counts=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -263,7 +261,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		json.Unmarshal(w1.Body.Bytes(), &resp1)
 
 		// Get video-only counts
-		req2 := httptest.NewRequest("GET", "/api/du?path=&include_counts=true&video-only=true", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path=&include_counts=true&video-only=true", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -281,7 +279,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 	t.Run("filters persist when navigating to subfolder", func(t *testing.T) {
 		// First, get root level with video filter
-		req1 := httptest.NewRequest("GET", "/api/du?path=&video=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&video=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -299,7 +297,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		firstFolderPath := resp1.Folders[0].Path
 
 		// Navigate to subfolder with same video filter
-		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&video=true", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+firstFolderPath+"&video=true", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -314,13 +312,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if totalItems == 0 {
 			t.Errorf("Expected folders or files in subfolder with video filter, got none")
 		}
-
-			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 	})
 
 	t.Run("audio filter persists when navigating to subfolder", func(t *testing.T) {
 		// Get root level with audio filter
-		req1 := httptest.NewRequest("GET", "/api/du?path=&audio=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&audio=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -337,7 +333,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		firstFolderPath := resp1.Folders[0].Path
 
 		// Navigate to subfolder with audio filter
-		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&audio=true", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+firstFolderPath+"&audio=true", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -351,12 +347,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if totalItems == 0 {
 			t.Errorf("Expected folders or files in subfolder with audio filter, got none")
 		}
-
-			resp2.FolderCount, resp2.FileCount)
 	})
 
 	t.Run("image filter persists when navigating to subfolder", func(t *testing.T) {
-		req1 := httptest.NewRequest("GET", "/api/du?path=&image=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&image=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -368,7 +362,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatal("Expected folders at root level")
 		}
 
-		req2 := httptest.NewRequest("GET", "/api/du?path="+resp1.Folders[0].Path+"&image=true", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+resp1.Folders[0].Path+"&image=true", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -384,7 +378,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 	t.Run("size filter persists when navigating to subfolder", func(t *testing.T) {
 		// Filter for media > 100KB
-		req1 := httptest.NewRequest("GET", "/api/du?path=&size=>100KB", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&size=>100KB", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -396,7 +390,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatal("Expected folders at root level")
 		}
 
-		req2 := httptest.NewRequest("GET", "/api/du?path="+resp1.Folders[0].Path+"&size=>100KB", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+resp1.Folders[0].Path+"&size=>100KB", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -408,12 +402,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if resp2.FolderCount == 0 && resp2.FileCount == 0 {
 			t.Errorf("Expected folders or files with size filter, got none")
 		}
-			resp2.FolderCount, resp2.FileCount)
 	})
 
 	t.Run("duration filter persists when navigating to subfolder", func(t *testing.T) {
 		// Filter for media > 10 seconds
-		req1 := httptest.NewRequest("GET", "/api/du?path=&duration=>10", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&duration=>10", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -425,7 +418,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatal("Expected folders at root level")
 		}
 
-		req2 := httptest.NewRequest("GET", "/api/du?path="+resp1.Folders[0].Path+"&duration=>10", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+resp1.Folders[0].Path+"&duration=>10", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -437,12 +430,11 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		if resp2.FolderCount == 0 && resp2.FileCount == 0 {
 			t.Errorf("Expected folders or files with duration filter, got none")
 		}
-			resp2.FolderCount, resp2.FileCount)
 	})
 
 	t.Run("episodes filecounts filter works in DU mode", func(t *testing.T) {
 		// Get unfiltered results first
-		req1 := httptest.NewRequest("GET", "/api/du?path=&include_counts=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&include_counts=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -453,7 +445,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		}
 
 		// Apply filecounts filter (folders with exactly 1 file)
-		req2 := httptest.NewRequest("GET", "/api/du?path=&file_counts=1", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path=&file_counts=1", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -467,8 +459,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 			t.Fatalf("Failed to unmarshal filtered response: %v", err)
 		}
 
-			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
-
 		// Should have fewer or equal results than unfiltered
 		if resp2.TotalCount > resp1.TotalCount {
 			t.Errorf("Filtered count (%d) should not exceed unfiltered count (%d)",
@@ -478,7 +468,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 	t.Run("episodes filecounts filter persists when navigating to subfolder", func(t *testing.T) {
 		// Get root level with filecounts filter
-		req1 := httptest.NewRequest("GET", "/api/du?path=&file_counts=1", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?path=&file_counts=1", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -495,7 +485,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		firstFolderPath := resp1.Folders[0].Path
 
 		// Navigate to subfolder with same filecounts filter
-		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&file_counts=1", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+firstFolderPath+"&file_counts=1", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -510,10 +500,10 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		}
 
 		totalItems := len(resp2.Folders) + len(resp2.Files)
-			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 
 		// Should have some results (or at least not error)
 		if totalItems == 0 && resp2.TotalCount == 0 {
+			t.Skip("No results found, but no error occurred")
 		}
 	})
 }
@@ -566,7 +556,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 
 	t.Run("video-only filter returns only video folders", func(t *testing.T) {
 		// Query root level with video filter
-		req := httptest.NewRequest("GET", "/api/du?video=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?video=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -584,12 +574,11 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		if resp.TotalCount == 0 {
 			t.Error("Expected video results")
 		}
-
 	})
 
 	t.Run("media_type=video filter returns only video folders", func(t *testing.T) {
 		// Get unfiltered results first
-		req1 := httptest.NewRequest("GET", "/api/du?include_counts=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?include_counts=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -598,7 +587,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
 			t.Fatalf("Failed to unmarshal unfiltered response: %v", err)
 		}
-		unfilteredTotal := resp1.TotalCount
 
 		// Get total file count from folders
 		unfilteredFileCount := 0
@@ -607,7 +595,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		}
 
 		// Apply media_type=video filter
-		req2 := httptest.NewRequest("GET", "/api/du?media_type=video", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?media_type=video", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -621,7 +609,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-
 		// Get filtered file count from folders
 		filteredFileCount := 0
 		for _, f := range resp2.Folders {
@@ -630,7 +617,11 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 
 		// File count within folders should be less (5 videos out of 13 total)
 		if filteredFileCount >= unfilteredFileCount {
-			t.Errorf("Expected filtered file count (%d) to be less than unfiltered (%d)", filteredFileCount, unfilteredFileCount)
+			t.Errorf(
+				"Expected filtered file count (%d) to be less than unfiltered (%d)",
+				filteredFileCount,
+				unfilteredFileCount,
+			)
 		}
 		if filteredFileCount == 0 {
 			t.Error("Expected some video results")
@@ -638,7 +629,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 	})
 
 	t.Run("audio-only filter returns only audio folders", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?audio=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?audio=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -658,7 +649,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 	})
 
 	t.Run("image-only filter returns only image folders", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?image=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?image=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -679,7 +670,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 
 	t.Run("filters persist when navigating to subfolder", func(t *testing.T) {
 		// First, get root level with video filter
-		req1 := httptest.NewRequest("GET", "/api/du?video=true", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/api/du?video=true", nil)
 		req1.Header.Set("X-Disco-Token", cmd.APIToken)
 		w1 := httptest.NewRecorder()
 		mux.ServeHTTP(w1, req1)
@@ -697,7 +688,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		firstFolderPath := resp1.Folders[0].Path
 
 		// Navigate to subfolder with same video filter
-		req2 := httptest.NewRequest("GET", "/api/du?path="+firstFolderPath+"&video=true", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path="+firstFolderPath+"&video=true", nil)
 		req2.Header.Set("X-Disco-Token", cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		mux.ServeHTTP(w2, req2)
@@ -712,8 +703,6 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		if totalItems == 0 {
 			t.Errorf("Expected folders or files in subfolder with video filter, got none")
 		}
-
-			resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 	})
 }
 
@@ -791,7 +780,7 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("root_level_shows_both_unix_and_windows_paths", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?include_counts=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?include_counts=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -822,8 +811,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			}
 		}
 
-			resp.FolderCount, resp.FileCount, resp.TotalCount)
-
 		// Should have multiple root paths (home, var, C:, D:, Server, etc.)
 		if len(pathRoots) < 3 {
 			t.Errorf("Expected at least 3 different root paths, got %d", len(pathRoots))
@@ -831,7 +818,7 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 	})
 
 	t.Run("unix_path_navigation_works", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?path=/home/user&include_counts=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=/home/user&include_counts=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -844,8 +831,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
-			resp.FolderCount, resp.FileCount, resp.TotalCount)
 
 		// Should have videos, music, docs subfolders
 		if resp.FolderCount == 0 && resp.FileCount == 0 {
@@ -856,7 +841,7 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 	t.Run("windows_path_navigation_works", func(t *testing.T) {
 		// Test with backslash path (URL-encoded)
 		// The stored paths use backslashes, so we need to match that
-		req := httptest.NewRequest("GET", "/api/du?path=C:\\\\Users\\\\John&include_counts=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?path=C:\\\\Users\\\\John&include_counts=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -870,15 +855,13 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-			resp.FolderCount, resp.FileCount, resp.TotalCount)
-
 		// Should have Videos, Music, Documents subfolders or files
 		// Note: Path handling may vary based on OS, so we just check for any results
 		// or accept empty results on non-Windows systems
 		if resp.FolderCount == 0 && resp.FileCount == 0 {
 			// On Linux, Windows paths might not normalize correctly
 			// Try with forward slashes as alternative
-			req2 := httptest.NewRequest("GET", "/api/du?path=C:/Users/John&include_counts=true", nil)
+			req2 := httptest.NewRequest(http.MethodGet, "/api/du?path=C:/Users/John&include_counts=true", nil)
 			req2.Header.Set("X-Disco-Token", cmd.APIToken)
 			w2 := httptest.NewRecorder()
 			mux.ServeHTTP(w2, req2)
@@ -886,7 +869,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			if w2.Code == http.StatusOK {
 				var resp2 models.DUResponse
 				if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err == nil {
-						resp2.FolderCount, resp2.FileCount, resp2.TotalCount)
 					if resp2.FolderCount > 0 || resp2.FileCount > 0 {
 						return // Success with forward slashes
 					}
@@ -898,7 +880,7 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 	})
 
 	t.Run("video_filter_works_with_mixed_paths", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?video=true&include_counts=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?video=true&include_counts=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -911,8 +893,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
-
-			resp.FolderCount, resp.FileCount, resp.TotalCount)
 
 		// Should only have video folders/files
 		// Total videos: 2 (home) + 2 (var) + 2 (C:) + 2 (D:) + 1 (Server) = 9
@@ -930,7 +910,7 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 	})
 
 	t.Run("type_counts_include_all_media_types", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/du?include_counts=true", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/du?include_counts=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -948,7 +928,6 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 			t.Fatal("Expected counts to be populated")
 		}
 
-
 		// Should have video, audio, and text types
 		typeMap := make(map[string]int64)
 		for _, t := range resp.Counts.MediaType {
@@ -964,7 +943,5 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 		if typeMap["text"] == 0 {
 			t.Error("Expected text media_type count > 0")
 		}
-
-			typeMap["video"], typeMap["audio"], typeMap["text"])
 	})
 }

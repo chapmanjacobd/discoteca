@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -21,7 +22,7 @@ type SimilarFilesCmd struct {
 	models.DisplayFlags     `embed:""`
 	models.SimilarityFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 type SimilarFoldersCmd struct {
@@ -34,7 +35,7 @@ type SimilarFoldersCmd struct {
 	models.DisplayFlags     `embed:""`
 	models.SimilarityFlags  `embed:""`
 
-	Databases []string `arg:"" required:"" help:"SQLite database files" type:"existingfile"`
+	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
 func (c *SimilarFilesCmd) Run(ctx *kong.Context) error {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -46,7 +47,7 @@ func PrintMedia(flags models.DisplayFlags, columns []string, media []models.Medi
 			case "size":
 				row = append(row, utils.FormatSize(utils.Int64Value(m.Size)))
 			case "play_count":
-				row = append(row, fmt.Sprintf("%d", utils.Int64Value(m.PlayCount)))
+				row = append(row, strconv.FormatInt(utils.Int64Value(m.PlayCount), 10))
 			case "playhead":
 				row = append(row, utils.FormatDuration(int(utils.Int64Value(m.Playhead))))
 			case "time_last_played":
@@ -80,13 +81,13 @@ func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.
 			case "path":
 				row = append(row, f.Path)
 			case "count":
-				row = append(row, fmt.Sprintf("%d", f.Count))
+				row = append(row, strconv.Itoa(f.Count))
 			case "exists_count":
-				row = append(row, fmt.Sprintf("%d", f.ExistsCount))
+				row = append(row, strconv.Itoa(f.ExistsCount))
 			case "deleted_count":
-				row = append(row, fmt.Sprintf("%d", f.DeletedCount))
+				row = append(row, strconv.Itoa(f.DeletedCount))
 			case "played_count":
-				row = append(row, fmt.Sprintf("%d", f.PlayedCount))
+				row = append(row, strconv.Itoa(f.PlayedCount))
 			case "size":
 				row = append(row, utils.FormatSize(f.TotalSize))
 			case "duration":
@@ -100,7 +101,7 @@ func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.
 			case "median_duration":
 				row = append(row, utils.FormatDuration(int(f.MedianDuration)))
 			case "folder_count":
-				row = append(row, fmt.Sprintf("%d", f.FolderCount))
+				row = append(row, strconv.Itoa(f.FolderCount))
 			}
 		}
 		fmt.Println(strings.Join(row, "\t"))
