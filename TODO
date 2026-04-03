@@ -1,3 +1,5 @@
+text view, document modal settings modal for changing theme (light, dark, sepia, solarized, etc), text reflowing, font size, typeface, and one or two column spread (save as global browser settings in localStorage)
+
 print less during tests except for assertions
 
 only print response details during verbose e2e
