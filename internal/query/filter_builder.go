@@ -1476,14 +1476,10 @@ func applyWeightedRerank(media []models.MediaWithDB, fields []SortField) {
 	// Calculate ranks for each field and combine with weights
 	// Weight decreases with position: first field gets highest weight
 	type rankedMedia struct {
-		index      int
 		totalScore float64
 	}
 
 	ranked := make([]rankedMedia, len(media))
-	for i := range media {
-		ranked[i] = rankedMedia{index: i, totalScore: 0}
-	}
 
 	// For each field, calculate ranks and apply weights
 	for fieldIdx, field := range fields {

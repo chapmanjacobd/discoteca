@@ -8,10 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // setupTestDB creates a test database with sample data

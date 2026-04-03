@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {

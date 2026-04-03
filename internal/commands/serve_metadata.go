@@ -57,7 +57,7 @@ func (c *ServeCmd) handleMetadata(w http.ResponseWriter, r *http.Request) {
 
 // handleDatabases returns server configuration.
 // GET /api/databases
-func (c *ServeCmd) handleDatabases(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) handleDatabases(w http.ResponseWriter, _ *http.Request) {
 	resp := models.DatabaseInfo{
 		Databases: c.Databases,
 		ReadOnly:  c.ReadOnly,

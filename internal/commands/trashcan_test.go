@@ -5,10 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // TestDeletedMedia tests querying and restoring deleted media items

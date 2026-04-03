@@ -97,9 +97,46 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(docPath); err != nil {
-		slog.Error("EPUB file not found on disk", "path", docPath, "error", err)
-		http.Error(w, "File not found", http.StatusNotFound)
+	fileInfo, err := os.Stat(docPath)
+	if err != nil {
+		// Check if it's a folder (might have trailing slash or not)
+		folderPath := docPath
+		if strings.HasSuffix(folderPath, "/") {
+			folderPath = strings.TrimSuffix(folderPath, "/")
+		}
+		folderInfo, folderErr := os.Stat(folderPath)
+		if folderErr != nil || !folderInfo.IsDir() {
+			slog.Error("EPUB file not found on disk", "path", docPath, "error", err)
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		// It's a folder, check if it has index.html
+		docPath = folderPath
+		fileInfo = folderInfo
+	}
+
+	// If it's a folder, check if it has index.html (HTML folder)
+	if fileInfo.IsDir() {
+		indexHtmlPath := filepath.Join(docPath, "index.html")
+		if _, err := os.Stat(indexHtmlPath); err != nil {
+			slog.Error("Folder does not contain index.html", "path", docPath, "error", err)
+			http.Error(w, "Folder does not contain index.html", http.StatusNotFound)
+			return
+		}
+		// Serve HTML folder directly without calibre conversion
+		slog.Info("Serving HTML folder", "path", docPath)
+		if assetPath != "" {
+			// Serve asset from HTML folder
+			assetFile := filepath.Join(docPath, assetPath)
+			if !strings.HasPrefix(assetFile, docPath) {
+				http.Error(w, "Invalid asset path", http.StatusBadRequest)
+				return
+			}
+			serveFileWithMimeType(w, r, assetFile)
+			return
+		}
+		// Serve wrapper HTML for the folder
+		serveHTMLFolderWithTOC(w, r, docPath, docPath)
 		return
 	}
 
@@ -140,7 +177,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveHTMLWithTOC serves calibre HTML output with a sticky TOC header
-func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir, originalPath string) {
+func serveHTMLWithTOC(w http.ResponseWriter, _ *http.Request, htmlDir, originalPath string) {
 	// Get list of HTML files for TOC
 	htmlFiles := utils.GetHTMLFiles(htmlDir)
 
@@ -157,14 +194,14 @@ func serveHTMLWithTOC(w http.ResponseWriter, r *http.Request, htmlDir, originalP
 	}
 
 	// Create wrapper HTML with sticky TOC
-	wrapperHTML := createWrapperHTML(initialSrc, htmlFiles, htmlDir, originalPath)
+	wrapperHTML := createWrapperHTML(initialSrc, htmlFiles, originalPath)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(wrapperHTML))
 }
 
 // createWrapperHTML creates HTML with sticky TOC header
-func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir, originalPath string) string {
+func createWrapperHTML(initialSrc string, htmlFiles []string, originalPath string) string {
 	// Extract title from originalPath or use filename
 	title := filepath.Base(originalPath)
 
@@ -270,4 +307,28 @@ html, body { height: 100%%; overflow: hidden; }
 
 func unescapePath(path string) (string, error) {
 	return url.PathUnescape(path)
+}
+
+// serveHTMLFolderWithTOC serves an HTML folder with a sticky TOC header
+func serveHTMLFolderWithTOC(w http.ResponseWriter, r *http.Request, htmlDir, originalPath string) {
+	// Get list of HTML files for TOC
+	htmlFiles := utils.GetHTMLFiles(htmlDir)
+
+	// Find actual book content HTML for the main frame (relative to htmlDir)
+	initialSrc := ""
+	contentFile := utils.FindMainContentFile(htmlDir)
+	if contentFile != "" {
+		rel, err := filepath.Rel(htmlDir, contentFile)
+		if err == nil {
+			initialSrc = fmt.Sprintf("/api/epub/%s/%s",
+				strings.TrimPrefix(originalPath, "/"),
+				rel)
+		}
+	}
+
+	// Create wrapper HTML with sticky TOC
+	wrapperHTML := createWrapperHTML(initialSrc, htmlFiles, originalPath)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(wrapperHTML))
 }

@@ -611,7 +611,7 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, localPath)
 }
 
-func (c *ServeCmd) handleTrash(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) handleTrash(w http.ResponseWriter, _ *http.Request) {
 	flags := c.GetGlobalFlags()
 	flags.OnlyDeleted = true
 	flags.HideDeleted = false

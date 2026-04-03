@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -37,7 +35,7 @@ func (c *PrintCmd) AfterApply() error {
 	return err
 }
 
-func (c *PrintCmd) Run(ctx *kong.Context) error {
+func (c *PrintCmd) Run(ctx context.Context) error {
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
 		c.QueryFlags,
@@ -53,7 +51,7 @@ func (c *PrintCmd) Run(ctx *kong.Context) error {
 	flags.AggregateFlags = c.AggregateFlags
 	flags.TextFlags = c.TextFlags
 
-	return RunQuery(context.Background(), c.Databases, flags, func(media []models.MediaWithDB) error {
+	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
 		// Handle scan paths (omitted for brevity, assume they would be handled if implemented)
 
 		HideRedundantFirstPlayed(media)

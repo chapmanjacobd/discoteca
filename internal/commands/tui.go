@@ -7,13 +7,11 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/alecthomas/kong"
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/tui"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type TuiCmd struct {
@@ -31,7 +29,7 @@ type TuiCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *TuiCmd) Run(ctx *kong.Context) error {
+func (c *TuiCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	// Override DeletedFlags to load all media (including deleted) for the TUI
 	// The TUI's internal filters will handle showing/hiding deleted items
@@ -52,7 +50,7 @@ func (c *TuiCmd) Run(ctx *kong.Context) error {
 		c.FTSFlags,
 	)
 
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}
@@ -67,7 +65,7 @@ func (c *TuiCmd) Run(ctx *kong.Context) error {
 	for _, dbPath := range c.Databases {
 		sqlDB, queries, err := db.ConnectWithInit(dbPath)
 		if err == nil {
-			cats, err := queries.GetCustomCategories(context.Background())
+			cats, err := queries.GetCustomCategories(ctx)
 			if err == nil {
 				customCats = append(customCats, cats...)
 			}

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -18,7 +16,7 @@ type PlaylistsCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *PlaylistsCmd) Run(ctx *kong.Context) error {
+func (c *PlaylistsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
 		sqlDB, queries, err := db.ConnectWithInit(dbPath)
@@ -27,7 +25,7 @@ func (c *PlaylistsCmd) Run(ctx *kong.Context) error {
 		}
 		defer sqlDB.Close()
 
-		playlists, err := queries.GetPlaylists(context.Background())
+		playlists, err := queries.GetPlaylists(ctx)
 		if err != nil {
 			return err
 		}

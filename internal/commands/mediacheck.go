@@ -8,8 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -33,7 +31,7 @@ type MediaCheckCmd struct {
 	AudioScan         bool    `help:"Count errors in audio track only"`
 }
 
-func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
+func (c *MediaCheckCmd) Run(ctx context.Context) error {
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -46,7 +44,7 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 	deleteThreshold, _ := utils.FloatFromPercent(c.DeleteCorrupt)
 	fullScanThreshold, _ := utils.FloatFromPercent(c.FullScanIfCorrupt)
 
-	return RunQuery(context.Background(), c.Databases, flags, func(media []models.MediaWithDB) error {
+	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
 		if len(media) == 0 {
 			return errors.New("no media found")
 		}
@@ -60,7 +58,7 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 
 			if c.FullScan {
 				var err error
-				corruption, err = metadata.DecodeFullScan(context.Background(), m.Path)
+				corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 				if err != nil {
 					slog.Error("Full scan failed", "path", m.Path, "error", err)
 					corruption = 0.5
@@ -70,7 +68,7 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 					corruption = 0.5
 				} else {
 					scans := utils.CalculateSegments(duration, c.ChunkSize, gap)
-					corruption = metadata.DecodeQuickScan(context.Background(), m.Path, scans, c.ChunkSize)
+					corruption = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
 
 					if fullScanThreshold > 0 && corruption >= fullScanThreshold {
 						slog.Info(
@@ -81,7 +79,7 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 							corruption,
 						)
 						var err error
-						corruption, err = metadata.DecodeFullScan(context.Background(), m.Path)
+						corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 						if err != nil {
 							slog.Error("Full scan failed", "path", m.Path, "error", err)
 						}
@@ -102,7 +100,7 @@ func (c *MediaCheckCmd) Run(ctx *kong.Context) error {
 						if err == nil {
 							defer sqlDB.Close()
 							queries := db.New(sqlDB)
-							queries.MarkDeleted(context.Background(), db.MarkDeletedParams{
+							queries.MarkDeleted(ctx, db.MarkDeletedParams{
 								Path:        m.Path,
 								TimeDeleted: utils.ToNullInt64(time.Now().Unix()),
 							})

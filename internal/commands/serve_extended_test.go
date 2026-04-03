@@ -8,9 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestServeExtended_Filters(t *testing.T) {

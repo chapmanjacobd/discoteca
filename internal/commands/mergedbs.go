@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
@@ -22,7 +20,7 @@ type MergeDBsCmd struct {
 	SourceDBs []string `help:"Source SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *MergeDBsCmd) Run(ctx *kong.Context) error {
+func (c *MergeDBsCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 
 	targetConn, err := db.Connect(c.TargetDB)

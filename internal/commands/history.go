@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -29,7 +27,7 @@ type HistoryCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *HistoryCmd) Run(ctx *kong.Context) error {
+func (c *HistoryCmd) Run(ctx context.Context) error {
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
 		models.QueryFlags{},
@@ -55,7 +53,7 @@ func (c *HistoryCmd) Run(ctx *kong.Context) error {
 		flags.Watched = &watched
 	}
 
-	return RunQuery(context.Background(), c.Databases, flags, func(media []models.MediaWithDB) error {
+	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
 		HideRedundantFirstPlayed(media)
 
 		if flags.JSON {
@@ -119,7 +117,7 @@ func (c *HistoryAddCmd) AfterApply() error {
 	return nil
 }
 
-func (c *HistoryAddCmd) Run(ctx *kong.Context) error {
+func (c *HistoryAddCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 
 	var absPaths []string

@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -45,7 +43,7 @@ func (c *FilesInfoCmd) AfterApply() error {
 	return nil
 }
 
-func (c *FilesInfoCmd) Run(ctx *kong.Context) error {
+func (c *FilesInfoCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
@@ -59,7 +57,7 @@ func (c *FilesInfoCmd) Run(ctx *kong.Context) error {
 
 	// Handle databases
 	if len(c.Databases) > 0 {
-		media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+		media, err := query.MediaQuery(ctx, c.Databases, flags)
 		if err != nil {
 			return err
 		}
@@ -77,7 +75,7 @@ func (c *FilesInfoCmd) Run(ctx *kong.Context) error {
 			}
 
 			// Use path as-is
-			meta, err := metadata.Extract(context.Background(), path, metadata.ExtractOptions{
+			meta, err := metadata.Extract(ctx, path, metadata.ExtractOptions{
 				ScanSubtitles: c.ScanSubtitles,
 				ProbeImages:   c.ProbeImages,
 			})

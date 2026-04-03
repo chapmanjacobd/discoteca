@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -30,7 +28,7 @@ type SearchDBCmd struct {
 	Search   []string `help:"Search terms"                          required:"" arg:""`
 }
 
-func (c *SearchDBCmd) Run(ctx *kong.Context) error {
+func (c *SearchDBCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
 	sqlDB, _, err := db.ConnectWithInit(c.Database)
@@ -61,7 +59,7 @@ func (c *SearchDBCmd) Run(ctx *kong.Context) error {
 		return c.markDeletedRows(sqlDB, tableName, whereClauses, args)
 	}
 
-	return c.printRows(sqlDB, tableName, whereClauses, args)
+	return c.printRows(ctx, sqlDB, tableName, whereClauses, args)
 }
 
 func (c *SearchDBCmd) getTableName(sqlDB *sql.DB) (string, error) {
@@ -213,7 +211,7 @@ func (c *SearchDBCmd) markDeletedRows(sqlDB *sql.DB, table string, where []strin
 	return nil
 }
 
-func (c *SearchDBCmd) printRows(sqlDB *sql.DB, table string, where []string, args []any) error {
+func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string, where []string, args []any) error {
 	query := fmt.Sprintf("SELECT * FROM %s", table)
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
@@ -222,7 +220,7 @@ func (c *SearchDBCmd) printRows(sqlDB *sql.DB, table string, where []string, arg
 		query += fmt.Sprintf(" LIMIT %d", c.Limit)
 	}
 
-	results, err := sqlDB.QueryContext(context.Background(), query, args...)
+	results, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("search query failed: %w", err)
 	}

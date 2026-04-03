@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -25,7 +23,7 @@ type StatsCmd struct {
 	Databases []string `help:"SQLite database files"                       required:"" arg:"" type:"existingfile"`
 }
 
-func (c *StatsCmd) Run(ctx *kong.Context) error {
+func (c *StatsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
@@ -56,7 +54,7 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 		defer sqlDB.Close()
 
 		if c.Frequency != "" {
-			stats, err := query.HistoricalUsage(context.Background(), dbPath, c.Frequency, timeCol)
+			stats, err := query.HistoricalUsage(ctx, dbPath, c.Frequency, timeCol)
 			if err != nil {
 				return err
 			}
@@ -75,12 +73,12 @@ func (c *StatsCmd) Run(ctx *kong.Context) error {
 			continue
 		}
 
-		stats, err := queries.GetStats(context.Background())
+		stats, err := queries.GetStats(ctx)
 		if err != nil {
 			return err
 		}
 
-		typeStats, err := queries.GetStatsByType(context.Background())
+		typeStats, err := queries.GetStatsByType(ctx)
 		if err != nil {
 			return err
 		}

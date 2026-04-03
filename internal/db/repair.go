@@ -11,9 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func Repair(dbPath string) error {

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -38,7 +36,7 @@ type SimilarFoldersCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *SimilarFilesCmd) Run(ctx *kong.Context) error {
+func (c *SimilarFilesCmd) Run() error {
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -52,7 +50,7 @@ func (c *SimilarFilesCmd) Run(ctx *kong.Context) error {
 	return runSimilar(flags, c.Databases, false)
 }
 
-func (c *SimilarFoldersCmd) Run(ctx *kong.Context) error {
+func (c *SimilarFoldersCmd) Run() error {
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,

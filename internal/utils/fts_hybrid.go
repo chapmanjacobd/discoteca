@@ -74,7 +74,7 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 // BuildFTSQuery constructs the FTS MATCH query from terms
 // For trigram + detail=none, we use first 3 chars of each word for filtering
 // This is a loose filter - actual matching is done by LIKE for phrases
-func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
+func (h *HybridSearchQuery) BuildFTSQuery(_ string) string {
 	if len(h.FTSTerms) == 0 {
 		return ""
 	}

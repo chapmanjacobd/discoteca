@@ -13,8 +13,6 @@ import (
 
 	"github.com/adrg/strutil"
 	"github.com/adrg/strutil/metrics"
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
@@ -41,7 +39,7 @@ type DedupeDuplicate struct {
 	DuplicateSize int64
 }
 
-func (c *DedupeCmd) Run(ctx *kong.Context) error {
+func (c *DedupeCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 
 	for _, dbPath := range c.Databases {

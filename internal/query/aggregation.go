@@ -93,7 +93,7 @@ func hasBasicFilters(flags models.GlobalFlags) bool {
 func AggregateDUByPath(
 	ctx context.Context,
 	dbPath, pathPrefix string,
-	targetDepth, currentDepth int,
+	targetDepth int,
 ) ([]DUQueryResult, error) {
 	sqlDB, err := db.Connect(dbPath)
 	if err != nil {
@@ -215,12 +215,12 @@ func AggregateDUByPathMultiDB(
 	ctx context.Context,
 	dbPaths []string,
 	pathPrefix string,
-	targetDepth, currentDepth int,
+	targetDepth int,
 ) ([]DUQueryResult, error) {
 	allResults := make([]DUQueryResult, 0)
 
 	for _, dbPath := range dbPaths {
-		results, err := AggregateDUByPath(ctx, dbPath, pathPrefix, targetDepth, currentDepth)
+		results, err := AggregateDUByPath(ctx, dbPath, pathPrefix, targetDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -629,13 +629,13 @@ func AggregateDUByPathMultiDBWithFilters(
 	ctx context.Context,
 	dbPaths []string,
 	pathPrefix string,
-	targetDepth, currentDepth int,
+	targetDepth int,
 	flags models.GlobalFlags,
 ) ([]DUQueryResult, error) {
 	allResults := make([]DUQueryResult, 0)
 
 	for _, dbPath := range dbPaths {
-		results, err := AggregateDUByPathWithFilters(ctx, dbPath, pathPrefix, targetDepth, currentDepth, flags)
+		results, err := AggregateDUByPathWithFilters(ctx, dbPath, pathPrefix, targetDepth, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -828,7 +828,7 @@ func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFla
 func AggregateDUByPathWithFilters(
 	ctx context.Context,
 	dbPath, pathPrefix string,
-	targetDepth, currentDepth int,
+	targetDepth int,
 	flags models.GlobalFlags,
 ) ([]DUQueryResult, error) {
 	sqlDB, err := db.Connect(dbPath)

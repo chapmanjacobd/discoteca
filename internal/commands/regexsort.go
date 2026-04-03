@@ -7,8 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -26,7 +24,7 @@ type RegexSortCmd struct {
 	Writer io.Writer `kong:"-"`
 }
 
-func (c *RegexSortCmd) Run(ctx *kong.Context) error {
+func (c *RegexSortCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags: c.CoreFlags,

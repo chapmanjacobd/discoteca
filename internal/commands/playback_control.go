@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -21,7 +19,7 @@ type NowCmd struct {
 	MpvControlBase
 }
 
-func (c *NowCmd) Run(ctx *kong.Context) error {
+func (c *NowCmd) Run() error {
 	cattFile := utils.GetCattNowPlayingFile()
 	if utils.FileExists(cattFile) {
 		data, err := os.ReadFile(cattFile)
@@ -69,7 +67,7 @@ type StopCmd struct {
 	MpvControlBase
 }
 
-func (c *StopCmd) Run(ctx *kong.Context) error {
+func (c *StopCmd) Run() error {
 	return DispatchPlaybackCommand(c.ControlFlags, "loadfile", []any{"/dev/null"}, "stop")
 }
 
@@ -77,7 +75,7 @@ type PauseCmd struct {
 	MpvControlBase
 }
 
-func (c *PauseCmd) Run(ctx *kong.Context) error {
+func (c *PauseCmd) Run() error {
 	return DispatchPlaybackCommand(c.ControlFlags, "cycle", []any{"pause"}, "play_toggle")
 }
 
@@ -85,7 +83,7 @@ type NextCmd struct {
 	MpvControlBase
 }
 
-func (c *NextCmd) Run(ctx *kong.Context) error {
+func (c *NextCmd) Run() error {
 	// Note: We don't remove cattFile for next because CastPlay loop handles it
 	return DispatchPlaybackCommand(c.ControlFlags, "playlist_next", []any{"force"}, "stop")
 }
@@ -96,7 +94,7 @@ type SeekCmd struct {
 	Time string `help:"Time to seek to (e.g. 10, +10, -10, 00:01:30)" arg:""`
 }
 
-func (c *SeekCmd) Run(ctx *kong.Context) error {
+func (c *SeekCmd) Run() error {
 	s := c.Time
 	isRelative := false
 	isNegative := false

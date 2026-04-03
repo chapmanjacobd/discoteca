@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -56,7 +54,7 @@ func (c *CheckCmd) AfterApply() error {
 	return nil
 }
 
-func (c *CheckCmd) Run(ctx *kong.Context) error {
+func (c *CheckCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	c.CheckPaths = utils.ExpandStdin(c.CheckPaths)
 
@@ -93,7 +91,7 @@ func (c *CheckCmd) Run(ctx *kong.Context) error {
 		}
 		defer sqlDB.Close()
 
-		allMedia, err := queries.GetMedia(context.Background(), 1000000)
+		allMedia, err := queries.GetMedia(ctx, 1000000)
 		if err != nil {
 			return err
 		}
@@ -136,7 +134,7 @@ func (c *CheckCmd) Run(ctx *kong.Context) error {
 				missingCount++
 				if !c.DryRun {
 					slog.Debug("Marking missing file as deleted", "path", m.Path)
-					if err := queries.MarkDeleted(context.Background(), db.MarkDeletedParams{
+					if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
 						TimeDeleted: sql.NullInt64{Int64: now, Valid: true},
 						Path:        m.Path,
 					}); err != nil {

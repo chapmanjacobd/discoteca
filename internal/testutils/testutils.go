@@ -7,9 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type TestFixture struct {
@@ -92,7 +91,7 @@ func GetSchema() string {
 }
 
 // InitTestDB initializes a test database with the canonical schema
-func InitTestDB(tb testing.TB, sqlDB *sql.DB) error {
+func InitTestDB(_ testing.TB, sqlDB *sql.DB) error {
 	schema := db.GetSchema()
 	_, err := sqlDB.Exec(schema)
 	return err
@@ -133,7 +132,7 @@ func InitTestDBNoFTS(sqlDB *sql.DB) error {
 }
 
 // InitTestDBWithDB initializes a test database with the canonical schema using provided DB connection
-func InitTestDBWithDB(tb testing.TB, sqlDB *sql.DB) error {
+func InitTestDBWithDB(_ testing.TB, sqlDB *sql.DB) error {
 	schema := db.GetSchema()
 	_, err := sqlDB.Exec(schema)
 	return err

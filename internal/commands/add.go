@@ -15,8 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/fs"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
@@ -70,7 +68,7 @@ func (c *AddCmd) AfterApply() error {
 	return nil
 }
 
-func (c *AddCmd) Run(ctx *kong.Context) error {
+func (c *AddCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	db.SetFtsEnabled(true)
 
@@ -85,7 +83,7 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 	defer sqlDB.Close()
 
 	// Create a context that can be cancelled for all operations
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	flags := models.GlobalFlags{

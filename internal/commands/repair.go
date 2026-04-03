@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"github.com/alecthomas/kong"
-
 	database "github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
@@ -13,7 +11,7 @@ type RepairCmd struct {
 	Database string `help:"Database file to repair" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *RepairCmd) Run(ctx *kong.Context) error {
+func (c *RepairCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 	return database.Repair(c.Database)
 }

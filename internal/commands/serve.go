@@ -16,8 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -138,7 +136,7 @@ func (c *ServeCmd) Mux() http.Handler {
 
 	// Health and Static
 	mux.HandleFunc("/health", c.handleHealth)
-	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		w.WriteHeader(http.StatusOK)
 	})
@@ -354,7 +352,7 @@ func (c *ServeCmd) Close() error {
 }
 
 // Run starts the HTTP server
-func (c *ServeCmd) Run(ctx *kong.Context) error {
+func (c *ServeCmd) Run() error {
 	defer c.Close()
 	models.SetupLogging(c.Verbose)
 	db.SetFtsEnabled(true)

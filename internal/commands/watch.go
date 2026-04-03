@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -36,7 +34,7 @@ type WatchCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *WatchCmd) Run(ctx *kong.Context) error {
+func (c *WatchCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
@@ -53,7 +51,7 @@ func (c *WatchCmd) Run(ctx *kong.Context) error {
 	flags.PlaybackFlags = c.PlaybackFlags
 	flags.MpvActionFlags = c.MpvActionFlags
 	flags.PostActionFlags = c.PostActionFlags
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}
@@ -242,7 +240,7 @@ type ListenCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *ListenCmd) Run(ctx *kong.Context) error {
+func (c *ListenCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
@@ -259,7 +257,7 @@ func (c *ListenCmd) Run(ctx *kong.Context) error {
 	flags.PlaybackFlags = c.PlaybackFlags
 	flags.MpvActionFlags = c.MpvActionFlags
 	flags.PostActionFlags = c.PostActionFlags
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}

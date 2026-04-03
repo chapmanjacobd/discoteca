@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/history"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -26,7 +24,7 @@ type MpvWatchlaterCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *MpvWatchlaterCmd) Run(ctx *kong.Context) error {
+func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
@@ -47,7 +45,7 @@ func (c *MpvWatchlaterCmd) Run(ctx *kong.Context) error {
 	}
 
 	// 1. Get all media from databases
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}

@@ -99,7 +99,7 @@ type simpleConnector struct {
 	dsn    string
 }
 
-func (c *simpleConnector) Connect(ctx context.Context) (driver.Conn, error) {
+func (c *simpleConnector) Connect(_ context.Context) (driver.Conn, error) {
 	return c.driver.Open(c.dsn)
 }
 

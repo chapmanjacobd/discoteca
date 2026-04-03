@@ -7,8 +7,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -25,7 +23,7 @@ type OpenCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *OpenCmd) Run(ctx *kong.Context) error {
+func (c *OpenCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
@@ -35,7 +33,7 @@ func (c *OpenCmd) Run(ctx *kong.Context) error {
 		SortFlags:        c.SortFlags,
 		PostActionFlags:  c.PostActionFlags,
 	}
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}
@@ -76,7 +74,7 @@ type BrowseCmd struct {
 	Browser   string   `help:"Browser to use"`
 }
 
-func (c *BrowseCmd) Run(ctx *kong.Context) error {
+func (c *BrowseCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
@@ -85,7 +83,7 @@ func (c *BrowseCmd) Run(ctx *kong.Context) error {
 		MediaFilterFlags: c.MediaFilterFlags,
 		SortFlags:        c.SortFlags,
 	}
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}

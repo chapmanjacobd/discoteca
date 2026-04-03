@@ -8,8 +8,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -37,7 +35,7 @@ type MergedCaption struct {
 	Title string
 }
 
-func (c *SearchCaptionsCmd) Run(ctx *kong.Context) error {
+func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
 	sqlDB, err := db.Connect(c.Database)
@@ -54,7 +52,7 @@ func (c *SearchCaptionsCmd) Run(ctx *kong.Context) error {
 		limit = 1000000
 	}
 
-	rows, err := queries.SearchCaptions(context.Background(), db.SearchCaptionsParams{
+	rows, err := queries.SearchCaptions(ctx, db.SearchCaptionsParams{
 		Query:     queryStr,
 		VideoOnly: c.VideoOnly,
 		AudioOnly: c.AudioOnly,

@@ -40,7 +40,7 @@ func (h *PlainHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
-func (h *PlainHandler) WithGroup(name string) slog.Handler {
+func (h *PlainHandler) WithGroup(_ string) slog.Handler {
 	// Not implementing groups for now
 	return h
 }

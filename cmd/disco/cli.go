@@ -48,8 +48,10 @@ type CLI struct {
 	Version        commands.VersionCmd        `help:"Show version and build information"                  cmd:""`
 
 	ExitCalled bool `kong:"-"`
+	ExitCode   int  `kong:"-"`
 }
 
 func (c *CLI) Terminate(code int) {
 	c.ExitCalled = true
+	c.ExitCode = code
 }

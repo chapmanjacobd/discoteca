@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -22,7 +20,7 @@ type ClusterSortCmd struct {
 	OutputPath string `help:"Output file path (default stdout)"`
 }
 
-func (c *ClusterSortCmd) Run(ctx *kong.Context) error {
+func (c *ClusterSortCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:       c.CoreFlags,

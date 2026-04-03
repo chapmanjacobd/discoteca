@@ -7,13 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alecthomas/kong"
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/tui"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type DiskUsageCmd struct {
@@ -40,7 +38,7 @@ func (c *DiskUsageCmd) AfterApply() error {
 	return err
 }
 
-func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
+func (c *DiskUsageCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
@@ -60,7 +58,7 @@ func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
 
 	// Handle databases
 	if len(c.Databases) > 0 {
-		dbMedia, err := query.MediaQuery(context.Background(), c.Databases, flags)
+		dbMedia, err := query.MediaQuery(ctx, c.Databases, flags)
 		if err != nil {
 			return err
 		}
@@ -78,7 +76,7 @@ func (c *DiskUsageCmd) Run(ctx *kong.Context) error {
 			}
 
 			// Use path as-is
-			meta, err := metadata.Extract(context.Background(), path, metadata.ExtractOptions{
+			meta, err := metadata.Extract(ctx, path, metadata.ExtractOptions{
 				ScanSubtitles: flags.ScanSubtitles,
 				ProbeImages:   c.ProbeImages,
 			})

@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -34,7 +32,7 @@ type CategorizeCmd struct {
 	FullPath bool `help:"Use full path for categorization suggestions instead of just filename"`
 }
 
-func (c *CategorizeCmd) Run(ctx *kong.Context) error {
+func (c *CategorizeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(
 		c.CoreFlags,
@@ -50,7 +48,7 @@ func (c *CategorizeCmd) Run(ctx *kong.Context) error {
 	)
 	flags.PostActionFlags = c.PostActionFlags
 
-	media, err := query.MediaQuery(context.Background(), c.Databases, flags)
+	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
 		return err
 	}

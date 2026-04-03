@@ -6,13 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var (
@@ -167,19 +166,16 @@ func (i duItem) FilterValue() string {
 
 type DUModel struct {
 	list        list.Model
-	allMedia    []models.MediaWithDB
 	tree        *duTreeNode
 	currentPath string
 	history     []string
-	totalSize   int64
 	quitting    bool
 	flags       models.GlobalFlags
 }
 
 func NewDUModel(media []models.MediaWithDB, flags models.GlobalFlags) DUModel {
 	m := DUModel{
-		allMedia: media,
-		flags:    flags,
+		flags: flags,
 		// Build tree once at startup for O(1) navigation
 		tree: buildDUTree(media),
 	}
@@ -247,7 +243,7 @@ type duDelegate struct {
 
 func (d duDelegate) Height() int                               { return 2 }
 func (d duDelegate) Spacing() int                              { return 1 }
-func (d duDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
+func (d duDelegate) Update(msg tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d duDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	i, ok := listItem.(duItem)
 	if !ok {

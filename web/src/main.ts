@@ -721,7 +721,9 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function openActivePlayer(item, isNewSession = false, skipSync = false, queueIndex = -1, keepFullscreen = false) {
         const type = item.media_type || "";
+        // Check if it's a document or an HTML folder (folder with index.html)
         const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi');
+        const isHTMLFolder = item.count !== undefined && item.count > 0 && type === 'text';
 
         // Close any existing player before opening new one
         closeActivePlayer(true, keepFullscreen);
@@ -730,7 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.playback.queueIndex = queueIndex;
 
         // Open in appropriate viewer
-        if (isDocument) {
+        if (isDocument || isHTMLFolder) {
             state.activeModal = 'document-modal';
             openInDocumentViewer(item);
         } else {
@@ -5246,6 +5248,77 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Render an HTML folder (folder with index.html) in the document viewer
+    async function renderHTMLFolder(item, container, normalizedPath) {
+        const baseUrl = `/api/epub/${normalizedPath}`;
+        
+        try {
+            // Fetch index.html
+            const indexUrl = baseUrl + 'index.html';
+            const response = await fetch(indexUrl);
+            if (!response.ok) throw new Error('Failed to load index.html');
+            
+            const htmlContent = await response.text();
+            
+            // Create reader view
+            const reader = document.createElement('div');
+            reader.id = 'document-reader';
+            
+            const content = document.createElement('div');
+            content.className = 'reader-content';
+            
+            // Parse the HTML and extract body content
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+            
+            // Move body content into reader content
+            const bodyContent = doc.body.innerHTML;
+            content.innerHTML = bodyContent;
+            
+            // Process images to use correct base URL
+            content.querySelectorAll('img').forEach(img => {
+                const src = img.getAttribute('src');
+                if (src && !src.startsWith('http') && !src.startsWith('data:')) {
+                    img.src = baseUrl + src.replace(/^\//, '');
+                }
+            });
+            
+            // Process links to prevent navigation away
+            content.querySelectorAll('a').forEach(a => {
+                const href = a.getAttribute('href');
+                if (href && !href.startsWith('http')) {
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        // Could implement internal navigation later
+                        console.log('Internal link:', href);
+                    };
+                }
+            });
+            
+            reader.appendChild(content);
+            container.appendChild(reader);
+            
+            // Apply document view settings
+            applyDocumentViewSettings();
+            
+            // Track and restore reading progress on the reader div
+            trackReaderProgress(reader, item.path);
+            applyReaderProgress(reader, item.path);
+        } catch (error) {
+            console.error('Failed to load HTML folder, falling back to iframe:', error);
+            // Fallback to iframe
+            const iframe = document.createElement('iframe');
+            iframe.src = baseUrl;
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.border = 'none';
+            container.appendChild(iframe);
+            
+            trackDocumentProgress(iframe, item.path);
+            applyDocumentProgress(iframe, item.path);
+        }
+    }
+
     async function openInDocumentViewer(item) {
         const modal = document.getElementById('document-modal');
         const title = document.getElementById('document-title');
@@ -5284,6 +5357,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeActivePlayer();
                 playRSVP(item);
             };
+        }
+
+        // Check if this is an HTML folder (folder with index.html)
+        const isHTMLFolder = item.media_type === 'text' && item.count !== undefined && item.count > 0;
+        
+        if (isHTMLFolder) {
+            // Try to load index.html to verify it's an HTML folder
+            const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
+            const normalizedPath = pathWithoutLeadingSlash.endsWith('/') ? pathWithoutLeadingSlash : pathWithoutLeadingSlash + '/';
+            const indexUrl = `/api/epub/${encodeURIComponent(normalizedPath)}index.html`;
+            
+            try {
+                const response = await fetch(indexUrl);
+                if (response.ok) {
+                    // This is an HTML folder, render it
+                    await renderHTMLFolder(item, container, normalizedPath);
+                    return;
+                }
+            } catch (error) {
+                console.log('Not an HTML folder, falling back to normal handling:', error);
+            }
         }
 
         // Check if this is a calibre-supported format that should be converted

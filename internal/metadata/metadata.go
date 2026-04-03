@@ -1056,7 +1056,7 @@ func processComicPage(
 	r *zip.ReadCloser,
 	imgFile imageFile,
 	ocrEngine, archivePath string,
-	pageNum int,
+	_ int,
 ) ([]db.InsertCaptionParams, error) {
 	rc, err := r.File[imgFile.idx].Open()
 	if err != nil {

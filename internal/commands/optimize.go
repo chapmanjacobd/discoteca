@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -22,7 +20,7 @@ type OptimizeCmd struct {
 	Databases []string `help:"SQLite database files" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *OptimizeCmd) Run(ctx *kong.Context) error {
+func (c *OptimizeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
 		slog.Info("Optimizing database", "path", dbPath)
@@ -57,9 +55,9 @@ func (c *OptimizeCmd) Run(ctx *kong.Context) error {
 	return nil
 }
 
-func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx *kong.Context, sqlDB *sql.DB, queries *db.Queries) error {
+func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx context.Context, sqlDB *sql.DB, queries *db.Queries) error {
 	slog.Info("Running BulkMarkOptimizedExtensions...")
-	tx, err := sqlDB.BeginTx(context.Background(), nil)
+	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -69,7 +67,7 @@ func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx *kong.Context, sqlDB *sql.
 	// This is a placeholder for the actual logic described by the user
 	// assuming it involves updating media_type based on extensions
 
-	rows, err := tx.QueryContext(context.Background(), "SELECT path FROM media WHERE media_type IS NULL")
+	rows, err := tx.QueryContext(ctx, "SELECT path FROM media WHERE media_type IS NULL")
 	if err != nil {
 		return err
 	}
@@ -106,13 +104,13 @@ func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx *kong.Context, sqlDB *sql.
 	rows.Close()
 
 	if len(updates) > 0 {
-		stmt, err := tx.PrepareContext(context.Background(), "UPDATE media SET media_type = ? WHERE path = ?")
+		stmt, err := tx.PrepareContext(ctx, "UPDATE media SET media_type = ? WHERE path = ?")
 		if err != nil {
 			return err
 		}
 		defer stmt.Close()
 		for _, u := range updates {
-			if _, err := stmt.ExecContext(context.Background(), u.mtype, u.path); err != nil {
+			if _, err := stmt.ExecContext(ctx, u.mtype, u.path); err != nil {
 				return err
 			}
 		}
@@ -129,7 +127,7 @@ type SampleHashCmd struct {
 	Paths []string `help:"Files to hash" required:"" arg:"" type:"existingfile"`
 }
 
-func (c *SampleHashCmd) Run(ctx *kong.Context) error {
+func (c *SampleHashCmd) Run() error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:    c.CoreFlags,

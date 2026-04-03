@@ -22,7 +22,7 @@ import (
 )
 
 // handleHealth returns OK if the server is running
-func (c *ServeCmd) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
@@ -943,7 +943,6 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		c.Databases,
 		cleanPath,
 		targetDepth,
-		currentDepth,
 		resolvedFlags,
 	)
 	if err != nil {
