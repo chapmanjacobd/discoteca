@@ -30,8 +30,21 @@ export interface FilterBin {
 }
 
 export interface FilterBins {
-    // Percentiles for slider calculations (0%, 16.6%, 33.3%, 50%, 66.6%, 83.3%, 100%)
-    // Use percentiles[0] as min and percentiles[len-1] as max
+    // Actual min/max values from the full dataset (stable across filtering)
+    episodes_min_val: number;
+    episodes_max_val: number;
+    size_min_val: number;
+    size_max_val: number;
+    duration_min_val: number;
+    duration_max_val: number;
+    modified_min_val: number;
+    modified_max_val: number;
+    created_min_val: number;
+    created_max_val: number;
+    downloaded_min_val: number;
+    downloaded_max_val: number;
+
+    // Percentiles for slider calculations (0-100)
     episodes_percentiles: number[];
     size_percentiles: number[];
     duration_percentiles: number[];

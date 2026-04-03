@@ -160,4 +160,89 @@ describe('Range Sliders', () => {
             value: '@p'
         });
     });
+
+    it('shows stable min/max footer labels from API values not percentiles', async () => {
+        await setupTestEnvironment();
+
+        // Set up state with explicit min/max values from the API
+        window.disco.state.filterBins = {
+            duration_min_val: 30,
+            duration_max_val: 7200,
+            duration_percentiles: Array.from({length: 101}, (_, i) => Math.floor(30 + (7200 - 30) * (i / 100))),
+            episodes_min_val: 1,
+            episodes_max_val: 50,
+            episodes_percentiles: Array.from({length: 101}, (_, i) => Math.floor(1 + (50 - 1) * (i / 100))),
+            size_min_val: 1024,
+            size_max_val: 104857600,
+            size_percentiles: Array.from({length: 101}, (_, i) => Math.floor(1024 + (104857600 - 1024) * (i / 100))),
+            modified_min_val: 1000000,
+            modified_max_val: 2000000,
+            modified_percentiles: Array.from({length: 101}, (_, i) => Math.floor(1000000 + (2000000 - 1000000) * (i / 100))),
+            created_min_val: 1000000,
+            created_max_val: 2000000,
+            created_percentiles: Array.from({length: 101}, (_, i) => Math.floor(1000000 + (2000000 - 1000000) * (i / 100))),
+            downloaded_min_val: 0,
+            downloaded_max_val: 0,
+            downloaded_percentiles: Array.from({length: 101}, () => 0),
+            media_type: []
+        };
+
+        const minLabel = document.getElementById('duration-min-label');
+        const maxLabel = document.getElementById('duration-max-label');
+
+        window.disco.updateSliderLabels();
+
+        // Footer labels should show the fixed min/max values (30s and 2h)
+        expect(minLabel.textContent).toContain('0:30');
+        expect(maxLabel.textContent).toContain('2:00:00');
+    });
+
+    it('maintains footer labels when sliders are moved', async () => {
+        await setupTestEnvironment();
+
+        window.disco.state.filterBins = {
+            duration_min_val: 60,
+            duration_max_val: 3600,
+            duration_percentiles: Array.from({length: 101}, (_, i) => Math.floor(60 + (3600 - 60) * (i / 100))),
+            episodes_min_val: 1,
+            episodes_max_val: 50,
+            episodes_percentiles: Array.from({length: 101}, (_, i) => i),
+            size_min_val: 0,
+            size_max_val: 100 * 1024 * 1024,
+            size_percentiles: Array.from({length: 101}, (_, i) => i * 1024 * 1024),
+            modified_min_val: 0,
+            modified_max_val: 0,
+            modified_percentiles: Array.from({length: 101}, () => 0),
+            created_min_val: 0,
+            created_max_val: 0,
+            created_percentiles: Array.from({length: 101}, () => 0),
+            downloaded_min_val: 0,
+            downloaded_max_val: 0,
+            downloaded_percentiles: Array.from({length: 101}, () => 0),
+            media_type: []
+        };
+
+        const minLabel = document.getElementById('duration-min-label');
+        const maxLabel = document.getElementById('duration-max-label');
+        const minSlider = document.getElementById('duration-min-slider');
+        const maxSlider = document.getElementById('duration-max-slider');
+
+        // Initial labels
+        window.disco.updateSliderLabels();
+        const initialMin = minLabel.textContent;
+        const initialMax = maxLabel.textContent;
+
+        // Move sliders to p25-p75
+        minSlider.value = '25';
+        maxSlider.value = '75';
+        window.disco.updateSliderLabels();
+
+        // Footer labels should remain the same (fixed min/max from API)
+        expect(minLabel.textContent).toBe(initialMin);
+        expect(maxLabel.textContent).toBe(initialMax);
+
+        // But the main label should show the selected range
+        const mainLabel = document.getElementById('duration-percentile-label');
+        expect(mainLabel.textContent).not.toBe(`${initialMin} - ${initialMax}`);
+    });
 });

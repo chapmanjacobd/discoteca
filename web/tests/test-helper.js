@@ -62,12 +62,13 @@ export async function setupTestEnvironment(initialLocalStorage) {
                     items: items,
                     counts: mocks.filter_bins || {
                         episodes: [], size: [], duration: [],
-                        episodes_min: 1, episodes_max: 24,
-                        size_min: 0, size_max: 100 * 1024 * 1024,
-                        duration_min: 0, duration_max: 3600,
-                        episodes_percentiles: [0, 1, 2, 3, 6, 12, 24],
-                        size_percentiles: [0, 1024, 10240, 102400, 1048576, 10485760, 104857600],
-                        duration_percentiles: [0, 60, 300, 600, 1800, 3600, 7200]
+                        episodes_min_val: 1, episodes_max_val: 24,
+                        size_min_val: 0, size_max_val: 100 * 1024 * 1024,
+                        duration_min_val: 0, duration_max_val: 3600,
+                        episodes_percentiles: Array.from({length: 101}, (_, i) => Math.floor(i * 0.24)),
+                        size_percentiles: Array.from({length: 101}, (_, i) => Math.floor(i * 1024 * 1024)),
+                        duration_percentiles: Array.from({length: 101}, (_, i) => Math.floor(i * 36)),
+                        media_type: []
                     }
                 };
             } else if (url.includes('captions=true')) {
@@ -86,9 +87,12 @@ export async function setupTestEnvironment(initialLocalStorage) {
             // Legacy endpoint - still supported but not used by default
             data = mocks.filter_bins || {
                 episodes: [], size: [], duration: [],
-                episodes_min: 0, episodes_max: 100,
-                size_min: 0, size_max: 100 * 1024 * 1024,
-                duration_min: 0, duration_max: 3600
+                episodes_min_val: 0, episodes_max_val: 100,
+                size_min_val: 0, size_max_val: 100 * 1024 * 1024,
+                duration_min_val: 0, duration_max_val: 3600,
+                duration_percentiles: Array.from({length: 101}, (_, i) => Math.floor(i * 36)),
+                size_percentiles: Array.from({length: 101}, (_, i) => i * 1024 * 1024),
+                episodes_percentiles: Array.from({length: 101}, (_, i) => i)
             };
         } else if (url.includes('/api/categorize/keywords')) {
             data = mocks.categorize_keywords || [

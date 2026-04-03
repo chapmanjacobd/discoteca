@@ -42,8 +42,11 @@ export function updateSliderLabels() {
 
         if (s.label) s.label.textContent = `${format(valMin)} - ${format(valMax)}`;
 
-        if (s.minLabel) s.minLabel.textContent = format(getVal(0));
-        if (s.maxLabel) s.maxLabel.textContent = format(getVal(100));
+        // Use fixed min/max values from the API for footer labels (stable across filtering)
+        const minVal = (state.filterBins as any)[`${type}_min_val`];
+        const maxVal = (state.filterBins as any)[`${type}_max_val`];
+        if (s.minLabel) s.minLabel.textContent = minVal !== undefined ? format(minVal) : format(getVal(0));
+        if (s.maxLabel) s.maxLabel.textContent = maxVal !== undefined ? format(maxVal) : format(getVal(100));
 
         const track = s.min.parentElement?.querySelector('.range-track') as HTMLElement;
         if (track) {

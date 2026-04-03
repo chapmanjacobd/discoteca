@@ -390,6 +390,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!resp.ok) throw new Error('Failed to fetch filter bins');
             const data = await resp.json();
             state.filterBins = {
+                // Actual min/max values from the full dataset
+                episodes_min_val: data.episodes_min_val || 0,
+                episodes_max_val: data.episodes_max_val || 0,
+                size_min_val: data.size_min_val || 0,
+                size_max_val: data.size_max_val || 0,
+                duration_min_val: data.duration_min_val || 0,
+                duration_max_val: data.duration_max_val || 0,
+                modified_min_val: data.modified_min_val || 0,
+                modified_max_val: data.modified_max_val || 0,
+                created_min_val: data.created_min_val || 0,
+                created_max_val: data.created_max_val || 0,
+                downloaded_min_val: data.downloaded_min_val || 0,
+                downloaded_max_val: data.downloaded_max_val || 0,
                 // Percentiles for slider calculations
                 episodes_percentiles: data.episodes_percentiles || [],
                 size_percentiles: data.size_percentiles || [],
@@ -1752,6 +1765,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // Extract filter bins if included in response
             if (response.counts) {
                 state.filterBins = {
+                    // Actual min/max values from the full dataset
+                    episodes_min_val: response.counts.episodes_min_val || 0,
+                    episodes_max_val: response.counts.episodes_max_val || 0,
+                    size_min_val: response.counts.size_min_val || 0,
+                    size_max_val: response.counts.size_max_val || 0,
+                    duration_min_val: response.counts.duration_min_val || 0,
+                    duration_max_val: response.counts.duration_max_val || 0,
+                    modified_min_val: response.counts.modified_min_val || 0,
+                    modified_max_val: response.counts.modified_max_val || 0,
+                    created_min_val: response.counts.created_min_val || 0,
+                    created_max_val: response.counts.created_max_val || 0,
+                    downloaded_min_val: response.counts.downloaded_min_val || 0,
+                    downloaded_max_val: response.counts.downloaded_max_val || 0,
                     // Percentiles for slider calculations
                     episodes_percentiles: response.counts.episodes_percentiles || [],
                     size_percentiles: response.counts.size_percentiles || [],
@@ -4982,7 +5008,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // Style image to fit viewer (full-height contain for tall images)
             el.style.maxWidth = '100%';
-            el.style.maxHeight = '100vh';
+            el.style.maxHeight = 'calc(100dvh - 80px)';
             el.style.objectFit = 'contain';
             el.style.display = 'block';
             el.style.margin = 'auto';

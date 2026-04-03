@@ -52,8 +52,21 @@ type FilterBin struct {
 }
 
 type FilterBinsResponse struct {
-	// Percentiles for slider calculations (0%, 16.6%, 33.3%, 50%, 66.6%, 83.3%, 100%)
-	// Frontend should use percentiles[0] as min and percentiles[len-1] as max
+	// Actual min/max values from the full dataset (stable across filtering)
+	EpisodesMinVal   int64 `json:"episodes_min_val"`
+	EpisodesMaxVal   int64 `json:"episodes_max_val"`
+	SizeMinVal       int64 `json:"size_min_val"`
+	SizeMaxVal       int64 `json:"size_max_val"`
+	DurationMinVal   int64 `json:"duration_min_val"`
+	DurationMaxVal   int64 `json:"duration_max_val"`
+	ModifiedMinVal   int64 `json:"modified_min_val"`
+	ModifiedMaxVal   int64 `json:"modified_max_val"`
+	CreatedMinVal    int64 `json:"created_min_val"`
+	CreatedMaxVal    int64 `json:"created_max_val"`
+	DownloadedMinVal int64 `json:"downloaded_min_val"`
+	DownloadedMaxVal int64 `json:"downloaded_max_val"`
+
+	// Percentiles for slider calculations (0-100)
 	EpisodesPercentiles   []int64 `json:"episodes_percentiles"`
 	SizePercentiles       []int64 `json:"size_percentiles"`
 	DurationPercentiles   []int64 `json:"duration_percentiles"`

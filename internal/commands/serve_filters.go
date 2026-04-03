@@ -338,29 +338,29 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	createdOnly := q.Has("min_created") || q.Has("max_created")
 	downloadedOnly := q.Has("min_downloaded") || q.Has("max_downloaded")
 
-	// Get episode data - only store percentiles
+	// Get episode data - store min/max and percentiles
 	epData := c.computeFilterBinsData(r.Context(), flags, "episodes", dbs)
-	_, _, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
+	resp.EpisodesMinVal, resp.EpisodesMaxVal, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
-	// Get size data - only store percentiles
+	// Get size data - store min/max and percentiles
 	sizeData := c.computeFilterBinsData(r.Context(), flags, "size", dbs)
-	_, _, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
+	resp.SizeMinVal, resp.SizeMaxVal, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
 
-	// Get duration data - only store percentiles
+	// Get duration data - store min/max and percentiles
 	durData := c.computeFilterBinsData(r.Context(), flags, "duration", dbs)
-	_, _, resp.DurationPercentiles = buildDurationBins(durData.durations)
+	resp.DurationMinVal, resp.DurationMaxVal, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
-	// Get modified data - only store percentiles
+	// Get modified data - store min/max and percentiles
 	modData := c.computeFilterBinsData(r.Context(), flags, "modified", dbs)
-	_, _, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
+	resp.ModifiedMinVal, resp.ModifiedMaxVal, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
 
-	// Get created data - only store percentiles
+	// Get created data - store min/max and percentiles
 	creData := c.computeFilterBinsData(r.Context(), flags, "created", dbs)
-	_, _, resp.CreatedPercentiles = buildTimeBins(creData.created)
+	resp.CreatedMinVal, resp.CreatedMaxVal, resp.CreatedPercentiles = buildTimeBins(creData.created)
 
-	// Get downloaded data - only store percentiles
+	// Get downloaded data - store min/max and percentiles
 	dlData := c.computeFilterBinsData(r.Context(), flags, "downloaded", dbs)
-	_, _, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
+	resp.DownloadedMinVal, resp.DownloadedMaxVal, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
 
 	// Get type data - keep as bins (special case, not percentile-based)
 	typeData := c.computeFilterBinsData(r.Context(), flags, "media_type", dbs)
@@ -398,22 +398,22 @@ func (c *ServeCmd) calculateFilterCountsOptimized(ctx context.Context, flags mod
 	// Collect data for each filter type, ignoring that filter to get full distribution
 	// This prevents recursive constraints where filtering by duration would shrink the duration range itself
 	epData := c.computeFilterBinsDataOptimized(ctx, flags, "episodes", dbs)
-	_, _, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
+	resp.EpisodesMinVal, resp.EpisodesMaxVal, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
 	sizeData := c.computeFilterBinsDataOptimized(ctx, flags, "size", dbs)
-	_, _, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
+	resp.SizeMinVal, resp.SizeMaxVal, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
 
 	durData := c.computeFilterBinsDataOptimized(ctx, flags, "duration", dbs)
-	_, _, resp.DurationPercentiles = buildDurationBins(durData.durations)
+	resp.DurationMinVal, resp.DurationMaxVal, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
 	modData := c.computeFilterBinsDataOptimized(ctx, flags, "modified", dbs)
-	_, _, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
+	resp.ModifiedMinVal, resp.ModifiedMaxVal, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
 
 	creData := c.computeFilterBinsDataOptimized(ctx, flags, "created", dbs)
-	_, _, resp.CreatedPercentiles = buildTimeBins(creData.created)
+	resp.CreatedMinVal, resp.CreatedMaxVal, resp.CreatedPercentiles = buildTimeBins(creData.created)
 
 	dlData := c.computeFilterBinsDataOptimized(ctx, flags, "downloaded", dbs)
-	_, _, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
+	resp.DownloadedMinVal, resp.DownloadedMaxVal, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
 
 	typeData := c.computeFilterBinsDataOptimized(ctx, flags, "media_type", dbs)
 	resp.MediaType = buildTypeBins(typeData.typeCounts)
