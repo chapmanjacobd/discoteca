@@ -40,11 +40,11 @@ type DedupeDuplicate struct {
 	DuplicateSize int64
 }
 
-func (c *DedupeCmd) Run() error {
+func (c *DedupeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
 	for _, dbPath := range c.Databases {
-		sqlDB, _, err := db.ConnectWithInit(dbPath)
+		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 		if err != nil {
 			return err
 		}
@@ -91,15 +91,15 @@ func (c *DedupeCmd) Run() error {
 	for _, dbPath := range c.Databases {
 		var dbDups []DedupeDuplicate
 		if c.Audio {
-			dbDups, err = c.getMusicDuplicates(dbPath)
+			dbDups, err = c.getMusicDuplicates(ctx, dbPath)
 		} else if c.ExtractorID {
-			dbDups, err = c.getIDDuplicates(dbPath)
+			dbDups, err = c.getIDDuplicates(ctx, dbPath)
 		} else if c.TitleOnly {
-			dbDups, err = c.getTitleDuplicates(dbPath)
+			dbDups, err = c.getTitleDuplicates(ctx, dbPath)
 		} else if c.DurationOnly {
-			dbDups, err = c.getDurationDuplicates(dbPath)
+			dbDups, err = c.getDurationDuplicates(ctx, dbPath)
 		} else if c.Filesystem {
-			dbDups, err = c.getFSDuplicates(dbPath, flags)
+			dbDups, err = c.getFSDuplicates(ctx, dbPath, flags)
 		} else {
 			return errors.New("profile not set. Use --audio, --id, --title, --duration, or --fs")
 		}
@@ -189,13 +189,13 @@ func (c *DedupeCmd) Run() error {
 
 		// Mark as deleted in DB - try all provided DBs
 		for _, dbPath := range c.Databases {
-			sqlDB, _, err := db.ConnectWithInit(dbPath)
+			sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 			if err == nil {
 				var dbErrs []string
 
 				// Mark duplicate as deleted
 				if _, err := sqlDB.ExecContext(
-					context.Background(),
+					ctx,
 					"UPDATE media SET time_deleted = unixepoch() WHERE path = ?",
 					d.DuplicatePath,
 				); err != nil {
@@ -204,7 +204,7 @@ func (c *DedupeCmd) Run() error {
 
 				// Mark keep file as deduped
 				if _, err := sqlDB.ExecContext(
-					context.Background(),
+					ctx,
 					"UPDATE media SET is_deduped = 1 WHERE path = ?",
 					d.KeepPath,
 				); err != nil {
@@ -216,7 +216,7 @@ func (c *DedupeCmd) Run() error {
 					h, err := utils.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 					if err == nil && h != "" {
 						if _, err := sqlDB.ExecContext(
-							context.Background(),
+							ctx,
 							"UPDATE media SET fasthash = ? WHERE path = ?",
 							h,
 							d.KeepPath,
@@ -227,7 +227,7 @@ func (c *DedupeCmd) Run() error {
 					h, err = utils.FullHashFile(d.KeepPath)
 					if err == nil && h != "" {
 						if _, err := sqlDB.ExecContext(
-							context.Background(),
+							ctx,
 							"UPDATE media SET sha256 = ? WHERE path = ?",
 							h,
 							d.KeepPath,
@@ -257,8 +257,8 @@ func (c *DedupeCmd) Run() error {
 	return nil
 }
 
-func (c *DedupeCmd) getDuplicatesBy(dbPath, groupByCols, whereClause string) ([]DedupeDuplicate, error) {
-	sqlDB, _, err := db.ConnectWithInit(dbPath)
+func (c *DedupeCmd) getDuplicatesBy(ctx context.Context, dbPath, groupByCols, whereClause string) ([]DedupeDuplicate, error) {
+	sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +276,7 @@ func (c *DedupeCmd) getDuplicatesBy(dbPath, groupByCols, whereClause string) ([]
 		HAVING count > 1
 	`, groupByCols, whereClause, groupByCols)
 
-	rows, err := sqlDB.QueryContext(context.Background(), queryStr)
+	rows, err := sqlDB.QueryContext(ctx, queryStr)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (c *DedupeCmd) getDuplicatesBy(dbPath, groupByCols, whereClause string) ([]
 			ORDER BY COALESCE(is_deduped, 0) DESC, size DESC, time_modified DESC
 		`, strings.Join(whereParts, " AND "))
 
-		gRows, err := sqlDB.QueryContext(context.Background(), groupQuery, args...)
+		gRows, err := sqlDB.QueryContext(ctx, groupQuery, args...)
 		if err != nil {
 			continue
 		}
@@ -354,24 +354,24 @@ func (c *DedupeCmd) getDuplicatesBy(dbPath, groupByCols, whereClause string) ([]
 	return dups, nil
 }
 
-func (c *DedupeCmd) getMusicDuplicates(dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(dbPath, "title, artist, album", "title != '' AND artist != ''")
+func (c *DedupeCmd) getMusicDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "title, artist, album", "title != '' AND artist != ''")
 }
 
-func (c *DedupeCmd) getIDDuplicates(dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(dbPath, "webpath", "webpath != ''")
+func (c *DedupeCmd) getIDDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "webpath", "webpath != ''")
 }
 
-func (c *DedupeCmd) getTitleDuplicates(dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(dbPath, "title", "title != ''")
+func (c *DedupeCmd) getTitleDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "title", "title != ''")
 }
 
-func (c *DedupeCmd) getDurationDuplicates(dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(dbPath, "duration", "duration > 0")
+func (c *DedupeCmd) getDurationDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "duration", "duration > 0")
 }
 
-func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]DedupeDuplicate, error) {
-	sqlDB, _, err := db.ConnectWithInit(dbPath)
+func (c *DedupeCmd) getFSDuplicates(ctx context.Context, dbPath string, flags models.GlobalFlags) ([]DedupeDuplicate, error) {
+	sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 		GROUP BY size
 		HAVING count > 1
 	`
-	rows, err := sqlDB.QueryContext(context.Background(), query)
+	rows, err := sqlDB.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +401,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 		models.Log.Debug("Found potential duplicates by size", "size", size, "count", count)
 
 		gRows, err := sqlDB.QueryContext(
-			context.Background(),
+			ctx,
 			"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0",
 			size,
 		)
@@ -442,7 +442,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 					p.fasthash = h
 					// Save hash back to database
 					if _, err := sqlDB.ExecContext(
-						context.Background(),
+						ctx,
 						"UPDATE media SET fasthash = ? WHERE path = ?",
 						h,
 						p.path,
@@ -471,7 +471,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 						p.sha256 = h
 						// Save hash back to database
 						if _, err := sqlDB.ExecContext(
-							context.Background(),
+							ctx,
 							"UPDATE media SET sha256 = ? WHERE path = ?",
 							h,
 							p.path,
@@ -504,7 +504,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 				for _, dup := range sPaths[1:] {
 					// Mark keep file as deduped
 					if _, err := sqlDB.ExecContext(
-						context.Background(),
+						ctx,
 						"UPDATE media SET is_deduped = 1 WHERE path = ?",
 						keep,
 					); err != nil {

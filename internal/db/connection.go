@@ -12,7 +12,7 @@ import (
 
 // Connect opens a SQLite database and applies performance tuning PRAGMAs
 // Slow query logging (50ms threshold) is enabled when SetDebugMode(true) is called
-func Connect(dbPath string) (*sql.DB, error) {
+func Connect(ctx context.Context, dbPath string) (*sql.DB, error) {
 	// Add busy timeout and immediate locking to handle concurrent writes better
 	dsn := fmt.Sprintf("%s?_busy_timeout=30000&_txlock=immediate", dbPath)
 
@@ -33,7 +33,7 @@ func Connect(dbPath string) (*sql.DB, error) {
 	}
 
 	for _, pragma := range tuning {
-		if _, err := baseDB.ExecContext(context.Background(), pragma); err != nil {
+		if _, err := baseDB.ExecContext(ctx, pragma); err != nil {
 			baseDB.Close()
 			return nil, fmt.Errorf("failed to apply pragma %q: %w", pragma, err)
 		}
@@ -49,8 +49,8 @@ func Connect(dbPath string) (*sql.DB, error) {
 
 // ConnectWithInit connects to a database and initializes it if needed
 // Returns the database connection and a Queries object ready to use
-func ConnectWithInit(dbPath string) (*sql.DB, *Queries, error) {
-	sqlDB, err := Connect(dbPath)
+func ConnectWithInit(ctx context.Context, dbPath string) (*sql.DB, *Queries, error) {
+	sqlDB, err := Connect(ctx, dbPath)
 	if err != nil {
 		return nil, nil, err
 	}

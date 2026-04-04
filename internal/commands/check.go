@@ -84,7 +84,7 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 	}
 
 	for _, dbPath := range c.Databases {
-		sqlDB, queries, err := db.ConnectWithInit(dbPath)
+		sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
 		if err != nil {
 			return err
 		}

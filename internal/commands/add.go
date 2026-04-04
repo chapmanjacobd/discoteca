@@ -75,7 +75,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 	c.ScanPaths = utils.ExpandStdin(c.ScanPaths)
 
 	dbExists := utils.FileExists(dbPath)
-	sqlDB, queries, err := db.ConnectWithInit(dbPath)
+	sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
 		return err
 	}
