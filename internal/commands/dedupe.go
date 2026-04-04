@@ -312,43 +312,49 @@ func (c *DedupeCmd) getDuplicatesBy(
 			ORDER BY COALESCE(is_deduped, 0) DESC, size DESC, time_modified DESC
 		`, strings.Join(whereParts, " AND "))
 
-		gRows, err := sqlDB.QueryContext(ctx, groupQuery, args...)
+		err := func() error {
+			gRows, err := sqlDB.QueryContext(ctx, groupQuery, args...)
+			if err != nil {
+				return err
+			}
+			defer gRows.Close()
+
+			type item struct {
+				path     string
+				size     int64
+				duration float64
+			}
+			var items []item
+			for gRows.Next() {
+				var i item
+				if err := gRows.Scan(&i.path, &i.size, &i.duration); err == nil {
+					items = append(items, i)
+				}
+			}
+			if err := gRows.Err(); err != nil {
+				return err
+			}
+
+			if len(items) < 2 {
+				return nil
+			}
+
+			keep := items[0]
+			for _, dup := range items[1:] {
+				// Basic duration check
+				if keep.duration > 0 && dup.duration > 0 && math.Abs(keep.duration-dup.duration) > 8 {
+					continue
+				}
+				dups = append(dups, DedupeDuplicate{
+					KeepPath:      keep.path,
+					DuplicatePath: dup.path,
+					DuplicateSize: dup.size,
+				})
+			}
+			return nil
+		}()
 		if err != nil {
-			continue
-		}
-
-		type item struct {
-			path     string
-			size     int64
-			duration float64
-		}
-		var items []item
-		for gRows.Next() {
-			var i item
-			if err := gRows.Scan(&i.path, &i.size, &i.duration); err == nil {
-				items = append(items, i)
-			}
-		}
-		gRows.Close()
-		if err := gRows.Err(); err != nil {
 			return nil, err
-		}
-
-		if len(items) < 2 {
-			continue
-		}
-
-		keep := items[0]
-		for _, dup := range items[1:] {
-			// Basic duration check
-			if keep.duration > 0 && dup.duration > 0 && math.Abs(keep.duration-dup.duration) > 8 {
-				continue
-			}
-			dups = append(dups, DedupeDuplicate{
-				KeepPath:      keep.path,
-				DuplicatePath: dup.path,
-				DuplicateSize: dup.size,
-			})
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -407,123 +413,130 @@ func (c *DedupeCmd) getFSDuplicates(
 		}
 		models.Log.Debug("Found potential duplicates by size", "size", size, "count", count)
 
-		gRows, err := sqlDB.QueryContext(
-			ctx,
-			"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0",
-			size,
-		)
-		if err != nil {
-			continue
-		}
-		type pathInfo struct {
-			path      string
-			fasthash  string
-			sha256    string
-			isDeduped bool
-		}
-		var paths []pathInfo
-		for gRows.Next() {
-			var p pathInfo
-			var deduped int
-			if err := gRows.Scan(&p.path, &p.fasthash, &p.sha256, &deduped); err == nil {
-				p.isDeduped = deduped == 1
-				paths = append(paths, p)
+		err := func() error {
+			gRows, err := sqlDB.QueryContext(
+				ctx,
+				"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0",
+				size,
+			)
+			if err != nil {
+				return nil // continue
 			}
-		}
-		gRows.Close()
-		if err := gRows.Err(); err != nil {
-			return nil, err
-		}
+			defer gRows.Close()
 
-		if len(paths) < 2 {
-			continue
-		}
-
-		// 2. Group by fasthash (calculate if not exists)
-		fastHashGroups := make(map[string][]pathInfo)
-		for _, p := range paths {
-			if p.fasthash == "" {
-				// Calculate fasthash if not exists
-				h, err := utils.SampleHashFile(p.path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
-				if err == nil && h != "" {
-					p.fasthash = h
-					// Save hash back to database
-					if _, err := sqlDB.ExecContext(
-						ctx,
-						"UPDATE media SET fasthash = ? WHERE path = ?",
-						h,
-						p.path,
-					); err != nil {
-						models.Log.Warn("Failed to save fasthash to database", "path", p.path, "error", err)
-					}
-				} else {
-					continue // Skip files that can't be hashed
+			type pathInfo struct {
+				path      string
+				fasthash  string
+				sha256    string
+				isDeduped bool
+			}
+			var paths []pathInfo
+			for gRows.Next() {
+				var p pathInfo
+				var deduped int
+				if err := gRows.Scan(&p.path, &p.fasthash, &p.sha256, &deduped); err == nil {
+					p.isDeduped = deduped == 1
+					paths = append(paths, p)
 				}
 			}
-			fastHashGroups[p.fasthash] = append(fastHashGroups[p.fasthash], p)
-		}
-
-		for _, fhPaths := range fastHashGroups {
-			if len(fhPaths) < 2 {
-				continue
+			if err := gRows.Err(); err != nil {
+				return err
 			}
 
-			// 3. Group by sha256 (calculate only if fasthash matches)
-			sha256Groups := make(map[string][]pathInfo)
-			for _, p := range fhPaths {
-				if p.sha256 == "" {
-					// Calculate sha256 only if fasthash matched
-					h, err := utils.FullHashFile(p.path)
+			if len(paths) < 2 {
+				return nil
+			}
+
+			// 2. Group by fasthash (calculate if not exists)
+			fastHashGroups := make(map[string][]pathInfo)
+			for _, p := range paths {
+				if p.fasthash == "" {
+					// Calculate fasthash if not exists
+					h, err := utils.SampleHashFile(p.path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 					if err == nil && h != "" {
-						p.sha256 = h
+						p.fasthash = h
 						// Save hash back to database
 						if _, err := sqlDB.ExecContext(
 							ctx,
-							"UPDATE media SET sha256 = ? WHERE path = ?",
+							"UPDATE media SET fasthash = ? WHERE path = ?",
 							h,
 							p.path,
 						); err != nil {
-							models.Log.Warn("Failed to save sha256 to database", "path", p.path, "error", err)
+							models.Log.Warn("Failed to save fasthash to database", "path", p.path, "error", err)
 						}
 					} else {
-						continue
+						continue // Skip files that can't be hashed
 					}
 				}
-				sha256Groups[p.sha256] = append(sha256Groups[p.sha256], p)
+				fastHashGroups[p.fasthash] = append(fastHashGroups[p.fasthash], p)
 			}
 
-			for _, sPaths := range sha256Groups {
-				if len(sPaths) < 2 {
+			for _, fhPaths := range fastHashGroups {
+				if len(fhPaths) < 2 {
 					continue
 				}
 
-				// Priority sorting for "keep" candidate
-				sort.Slice(sPaths, func(i, j int) bool {
-					// 1. Prioritize already deduped files
-					if sPaths[i].isDeduped != sPaths[j].isDeduped {
-						return sPaths[i].isDeduped
+				// 3. Group by sha256 (calculate only if fasthash matches)
+				sha256Groups := make(map[string][]pathInfo)
+				for _, p := range fhPaths {
+					if p.sha256 == "" {
+						// Calculate sha256 only if fasthash matched
+						h, err := utils.FullHashFile(p.path)
+						if err == nil && h != "" {
+							p.sha256 = h
+							// Save hash back to database
+							if _, err := sqlDB.ExecContext(
+								ctx,
+								"UPDATE media SET sha256 = ? WHERE path = ?",
+								h,
+								p.path,
+							); err != nil {
+								models.Log.Warn("Failed to save sha256 to database", "path", p.path, "error", err)
+							}
+						} else {
+							continue
+						}
 					}
-					// 2. Alphabetical path
-					return sPaths[i].path < sPaths[j].path
-				})
+					sha256Groups[p.sha256] = append(sha256Groups[p.sha256], p)
+				}
 
-				keep := sPaths[0].path
-				for _, dup := range sPaths[1:] {
-					// Mark keep file as deduped
-					if _, err := sqlDB.ExecContext(
-						ctx,
-						"UPDATE media SET is_deduped = 1 WHERE path = ?",
-						keep,
-					); err != nil {
-						models.Log.Warn("Failed to mark file as deduped", "path", keep, "error", err)
+				for _, sPaths := range sha256Groups {
+					if len(sPaths) < 2 {
+						continue
 					}
-					dups = append(dups, DedupeDuplicate{
-						KeepPath:      keep,
-						DuplicatePath: dup.path,
-						DuplicateSize: size,
+
+					// Priority sorting for "keep" candidate
+					sort.Slice(sPaths, func(i, j int) bool {
+						// 1. Prioritize already deduped files
+						if sPaths[i].isDeduped != sPaths[j].isDeduped {
+							return sPaths[i].isDeduped
+						}
+						// 2. Alphabetical path
+						return sPaths[i].path < sPaths[j].path
 					})
+
+					keep := sPaths[0].path
+					for _, dup := range sPaths[1:] {
+						// Mark keep file as deduped
+						if _, err := sqlDB.ExecContext(
+							ctx,
+							"UPDATE media SET is_deduped = 1 WHERE path = ?",
+							keep,
+						); err != nil {
+							models.Log.Warn("Failed to mark file as deduped", "path", keep, "error", err)
+						}
+						dups = append(dups, DedupeDuplicate{
+							KeepPath:      keep,
+							DuplicatePath: dup.path,
+							DuplicateSize: size,
+						})
+					}
 				}
 			}
+			return nil
+		}()
+		if err != nil {
+			return nil, err
 		}
 	}
 	if err := rows.Err(); err != nil {

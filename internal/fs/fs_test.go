@@ -7,11 +7,7 @@ import (
 )
 
 func TestFindMedia(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "fs-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create a dummy structure
 	files := []string{

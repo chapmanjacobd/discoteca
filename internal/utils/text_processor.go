@@ -413,26 +413,26 @@ func maxCount(words []string, stats map[string]int) int {
 	if len(words) == 0 {
 		return 0
 	}
-	max := -1
+	maxVal := -1
 	for _, w := range words {
-		if stats[w] > max {
-			max = stats[w]
+		if stats[w] > maxVal {
+			maxVal = stats[w]
 		}
 	}
-	return max
+	return maxVal
 }
 
 func minCount(words []string, stats map[string]int) int {
 	if len(words) == 0 {
 		return 0
 	}
-	min := 1 << 31
+	minVal := 1 << 31
 	for _, w := range words {
-		if stats[w] < min {
-			min = stats[w]
+		if stats[w] < minVal {
+			minVal = stats[w]
 		}
 	}
-	return min
+	return minVal
 }
 
 func avgCount(words []string, stats map[string]int) float64 {

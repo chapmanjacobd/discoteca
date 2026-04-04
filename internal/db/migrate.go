@@ -290,6 +290,7 @@ func convertCaptionsMediaID(ctx context.Context, db *sql.DB) error {
 		}
 		return err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var cid int
@@ -297,7 +298,6 @@ func convertCaptionsMediaID(ctx context.Context, db *sql.DB) error {
 		var notnull, pk int
 		var dfltValue any
 		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
-			rows.Close()
 			return err
 		}
 		if strings.EqualFold(name, "media_id") {
@@ -306,7 +306,6 @@ func convertCaptionsMediaID(ctx context.Context, db *sql.DB) error {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return err
 	}
 	rows.Close()
@@ -645,6 +644,7 @@ func populatePathTokenized(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 
 	var updates []struct {
 		path      string
@@ -653,7 +653,6 @@ func populatePathTokenized(ctx context.Context, db *sql.DB) error {
 	for rows.Next() {
 		var path string
 		if err := rows.Scan(&path); err != nil {
-			rows.Close()
 			return err
 		}
 		updates = append(updates, struct {
@@ -662,7 +661,6 @@ func populatePathTokenized(ctx context.Context, db *sql.DB) error {
 		}{path, pathToTokenized(path)})
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return err
 	}
 	rows.Close()

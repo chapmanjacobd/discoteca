@@ -217,6 +217,8 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 	if err != nil {
 		return err
 	}
+	defer colRows.Close()
+
 	var columns []string
 	for colRows.Next() {
 		var cid int
@@ -224,12 +226,13 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 		var notnull, pk int
 		var dfltValue sql.NullString
 		if err := colRows.Scan(&cid, &name, &colType, &notnull, &dfltValue, &pk); err != nil {
-			colRows.Close()
 			return err
 		}
 		columns = append(columns, name)
 	}
-	colRows.Close()
+	if err := colRows.Err(); err != nil {
+		return err
+	}
 
 	query := fmt.Sprintf("SELECT %s FROM %s", strings.Join(columns, ", "), table)
 	if len(where) > 0 {
@@ -258,6 +261,8 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 		if err := results.Scan(valuePtrs...); err != nil {
 			return err
 		}
+		// ... (rest of loop)
+
 
 		entry := make(map[string]any)
 		for i, col := range cols {
@@ -269,6 +274,9 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 			}
 		}
 		allResults = append(allResults, entry)
+	}
+	if err := results.Err(); err != nil {
+		return err
 	}
 
 	if c.JSON {

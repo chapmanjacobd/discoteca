@@ -1409,7 +1409,9 @@ func (q *Queries) PopulateMediaType(ctx context.Context) error {
 			}{path, mediaType})
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
 	if len(updates) > 0 {
 		stmt, err := tx.PrepareContext(ctx, "UPDATE media SET media_type = ? WHERE path = ?")

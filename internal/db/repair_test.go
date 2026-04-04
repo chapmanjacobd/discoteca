@@ -14,7 +14,8 @@ import (
 
 func TestRepairRace(t *testing.T) {
 	// Create a temporary database
-	f, err := os.CreateTemp(t.TempDir(), "race-test-*.db")
+	tempDir := t.TempDir()
+	f, err := os.CreateTemp(tempDir, "race-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +107,7 @@ func TestRepairRace(t *testing.T) {
 	}
 
 	// Verify no backup directories are left
-	entries, _ := os.ReadDir(os.TempDir())
+	entries, _ := os.ReadDir(tempDir)
 	for _, entry := range entries {
 		if entry.IsDir() && strings.HasPrefix(entry.Name(), "race-test-") &&
 			strings.Contains(entry.Name(), ".corrupt.") {

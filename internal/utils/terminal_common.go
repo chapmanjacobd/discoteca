@@ -82,14 +82,14 @@ func (t *TerminalSize) updateSize() {
 }
 
 // TruncateMiddle truncates a string in the middle with ellipsis
-func TruncateMiddle(s string, max int) string {
+func TruncateMiddle(s string, maxWidth int) string {
 	if s == "" {
 		return ""
 	}
-	if len(s) <= max {
+	if len(s) <= maxWidth {
 		return s
 	}
-	half := max / 2
+	half := maxWidth / 2
 	if half < 2 {
 		half = 2
 	}

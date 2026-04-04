@@ -71,26 +71,36 @@ func (c *CategorizeCmd) CompileRegexes(ctx context.Context) map[string][]*regexp
 
 	// Load custom keywords from databases
 	for _, dbPath := range c.Databases {
-		sqlDB, err := db.Connect(ctx, dbPath)
-		if err != nil {
-			continue
-		}
-		rows, err := sqlDB.QueryContext(ctx, "SELECT category, keyword FROM custom_keywords")
-		if err == nil {
+		err := func() error {
+			sqlDB, err := db.Connect(ctx, dbPath)
+			if err != nil {
+				return err
+			}
+			defer sqlDB.Close()
+
+			rows, err := sqlDB.QueryContext(ctx, "SELECT category, keyword FROM custom_keywords")
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
 			for rows.Next() {
 				var cat, kw string
-				if err := rows.Scan(&cat, &kw); err == nil {
-					// Use case-insensitive word boundary match for categorization
-					// This ensures "rock" matches "rock_concert" but not "brock"
-					re, err := regexp.Compile(`(?i)(?:^|[^a-zA-Z0-9])` + regexp.QuoteMeta(kw) + `(?:$|[^a-zA-Z0-9])`)
-					if err == nil {
-						compiled[cat] = append(compiled[cat], re)
-					}
+				if err := rows.Scan(&cat, &kw); err != nil {
+					continue
+				}
+				// Use case-insensitive word boundary match for categorization
+				// This ensures "rock" matches "rock_concert" but not "brock"
+				re, err := regexp.Compile(`(?i)(?:^|[^a-zA-Z0-9])` + regexp.QuoteMeta(kw) + `(?:$|[^a-zA-Z0-9])`)
+				if err == nil {
+					compiled[cat] = append(compiled[cat], re)
 				}
 			}
-			rows.Close()
+			return rows.Err()
+		}()
+		if err != nil {
+			models.Log.Error("failed processing keywords database", "db", dbPath, "error", err)
 		}
-		sqlDB.Close()
 	}
 
 	return compiled
