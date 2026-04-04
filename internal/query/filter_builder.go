@@ -2389,6 +2389,9 @@ func (qe *QueryExecutor) ResolvePercentileFlags(
 							gCounts[filepath.Dir(p)]++
 						}
 					}
+					if err := rows.Err(); err != nil {
+						models.Log.Debug("Percentile query error", "error", err)
+					}
 
 					mu.Lock()
 					for _, c := range gCounts {
@@ -2402,6 +2405,9 @@ func (qe *QueryExecutor) ResolvePercentileFlags(
 						if err := rows.Scan(&v); err == nil && v.Valid {
 							localValues = append(localValues, v.Int64)
 						}
+					}
+					if err := rows.Err(); err != nil {
+						models.Log.Debug("Percentile query error", "error", err)
 					}
 					mu.Lock()
 					values = append(values, localValues...)

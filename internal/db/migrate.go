@@ -35,6 +35,9 @@ func renameMediaTypeColumn(ctx context.Context, db *sql.DB) error {
 			hasMediaType = true
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
 	if hasType && !hasMediaType {
 		if _, err := db.ExecContext(
@@ -156,21 +159,20 @@ func migrateToStrict(ctx context.Context, db *sql.DB, tableName, createSQL strin
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
+
 	var cols []string
 	for rows.Next() {
 		var name string
 		var ignored any
 		if err := rows.Scan(&ignored, &name, &ignored, &ignored, &ignored, &ignored); err != nil {
-			rows.Close()
 			return err
 		}
 		cols = append(cols, name)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return err
 	}
-	rows.Close()
 
 	colStr := strings.Join(cols, ", ")
 	if _, err := tx.ExecContext(
@@ -213,6 +215,7 @@ func convertHistoryMediaID(ctx context.Context, db *sql.DB) error {
 		}
 		return err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var cid int
@@ -220,7 +223,6 @@ func convertHistoryMediaID(ctx context.Context, db *sql.DB) error {
 		var notnull, pk int
 		var dfltValue any
 		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
-			rows.Close()
 			return err
 		}
 		if strings.EqualFold(name, "media_id") {
@@ -229,10 +231,8 @@ func convertHistoryMediaID(ctx context.Context, db *sql.DB) error {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return err
 	}
-	rows.Close()
 
 	if !hasMediaID {
 		return nil // No conversion needed
@@ -458,51 +458,55 @@ func migrateColumns(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, c := range cols {
-		rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", c.table))
-		if err != nil {
-			if strings.Contains(err.Error(), "no such table") {
-				continue
-			}
-			return err
-		}
-
-		exists := false
-		for rows.Next() {
-			var cid int
-			var name, dtype string
-			var notnull, pk int
-			var dfltValue any
-			if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
-				rows.Close()
+		err := func() error {
+			rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", c.table))
+			if err != nil {
+				if strings.Contains(err.Error(), "no such table") {
+					return nil
+				}
 				return err
 			}
-			if strings.EqualFold(name, c.column) {
-				exists = true
-				break
+			defer rows.Close()
+
+			exists := false
+			for rows.Next() {
+				var cid int
+				var name, dtype string
+				var notnull, pk int
+				var dfltValue any
+				if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
+					return err
+				}
+				if strings.EqualFold(name, c.column) {
+					exists = true
+					break
+				}
 			}
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
+			if err := rows.Err(); err != nil {
+				return err
+			}
+
+			if !exists {
+				if _, err := db.ExecContext(
+					ctx,
+					fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.schema),
+				); err != nil {
+					if !strings.Contains(err.Error(), "no such table") {
+						return fmt.Errorf("failed to add column %s to table %s: %w", c.column, c.table, err)
+					}
+				}
+
+				if c.table == "media" && c.column == "path_tokenized" {
+					// New column added, populate it for existing rows
+					if err := populatePathTokenized(ctx, db); err != nil {
+						return fmt.Errorf("failed to populate path_tokenized: %w", err)
+					}
+				}
+			}
+			return nil
+		}()
+		if err != nil {
 			return err
-		}
-		rows.Close()
-
-		if !exists {
-			if _, err := db.ExecContext(
-				ctx,
-				fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.schema),
-			); err != nil {
-				if !strings.Contains(err.Error(), "no such table") {
-					return fmt.Errorf("failed to add column %s to table %s: %w", c.column, c.table, err)
-				}
-			}
-
-			if c.table == "media" && c.column == "path_tokenized" {
-				// New column added, populate it for existing rows
-				if err := populatePathTokenized(ctx, db); err != nil {
-					return fmt.Errorf("failed to populate path_tokenized: %w", err)
-				}
-			}
 		}
 	}
 	return nil
@@ -514,6 +518,7 @@ func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 
 	hasDeadColumns := false
 	deadColumns := map[string]bool{
@@ -530,7 +535,6 @@ func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
 		var notnull, pk int
 		var dfltValue any
 		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
-			rows.Close()
 			return err
 		}
 		if deadColumns[strings.ToLower(name)] {
@@ -539,10 +543,8 @@ func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return err
 	}
-	rows.Close()
 
 	strict := isTableStrict(ctx, db, "media")
 	needsStrictMigration := hasStrict && !strict

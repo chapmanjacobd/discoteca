@@ -19,17 +19,7 @@ type TestFixture struct {
 }
 
 func Setup(t *testing.T) *TestFixture {
-	tempDir, err := os.MkdirTemp("", "disco-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Get absolute path for tempDir to avoid confusion
-	absTempDir, err := filepath.Abs(tempDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	absTempDir := t.TempDir()
 	dbPath := filepath.Join(absTempDir, "test.db")
 
 	return &TestFixture{
@@ -40,7 +30,8 @@ func Setup(t *testing.T) *TestFixture {
 }
 
 func (f *TestFixture) Cleanup() {
-	os.RemoveAll(f.TempDir)
+	// t.TempDir() automatically cleans up, but we keep this for backward compatibility
+	// if some tests still call it.
 }
 
 func (f *TestFixture) CreateDummyFile(name string) string {

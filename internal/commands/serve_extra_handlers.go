@@ -45,7 +45,7 @@ func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Reque
 					data[cat][kw] = true
 				}
 			}
-			return nil
+			return rows.Err()
 		})
 	}
 
@@ -321,7 +321,7 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 					existingKeywords[strings.ToLower(kw)] = true
 				}
 			}
-			return nil
+			return rows.Err()
 		})
 	}
 

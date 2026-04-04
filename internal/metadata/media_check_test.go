@@ -19,8 +19,7 @@ exit 0
 `)
 
 	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
-	defer os.Setenv("PATH", oldPath)
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
 
 	scans := []float64{10.0, 20.0, 30.0, 40.0}
 	corruption := DecodeQuickScan(context.Background(), "dummy.mp4", scans, 1.0)
@@ -47,8 +46,7 @@ func TestDecodeFullScan_MockFFProbe(t *testing.T) {
 }`)
 
 	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
-	defer os.Setenv("PATH", oldPath)
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
 
 	// actualDuration = 3000 * 1 / 30 = 100.0
 	// metadataDuration = 100.0

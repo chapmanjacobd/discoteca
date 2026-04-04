@@ -64,14 +64,25 @@ func TestServeCmd_HandleLs(t *testing.T) {
 		// Should show "home/"
 		if len(resp) != 1 {
 			// Print all paths in DB for debugging if it fails
-			rows, _ := dbConn.Query("SELECT path FROM media")
+			rows, err := dbConn.Query("SELECT path FROM media")
+			if err != nil {
+				t.Fatalf("Debug query failed: %v", err)
+			}
+			defer rows.Close()
+
 			var allPaths []string
 			for rows.Next() {
 				var p string
-				rows.Scan(&p)
+				if err := rows.Scan(&p); err != nil {
+					t.Fatalf("Debug scan failed: %v", err)
+				}
 				allPaths = append(allPaths, p)
 			}
+			if err := rows.Err(); err != nil {
+				t.Fatalf("Debug rows error: %v", err)
+			}
 			t.Errorf("Expected 1 result for root, got %d. Paths in DB: %v", len(resp), allPaths)
+
 			return
 		}
 		entry := resp[0].(map[string]any)

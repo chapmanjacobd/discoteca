@@ -76,12 +76,17 @@ func TestServeReorder_Playlist(t *testing.T) {
 	}
 
 	for rows.Next() {
-		var path string
-		var track int64
-		rows.Scan(&path, &track)
-		if expected[path] != track {
-			t.Errorf("Expected path %s to have track %d, got %d", path, expected[path], track)
-		}
+	        var path string
+	        var track int64
+	        if err := rows.Scan(&path, &track); err != nil {
+	                t.Errorf("Scan failed: %v", err)
+	        }
+	        if expected[path] != track {
+	                t.Errorf("Expected path %s to have track %d, got %d", path, expected[path], track)
+	        }
+	}
+	if err := rows.Err(); err != nil {
+	        t.Fatalf("Rows error: %v", err)
 	}
 }
 

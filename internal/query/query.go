@@ -390,5 +390,8 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 		s.TotalDuration = totalDuration.Int64
 		stats = append(stats, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return stats, nil
 }

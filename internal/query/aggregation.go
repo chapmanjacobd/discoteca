@@ -256,18 +256,20 @@ func FetchDUDirectFiles(
 	allFiles := make([]models.MediaWithDB, 0)
 
 	for _, dbPath := range dbPaths {
-		sqlDB, err := db.Connect(ctx, dbPath)
-		if err != nil {
-			return nil, err
-		}
+		files, err := func() ([]models.MediaWithDB, error) {
+			sqlDB, err := db.Connect(ctx, dbPath)
+			if err != nil {
+				return nil, err
+			}
+			defer sqlDB.Close()
 
-		var query string
-		var args []any
+			var query string
+			var args []any
 
-		if pathPrefix == "" {
-			// Root level: files with no directory separator
-			// Normalize paths to forward slashes for consistent matching
-			query = `
+			if pathPrefix == "" {
+				// Root level: files with no directory separator
+				// Normalize paths to forward slashes for consistent matching
+				query = `
 				SELECT path, title, duration, size, time_created, time_modified,
 				       time_deleted, time_first_played, time_last_played, play_count,
 				       playhead, album, artist, genre, categories, description,
@@ -277,21 +279,21 @@ func FetchDUDirectFiles(
 				WHERE COALESCE(time_deleted, 0) = 0
 				  AND instr(replace(path, '\\', '/'), '/') = 0
 			`
-		} else {
-			// Subdirectory: files at exactly target depth
-			// Normalize prefix to forward slashes for cross-platform matching
-			normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-			escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
+			} else {
+				// Subdirectory: files at exactly target depth
+				// Normalize prefix to forward slashes for cross-platform matching
+				normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+				escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
-			// Check if pathPrefix is absolute (after normalization)
-			isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
-			separatorCount := targetDepth
-			if !isAbs {
-				separatorCount = targetDepth - 1
-			}
+				// Check if pathPrefix is absolute (after normalization)
+				isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
+				separatorCount := targetDepth
+				if !isAbs {
+					separatorCount = targetDepth - 1
+				}
 
-			// Normalize paths to forward slashes for consistent matching
-			query = `
+				// Normalize paths to forward slashes for consistent matching
+				query = `
 				SELECT path, title, duration, size, time_created, time_modified,
 				       time_deleted, time_first_played, time_last_played, play_count,
 				       playhead, album, artist, genre, categories, description,
@@ -304,18 +306,17 @@ func FetchDUDirectFiles(
 					length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))
 				  ) = ?
 			`
-			args = append(args, escapedPrefix, separatorCount)
-		}
+				args = append(args, escapedPrefix, separatorCount)
+			}
 
-		rows, err := sqlDB.QueryContext(ctx, query, args...)
-		if err != nil {
-			sqlDB.Close()
-			return nil, err
-		}
+			rows, err := sqlDB.QueryContext(ctx, query, args...)
+			if err != nil {
+				return nil, err
+			}
+			defer rows.Close()
 
-		files, err := ScanMedia(rows, dbPath)
-		rows.Close()
-		sqlDB.Close()
+			return ScanMedia(rows, dbPath)
+		}()
 		if err != nil {
 			return nil, err
 		}
@@ -798,12 +799,6 @@ func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFla
 		if keep && flags.FolderCounts != "" {
 			// FolderCounts applies to folder count within a parent, not file count
 			// For now, we'll use the same logic - this may need adjustment based on exact semantics
-			if _, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
-				return strconv.ParseInt(s, 10, 64)
-			}); err != nil {
-				// Invalid range filter, skip
-			}
-			// We don't have folder count here, so skip this filter at this level
 			// It will be applied post-aggregation
 		}
 
@@ -1193,16 +1188,18 @@ func FetchDUDirectFilesWithFilters(
 	hasFilters := hasBasicFilters(flags) || hasActiveFilters(flags)
 
 	for _, dbPath := range dbPaths {
-		sqlDB, err := db.Connect(ctx, dbPath)
-		if err != nil {
-			return nil, err
-		}
+		files, err := func() ([]models.MediaWithDB, error) {
+			sqlDB, err := db.Connect(ctx, dbPath)
+			if err != nil {
+				return nil, err
+			}
+			defer sqlDB.Close()
 
-		var query string
-		var args []any
+			var query string
+			var args []any
 
-		if pathPrefix == "" {
-			query = `
+			if pathPrefix == "" {
+				query = `
 				SELECT path, title, duration, size, time_created, time_modified,
 				       time_deleted, time_first_played, time_last_played, play_count,
 				       playhead, album, artist, genre, categories, description,
@@ -1212,17 +1209,17 @@ func FetchDUDirectFilesWithFilters(
 				WHERE COALESCE(time_deleted, 0) = 0
 				  AND instr(replace(path, '\\', '/'), '/') = 0
 			`
-		} else {
-			normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-			escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
+			} else {
+				normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+				escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
-			isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
-			separatorCount := targetDepth
-			if !isAbs {
-				separatorCount = targetDepth - 1
-			}
+				isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
+				separatorCount := targetDepth
+				if !isAbs {
+					separatorCount = targetDepth - 1
+				}
 
-			query = `
+				query = `
 				SELECT path, title, duration, size, time_created, time_modified,
 				       time_deleted, time_first_played, time_last_played, play_count,
 				       playhead, album, artist, genre, categories, description,
@@ -1235,29 +1232,28 @@ func FetchDUDirectFilesWithFilters(
 					length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))
 				  ) = ?
 			`
-			args = append(args, escapedPrefix, separatorCount)
-		}
-
-		// Only add filter clauses if filters are active
-		if hasFilters {
-			fb := NewFilterBuilder(flags)
-			filterClauses, filterArgs := fb.BuildWhereClauses()
-
-			if len(filterClauses) > 0 {
-				query += " AND " + strings.Join(filterClauses, " AND ")
-				args = append(args, filterArgs...)
+				args = append(args, escapedPrefix, separatorCount)
 			}
-		}
 
-		rows, err := sqlDB.QueryContext(ctx, query, args...)
-		if err != nil {
-			sqlDB.Close()
-			return nil, err
-		}
+			// Only add filter clauses if filters are active
+			if hasFilters {
+				fb := NewFilterBuilder(flags)
+				filterClauses, filterArgs := fb.BuildWhereClauses()
 
-		files, err := ScanMedia(rows, dbPath)
-		rows.Close()
-		sqlDB.Close()
+				if len(filterClauses) > 0 {
+					query += " AND " + strings.Join(filterClauses, " AND ")
+					args = append(args, filterArgs...)
+				}
+			}
+
+			rows, err := sqlDB.QueryContext(ctx, query, args...)
+			if err != nil {
+				return nil, err
+			}
+			defer rows.Close()
+
+			return ScanMedia(rows, dbPath)
+		}()
 		if err != nil {
 			return nil, err
 		}

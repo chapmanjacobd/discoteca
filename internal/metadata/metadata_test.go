@@ -98,8 +98,7 @@ func TestExtract_WithMockFFProbe(t *testing.T) {
 
 	// Add tmpDir to PATH
 	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
-	defer os.Setenv("PATH", oldPath)
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
 
 	f, _ := os.CreateTemp(t.TempDir(), "mock-video-*.mp4")
 	f.Write(

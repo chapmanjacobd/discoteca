@@ -95,10 +95,15 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 
 		var ranks []float64
 		for rows.Next() {
-			var path string
+			var path, title string
 			var rank float64
-			rows.Scan(&path, &rank)
+			if err := rows.Scan(&path, &title, &rank); err != nil {
+				t.Fatalf("Scan failed: %v", err)
+			}
 			ranks = append(ranks, rank)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("Rows error: %v", err)
 		}
 
 		// Check that all ranks are essentially identical
@@ -140,8 +145,7 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		var results []SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
-			err := rows.Scan(&path, &title, &desc)
-			if err != nil {
+			if err := rows.Scan(&path, &title, &desc); err != nil {
 				t.Fatalf("Scan failed: %v", err)
 			}
 			results = append(results, SearchMediaFTSResult{
@@ -151,6 +155,9 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 					Description: sql.NullString{String: desc, Valid: true},
 				},
 			})
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("Rows error: %v", err)
 		}
 
 		if len(results) == 0 {
@@ -214,12 +221,18 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 	t.Run("Verify scoring rules", func(t *testing.T) {
 		// Fetch results using simple query
 		query := `SELECT m.path, m.title, m.description FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH 'pyt' AND m.time_deleted = 0`
-		rows, _ := sqlDB.QueryContext(ctx, query)
+		rows, err := sqlDB.QueryContext(ctx, query)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
+		}
+		defer rows.Close()
 
 		var results []SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
-			rows.Scan(&path, &title, &desc)
+			if err := rows.Scan(&path, &title, &desc); err != nil {
+				t.Fatalf("Scan failed: %v", err)
+			}
 			results = append(results, SearchMediaFTSResult{
 				Media: Media{
 					Path:        path,
@@ -228,7 +241,9 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 				},
 			})
 		}
-		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatalf("Rows error: %v", err)
+		}
 
 		RankSearchResults(results, "python")
 
@@ -279,12 +294,18 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 	// Test 4: Verify false positives rank lowest
 	t.Run("False positives rank lowest", func(t *testing.T) {
 		query := `SELECT m.path, m.title, m.description FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH 'pyt' AND m.time_deleted = 0`
-		rows, _ := sqlDB.QueryContext(ctx, query)
+		rows, err := sqlDB.QueryContext(ctx, query)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
+		}
+		defer rows.Close()
 
 		var results []SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
-			rows.Scan(&path, &title, &desc)
+			if err := rows.Scan(&path, &title, &desc); err != nil {
+				t.Fatalf("Scan failed: %v", err)
+			}
 			results = append(results, SearchMediaFTSResult{
 				Media: Media{
 					Path:        path,
@@ -293,7 +314,9 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 				},
 			})
 		}
-		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatalf("Rows error: %v", err)
+		}
 
 		RankSearchResults(results, "python")
 
@@ -453,7 +476,9 @@ func TestRankingReorderAmount(t *testing.T) {
 	var dbOrder []SearchMediaFTSResult
 	for rows.Next() {
 		var path, title, desc string
-		rows.Scan(&path, &title, &desc)
+		if err := rows.Scan(&path, &title, &desc); err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
 		dbOrder = append(dbOrder, SearchMediaFTSResult{
 			Media: Media{
 				Path:        path,
@@ -461,6 +486,9 @@ func TestRankingReorderAmount(t *testing.T) {
 				Description: sql.NullString{String: desc, Valid: true},
 			},
 		})
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("Rows error: %v", err)
 	}
 
 	if len(dbOrder) == 0 {
@@ -488,13 +516,19 @@ func TestRankingReorderAmount(t *testing.T) {
 
 	// Re-fetch and re-rank properly
 	query2 := `SELECT m.path, m.title, m.description FROM media m, media_fts WHERE m.rowid = media_fts.rowid AND media_fts MATCH 'pyt' AND m.time_deleted = 0 ORDER BY m.path`
-	rows2, _ := sqlDB.QueryContext(ctx, query2)
+	rows2, err := sqlDB.QueryContext(ctx, query2)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	defer rows2.Close()
 
 	var results []trackedResult
 	idx := 0
 	for rows2.Next() {
 		var path, title, desc string
-		rows2.Scan(&path, &title, &desc)
+		if err := rows2.Scan(&path, &title, &desc); err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
 		results = append(results, trackedResult{
 			result: SearchMediaFTSResult{
 				Media: Media{
@@ -507,7 +541,9 @@ func TestRankingReorderAmount(t *testing.T) {
 		})
 		idx++
 	}
-	rows2.Close()
+	if err := rows2.Err(); err != nil {
+		t.Fatalf("Rows error: %v", err)
+	}
 
 	// Extract just the results for ranking
 	plainResults := make([]SearchMediaFTSResult, len(results))

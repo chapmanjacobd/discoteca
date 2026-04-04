@@ -142,6 +142,10 @@ func (c *ServeCmd) computeFilterBinsData(
 					}
 				}
 
+				if err := rows.Err(); err != nil {
+					return err
+				}
+
 				mu.Lock()
 				allItems = append(allItems, localItems...)
 				for k, v := range localParentCounts {
@@ -519,6 +523,9 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 								mu.Unlock()
 							}
 						}
+						if err := rows.Err(); err != nil {
+							models.Log.Debug("Parent count query error", "error", err)
+						}
 					}
 
 					// If folder_stats was empty or had errors, fall back to counting from media table
@@ -543,6 +550,9 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 									parent := filepath.Dir(path)
 									localParentCounts[parent]++
 								}
+							}
+							if err := rows.Err(); err != nil {
+								models.Log.Debug("Fallback parent count query error", "error", err)
 							}
 							models.Log.Debug(
 								"Fallback parent count",
@@ -587,6 +597,9 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 							mu.Unlock()
 						}
 					}
+					if err := rows.Err(); err != nil {
+						models.Log.Debug("Type count query error", "error", err)
+					}
 				}
 
 				// 3. For percentile calculation, fetch a SAMPLE of actual values
@@ -622,6 +635,9 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 								localDls = append(localDls, td.Int64)
 							}
 						}
+					}
+					if err := rows.Err(); err != nil {
+						models.Log.Debug("Sample query error", "error", err)
 					}
 					mu.Lock()
 					allHistogram.sizes = append(allHistogram.sizes, localSizes...)

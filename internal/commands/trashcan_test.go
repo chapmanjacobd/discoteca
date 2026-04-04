@@ -61,9 +61,12 @@ func queryMedia(c *HistoryCmd) ([]db.Media, error) {
 	rows, _ := sqlDB.Query("SELECT path FROM media WHERE time_deleted > 0")
 	defer rows.Close()
 	for rows.Next() {
-		var m db.Media
-		rows.Scan(&m.Path)
-		media = append(media, m)
+	        var m db.Media
+	        if err := rows.Scan(&m.Path); err != nil {
+	                return nil, err
+	        }
+	        media = append(media, m)
 	}
-	return media, nil
+	return media, rows.Err()
 }
+

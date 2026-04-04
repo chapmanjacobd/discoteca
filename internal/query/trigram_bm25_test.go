@@ -101,6 +101,7 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 				t.Errorf("%s: ERROR - %v", tc.name, err)
 				continue
 			}
+			defer rows.Close()
 
 			var results []string
 			rank := 0
@@ -108,11 +109,16 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 				var path, title string
 				var bm25 float64
 				var pythonCount int
-				rows.Scan(&path, &title, &bm25, &pythonCount)
+				if err := rows.Scan(&path, &title, &bm25, &pythonCount); err != nil {
+					t.Errorf("%s: Scan error: %v", tc.name, err)
+					continue
+				}
 				rank++
 				results = append(results, fmt.Sprintf("%d. %s (python#=%d, score=%.6f)", rank, path, pythonCount, bm25))
 			}
-			rows.Close()
+			if err := rows.Err(); err != nil {
+				t.Errorf("%s: rows error: %v", tc.name, err)
+			}
 
 			if len(results) == 0 {
 				t.Errorf("%s: no results returned", tc.name)
@@ -143,13 +149,18 @@ func TestTrigramBM25WithMoreData(t *testing.T) {
 			var path string
 			var bm25 float64
 			var pythonCount int
-			rows.Scan(&path, &bm25, &pythonCount)
+			if err := rows.Scan(&path, &bm25, &pythonCount); err != nil {
+				t.Fatalf("Scan failed: %v", err)
+			}
 			totalDocs++
 
 			if pythonCount <= lastCount {
 				correctOrder++
 			}
 			lastCount = pythonCount
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("rows error: %v", err)
 		}
 
 		correlation := float64(correctOrder) / float64(totalDocs) * 100
@@ -217,15 +228,21 @@ func TestFirstTrigramOnly(t *testing.T) {
 				t.Errorf("%-35s ERROR: %v", tc.name, err)
 				continue
 			}
+			defer rows.Close()
 
 			var results []string
 			for rows.Next() {
 				var path, title string
 				var rank float64
-				rows.Scan(&path, &title, &rank)
+				if err := rows.Scan(&path, &title, &rank); err != nil {
+					t.Errorf("%s: Scan error: %v", tc.name, err)
+					continue
+				}
 				results = append(results, fmt.Sprintf("%s(%.0f)", path, rank*1000000))
 			}
-			rows.Close()
+			if err := rows.Err(); err != nil {
+				t.Errorf("%s: rows error: %v", tc.name, err)
+			}
 
 			if len(results) == 0 {
 				t.Errorf("%s: no results returned", tc.name)

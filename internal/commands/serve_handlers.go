@@ -859,7 +859,7 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			return nil
+			return rows.Err()
 		})
 		if err != nil {
 			models.Log.Error("handleLs DB query failed", "db", dbPath, "error", err)

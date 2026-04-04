@@ -100,7 +100,9 @@ func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx context.Context, sqlDB *sq
 			}{path, mtype})
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
 	if len(updates) > 0 {
 		stmt, err := tx.PrepareContext(ctx, "UPDATE media SET media_type = ? WHERE path = ?")

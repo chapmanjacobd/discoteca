@@ -32,10 +32,10 @@ func SetLogger(logger Logger) {
 // defaultLogger wraps the global slog.Logger as a Logger implementation
 type defaultLogger struct{}
 
-func (d *defaultLogger) Info(msg string, args ...any)  { slog.Info(msg, args...) }
-func (d *defaultLogger) Debug(msg string, args ...any) { slog.Debug(msg, args...) }
-func (d *defaultLogger) Warn(msg string, args ...any)  { slog.Warn(msg, args...) }
-func (d *defaultLogger) Error(msg string, args ...any) { slog.Error(msg, args...) }
+func (d *defaultLogger) Info(msg string, args ...any)  { slog.Default().Info(msg, args...) }
+func (d *defaultLogger) Debug(msg string, args ...any) { slog.Default().Debug(msg, args...) }
+func (d *defaultLogger) Warn(msg string, args ...any)  { slog.Default().Warn(msg, args...) }
+func (d *defaultLogger) Error(msg string, args ...any) { slog.Default().Error(msg, args...) }
 
 // SetDebugMode enables or disables debug mode for slow query logging
 func SetDebugMode(enabled bool) {
