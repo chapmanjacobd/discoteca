@@ -52,16 +52,12 @@ func main() {
 	}
 
 	// Configure default logger
-	// Subcommands will call models.SetupLogging to update models.LogLevel if needed
-	logger := slog.New(&utils.PlainHandler{
-		Level: models.LogLevel,
-		Out:   os.Stderr,
-	})
-	slog.SetDefault(logger)
+	// Subcommands will call models.SetupLogging to update models.Log if needed
+	models.Log = utils.NewDefaultLogger(&slog.LevelVar{}, os.Stderr)
 
 	err = ctx.Run()
 	if err != nil {
-		slog.Error("Command failed", "error", err)
+		models.Log.Error("Command failed", "error", err)
 		os.Exit(1)
 	}
 }

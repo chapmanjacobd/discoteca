@@ -336,28 +336,28 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 	}
 	defer sqlDB.Close()
 
-	var freqSql string
+	var freqSQL string
 	switch freq {
 	case "daily":
-		freqSql = fmt.Sprintf("strftime('%%Y-%%m-%%d', datetime(%s, 'unixepoch'))", timeColumn)
+		freqSQL = fmt.Sprintf("strftime('%%Y-%%m-%%d', datetime(%s, 'unixepoch'))", timeColumn)
 	case "weekly":
-		freqSql = fmt.Sprintf("strftime('%%Y-%%W', datetime(%s, 'unixepoch'))", timeColumn)
+		freqSQL = fmt.Sprintf("strftime('%%Y-%%W', datetime(%s, 'unixepoch'))", timeColumn)
 	case "monthly":
-		freqSql = fmt.Sprintf("strftime('%%Y-%%m', datetime(%s, 'unixepoch'))", timeColumn)
+		freqSQL = fmt.Sprintf("strftime('%%Y-%%m', datetime(%s, 'unixepoch'))", timeColumn)
 	case "quarterly":
-		freqSql = fmt.Sprintf(
+		freqSQL = fmt.Sprintf(
 			"strftime('%%Y', datetime(%s, 'unixepoch', '-3 months')) || '-Q' || ((strftime('%%m', datetime(%s, 'unixepoch', '-3 months')) - 1) / 3 + 1)",
 			timeColumn,
 			timeColumn,
 		)
 	case "yearly":
-		freqSql = fmt.Sprintf("strftime('%%Y', datetime(%s, 'unixepoch'))", timeColumn)
+		freqSQL = fmt.Sprintf("strftime('%%Y', datetime(%s, 'unixepoch'))", timeColumn)
 	case "decadally":
-		freqSql = fmt.Sprintf("(CAST(strftime('%%Y', datetime(%s, 'unixepoch')) AS INTEGER) / 10) * 10", timeColumn)
+		freqSQL = fmt.Sprintf("(CAST(strftime('%%Y', datetime(%s, 'unixepoch')) AS INTEGER) / 10) * 10", timeColumn)
 	case "hourly":
-		freqSql = fmt.Sprintf("strftime('%%Y-%%m-%%d %%Hh', datetime(%s, 'unixepoch'))", timeColumn)
+		freqSQL = fmt.Sprintf("strftime('%%Y-%%m-%%d %%Hh', datetime(%s, 'unixepoch'))", timeColumn)
 	case "minutely":
-		freqSql = fmt.Sprintf("strftime('%%Y-%%m-%%d %%H:%%M', datetime(%s, 'unixepoch'))", timeColumn)
+		freqSQL = fmt.Sprintf("strftime('%%Y-%%m-%%d %%H:%%M', datetime(%s, 'unixepoch'))", timeColumn)
 	default:
 		return nil, fmt.Errorf("invalid frequency: %s", freq)
 	}
@@ -372,7 +372,7 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 		WHERE %s > 0 AND time_deleted = 0
 		GROUP BY label
 		ORDER BY label DESC
-	`, freqSql, timeColumn)
+	`, freqSQL, timeColumn)
 
 	rows, err := sqlDB.QueryContext(ctx, query)
 	if err != nil {

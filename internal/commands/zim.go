@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	KIWIX_BIN        = "kiwix-serve"
-	KIWIX_PORT_START = 8181
+	KiwixBin        = "kiwix-serve"
+	KiwixPortStart = 8181
 )
 
 type OpdsEntry struct {
@@ -155,7 +155,7 @@ func (m *KiwixManager) ensureKiwixServing(zimPath string) (int, error) {
 	}
 
 	cmd := exec.Command(
-		KIWIX_BIN,
+		KiwixBin,
 		"--nolibrarybutton",
 		"-p", strconv.Itoa(port),
 		fmt.Sprintf("--urlRootLocation=/api/zim/proxy/%d/", port),
@@ -180,7 +180,7 @@ func (m *KiwixManager) ensureKiwixServing(zimPath string) (int, error) {
 
 func (m *KiwixManager) findAvailablePort() int {
 	for i := range 100 {
-		port := KIWIX_PORT_START + i
+		port := KiwixPortStart + i
 		if !m.usedPorts[port] && isPortAvailable(port) {
 			return port
 		}

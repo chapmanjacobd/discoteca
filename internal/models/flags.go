@@ -2,9 +2,11 @@ package models
 
 import (
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // CoreFlags are essential flags shared across most binaries/commands
@@ -319,18 +321,26 @@ func (m *MergeFlags) AfterApply() error {
 	return nil
 }
 
-var LogLevel = &slog.LevelVar{}
+var Log *utils.Logger
 
 func SetupLogging(verbosity int) {
+	if Log == nil {
+		Log = utils.NewDefaultLogger(&slog.LevelVar{}, os.Stderr)
+	}
+	
+	var level slog.Level
 	if verbosity >= 2 {
-		LogLevel.Set(slog.LevelDebug)
+		level = slog.LevelDebug
 		db.SetDebugMode(true)
 	} else if verbosity == 1 {
-		LogLevel.Set(slog.LevelInfo)
+		level = slog.LevelInfo
 	} else {
 		// Default to Warn (hides Info and Debug, shows Warn and Error)
-		LogLevel.Set(slog.LevelWarn)
+		level = slog.LevelWarn
 	}
+	
+	// Recreate logger with new level
+	Log = utils.NewDefaultLogger(level, os.Stderr)
 }
 
 // BuildQueryGlobalFlags constructs GlobalFlags for query-based commands

@@ -194,9 +194,9 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 		defer otherFixture.Cleanup()
 
 		// Initialize the other database too
-		otherDb := otherFixture.GetDB()
-		db.InitDB(otherDb)
-		otherDb.Close()
+		otherDB := otherFixture.GetDB()
+		db.InitDB(otherDB)
+		otherDB.Close()
 
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+otherFixture.DBPath, nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)

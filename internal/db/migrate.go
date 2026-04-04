@@ -106,7 +106,7 @@ func isTableStrict(db *sql.DB, tableName string) bool {
 	return isStrict
 }
 
-func migrateToStrict(db *sql.DB, tableName, createSql string) error {
+func migrateToStrict(db *sql.DB, tableName, createSQL string) error {
 	strict := isTableStrict(db, tableName)
 	if strict {
 		return nil
@@ -138,7 +138,7 @@ func migrateToStrict(db *sql.DB, tableName, createSql string) error {
 	}
 
 	// Create new STRICT table
-	if _, err := tx.Exec(createSql); err != nil {
+	if _, err := tx.Exec(createSQL); err != nil {
 		return fmt.Errorf("failed to create strict %s: %w", tableName, err)
 	}
 
@@ -537,9 +537,9 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
 	}
 	defer tx.Rollback()
 
-	strictSql := ""
+	strictSQL := ""
 	if hasStrict {
-		strictSql = "STRICT"
+		strictSQL = "STRICT"
 	}
 
 	colsDef := "path TEXT PRIMARY KEY, path_tokenized TEXT,"
@@ -580,7 +580,7 @@ func cleanupMediaTable(db *sql.DB, hasStrict bool) error {
             language TEXT,
             time_downloaded INTEGER,
             score REAL
-        ) %s`, colsDef, strictSql),
+        ) %s`, colsDef, strictSQL),
 		fmt.Sprintf(`INSERT INTO media_dg_tmp (
             %s title, duration, size, time_created, time_modified,
             time_deleted, time_first_played, time_last_played, play_count, playhead,
@@ -656,9 +656,9 @@ func populatePathTokenized(db *sql.DB) error {
 }
 
 func migrateTables(db *sql.DB, hasStrict bool) error {
-	strictSql := ""
+	strictSQL := ""
 	if hasStrict {
-		strictSql = "STRICT"
+		strictSQL = "STRICT"
 	}
 
 	// 0. Pre-migration: Handle column renames/conversions for tables with schema changes
@@ -682,7 +682,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
                 time_modified INTEGER,
                 hours_update_delay INTEGER,
                 time_deleted INTEGER DEFAULT 0
-            ) %s`, strictSql)},
+            ) %s`, strictSQL)},
 			{"playlist_items", fmt.Sprintf(`CREATE TABLE playlist_items (
                 playlist_id INTEGER NOT NULL,
                 media_path TEXT NOT NULL,
@@ -691,13 +691,13 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
                 PRIMARY KEY (playlist_id, media_path),
                 FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-            ) %s`, strictSql)},
+            ) %s`, strictSQL)},
 			{"captions", fmt.Sprintf(`CREATE TABLE captions (
                 media_path TEXT NOT NULL,
                 time REAL,
                 text TEXT,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-            ) %s`, strictSql)},
+            ) %s`, strictSQL)},
 			{"history", fmt.Sprintf(`CREATE TABLE history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 media_path TEXT NOT NULL,
@@ -705,12 +705,12 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
                 playhead INTEGER,
                 done INTEGER,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-            ) %s`, strictSql)},
+            ) %s`, strictSQL)},
 			{"custom_keywords", fmt.Sprintf(`CREATE TABLE custom_keywords (
                 category TEXT NOT NULL,
                 keyword TEXT NOT NULL,
                 PRIMARY KEY (category, keyword)
-            ) %s`, strictSql)},
+            ) %s`, strictSQL)},
 		}
 
 		for _, m := range migrations {
@@ -784,8 +784,8 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 
 	// Check if FTS tables need upgrade to trigram or new columns
 	upgradeFTS := func(tableName, expectedSqlPart string) error {
-		var existingSql string
-		err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&existingSql)
+		var existingSQL string
+		err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&existingSQL)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				return nil // Table doesn't exist
@@ -794,18 +794,18 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 		}
 
 		// Normalize whitespace for comparison
-		if !strings.Contains(existingSql, "trigram") ||
-			(expectedSqlPart != "" && !strings.Contains(existingSql, expectedSqlPart)) {
+		if !strings.Contains(existingSQL, "trigram") ||
+			(expectedSqlPart != "" && !strings.Contains(existingSQL, expectedSqlPart)) {
 			// Needs upgrade - drop it
 			if _, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
 				return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)
 			}
 
 			// Recreate immediately
-			var createSql string
+			var createSQL string
 			switch tableName {
 			case "media_fts":
-				createSql = `CREATE VIRTUAL TABLE media_fts USING fts5(
+				createSQL = `CREATE VIRTUAL TABLE media_fts USING fts5(
 					path,
 					path_tokenized,
 					title,
@@ -817,7 +817,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 					detail = 'full'
 				);`
 			case "captions_fts":
-				createSql = `CREATE VIRTUAL TABLE captions_fts USING fts5(
+				createSQL = `CREATE VIRTUAL TABLE captions_fts USING fts5(
 					media_path UNINDEXED,
 					text,
 					content='captions',
@@ -826,7 +826,7 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 				);`
 			}
 
-			if _, err := db.Exec(createSql); err != nil {
+			if _, err := db.Exec(createSQL); err != nil {
 				return fmt.Errorf("failed to recreate %s: %w", tableName, err)
 			}
 

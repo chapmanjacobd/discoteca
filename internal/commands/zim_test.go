@@ -24,18 +24,18 @@ func TestKiwixManager_findAvailablePort(t *testing.T) {
 		usedPorts: make(map[int]bool),
 	}
 
-	t.Run("returns first available port starting from KIWIX_PORT_START", func(t *testing.T) {
+	t.Run("returns first available port starting from KiwixPortStart", func(t *testing.T) {
 		port := manager.findAvailablePort()
-		if port != KIWIX_PORT_START {
-			t.Errorf("Expected port %d, got %d", KIWIX_PORT_START, port)
+		if port != KiwixPortStart {
+			t.Errorf("Expected port %d, got %d", KiwixPortStart, port)
 		}
 	})
 
 	t.Run("skips used ports in usedPorts map", func(t *testing.T) {
-		manager.usedPorts[KIWIX_PORT_START] = true
+		manager.usedPorts[KiwixPortStart] = true
 		port := manager.findAvailablePort()
-		if port != KIWIX_PORT_START+1 {
-			t.Errorf("Expected port %d, got %d", KIWIX_PORT_START+1, port)
+		if port != KiwixPortStart+1 {
+			t.Errorf("Expected port %d, got %d", KiwixPortStart+1, port)
 		}
 	})
 
@@ -48,11 +48,11 @@ func TestKiwixManager_findAvailablePort(t *testing.T) {
 		}
 		// Mark first 5 ports as used
 		for i := range 5 {
-			manager2.usedPorts[KIWIX_PORT_START+i] = true
+			manager2.usedPorts[KiwixPortStart+i] = true
 		}
 		port := manager2.findAvailablePort()
-		if port != KIWIX_PORT_START+5 {
-			t.Errorf("Expected port %d, got %d", KIWIX_PORT_START+5, port)
+		if port != KiwixPortStart+5 {
+			t.Errorf("Expected port %d, got %d", KiwixPortStart+5, port)
 		}
 	})
 
@@ -63,7 +63,7 @@ func TestKiwixManager_findAvailablePort(t *testing.T) {
 		}
 		// Mark all 100 ports as used
 		for i := range 100 {
-			manager3.usedPorts[KIWIX_PORT_START+i] = true
+			manager3.usedPorts[KiwixPortStart+i] = true
 		}
 		port := manager3.findAvailablePort()
 		if port != 0 {
@@ -109,7 +109,7 @@ func TestKiwixManager_ensureKiwixServing(t *testing.T) {
 		// First call - would try to start kiwix-serve (which may not be installed)
 		// We're testing the caching logic, so we'll mock the instance directly
 		manager.instances[zimPath] = &KiwixInstance{
-			Port:     KIWIX_PORT_START + 10,
+			Port:     KiwixPortStart + 10,
 			ZimPath:  zimPath,
 			LastUsed: time.Now(),
 		}
@@ -119,8 +119,8 @@ func TestKiwixManager_ensureKiwixServing(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		if port != KIWIX_PORT_START+10 {
-			t.Errorf("Expected cached port %d, got %d", KIWIX_PORT_START+10, port)
+		if port != KiwixPortStart+10 {
+			t.Errorf("Expected cached port %d, got %d", KiwixPortStart+10, port)
 		}
 	})
 
@@ -133,7 +133,7 @@ func TestKiwixManager_ensureKiwixServing(t *testing.T) {
 
 		oldTime := time.Now().Add(-1 * time.Hour)
 		manager.instances[zimPath] = &KiwixInstance{
-			Port:     KIWIX_PORT_START + 11,
+			Port:     KiwixPortStart + 11,
 			ZimPath:  zimPath,
 			LastUsed: oldTime,
 		}
@@ -165,7 +165,7 @@ func TestKiwixManager_cleanupOldInstances(t *testing.T) {
 
 	// Add old instance (should be cleaned up)
 	oldTime := time.Now().Add(-31 * time.Minute)
-	port1 := KIWIX_PORT_START + 20
+	port1 := KiwixPortStart + 20
 	manager.instances[zimPath1] = &KiwixInstance{
 		Port:     port1,
 		ZimPath:  zimPath1,
@@ -175,7 +175,7 @@ func TestKiwixManager_cleanupOldInstances(t *testing.T) {
 
 	// Add recent instance (should NOT be cleaned up)
 	recentTime := time.Now().Add(-10 * time.Minute)
-	port2 := KIWIX_PORT_START + 21
+	port2 := KiwixPortStart + 21
 	manager.instances[zimPath2] = &KiwixInstance{
 		Port:     port2,
 		ZimPath:  zimPath2,
@@ -220,7 +220,7 @@ func TestKiwixManager_concurrentAccess(t *testing.T) {
 
 	// Pre-populate with a mock instance
 	manager.instances[zimPath] = &KiwixInstance{
-		Port:     KIWIX_PORT_START + 30,
+		Port:     KiwixPortStart + 30,
 		ZimPath:  zimPath,
 		LastUsed: time.Now(),
 	}
@@ -236,8 +236,8 @@ func TestKiwixManager_concurrentAccess(t *testing.T) {
 				errors <- err
 				return
 			}
-			if port != KIWIX_PORT_START+30 {
-				errors <- fmt.Errorf("expected port %d, got %d", KIWIX_PORT_START+30, port)
+			if port != KiwixPortStart+30 {
+				errors <- fmt.Errorf("expected port %d, got %d", KiwixPortStart+30, port)
 			}
 		})
 	}
@@ -476,7 +476,7 @@ func TestGetKiwixContentURL(t *testing.T) {
 func TestIsPortAvailable(t *testing.T) {
 	t.Run("returns true for available port", func(t *testing.T) {
 		// Find a truly available port
-		port := KIWIX_PORT_START + 100
+		port := KiwixPortStart + 100
 		if !isPortAvailable(port) {
 			t.Errorf("Expected port %d to be available", port)
 		}
@@ -528,7 +528,7 @@ func TestWaitForKiwixReady(t *testing.T) {
 
 	t.Run("returns error for unavailable server", func(t *testing.T) {
 		// Use a port that's definitely not running anything
-		port := KIWIX_PORT_START + 999
+		port := KiwixPortStart + 999
 
 		start := time.Now()
 		err := waitForKiwixReady(context.Background(), port, 100*time.Millisecond)

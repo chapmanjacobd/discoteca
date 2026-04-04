@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"errors"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -33,7 +32,7 @@ func isHealthy(dbPath string) bool {
 	// isHealthy needs to be able to open its own connection regardless of global pool limits.
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		slog.Debug("Health check: failed to open connection", "path", dbPath, "error", err)
+		Log.Debug("Health check: failed to open connection", "path", dbPath, "error", err)
 		return false
 	}
 	defer db.Close()
@@ -44,7 +43,7 @@ func isHealthy(dbPath string) bool {
 	// 1. Thorough integrity check
 	rows, err := db.Query("PRAGMA integrity_check")
 	if err != nil {
-		slog.Debug("Health check: PRAGMA integrity_check query failed", "error", err)
+		Log.Debug("Health check: PRAGMA integrity_check query failed", "error", err)
 		return false
 	}
 	defer rows.Close()
@@ -53,18 +52,18 @@ func isHealthy(dbPath string) bool {
 	for rows.Next() {
 		var res string
 		if err := rows.Scan(&res); err != nil {
-			slog.Debug("Health check: failed to scan integrity row", "error", err)
+			Log.Debug("Health check: failed to scan integrity row", "error", err)
 			return false
 		}
 		if res == "ok" {
 			foundOk = true
 		} else {
-			slog.Warn("Health check: integrity error found", "msg", res)
+			Log.Warn("Health check: integrity error found", "msg", res)
 			return false
 		}
 	}
 	if !foundOk {
-		slog.Debug("Health check: integrity_check returned no rows")
+		Log.Debug("Health check: integrity_check returned no rows")
 		return false
 	}
 
@@ -72,7 +71,7 @@ func isHealthy(dbPath string) bool {
 	row := db.QueryRow("SELECT name FROM sqlite_master LIMIT 1")
 	var name string
 	if err := row.Scan(&name); err != nil && err != sql.ErrNoRows {
-		slog.Debug("Health check: schema check failed", "error", err)
+		Log.Debug("Health check: schema check failed", "error", err)
 		return false
 	}
 
@@ -81,7 +80,7 @@ func isHealthy(dbPath string) bool {
 	// This ensures that indices and FTS triggers are actually working.
 	tx, err := db.Begin()
 	if err != nil {
-		slog.Debug("Health check: failed to begin transaction", "error", err)
+		Log.Debug("Health check: failed to begin transaction", "error", err)
 		return false
 	}
 	defer tx.Rollback()
@@ -97,7 +96,7 @@ func isHealthy(dbPath string) bool {
 		// If we only update a non-existent row, the triggers will not fire and we won't detect FTS corruption.
 		if somePath != "" {
 			if _, err = tx.Exec("UPDATE media SET time_deleted = time_deleted WHERE path = ?", somePath); err != nil {
-				slog.Warn(
+				Log.Warn(
 					"Health check: write consistency check (media triggers) failed",
 					"path",
 					somePath,
@@ -108,14 +107,14 @@ func isHealthy(dbPath string) bool {
 			}
 		} else {
 			if _, err = tx.Exec("UPDATE media SET time_deleted = time_deleted WHERE rowid = -1"); err != nil {
-				slog.Warn("Health check: write consistency check (media) failed", "error", err)
+				Log.Warn("Health check: write consistency check (media) failed", "error", err)
 				return false
 			}
 		}
 	} else {
 		// Generic write check for non-media DBs (e.g. in tests)
 		if _, err = tx.Exec("CREATE TEMP TABLE _health_check(id INT); DROP TABLE _health_check;"); err != nil {
-			slog.Debug("Health check: generic write check failed", "error", err)
+			Log.Debug("Health check: generic write check failed", "error", err)
 			return false
 		}
 	}
@@ -125,7 +124,7 @@ func isHealthy(dbPath string) bool {
 	_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").Scan(&hasFTS)
 	if hasFTS {
 		if _, err = tx.Exec("SELECT rowid FROM media_fts LIMIT 1"); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			slog.Warn("Health check: FTS check (media_fts) failed", "error", err)
+			Log.Warn("Health check: FTS check (media_fts) failed", "error", err)
 			return false
 		}
 	}

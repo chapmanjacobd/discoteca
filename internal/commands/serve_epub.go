@@ -117,8 +117,8 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 
 	// If it's a folder, check if it has index.html (HTML folder)
 	if fileInfo.IsDir() {
-		indexHtmlPath := filepath.Join(docPath, "index.html")
-		if _, err := os.Stat(indexHtmlPath); err != nil {
+		indexHTMLPath := filepath.Join(docPath, "index.html")
+		if _, err := os.Stat(indexHTMLPath); err != nil {
 			slog.Error("Folder does not contain index.html", "path", docPath, "error", err)
 			http.Error(w, "Folder does not contain index.html", http.StatusNotFound)
 			return

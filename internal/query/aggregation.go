@@ -801,10 +801,11 @@ func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFla
 			// For now, we'll use the same logic - this may need adjustment based on exact semantics
 			if _, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
 				return strconv.ParseInt(s, 10, 64)
-			}); err == nil {
-				// We don't have folder count here, so skip this filter at this level
-				// It will be applied post-aggregation
+			}); err != nil {
+				// Invalid range filter, skip
 			}
+			// We don't have folder count here, so skip this filter at this level
+			// It will be applied post-aggregation
 		}
 
 		// Apply FolderSizes filter

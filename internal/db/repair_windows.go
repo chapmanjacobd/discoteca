@@ -4,7 +4,6 @@ package db
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"time"
@@ -29,7 +28,7 @@ func Repair(dbPath string) error {
 	// 3. Check if it's actually corrupt
 	if isHealthy(dbPath) {
 		if waitDuration > 1*time.Millisecond {
-			slog.Info("Database was repaired by another goroutine", "path", dbPath, "wait_time", waitDuration.String())
+			Log.Info("Database was repaired by another goroutine", "path", dbPath, "wait_time", waitDuration.String())
 		}
 		return nil
 	}
@@ -42,7 +41,7 @@ func Repair(dbPath string) error {
 			return fmt.Errorf("sqlite3 command line tool is required for auto-repair. Please ensure it is in your PATH")
 		}
 	}
-	slog.Debug("Using sqlite3 tool", "path", sqliteTool)
+	Log.Debug("Using sqlite3 tool", "path", sqliteTool)
 
 	// 4. Backup
 	now := time.Now().Unix()
@@ -64,32 +63,32 @@ func Repair(dbPath string) error {
 	}
 
 	// 5. Recover
-	slog.Info("Attempting recovery...", "from", corruptMain, "to", dbPath)
+	Log.Info("Attempting recovery...", "from", corruptMain, "to", dbPath)
 
 	quotedCorrupt := shellquote.ShellQuote(corruptMain)
 	quotedDB := shellquote.ShellQuote(dbPath)
 
 	// Fallback to .dump first as it preserves schema better if it works
 	repairStepSuccess := false
-	slog.Info("Trying recovery via .dump...")
+	Log.Info("Trying recovery via .dump...")
 	// On Windows, use cmd /c and redirection instead of bash
 	cmdDump := exec.Command("cmd", "/c", fmt.Sprintf("%s %s \".dump\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB))
 	out, err := cmdDump.CombinedOutput()
 	if err == nil {
-		slog.Info("Initial recovery step successful via .dump")
+		Log.Info("Initial recovery step successful via .dump")
 		repairStepSuccess = true
 	} else {
-		slog.Warn(".dump failed, falling back to .recover", "error", err, "output", string(out))
+		Log.Warn(".dump failed, falling back to .recover", "error", err, "output", string(out))
 		os.Remove(dbPath)
 
 		// Fallback to .recover
 		cmdRecover := exec.Command("cmd", "/c", fmt.Sprintf("%s %s \".recover\" \".quit\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB))
 		out, err = cmdRecover.CombinedOutput()
 		if err == nil {
-			slog.Info("Initial recovery step successful via .recover")
+			Log.Info("Initial recovery step successful via .recover")
 			repairStepSuccess = true
 		} else {
-			slog.Error("Recovery failed completely", "error", err, "output", string(out))
+			Log.Error("Recovery failed completely", "error", err, "output", string(out))
 		}
 	}
 
@@ -97,11 +96,11 @@ func Repair(dbPath string) error {
 		// 6. Polish and Verify
 		db, err := Connect(dbPath)
 		if err != nil {
-			slog.Error("Failed to open recovered database for polish", "error", err)
+			Log.Error("Failed to open recovered database for polish", "error", err)
 		} else {
-			slog.Info("Running final polish (REINDEX, FTS REBUILD, VACUUM)...")
+			Log.Info("Running final polish (REINDEX, FTS REBUILD, VACUUM)...")
 			if _, err := db.Exec("REINDEX;"); err != nil {
-				slog.Warn("REINDEX failed", "error", err)
+				Log.Warn("REINDEX failed", "error", err)
 			}
 
 			// FTS rebuilding is critical as corruption often hides here
@@ -109,7 +108,7 @@ func Repair(dbPath string) error {
 			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").Scan(&hasMediaFTS)
 			if hasMediaFTS {
 				if _, err := db.Exec("INSERT INTO media_fts(media_fts) VALUES('rebuild');"); err != nil {
-					slog.Warn("media_fts rebuild failed", "error", err)
+					Log.Warn("media_fts rebuild failed", "error", err)
 				}
 			}
 
@@ -117,18 +116,18 @@ func Repair(dbPath string) error {
 			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").Scan(&hasCaptionsFTS)
 			if hasCaptionsFTS {
 				if _, err := db.Exec("INSERT INTO captions_fts(captions_fts) VALUES('rebuild');"); err != nil {
-					slog.Warn("captions_fts rebuild failed", "error", err)
+					Log.Warn("captions_fts rebuild failed", "error", err)
 				}
 			}
 
 			if _, err := db.Exec("VACUUM;"); err != nil {
-				slog.Error("Final VACUUM failed", "error", err)
+				Log.Error("Final VACUUM failed", "error", err)
 			}
 			db.Close()
 		}
 
 		if isHealthy(dbPath) {
-			slog.Info("Database repair and polish successful")
+			Log.Info("Database repair and polish successful")
 			os.RemoveAll(backupDir)
 			return nil
 		}

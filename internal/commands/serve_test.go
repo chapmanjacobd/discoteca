@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -30,7 +31,7 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
@@ -77,7 +78,7 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
@@ -123,7 +124,7 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	// 2. Delete the file from filesystem
 	os.Remove(f1)

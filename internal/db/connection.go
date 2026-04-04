@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"log/slog"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -189,7 +188,7 @@ type traceStmt struct {
 
 func (s *traceStmt) Exec(args []driver.Value) (driver.Result, error) {
 	start := time.Now()
-	//lint:ignore SA1019 Fallback for backward compatibility with older drivers
+	//nolint:staticcheck // SA1019: Fallback for backward compatibility with older drivers
 	result, err := s.Stmt.Exec(args)
 	logSlowQuery(s.query, valuesToNamedValues(args), start)
 	return result, err
@@ -209,7 +208,7 @@ func (s *traceStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (
 
 func (s *traceStmt) Query(args []driver.Value) (driver.Rows, error) {
 	start := time.Now()
-	//lint:ignore SA1019 Fallback for backward compatibility with older drivers
+	//nolint:staticcheck // SA1019: Fallback for backward compatibility with older drivers
 	rows, err := s.Stmt.Query(args)
 	if err != nil {
 		return nil, err
@@ -253,7 +252,7 @@ func logSlowQuery(query string, args []driver.NamedValue, startTime time.Time) {
 
 	duration := time.Since(startTime)
 	if duration > SlowQueryThreshold {
-		slog.Debug("slow query detected",
+		Log.Debug("slow query detected",
 			"duration_ms", duration.Milliseconds(),
 			"query", query,
 			"args", args,

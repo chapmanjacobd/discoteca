@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -69,7 +68,7 @@ func NeedsRefresh(db *sql.DB, interval time.Duration) (bool, error) {
 
 // RefreshFolderStats rebuilds the folder_stats materialized view
 func RefreshFolderStats(db *sql.DB) error {
-	slog.Info("Refreshing folder_stats materialized view...")
+	Log.Info("Refreshing folder_stats materialized view...")
 	start := time.Now()
 
 	// Clear existing data
@@ -92,13 +91,13 @@ func RefreshFolderStats(db *sql.DB) error {
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
 
-	slog.Info("folder_stats refresh completed", "duration", time.Since(start))
+	Log.Info("folder_stats refresh completed", "duration", time.Since(start))
 	return nil
 }
 
 // RebuildFTS rebuilds the FTS index
 func RebuildFTS(db *sql.DB, dbPath string) error {
-	slog.Info("Rebuilding FTS index...", "db", dbPath)
+	Log.Info("Rebuilding FTS index...", "db", dbPath)
 	start := time.Now()
 
 	// Check if FTS table exists
@@ -110,7 +109,7 @@ func RebuildFTS(db *sql.DB, dbPath string) error {
 		)
 	`).Scan(&exists)
 	if err != nil || !exists {
-		slog.Debug("FTS table does not exist, skipping rebuild", "db", dbPath)
+		Log.Debug("FTS table does not exist, skipping rebuild", "db", dbPath)
 		return nil
 	}
 
@@ -130,7 +129,7 @@ func RebuildFTS(db *sql.DB, dbPath string) error {
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
 
-	slog.Info("FTS rebuild completed", "duration", time.Since(start))
+	Log.Info("FTS rebuild completed", "duration", time.Since(start))
 	return nil
 }
 
@@ -146,20 +145,20 @@ func RunMaintenance(db *sql.DB, config MaintenanceConfig, dbPath string) error {
 		return nil
 	}
 
-	slog.Info("Running scheduled maintenance...", "db", dbPath, "interval", config.RefreshInterval)
+	Log.Info("Running scheduled maintenance...", "db", dbPath, "interval", config.RefreshInterval)
 
 	// Run maintenance tasks
 	if err := RefreshFolderStats(db); err != nil {
-		slog.Error("Failed to refresh folder_stats", "db", dbPath, "error", err)
+		Log.Error("Failed to refresh folder_stats", "db", dbPath, "error", err)
 		// Continue with FTS rebuild even if folder_stats fails
 	}
 
 	if err := RebuildFTS(db, dbPath); err != nil {
-		slog.Error("Failed to rebuild FTS", "db", dbPath, "error", err)
+		Log.Error("Failed to rebuild FTS", "db", dbPath, "error", err)
 		return err
 	}
 
-	slog.Info("Scheduled maintenance completed", "db", dbPath)
+	Log.Info("Scheduled maintenance completed", "db", dbPath)
 	return nil
 }
 

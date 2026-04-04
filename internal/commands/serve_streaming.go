@@ -21,7 +21,7 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
-const HLS_SEGMENT_DURATION = 10
+const HlsSegmentDuration = 10
 
 func (c *ServeCmd) handleTranscode(
 	w http.ResponseWriter,
@@ -581,8 +581,8 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Default: handle video/audio with ffmpeg
 	var args []string
-	is_video := mediaType == "video"
-	if is_video {
+	isVideo := mediaType == "video"
+	if isVideo {
 		args = []string{
 			"-ss",
 			"25",
@@ -615,7 +615,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	thumb, err := cmd.Output()
 
 	// If video thumbnail is too dark, try seeking further (e.g. 60 seconds later)
-	if err == nil && is_video && utils.IsImageTooDark(thumb, 0.05) {
+	if err == nil && isVideo && utils.IsImageTooDark(thumb, 0.05) {
 		slog.Debug("Thumbnail too dark, retrying further in the video", "path", path)
 		retryArgs := []string{
 			"-ss",
@@ -701,7 +701,7 @@ func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	playlist := utils.GenerateHLSPlaylist(path, duration, HLS_SEGMENT_DURATION)
+	playlist := utils.GenerateHLSPlaylist(path, duration, HlsSegmentDuration)
 	fmt.Fprint(w, playlist)
 }
 
@@ -726,7 +726,7 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime := float64(index * HLS_SEGMENT_DURATION)
+	startTime := float64(index * HlsSegmentDuration)
 
 	// Check if we have ffmpeg
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
@@ -757,7 +757,7 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	strategy := utils.GetTranscodeStrategy(m)
 	slog.Debug("HLS Segment request", "index", index, "start", startTime, "strategy", strategy, "path", path)
 
-	args := utils.GetHLSSegmentArgs(path, startTime, HLS_SEGMENT_DURATION, strategy)
+	args := utils.GetHLSSegmentArgs(path, startTime, HlsSegmentDuration, strategy)
 
 	// Skip logging for segments to avoid spam
 	// slog.Debug("HLS Segment", "index", index, "start", startTime)

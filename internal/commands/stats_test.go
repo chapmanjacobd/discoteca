@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -17,14 +18,14 @@ func TestStatsCmd_Run(t *testing.T) {
 		Args: []string{fixture.DBPath, fixture.TempDir},
 	}
 	addCmd.AfterApply()
-	addCmd.Run(nil)
+	addCmd.Run(context.Background())
 
 	t.Run("DefaultStats", func(t *testing.T) {
 		cmd := &StatsCmd{
 			Facet:     "watched",
 			Databases: []string{fixture.DBPath},
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("StatsCmd failed: %v", err)
 		}
 	})
@@ -35,7 +36,7 @@ func TestStatsCmd_Run(t *testing.T) {
 			Facet:        "watched",
 			Databases:    []string{fixture.DBPath},
 		}
-		if err := cmd.Run(nil); err != nil {
+		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("StatsCmd failed: %v", err)
 		}
 	})
