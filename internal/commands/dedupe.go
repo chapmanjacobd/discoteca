@@ -49,14 +49,14 @@ func (c *DedupeCmd) Run(ctx context.Context) error {
 			return err
 		}
 		// Micro-migration for dedupe
-		err = db.EnsureColumns(sqlDB, []db.ColumnDef{
+		err = db.EnsureColumns(ctx, sqlDB, []db.ColumnDef{
 			{Table: "media", Column: "is_deduped", Schema: "INTEGER DEFAULT 0"},
 		})
 		if err != nil {
 			sqlDB.Close()
 			return err
 		}
-		err = db.EnsureIndexes(sqlDB, []db.IndexDef{
+		err = db.EnsureIndexes(ctx, sqlDB, []db.IndexDef{
 			{
 				Name: "idx_media_is_deduped",
 				SQL:  "CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1",

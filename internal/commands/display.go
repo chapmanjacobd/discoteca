@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -111,7 +112,7 @@ func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.
 	return nil
 }
 
-func InteractiveDecision(flags models.GlobalFlags, m models.MediaWithDB) error {
+func InteractiveDecision(ctx context.Context, flags models.GlobalFlags, m models.MediaWithDB) error {
 	fmt.Printf("\nAction for %s?\n", m.Path)
 	fmt.Println("  [k]eep (default)")
 	fmt.Println("  [d]elete")
@@ -129,7 +130,7 @@ func InteractiveDecision(flags models.GlobalFlags, m models.MediaWithDB) error {
 	case "t":
 		return utils.Trash(flags, m.Path)
 	case "m":
-		return MarkDeletedItem(m)
+		return MarkDeletedItem(ctx, m)
 	case "q":
 		return ErrUserQuit
 	}

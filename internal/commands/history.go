@@ -76,7 +76,7 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 					}
 				}
 				if len(paths) > 0 {
-					if err := history.DeleteHistoryByPaths(dbPath, paths); err != nil {
+					if err := history.DeleteHistoryByPaths(ctx, dbPath, paths); err != nil {
 						return err
 					}
 				}

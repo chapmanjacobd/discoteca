@@ -200,7 +200,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 
 		// Interactive decision
 		if c.Interactive {
-			if err := InteractiveDecision(flags, m); err != nil {
+			if err := InteractiveDecision(ctx, flags, m); err != nil {
 				if errors.Is(err, ErrUserQuit) {
 					return nil
 				}
@@ -370,7 +370,7 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 		}
 
 		if c.Interactive {
-			if err := InteractiveDecision(flags, m); err != nil {
+			if err := InteractiveDecision(ctx, flags, m); err != nil {
 				if errors.Is(err, ErrUserQuit) {
 					return nil
 				}

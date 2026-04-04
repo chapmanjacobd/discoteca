@@ -153,10 +153,10 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 			// Refresh folder_stats and FTS if files were marked as deleted
 			if missingCount > 0 {
 				models.Log.Info("Refreshing folder_stats and FTS after marking files deleted...")
-				if err := db.RefreshFolderStats(sqlDB); err != nil {
+				if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
 					models.Log.Error("Failed to refresh folder_stats", "error", err)
 				}
-				if err := db.RebuildFTS(sqlDB, dbPath); err != nil {
+				if err := db.RebuildFTS(ctx, sqlDB, dbPath); err != nil {
 					models.Log.Error("Failed to rebuild FTS", "error", err)
 				}
 			}

@@ -558,14 +558,14 @@ func (c *AddCmd) Run(ctx context.Context) error {
 
 	fmt.Println()
 	// Refresh FTS after adding new media (always needed for search)
-	if err := db.RebuildFTS(sqlDB, dbPath); err != nil {
+	if err := db.RebuildFTS(ctx, sqlDB, dbPath); err != nil {
 		models.Log.Error("Failed to rebuild FTS", "error", err)
 	}
 
 	// Only refresh folder_stats if new files were added
 	if newFilesAdded {
 		models.Log.Info("Refreshing folder_stats after adding new files...")
-		if err := db.RefreshFolderStats(sqlDB); err != nil {
+		if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
 			models.Log.Error("Failed to refresh folder_stats", "error", err)
 		}
 	} else {

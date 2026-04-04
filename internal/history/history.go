@@ -106,8 +106,8 @@ func UpdateHistorySimple(ctx context.Context, dbPath string, paths []string, pla
 }
 
 // DeleteHistoryByPaths removes history records for specified paths
-func DeleteHistoryByPaths(dbPath string, paths []string) error {
-	sqlDB, err := db.Connect(dbPath)
+func DeleteHistoryByPaths(ctx context.Context, dbPath string, paths []string) error {
+	sqlDB, err := db.Connect(ctx, dbPath)
 	if err != nil {
 		return err
 	}
