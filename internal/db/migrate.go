@@ -37,7 +37,10 @@ func renameMediaTypeColumn(db *sql.DB) error {
 	}
 
 	if hasType && !hasMediaType {
-		if _, err := db.ExecContext(context.Background(), "ALTER TABLE media RENAME COLUMN type TO media_type"); err != nil {
+		if _, err := db.ExecContext(
+			context.Background(),
+			"ALTER TABLE media RENAME COLUMN type TO media_type",
+		); err != nil {
 			return fmt.Errorf("failed to rename column type to media_type: %w", err)
 		}
 	}
@@ -99,7 +102,8 @@ func isVersionGreaterOrEqual(v, target string) bool {
 func isTableStrict(db *sql.DB, tableName string) bool {
 	var isStrict bool
 	// PRAGMA table_list is available since 3.37.0
-	err := db.QueryRowContext(context.Background(), fmt.Sprintf("SELECT strict FROM pragma_table_list WHERE name='%s'", tableName)).Scan(&isStrict)
+	err := db.QueryRowContext(context.Background(), fmt.Sprintf("SELECT strict FROM pragma_table_list WHERE name='%s'", tableName)).
+		Scan(&isStrict)
 	if err != nil {
 		// If table_list is not available or table not found, assume not strict
 		return false
@@ -134,7 +138,10 @@ func migrateToStrict(db *sql.DB, tableName, createSQL string) error {
 
 	// Rename old table
 	oldTable := tableName + "_old_strict"
-	if _, err := tx.ExecContext(context.Background(), fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tableName, oldTable)); err != nil {
+	if _, err := tx.ExecContext(
+		context.Background(),
+		fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tableName, oldTable),
+	); err != nil {
 		return fmt.Errorf("failed to rename %s: %w", tableName, err)
 	}
 
@@ -252,10 +259,13 @@ func convertHistoryMediaID(db *sql.DB) error {
 
 	// Copy data, converting media_id to media_path via JOIN
 	// LEFT JOIN to preserve history entries even if media was deleted
-	if _, err := tx.ExecContext(context.Background(), `INSERT INTO history_tmp (id, media_path, time_played, playhead, done)
+	if _, err := tx.ExecContext(
+		context.Background(),
+		`INSERT INTO history_tmp (id, media_path, time_played, playhead, done)
 		SELECT h.id, COALESCE(m.path, ''), h.time_played, h.playhead, h.done
 		FROM history h
-		LEFT JOIN media m ON h.media_id = m.rowid`); err != nil {
+		LEFT JOIN media m ON h.media_id = m.rowid`,
+	); err != nil {
 		return fmt.Errorf("failed to convert history media_id to media_path: %w", err)
 	}
 
@@ -747,7 +757,8 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 			}
 			// Check if table exists before migrating
 			var exists int
-			err := db.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", m.name).Scan(&exists)
+			err := db.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", m.name).
+				Scan(&exists)
 			if err != nil {
 				return err
 			}
@@ -807,14 +818,18 @@ func migrateTables(db *sql.DB, hasStrict bool) error {
 	}
 
 	// Create index on folder_stats for faster depth-based queries
-	if _, err := db.ExecContext(context.Background(), `CREATE INDEX IF NOT EXISTS idx_folder_stats_depth ON folder_stats(depth)`); err != nil {
+	if _, err := db.ExecContext(
+		context.Background(),
+		`CREATE INDEX IF NOT EXISTS idx_folder_stats_depth ON folder_stats(depth)`,
+	); err != nil {
 		return fmt.Errorf("failed to create folder_stats index: %w", err)
 	}
 
 	// Check if FTS tables need upgrade to trigram or new columns
 	upgradeFTS := func(tableName, expectedSqlPart string) error {
 		var existingSQL string
-		err := db.QueryRowContext(context.Background(), "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&existingSQL)
+		err := db.QueryRowContext(context.Background(), "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).
+			Scan(&existingSQL)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				return nil // Table doesn't exist

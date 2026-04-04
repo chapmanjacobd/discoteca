@@ -486,10 +486,6 @@ linters:
       - path: web/
         linters:
           - gochecknoglobals
-      # Exclude gochecknoinits for web package
-      - path: web/
-        linters:
-          - gochecknoinits
       # Exclude gochecknoinits for utils/consts.go (map initialization)
       - path: internal/utils/consts.go
         linters:

@@ -165,7 +165,7 @@ func MarkDeletedItem(m models.MediaWithDB) error {
 	defer sqlDB.Close()
 
 	now := time.Now().Unix()
-	_, err = sqlDB.Exec("UPDATE media SET time_deleted = ? WHERE path = ?", now, m.Path)
+	_, err = sqlDB.ExecContext(context.Background(), "UPDATE media SET time_deleted = ? WHERE path = ?", now, m.Path)
 	if err == nil {
 		fmt.Printf("Marked deleted: %s\n", m.Path)
 	}
@@ -192,7 +192,7 @@ func MoveMediaItem(destDir string, m models.MediaWithDB) error {
 		return err
 	}
 	defer sqlDB.Close()
-	_, err = sqlDB.Exec("UPDATE media SET path = ? WHERE path = ?", dest, m.Path)
+	_, err = sqlDB.ExecContext(context.Background(), "UPDATE media SET path = ? WHERE path = ?", dest, m.Path)
 	if err == nil {
 		fmt.Printf("Moved: %s -> %s\n", m.Path, dest)
 	}

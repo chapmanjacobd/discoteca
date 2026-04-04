@@ -75,7 +75,7 @@ func (c *CategorizeCmd) CompileRegexes() map[string][]*regexp.Regexp {
 		if err != nil {
 			continue
 		}
-		rows, err := sqlDB.Query("SELECT category, keyword FROM custom_keywords")
+		rows, err := sqlDB.QueryContext(context.Background(), "SELECT category, keyword FROM custom_keywords")
 		if err == nil {
 			for rows.Next() {
 				var cat, kw string
