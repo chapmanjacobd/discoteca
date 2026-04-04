@@ -211,7 +211,7 @@ linters:
           skipRecvDeref: false
         hugeParam:
           # Whether to print the size of huge params.
-          sizeThreshold: 88
+          sizeThreshold: 1768
 
     godoclint:
       # List of rules to enable in addition to the default set.

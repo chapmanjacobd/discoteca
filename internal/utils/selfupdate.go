@@ -22,13 +22,13 @@ import (
 
 // MaybeUpdate will check for an update and install it immediately.
 // Returns true if an update was successfully installed and the process should restart.
-func MaybeUpdate() bool {
-	url := checkUpdate()
+func MaybeUpdate(ctx context.Context) bool {
+	url := checkUpdate(ctx)
 	if url == "" {
 		return false
 	}
 
-	return doUpdate(url)
+	return doUpdate(ctx, url)
 }
 
 // AutoUpdate will periodically check for an update and install it.
@@ -48,7 +48,7 @@ func AutoUpdate() {
 
 		for {
 			if shouldCheckProbabilistically() {
-				if MaybeUpdate() {
+				if MaybeUpdate(context.Background()) {
 					os.Exit(0)
 				}
 			}
@@ -105,14 +105,14 @@ func whichFilename() string {
 	}
 }
 
-func doUpdate(url string) bool {
+func doUpdate(ctx context.Context, url string) bool {
 	curp, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(Stderr,
 			"couldn't get os.Executable:", err)
 		return false
 	}
-	if doUpdateAt(curp, url) {
+	if doUpdateAt(ctx, curp, url) {
 		fmt.Fprintln(Stderr,
 			"new version downloaded, exiting to get restarted")
 		return true
@@ -155,8 +155,8 @@ func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	return nil
 }
 
-func doUpdateAt(curp, url string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+func doUpdateAt(ctx context.Context, curp, url string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	newp := curp + ".new"
@@ -238,8 +238,8 @@ func doUpdateAt(curp, url string) bool {
 
 var githubAPIURL = "https://api.github.com/repos/chapmanjacobd/discoteca/releases/latest"
 
-func checkUpdate() string {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+func checkUpdate(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubAPIURL, nil)

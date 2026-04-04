@@ -9,6 +9,6 @@ import (
 type UpdateCmd struct{}
 
 func (c *UpdateCmd) Run(ctx context.Context) error {
-	utils.MaybeUpdate()
+	utils.MaybeUpdate(ctx)
 	return nil
 }

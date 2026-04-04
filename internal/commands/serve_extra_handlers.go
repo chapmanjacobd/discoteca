@@ -31,7 +31,7 @@ func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Reque
 
 	for _, dbPath := range c.Databases {
 		c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			rows, err := sqlDB.QueryContext(r.Context(), "SELECT category, keyword FROM custom_keywords")
+			rows, err := sqlDB.QueryContext(ctx, "SELECT category, keyword FROM custom_keywords")
 			if err != nil {
 				return nil
 			}

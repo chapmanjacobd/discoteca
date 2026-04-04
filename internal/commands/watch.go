@@ -194,7 +194,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 			return nil
 		}
 
-		if err := RunExitCommand(flags, exitCode, m.Path); err != nil {
+		if err := RunExitCommand(ctx, flags, exitCode, m.Path); err != nil {
 			models.Log.Error("Exit command failed", "code", exitCode, "error", err)
 		}
 
@@ -365,7 +365,7 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 			return nil
 		}
 
-		if err := RunExitCommand(flags, exitCode, m.Path); err != nil {
+		if err := RunExitCommand(ctx, flags, exitCode, m.Path); err != nil {
 			models.Log.Error("Exit command failed", "code", exitCode, "error", err)
 		}
 

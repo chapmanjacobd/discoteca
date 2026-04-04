@@ -92,7 +92,7 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 	return nil
 }
 
-func RunExitCommand(flags models.GlobalFlags, exitCode int, path string) error {
+func RunExitCommand(ctx context.Context, flags models.GlobalFlags, exitCode int, path string) error {
 	var cmdStr string
 	switch exitCode {
 	case 0:
@@ -141,7 +141,7 @@ func RunExitCommand(flags models.GlobalFlags, exitCode int, path string) error {
 	cmdStr = strings.ReplaceAll(cmdStr, "{}", shellquote.ShellQuote(path))
 
 	models.Log.Info("Running exit command", "code", exitCode, "command", cmdStr)
-	cmd := exec.CommandContext(context.Background(), "bash", "-c", cmdStr)
+	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
