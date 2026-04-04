@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"math"
 	"path/filepath"
 	"slices"
@@ -759,7 +758,7 @@ func getMatchingParentDirs(
 
 	rows, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		slog.Error("Parent directory query failed", "error", err)
+		models.Log.Error("Parent directory query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -959,7 +958,7 @@ func aggregateDUWithBasicFilters(
 
 	rows, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		slog.Error("DU aggregation query failed", "error", err)
+		models.Log.Error("DU aggregation query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -1116,7 +1115,7 @@ func aggregateDUWithParentFilter(
 
 	rows, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		slog.Error("DU aggregation with parent filter failed", "error", err)
+		models.Log.Error("DU aggregation with parent filter failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()

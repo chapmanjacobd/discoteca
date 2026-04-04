@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,7 +68,7 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 				return err
 			}
 			absCheckPaths = append(absCheckPaths, absRoot)
-			slog.Info("Scanning filesystem for presence set", "path", absRoot)
+			models.Log.Info("Scanning filesystem for presence set", "path", absRoot)
 			err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, err error) error {
 				if err == nil && !d.IsDir() {
 					absPath, _ := filepath.Abs(path)
@@ -96,7 +95,7 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 			return err
 		}
 
-		slog.Info("Checking files", "count", len(allMedia), "database", dbPath)
+		models.Log.Info("Checking files", "count", len(allMedia), "database", dbPath)
 
 		missingCount := 0
 		now := time.Now().Unix()
@@ -133,12 +132,12 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 			if isMissing {
 				missingCount++
 				if !c.DryRun {
-					slog.Debug("Marking missing file as deleted", "path", m.Path)
+					models.Log.Debug("Marking missing file as deleted", "path", m.Path)
 					if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
 						TimeDeleted: sql.NullInt64{Int64: now, Valid: true},
 						Path:        m.Path,
 					}); err != nil {
-						slog.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
+						models.Log.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
 					}
 				} else {
 					fmt.Printf("[Dry-run] Missing: %s\n", m.Path)
@@ -147,18 +146,18 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 		}
 
 		if c.DryRun {
-			slog.Info("Check complete (dry-run)", "missing", missingCount)
+			models.Log.Info("Check complete (dry-run)", "missing", missingCount)
 		} else {
-			slog.Info("Check complete", "marked_deleted", missingCount)
+			models.Log.Info("Check complete", "marked_deleted", missingCount)
 
 			// Refresh folder_stats and FTS if files were marked as deleted
 			if missingCount > 0 {
-				slog.Info("Refreshing folder_stats and FTS after marking files deleted...")
+				models.Log.Info("Refreshing folder_stats and FTS after marking files deleted...")
 				if err := db.RefreshFolderStats(sqlDB); err != nil {
-					slog.Error("Failed to refresh folder_stats", "error", err)
+					models.Log.Error("Failed to refresh folder_stats", "error", err)
 				}
 				if err := db.RebuildFTS(sqlDB, dbPath); err != nil {
-					slog.Error("Failed to rebuild FTS", "error", err)
+					models.Log.Error("Failed to rebuild FTS", "error", err)
 				}
 			}
 		}

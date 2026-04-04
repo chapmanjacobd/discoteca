@@ -1,8 +1,8 @@
 package commands
 
 import (
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,7 +35,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 			pathParts = unescaped
 		}
 	}
-	slog.Info("handleEpubConvert request", "pathParts", pathParts)
+	models.Log.Info("handleEpubConvert request", "pathParts", pathParts)
 
 	if pathParts == "" || pathParts == "/" {
 		http.Error(w, "Path required", http.StatusBadRequest)
@@ -88,7 +88,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 		docPath = "/" + docPath
 	}
 
-	slog.Info("Final resolved paths", "docPath", docPath, "assetPath", assetPath)
+	models.Log.Info("Final resolved paths", "docPath", docPath, "assetPath", assetPath)
 
 	// Verify file access
 	if c.isPathBlocklisted(docPath) {
@@ -106,7 +106,7 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 		}
 		folderInfo, folderErr := os.Stat(folderPath)
 		if folderErr != nil || !folderInfo.IsDir() {
-			slog.Error("EPUB file not found on disk", "path", docPath, "error", err)
+			models.Log.Error("EPUB file not found on disk", "path", docPath, "error", err)
 			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
@@ -119,12 +119,12 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	if fileInfo.IsDir() {
 		indexHTMLPath := filepath.Join(docPath, "index.html")
 		if _, err := os.Stat(indexHTMLPath); err != nil {
-			slog.Error("Folder does not contain index.html", "path", docPath, "error", err)
+			models.Log.Error("Folder does not contain index.html", "path", docPath, "error", err)
 			http.Error(w, "Folder does not contain index.html", http.StatusNotFound)
 			return
 		}
 		// Serve HTML folder directly without calibre conversion
-		slog.Info("Serving HTML folder", "path", docPath)
+		models.Log.Info("Serving HTML folder", "path", docPath)
 		if assetPath != "" {
 			// Serve asset from HTML folder
 			assetFile := filepath.Join(docPath, assetPath)
@@ -143,21 +143,21 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	// Skip calibre conversion for PDFs
 	ext := strings.ToLower(filepath.Ext(docPath))
 	if ext == ".pdf" {
-		slog.Debug("Serving PDF directly", "path", docPath)
+		models.Log.Debug("Serving PDF directly", "path", docPath)
 		http.ServeFile(w, r, docPath)
 		return
 	}
 
 	// Convert EPUB/text to HTML
-	slog.Info("Converting document to HTML", "path", docPath)
+	models.Log.Info("Converting document to HTML", "path", docPath)
 	htmlDir, err := utils.ConvertEpubToOEB(docPath)
 	if err != nil {
-		slog.Error("EPUB conversion failed", "path", docPath, "error", err)
+		models.Log.Error("EPUB conversion failed", "path", docPath, "error", err)
 		http.Error(w, fmt.Sprintf("Conversion failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	slog.Debug("Conversion successful", "htmlDir", htmlDir)
+	models.Log.Debug("Conversion successful", "htmlDir", htmlDir)
 
 	// If asset path specified, serve that file from HTML directory
 	if assetPath != "" {
@@ -166,13 +166,13 @@ func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid asset path", http.StatusBadRequest)
 			return
 		}
-		slog.Debug("Serving asset", "assetFile", assetFile)
+		models.Log.Debug("Serving asset", "assetFile", assetFile)
 		serveFileWithMimeType(w, r, assetFile)
 		return
 	}
 
 	// Serve wrapper HTML with TOC header
-	slog.Info("Serving converted HTML with TOC", "htmlDir", htmlDir)
+	models.Log.Info("Serving converted HTML with TOC", "htmlDir", htmlDir)
 	serveHTMLWithTOC(w, r, htmlDir, docPath)
 }
 

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -189,7 +188,7 @@ func GetPlayhead(flags models.GlobalFlags, path string, startTime time.Time, exi
 		}
 	}
 
-	slog.Debug("playhead check", "mpv", mpvPlayhead, "session", pythonPlayhead, "path", path)
+	models.Log.Debug("playhead check", "mpv", mpvPlayhead, "session", pythonPlayhead, "path", path)
 
 	// Prefer mpv playhead if it's within bounds
 	if mpvPlayhead > 0 && (mediaDuration <= 0 || mpvPlayhead <= mediaDuration) {

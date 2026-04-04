@@ -1,10 +1,10 @@
 package commands
 
 import (
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -90,7 +90,7 @@ func (c *ServeCmd) handlePlaylistReorder(w http.ResponseWriter, r *http.Request)
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to gather playlist items", "db", dbPath, "error", err)
+			models.Log.Error("Failed to gather playlist items", "db", dbPath, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -160,7 +160,7 @@ func (c *ServeCmd) handlePlaylistReorder(w http.ResponseWriter, r *http.Request)
 			})
 		})
 		if err != nil {
-			slog.Error("Failed to update track number", "db", item.DBPath, "path", item.MediaPath, "error", err)
+			models.Log.Error("Failed to update track number", "db", item.DBPath, "path", item.MediaPath, "error", err)
 		}
 	}
 

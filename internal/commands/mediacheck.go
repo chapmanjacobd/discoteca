@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"time"
 
@@ -60,7 +59,7 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 				var err error
 				corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 				if err != nil {
-					slog.Error("Full scan failed", "path", m.Path, "error", err)
+					models.Log.Error("Full scan failed", "path", m.Path, "error", err)
 					corruption = 0.5
 				}
 			} else {
@@ -71,7 +70,7 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 					corruption = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
 
 					if fullScanThreshold > 0 && corruption >= fullScanThreshold {
-						slog.Info(
+						models.Log.Info(
 							"Corruption threshold reached, performing full scan",
 							"path",
 							m.Path,
@@ -81,7 +80,7 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 						var err error
 						corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 						if err != nil {
-							slog.Error("Full scan failed", "path", m.Path, "error", err)
+							models.Log.Error("Full scan failed", "path", m.Path, "error", err)
 						}
 					}
 				}
@@ -90,10 +89,10 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 			fmt.Printf("%.2f%%\t%s\n", corruption*100, m.Path)
 
 			if deleteThreshold > 0 && corruption >= deleteThreshold {
-				slog.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
+				models.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
 				if !flags.Simulate {
 					if err := os.Remove(m.Path); err != nil {
-						slog.Error("Failed to delete corrupt file", "path", m.Path, "error", err)
+						models.Log.Error("Failed to delete corrupt file", "path", m.Path, "error", err)
 					} else {
 						// Mark as deleted in DB
 						sqlDB, err := db.Connect(m.DB)

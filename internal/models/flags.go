@@ -1,12 +1,14 @@
 package models
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // CoreFlags are essential flags shared across most binaries/commands
@@ -321,13 +323,19 @@ func (m *MergeFlags) AfterApply() error {
 	return nil
 }
 
-var Log *utils.Logger
+// Logger interface for structured logging
+type Logger interface {
+	Info(msg string, args ...any)
+	Debug(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
+	With(args ...any) Logger
+}
+
+var Log Logger
 
 func SetupLogging(verbosity int) {
-	if Log == nil {
-		Log = utils.NewDefaultLogger(&slog.LevelVar{}, os.Stderr)
-	}
-	
+	// Create handler with appropriate level
 	var level slog.Level
 	if verbosity >= 2 {
 		level = slog.LevelDebug
@@ -339,8 +347,75 @@ func SetupLogging(verbosity int) {
 		level = slog.LevelWarn
 	}
 	
-	// Recreate logger with new level
-	Log = utils.NewDefaultLogger(level, os.Stderr)
+	// Use a simple slog logger as default
+	handler := &plainHandler{
+		level: level,
+		out:   os.Stderr,
+	}
+	logger := slog.New(handler)
+	Log = &slogLogger{logger}
+}
+
+// plainHandler implements slog.Handler with plain output
+type plainHandler struct {
+	level slog.Level
+	out   io.Writer
+	attrs []slog.Attr
+}
+
+func (h *plainHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.level
+}
+
+func (h *plainHandler) Handle(_ context.Context, r slog.Record) error {
+	var msg strings.Builder
+	msg.WriteString(r.Message)
+	for _, a := range h.attrs {
+		fmt.Fprintf(&msg, "\n    %s=%v", a.Key, a.Value.Any())
+	}
+	r.Attrs(func(a slog.Attr) bool {
+		fmt.Fprintf(&msg, "\n    %s=%v", a.Key, a.Value.Any())
+		return true
+	})
+	_, err := fmt.Fprintln(h.out, msg.String())
+	return err
+}
+
+func (h *plainHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &plainHandler{
+		level: h.level,
+		out:   h.out,
+		attrs: append(h.attrs, attrs...),
+	}
+}
+
+func (h *plainHandler) WithGroup(_ string) slog.Handler {
+	return h
+}
+
+// slogLogger wraps slog.Logger and implements Logger interface
+type slogLogger struct {
+	*slog.Logger
+}
+
+func (l *slogLogger) Info(msg string, args ...any) {
+	l.Logger.Info(msg, args...)
+}
+
+func (l *slogLogger) Debug(msg string, args ...any) {
+	l.Logger.Debug(msg, args...)
+}
+
+func (l *slogLogger) Warn(msg string, args ...any) {
+	l.Logger.Warn(msg, args...)
+}
+
+func (l *slogLogger) Error(msg string, args ...any) {
+	l.Logger.Error(msg, args...)
+}
+
+func (l *slogLogger) With(args ...any) Logger {
+	return &slogLogger{l.Logger.With(args...)}
 }
 
 // BuildQueryGlobalFlags constructs GlobalFlags for query-based commands

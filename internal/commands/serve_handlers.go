@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os/exec"
 	"sort"
@@ -95,7 +94,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 					if err2 != nil {
 						return err2
 					}
-					slog.Info(
+					models.Log.Info(
 						"Fetched captions",
 						"count",
 						len(rawRows),
@@ -196,7 +195,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 			if err != nil {
-				slog.Error("Caption fetch failed", "db", dbPath, "error", err)
+				models.Log.Error("Caption fetch failed", "db", dbPath, "error", err)
 			}
 		}
 
@@ -248,7 +247,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	media, err := query.MediaQuery(ctx, dbs, flags)
 	if err != nil {
-		slog.Error("Query failed", "dbs", dbs, "error", err)
+		models.Log.Error("Query failed", "dbs", dbs, "error", err)
 		sendError(w, http.StatusInternalServerError, "Query failed: "+err.Error())
 		return
 	}
@@ -297,14 +296,14 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 			if err != nil {
-				slog.Error("Caption enrichment failed", "db", dbPath, "error", err)
+				models.Log.Error("Caption enrichment failed", "db", dbPath, "error", err)
 			}
 		}
 	}
 
 	totalCount, err := query.MediaQueryCount(ctx, dbs, flags)
 	if err != nil {
-		slog.Error("Count query failed", "dbs", dbs, "error", err)
+		models.Log.Error("Count query failed", "dbs", dbs, "error", err)
 		// Don't fail the whole request just for count
 	}
 
@@ -329,7 +328,7 @@ func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Warn("SortMediaWithExpansion failed", "error", err)
+			models.Log.Warn("SortMediaWithExpansion failed", "error", err)
 			// Fall back to regular sorting
 			query.SortMedia(media, flags)
 		}
@@ -377,18 +376,18 @@ func (c *ServeCmd) handlePlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !strings.HasPrefix(req.Path, "http") && !utils.FileExists(req.Path) {
-		slog.Warn("File not found, marking as deleted in databases", "path", req.Path)
+		models.Log.Warn("File not found, marking as deleted in databases", "path", req.Path)
 		c.markDeletedInAllDBs(r.Context(), req.Path, true)
 		sendError(w, http.StatusNotFound, "File not found")
 		return
 	}
 
 	// Trigger local playback
-	slog.Info("Playing", "path", req.Path)
+	models.Log.Info("Playing", "path", req.Path)
 	cmd := exec.Command("mpv", req.Path)
 	// We run it in background and don't wait for it
 	if err := cmd.Start(); err != nil {
-		slog.Error("Failed to start mpv", "error", err)
+		models.Log.Error("Failed to start mpv", "error", err)
 		sendError(w, http.StatusInternalServerError, "Failed to start playback: "+err.Error())
 		return
 	}
@@ -414,7 +413,7 @@ func (c *ServeCmd) markDeletedInAllDBs(ctx context.Context, path string, deleted
 			})
 		})
 		if err != nil {
-			slog.Error("Failed to mark file as deleted", "db", dbPath, "path", path, "error", err)
+			models.Log.Error("Failed to mark file as deleted", "db", dbPath, "path", path, "error", err)
 		}
 	}
 }
@@ -484,7 +483,7 @@ func (c *ServeCmd) handleProgress(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to update progress", "db", dbPath, "error", err)
+			models.Log.Error("Failed to update progress", "db", dbPath, "error", err)
 		}
 	}
 
@@ -526,7 +525,7 @@ func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to mark as unplayed", "db", dbPath, "error", err)
+			models.Log.Error("Failed to mark as unplayed", "db", dbPath, "error", err)
 		}
 	}
 
@@ -570,7 +569,7 @@ func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to mark as played", "db", dbPath, "error", err)
+			models.Log.Error("Failed to mark as played", "db", dbPath, "error", err)
 		}
 	}
 
@@ -612,7 +611,7 @@ func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to update rating", "db", dbPath, "error", err)
+			models.Log.Error("Failed to update rating", "db", dbPath, "error", err)
 		}
 	}
 
@@ -863,7 +862,7 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("handleLs DB query failed", "db", dbPath, "error", err)
+			models.Log.Error("handleLs DB query failed", "db", dbPath, "error", err)
 		}
 	}
 
@@ -933,7 +932,7 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	// Resolve percentile-based filters (e.g., p10-90) to absolute values
 	resolvedFlags, err := query.ResolvePercentileFlags(r.Context(), dbs, flags)
 	if err != nil {
-		slog.Warn("Failed to resolve percentile filters", "error", err)
+		models.Log.Warn("Failed to resolve percentile filters", "error", err)
 		resolvedFlags = flags
 	}
 
@@ -946,7 +945,7 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		resolvedFlags,
 	)
 	if err != nil {
-		slog.Error("Failed to fetch DU folders", "error", err)
+		models.Log.Error("Failed to fetch DU folders", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
 		return
 	}
@@ -960,7 +959,7 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 		resolvedFlags,
 	)
 	if err != nil {
-		slog.Error("Failed to fetch DU files", "error", err)
+		models.Log.Error("Failed to fetch DU files", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
 		return
 	}
@@ -1111,7 +1110,7 @@ func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
 
 	allMedia, err := query.MediaQuery(r.Context(), c.Databases, flags)
 	if err != nil {
-		slog.Error("Failed to fetch media for episodes", "error", err)
+		models.Log.Error("Failed to fetch media for episodes", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
 		return
 	}

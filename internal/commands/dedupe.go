@@ -3,7 +3,6 @@ package commands
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"math"
 	"os"
 	"os/exec"
@@ -152,7 +151,7 @@ func (c *DedupeCmd) Run() error {
 	}
 
 	if len(finalCandidates) == 0 {
-		slog.Info("No duplicates found")
+		models.Log.Info("No duplicates found")
 		return nil
 	}
 
@@ -173,7 +172,7 @@ func (c *DedupeCmd) Run() error {
 		}
 	}
 
-	slog.Info("Deleting duplicates...")
+	models.Log.Info("Deleting duplicates...")
 	for _, d := range finalCandidates {
 		if c.DedupeCmd != "" {
 			quotedDup := shellquote.ShellQuote(d.DuplicatePath)
@@ -234,7 +233,7 @@ func (c *DedupeCmd) Run() error {
 
 				if len(dbErrs) > 0 {
 					for _, dbErr := range dbErrs {
-						slog.Error("Database update failed during deduplication", "db", dbPath, "error", dbErr)
+						models.Log.Error("Database update failed during deduplication", "db", dbPath, "error", dbErr)
 					}
 				}
 			}
@@ -379,7 +378,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 		if err := rows.Scan(&size, &count); err != nil {
 			return nil, err
 		}
-		slog.Debug("Found potential duplicates by size", "size", size, "count", count)
+		models.Log.Debug("Found potential duplicates by size", "size", size, "count", count)
 
 		gRows, err := sqlDB.Query(
 			"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0",
@@ -419,7 +418,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 					p.fasthash = h
 					// Save hash back to database
 					if _, err := sqlDB.Exec("UPDATE media SET fasthash = ? WHERE path = ?", h, p.path); err != nil {
-						slog.Warn("Failed to save fasthash to database", "path", p.path, "error", err)
+						models.Log.Warn("Failed to save fasthash to database", "path", p.path, "error", err)
 					}
 				} else {
 					continue // Skip files that can't be hashed
@@ -443,7 +442,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 						p.sha256 = h
 						// Save hash back to database
 						if _, err := sqlDB.Exec("UPDATE media SET sha256 = ? WHERE path = ?", h, p.path); err != nil {
-							slog.Warn("Failed to save sha256 to database", "path", p.path, "error", err)
+							models.Log.Warn("Failed to save sha256 to database", "path", p.path, "error", err)
 						}
 					} else {
 						continue
@@ -471,7 +470,7 @@ func (c *DedupeCmd) getFSDuplicates(dbPath string, flags models.GlobalFlags) ([]
 				for _, dup := range sPaths[1:] {
 					// Mark keep file as deduped
 					if _, err := sqlDB.Exec("UPDATE media SET is_deduped = 1 WHERE path = ?", keep); err != nil {
-						slog.Warn("Failed to mark file as deduped", "path", keep, "error", err)
+						models.Log.Warn("Failed to mark file as deduped", "path", keep, "error", err)
 					}
 					dups = append(dups, DedupeDuplicate{
 						KeepPath:      keep,

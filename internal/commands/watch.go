@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -149,7 +148,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 			// CastPlay handles its own loop, but we want to handle one by one for Cable?
 			// For now, let's just call it with the single item
 			if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, false); err != nil {
-				slog.Error("Cast failed", "path", m.Path, "error", err)
+				models.Log.Error("Cast failed", "path", m.Path, "error", err)
 			}
 			continue
 		}
@@ -176,7 +175,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
 
 			if err := history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false); err != nil {
-				slog.Error("Warning: failed to update history", "path", m.Path, "error", err)
+				models.Log.Error("Warning: failed to update history", "path", m.Path, "error", err)
 			}
 		}
 
@@ -196,7 +195,7 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 		}
 
 		if err := RunExitCommand(flags, exitCode, m.Path); err != nil {
-			slog.Error("Exit command failed", "code", exitCode, "error", err)
+			models.Log.Error("Exit command failed", "code", exitCode, "error", err)
 		}
 
 		// Interactive decision
@@ -205,13 +204,13 @@ func (c *WatchCmd) Run(ctx context.Context) error {
 				if errors.Is(err, ErrUserQuit) {
 					return nil
 				}
-				slog.Error("Interactive decision failed", "error", err)
+				models.Log.Error("Interactive decision failed", "error", err)
 			}
 		}
 
 		// Execute post action for this item
 		if err := ExecutePostAction(flags, []models.MediaWithDB{m}); err != nil {
-			slog.Error("Post action failed", "path", m.Path, "error", err)
+			models.Log.Error("Post action failed", "path", m.Path, "error", err)
 		}
 
 		if i < len(media)-1 && c.InterdimensionalCable > 0 {
@@ -329,7 +328,7 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 
 		if c.Cast {
 			if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, true); err != nil {
-				slog.Error("Cast failed", "path", m.Path, "error", err)
+				models.Log.Error("Cast failed", "path", m.Path, "error", err)
 			}
 			continue
 		}
@@ -367,7 +366,7 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 		}
 
 		if err := RunExitCommand(flags, exitCode, m.Path); err != nil {
-			slog.Error("Exit command failed", "code", exitCode, "error", err)
+			models.Log.Error("Exit command failed", "code", exitCode, "error", err)
 		}
 
 		if c.Interactive {
@@ -375,12 +374,12 @@ func (c *ListenCmd) Run(ctx context.Context) error {
 				if errors.Is(err, ErrUserQuit) {
 					return nil
 				}
-				slog.Error("Interactive decision failed", "error", err)
+				models.Log.Error("Interactive decision failed", "error", err)
 			}
 		}
 
 		if err := ExecutePostAction(flags, []models.MediaWithDB{m}); err != nil {
-			slog.Error("Post action failed", "path", m.Path, "error", err)
+			models.Log.Error("Post action failed", "path", m.Path, "error", err)
 		}
 	}
 

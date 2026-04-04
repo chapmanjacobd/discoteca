@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,11 +50,11 @@ func ExecutePostAction(flags models.GlobalFlags, media []models.MediaWithDB) err
 
 	for _, m := range media {
 		if flags.ActionLimit > 0 && count >= flags.ActionLimit {
-			slog.Info("Action limit reached", "limit", flags.ActionLimit)
+			models.Log.Info("Action limit reached", "limit", flags.ActionLimit)
 			break
 		}
 		if sizeLimit > 0 && totalSize >= sizeLimit {
-			slog.Info("Action size limit reached", "limit", flags.ActionSize)
+			models.Log.Info("Action size limit reached", "limit", flags.ActionSize)
 			break
 		}
 
@@ -79,7 +78,7 @@ func ExecutePostAction(flags models.GlobalFlags, media []models.MediaWithDB) err
 		}
 
 		if err != nil {
-			slog.Error("Post-action failed", "path", m.Path, "error", err)
+			models.Log.Error("Post-action failed", "path", m.Path, "error", err)
 		} else {
 			count++
 			totalSize += size
@@ -141,7 +140,7 @@ func RunExitCommand(flags models.GlobalFlags, exitCode int, path string) error {
 	// Replace {} with path
 	cmdStr = strings.ReplaceAll(cmdStr, "{}", shellquote.ShellQuote(path))
 
-	slog.Info("Running exit command", "code", exitCode, "command", cmdStr)
+	models.Log.Info("Running exit command", "code", exitCode, "command", cmdStr)
 	cmd := exec.Command("bash", "-c", cmdStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -228,7 +227,7 @@ func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.Medi
 			continue
 		}
 
-		slog.Info("Casting", "path", m.Path)
+		models.Log.Info("Casting", "path", m.Path)
 		os.WriteFile(utils.GetCattNowPlayingFile(), []byte(m.Path), 0o644)
 
 		args := []string{"catt"}
@@ -278,7 +277,7 @@ func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.Medi
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				slog.Error("catt failed", "error", err)
+				models.Log.Error("catt failed", "error", err)
 			}
 		}
 

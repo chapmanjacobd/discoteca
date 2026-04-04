@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"database/sql"
-	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -110,7 +109,7 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch categories", "db", dbPath, "error", err)
+			models.Log.Error("Failed to fetch categories", "db", dbPath, "error", err)
 		}
 	}
 
@@ -168,7 +167,7 @@ func (c *ServeCmd) handleGenres(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch genres", "db", dbPath, "error", err)
+			models.Log.Error("Failed to fetch genres", "db", dbPath, "error", err)
 			continue
 		}
 	}
@@ -206,7 +205,7 @@ func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch ratings", "db", dbPath, "error", err)
+			models.Log.Error("Failed to fetch ratings", "db", dbPath, "error", err)
 			sendError(w, http.StatusInternalServerError, "Failed to fetch ratings")
 			return
 		}
@@ -245,7 +244,7 @@ func (c *ServeCmd) handleLanguages(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch languages", "db", dbPath, "error", err)
+			models.Log.Error("Failed to fetch languages", "db", dbPath, "error", err)
 			continue
 		}
 	}
@@ -308,7 +307,7 @@ func (c *ServeCmd) getCaptionsWithContext(
 	for _, path := range paths {
 		captions, err := queries.GetCaptionsForMedia(ctx, path)
 		if err != nil {
-			slog.Warn("Failed to get captions for media", "path", path, "error", err)
+			models.Log.Warn("Failed to get captions for media", "path", path, "error", err)
 			continue
 		}
 		allCaptions = append(allCaptions, captions...)

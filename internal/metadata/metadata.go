@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"archive/zip"
 	"bufio"
 	"context"
@@ -9,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -138,7 +138,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 			if utils.ComicExtensionMap[ext] && opts.OCR {
 				captions, err := extractImageTextFromComicArchive(path, opts.OCREngine)
 				if err != nil {
-					slog.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
+					models.Log.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
 				} else {
 					result.Captions = captions
 				}
@@ -146,7 +146,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 				// Extract full text from document if requested (non-comic documents)
 				captions, err := extractDocumentText(path)
 				if err != nil {
-					slog.Warn("Document text extraction failed", "path", path, "error", err)
+					models.Log.Warn("Document text extraction failed", "path", path, "error", err)
 				} else {
 					result.Captions = captions
 				}
@@ -160,7 +160,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 	if mediaType == "image" && opts.OCR {
 		captions, err := extractImageText(path, opts.OCREngine)
 		if err != nil {
-			slog.Warn("Image OCR extraction failed", "path", path, "error", err)
+			models.Log.Warn("Image OCR extraction failed", "path", path, "error", err)
 		} else {
 			result.Captions = captions
 		}
@@ -170,7 +170,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 	if opts.SpeechRecognition && (mediaType == "audio" || mediaType == "video") {
 		captions, err := extractSpeechToText(path, opts.SpeechRecEngine)
 		if err != nil {
-			slog.Warn("Speech recognition failed", "path", path, "error", err)
+			models.Log.Warn("Speech recognition failed", "path", path, "error", err)
 		} else {
 			result.Captions = append(result.Captions, captions...)
 		}
@@ -226,7 +226,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 						stat.Size(),
 						ext,
 					); shouldOverride {
-						slog.Debug("Replacing suspiciously low duration with format-specific estimate",
+						models.Log.Debug("Replacing suspiciously low duration with format-specific estimate",
 							"path", path, "reported", duration, "estimated", int64(estimated),
 							"bitrate", utils.GetEstimatedBitrate(ext))
 						duration = int64(estimated)
@@ -373,13 +373,13 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 				})
 			}
 		} else {
-			slog.Debug("ffprobe returned invalid JSON", "path", path, "output", string(output))
+			models.Log.Debug("ffprobe returned invalid JSON", "path", path, "output", string(output))
 		}
 	} else {
 		// If ffprobe fails, it might be a corrupted file or non-media file
 		// We already have some basic info from os.Stat and extension
 		// Don't estimate duration - leave it as zero/null
-		slog.Debug("ffprobe failed to extract metadata (empty output)", "path", path)
+		models.Log.Debug("ffprobe failed to extract metadata (empty output)", "path", path)
 	}
 
 	params.VideoCodecs = utils.ToNullString(utils.Combine(vCodecs))
@@ -630,7 +630,7 @@ func extractImageText(path, engine string) ([]db.InsertCaptionParams, error) {
 	// Convert image to PNG if it's in a format that OCR engines might struggle with
 	convertedPath, err := convertImageForOCR(path)
 	if err != nil {
-		slog.Warn("Image conversion failed, using original", "path", path, "error", err)
+		models.Log.Warn("Image conversion failed, using original", "path", path, "error", err)
 		convertedPath = path
 	}
 	if convertedPath != path {
@@ -1060,7 +1060,7 @@ func processComicPage(
 ) ([]db.InsertCaptionParams, error) {
 	rc, err := r.File[imgFile.idx].Open()
 	if err != nil {
-		slog.Warn("Failed to open image in archive", "archive", archivePath, "image", imgFile.name, "error", err)
+		models.Log.Warn("Failed to open image in archive", "archive", archivePath, "image", imgFile.name, "error", err)
 		return nil, err
 	}
 	defer rc.Close()
@@ -1068,7 +1068,7 @@ func processComicPage(
 	// Extract image to temp file for OCR processing
 	tmpFile, err := os.CreateTemp("", "comic-ocr-*.img")
 	if err != nil {
-		slog.Warn("Failed to create temp file for OCR", "error", err)
+		models.Log.Warn("Failed to create temp file for OCR", "error", err)
 		return nil, err
 	}
 	tmpPath := tmpFile.Name()
@@ -1076,14 +1076,14 @@ func processComicPage(
 	defer tmpFile.Close()
 
 	if _, err := io.Copy(tmpFile, rc); err != nil {
-		slog.Warn("Failed to extract image for OCR", "error", err)
+		models.Log.Warn("Failed to extract image for OCR", "error", err)
 		return nil, err
 	}
 
 	// Run OCR on the extracted image
 	captions, err := extractImageText(tmpPath, ocrEngine)
 	if err != nil {
-		slog.Warn("OCR failed on comic page", "archive", archivePath, "page", imgFile.name, "error", err)
+		models.Log.Warn("OCR failed on comic page", "archive", archivePath, "page", imgFile.name, "error", err)
 		return nil, err
 	}
 
@@ -1158,7 +1158,7 @@ func extractImageTextFromCBR(path, ocrEngine string) ([]db.InsertCaptionParams, 
 	for pageNum, imgPath := range imageFiles {
 		captions, err := extractImageText(imgPath, ocrEngine)
 		if err != nil {
-			slog.Warn("OCR failed on comic page", "archive", path, "page", imgPath, "error", err)
+			models.Log.Warn("OCR failed on comic page", "archive", path, "page", imgPath, "error", err)
 			continue
 		}
 

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -117,23 +116,23 @@ func (c *ServeCmd) handleTranscode(
 	}
 
 	ffmpegArgs := append([]string{"-hide_banner", "-loglevel", "error"}, args...)
-	slog.Info("Streaming with transcode", "path", path, "strategy", strategy, "args", strings.Join(ffmpegArgs, " "))
+	models.Log.Info("Streaming with transcode", "path", path, "strategy", strategy, "args", strings.Join(ffmpegArgs, " "))
 
 	cmd := exec.CommandContext(r.Context(), "ffmpeg", ffmpegArgs...)
 	cmd.Stdout = w
 
 	if err := cmd.Start(); err != nil {
-		slog.Error("Failed to start ffmpeg", "path", path, "error", err)
+		models.Log.Error("Failed to start ffmpeg", "path", path, "error", err)
 		http.Error(w, fmt.Sprintf("Unplayable: ffmpeg failed to start: %v", err), http.StatusUnsupportedMediaType)
 		return
 	}
 
 	if err := cmd.Wait(); err != nil {
 		if r.Context().Err() == nil {
-			slog.Error("ffmpeg failed", "path", path, "error", err)
+			models.Log.Error("ffmpeg failed", "path", path, "error", err)
 			http.Error(w, fmt.Sprintf("Unplayable: ffmpeg failed: %v", err), http.StatusUnsupportedMediaType)
 		} else {
-			slog.Debug("ffmpeg finished (client disconnected)", "path", path)
+			models.Log.Debug("ffmpeg finished (client disconnected)", "path", path)
 		}
 	}
 }
@@ -145,7 +144,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Debug("handleSubtitles request", "path", path, "index", r.URL.Query().Get("index"))
+	models.Log.Debug("handleSubtitles request", "path", path, "index", r.URL.Query().Get("index"))
 
 	// Verify path or siblings and check subtitle_count for optimization
 	found := false
@@ -194,7 +193,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			slog.Error("Database error in handleSubtitles", "db", dbPath, "error", err)
+			models.Log.Error("Database error in handleSubtitles", "db", dbPath, "error", err)
 		}
 	}
 
@@ -204,7 +203,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !utils.FileExists(path) {
-		slog.Warn("File not found on disk, marking as deleted in databases", "path", path)
+		models.Log.Warn("File not found on disk, marking as deleted in databases", "path", path)
 		c.markDeletedInAllDBs(r.Context(), path, true)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
@@ -225,7 +224,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 					if strings.ToLower(filepath.Ext(sub)) == "."+requestedExt {
 						path = sub
 						ext = strings.ToLower(filepath.Ext(path))
-						slog.Debug(
+						models.Log.Debug(
 							"Found matching sidecar for media file",
 							"media",
 							r.URL.Query().Get("path"),
@@ -239,7 +238,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 				if ext != "."+requestedExt && len(sidecars) > 0 {
 					path = sidecars[0]
 					ext = strings.ToLower(filepath.Ext(path))
-					slog.Debug(
+					models.Log.Debug(
 						"Requested extension not found, using first sidecar",
 						"media",
 						r.URL.Query().Get("path"),
@@ -251,12 +250,12 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 				// Serve the first found sidecar
 				path = sidecars[0]
 				ext = strings.ToLower(filepath.Ext(path))
-				slog.Debug("Found sidecar for media file", "media", r.URL.Query().Get("path"), "sidecar", path)
+				models.Log.Debug("Found sidecar for media file", "media", r.URL.Query().Get("path"), "sidecar", path)
 			}
 		} else {
 			// Optimization: If no external sidecars found and DB says no embedded subtitles, return early
 			if !hasSubtitles {
-				slog.Debug("No subtitles found (DB check)", "path", path)
+				models.Log.Debug("No subtitles found (DB check)", "path", path)
 				http.Error(w, "No subtitles available", http.StatusNotFound)
 				return
 			}
@@ -268,7 +267,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 	if ext == ".idx" {
 		subPath := strings.TrimSuffix(path, ".idx") + ".sub"
 		if !utils.FileExists(subPath) {
-			slog.Warn("VobSub conversion requested but .sub file is missing", "idx", path)
+			models.Log.Warn("VobSub conversion requested but .sub file is missing", "idx", path)
 			http.Error(w, "Corresponding .sub file not found", http.StatusNotFound)
 			return
 		}
@@ -292,7 +291,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ffmpegArgs := append([]string{"-hide_banner", "-loglevel", "error"}, args...)
-	slog.Debug("subtitle ffmpeg command", "args", strings.Join(ffmpegArgs, " "))
+	models.Log.Debug("subtitle ffmpeg command", "args", strings.Join(ffmpegArgs, " "))
 
 	cmd := exec.CommandContext(r.Context(), "ffmpeg", ffmpegArgs...)
 
@@ -304,7 +303,7 @@ func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
 			if isImageSub || streamIndex != "" {
 				msg = "Failed to convert subtitles (image-based formats require OCR which is not yet supported for direct VTT streaming)"
 			}
-			slog.Error(msg, "path", path, "error", err, "output", string(output))
+			models.Log.Error(msg, "path", path, "error", err, "output", string(output))
 			http.Error(w, "Unplayable: subtitle conversion failed", http.StatusUnsupportedMediaType)
 		}
 		return
@@ -499,7 +498,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			slog.Error("Database error in handleThumbnail", "db", dbPath, "error", err)
+			models.Log.Error("Database error in handleThumbnail", "db", dbPath, "error", err)
 		}
 	}
 
@@ -544,7 +543,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	case ".pdf":
 		thumb, contentType, err := c.generatePDFThumbnail(path)
 		if err != nil || len(thumb) == 0 {
-			slog.Warn("PDF thumbnail generation failed", "path", path, "error", err)
+			models.Log.Warn("PDF thumbnail generation failed", "path", path, "error", err)
 			http.NotFound(w, r)
 			return
 		}
@@ -560,7 +559,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	case ".epub":
 		thumb, contentType, err := c.generateEpubThumbnail(path)
 		if err != nil || len(thumb) == 0 {
-			slog.Warn("EPUB thumbnail generation failed", "path", path, "error", err)
+			models.Log.Warn("EPUB thumbnail generation failed", "path", path, "error", err)
 			http.NotFound(w, r)
 			return
 		}
@@ -616,7 +615,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// If video thumbnail is too dark, try seeking further (e.g. 60 seconds later)
 	if err == nil && isVideo && utils.IsImageTooDark(thumb, 0.05) {
-		slog.Debug("Thumbnail too dark, retrying further in the video", "path", path)
+		models.Log.Debug("Thumbnail too dark, retrying further in the video", "path", path)
 		retryArgs := []string{
 			"-ss",
 			"85",
@@ -644,7 +643,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// For audio files without embedded art, or video files that fail, return 404
 		// Frontend will fall back to client-generated thumbnails
-		slog.Debug("Thumbnail generation failed", "path", path, "error", err)
+		models.Log.Debug("Thumbnail generation failed", "path", path, "error", err)
 		http.NotFound(w, r)
 		return
 	}
@@ -687,7 +686,7 @@ func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			slog.Error("Database error in handleHLSPlaylist", "db", dbPath, "error", err)
+			models.Log.Error("Database error in handleHLSPlaylist", "db", dbPath, "error", err)
 		}
 	}
 
@@ -720,7 +719,7 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !utils.FileExists(path) {
-		slog.Warn("File not found on disk, marking as deleted in databases", "path", path)
+		models.Log.Warn("File not found on disk, marking as deleted in databases", "path", path)
 		c.markDeletedInAllDBs(r.Context(), path, true)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
@@ -755,12 +754,12 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	strategy := utils.GetTranscodeStrategy(m)
-	slog.Debug("HLS Segment request", "index", index, "start", startTime, "strategy", strategy, "path", path)
+	models.Log.Debug("HLS Segment request", "index", index, "start", startTime, "strategy", strategy, "path", path)
 
 	args := utils.GetHLSSegmentArgs(path, startTime, HlsSegmentDuration, strategy)
 
 	// Skip logging for segments to avoid spam
-	// slog.Debug("HLS Segment", "index", index, "start", startTime)
+	// models.Log.Debug("HLS Segment", "index", index, "start", startTime)
 
 	cmd := exec.CommandContext(
 		r.Context(),
@@ -770,9 +769,9 @@ func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
 
 	if err := cmd.Run(); err != nil {
 		if r.Context().Err() != nil {
-			slog.Debug("Client disconnected during HLS transcoding", "path", path, "index", index)
+			models.Log.Debug("Client disconnected during HLS transcoding", "path", path, "index", index)
 		} else {
-			slog.Error("HLS transcoding failed", "path", path, "index", index, "error", err)
+			models.Log.Error("HLS transcoding failed", "path", path, "index", index, "error", err)
 		}
 	}
 }

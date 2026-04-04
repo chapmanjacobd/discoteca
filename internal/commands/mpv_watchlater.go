@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -101,10 +100,10 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 				timePlayed,
 				false,
 			); err != nil {
-				slog.Error("Failed to import watchlater", "path", m.Path, "error", err)
+				models.Log.Error("Failed to import watchlater", "path", m.Path, "error", err)
 			} else {
 				count++
-				slog.Debug("Imported watchlater", "path", m.Path, "playhead", playhead)
+				models.Log.Debug("Imported watchlater", "path", m.Path, "playhead", playhead)
 			}
 		}
 	}

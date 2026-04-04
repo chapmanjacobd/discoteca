@@ -1,8 +1,8 @@
 package commands
 
 import (
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -39,7 +39,7 @@ func (c *ExplodeCmd) Run(ctx *kong.Context) error {
 		}
 
 		if err := os.Symlink(discoPath, linkPath); err != nil {
-			slog.Error("Failed to create symlink", "command", cmd.Name, "path", linkPath, "error", err)
+			models.Log.Error("Failed to create symlink", "command", cmd.Name, "path", linkPath, "error", err)
 		} else {
 			fmt.Printf("Created: %s -> %s\n", linkPath, discoPath)
 		}

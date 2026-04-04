@@ -1,11 +1,11 @@
 package commands
 
 import (
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -115,7 +115,7 @@ func (c *ServeCmd) handleZimView(w http.ResponseWriter, r *http.Request) {
 
 	contentURL, err := getKiwixContentURL(r.Context(), port)
 	if err != nil {
-		slog.Warn("Could not parse ZIM catalog, using root URL", "error", err)
+		models.Log.Warn("Could not parse ZIM catalog, using root URL", "error", err)
 		contentURL = fmt.Sprintf("/api/zim/proxy/%d/", port)
 	}
 
@@ -174,7 +174,7 @@ func (m *KiwixManager) ensureKiwixServing(zimPath string) (int, error) {
 	}
 	m.usedPorts[port] = true
 
-	slog.Info("Started kiwix-serve", "port", port, "path", zimPath)
+	models.Log.Info("Started kiwix-serve", "port", port, "path", zimPath)
 	return port, nil
 }
 
@@ -195,7 +195,7 @@ func (m *KiwixManager) cleanupOldInstances() {
 		cutoff := time.Now().Add(-30 * time.Minute)
 		for path, instance := range m.instances {
 			if instance.LastUsed.Before(cutoff) {
-				slog.Info("Cleaning up unused kiwix-serve instance", "port", instance.Port, "path", path)
+				models.Log.Info("Cleaning up unused kiwix-serve instance", "port", instance.Port, "path", path)
 				if instance.Process.Process != nil {
 					instance.Process.Process.Kill()
 				}

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -118,7 +117,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 			}
 		}
 		existingMedia = nil // Allow GC
-		slog.Info("Loaded metadata cache from database", "count", len(metaCache))
+		models.Log.Info("Loaded metadata cache from database", "count", len(metaCache))
 	} else {
 		metaCache = make(map[string]meta)
 	}
@@ -131,7 +130,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 
 		absRoot, err := filepath.Abs(root)
 		if err != nil {
-			slog.Error("Failed to get absolute path", "path", root, "error", err)
+			models.Log.Error("Failed to get absolute path", "path", root, "error", err)
 			continue
 		}
 
@@ -147,7 +146,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 				// e.g., /home/xk/sync is NOT a child of /home/xk/sync/audio
 				// but /home/xk/sync/audio IS a child of /home/xk/sync
 				if strings.HasPrefix(absRootSlash, plPathSlash+"/") {
-					slog.Info("Path is child of existing scan root, skipping", "path", absRoot, "root", pl.Path.String)
+					models.Log.Info("Path is child of existing scan root, skipping", "path", absRoot, "root", pl.Path.String)
 					isChildPath = true
 					break
 				}
@@ -265,7 +264,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 		// Print scanning summary
 		fmt.Printf("\rScan of %s found %d files in %d folders%s\n", absRoot, totalFiles, totalDirs, utils.ClearSeq)
 		if skipped > 0 {
-			slog.Info("  Skipped unchanged files", "count", skipped)
+			models.Log.Info("  Skipped unchanged files", "count", skipped)
 		}
 
 		if len(toProbe) == 0 {
@@ -280,7 +279,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 			continue
 		}
 
-		slog.Info("  Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel)
+		models.Log.Info("  Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel)
 
 		// Process each media type separately for more accurate ETA
 		totalProcessed := 0
@@ -289,7 +288,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 				continue
 			}
 
-			slog.Debug("  Processing media type", "mediaType", mediaType.name, "count", len(mediaType.files))
+			models.Log.Debug("  Processing media type", "mediaType", mediaType.name, "count", len(mediaType.files))
 
 			startTime := time.Now()
 
@@ -339,7 +338,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 								ProbeImages:       c.ProbeImages,
 							})
 							if err != nil {
-								slog.Error("\n  Metadata extraction failed", "path", path, "error", err)
+								models.Log.Error("\n  Metadata extraction failed", "path", path, "error", err)
 							} else if res != nil {
 								results <- res
 							}
@@ -467,7 +466,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 
 					if len(currentBatch) >= batchSize {
 						if err := flush(); err != nil {
-							slog.Error("\n  Failed to commit batch", "error", err)
+							models.Log.Error("\n  Failed to commit batch", "error", err)
 						}
 						for i := range currentBatch {
 							currentBatch[i] = nil
@@ -528,7 +527,7 @@ func (c *AddCmd) Run(ctx context.Context) error {
 				}
 				// Final flush
 				if err := flush(); err != nil {
-					slog.Error("  Failed to commit final batch", "error", err)
+					models.Log.Error("  Failed to commit final batch", "error", err)
 				}
 				for i := range currentBatch {
 					currentBatch[i] = nil
@@ -554,17 +553,17 @@ func (c *AddCmd) Run(ctx context.Context) error {
 	fmt.Println()
 	// Refresh FTS after adding new media (always needed for search)
 	if err := db.RebuildFTS(sqlDB, dbPath); err != nil {
-		slog.Error("Failed to rebuild FTS", "error", err)
+		models.Log.Error("Failed to rebuild FTS", "error", err)
 	}
 
 	// Only refresh folder_stats if new files were added
 	if newFilesAdded {
-		slog.Info("Refreshing folder_stats after adding new files...")
+		models.Log.Info("Refreshing folder_stats after adding new files...")
 		if err := db.RefreshFolderStats(sqlDB); err != nil {
-			slog.Error("Failed to refresh folder_stats", "error", err)
+			models.Log.Error("Failed to refresh folder_stats", "error", err)
 		}
 	} else {
-		slog.Debug("No new files added, skipping folder_stats refresh")
+		models.Log.Debug("No new files added, skipping folder_stats refresh")
 	}
 
 	return nil

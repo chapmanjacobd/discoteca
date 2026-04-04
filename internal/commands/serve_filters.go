@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -169,7 +168,7 @@ func (c *ServeCmd) computeFilterBinsData(
 	}
 	if len(queryErrors) > 0 {
 		for _, qErr := range queryErrors {
-			slog.Warn("Database query failed in filter bins", "error", qErr)
+			models.Log.Warn("Database query failed in filter bins", "error", qErr)
 		}
 	}
 
@@ -373,7 +372,7 @@ func (c *ServeCmd) handleFilterBins(w http.ResponseWriter, r *http.Request) {
 	resp.MediaType = buildTypeBins(typeData.typeCounts)
 
 	// Log query info for debugging
-	slog.Info("FilterBins computed",
+	models.Log.Info("FilterBins computed",
 		"episodesOnly", episodesOnly,
 		"sizeOnly", sizeOnly,
 		"durationOnly", durationOnly,
@@ -506,7 +505,7 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 					hasData := false
 					folderStatsCount := 0
 					if err != nil {
-						slog.Debug("Parent count query failed (folder_stats may not exist)", "error", err)
+						models.Log.Debug("Parent count query failed (folder_stats may not exist)", "error", err)
 					} else {
 						defer rows.Close()
 						for rows.Next() {
@@ -524,7 +523,7 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 
 					// If folder_stats was empty or had errors, fall back to counting from media table
 					if !hasData {
-						slog.Debug("folder_stats empty, using fallback to media table")
+						models.Log.Debug("folder_stats empty, using fallback to media table")
 						parentCountQuery = `
 							SELECT path
 							FROM media
@@ -532,7 +531,7 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 						`
 						rows, err = sqlDB.QueryContext(ctx, parentCountQuery)
 						if err != nil {
-							slog.Debug("Fallback parent count query failed", "error", err)
+							models.Log.Debug("Fallback parent count query failed", "error", err)
 						} else {
 							defer rows.Close()
 							localParentCounts := make(map[string]int64)
@@ -545,7 +544,7 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 									localParentCounts[parent]++
 								}
 							}
-							slog.Debug(
+							models.Log.Debug(
 								"Fallback parent count",
 								"paths_scanned",
 								fallbackCount,
@@ -559,7 +558,7 @@ func (c *ServeCmd) computeFilterBinsDataOptimized(
 							mu.Unlock()
 						}
 					} else {
-						slog.Debug(
+						models.Log.Debug(
 							"folder_stats data",
 							"rows",
 							folderStatsCount,

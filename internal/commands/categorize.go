@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -148,7 +147,7 @@ func (c *CategorizeCmd) applyCategories(
 			if !c.Simulate {
 				sqlDB, queries, err := db.ConnectWithInit(m.DB)
 				if err != nil {
-					slog.Error("Failed to connect to database", "db", m.DB, "error", err)
+					models.Log.Error("Failed to connect to database", "db", m.DB, "error", err)
 					continue
 				}
 				err = queries.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
@@ -157,7 +156,7 @@ func (c *CategorizeCmd) applyCategories(
 				})
 				sqlDB.Close()
 				if err != nil {
-					slog.Error("Failed to update categories", "path", m.Path, "error", err)
+					models.Log.Error("Failed to update categories", "path", m.Path, "error", err)
 					continue
 				}
 			}

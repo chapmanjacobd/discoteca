@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -27,7 +26,7 @@ func sendJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		slog.Error("Failed to encode JSON response", "error", err)
+		models.Log.Error("Failed to encode JSON response", "error", err)
 	}
 }
 
@@ -288,11 +287,11 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(ctx contex
 			if err != nil {
 				// Connect error might be corruption too (e.g. invalid header)
 				if db.IsCorruptionError(err) && i < maxRetries {
-					slog.Warn("Database corruption detected on connect, attempting repair", "db", dbPath)
+					models.Log.Warn("Database corruption detected on connect, attempting repair", "db", dbPath)
 					if repErr := db.Repair(dbPath); repErr != nil {
 						return fmt.Errorf("repair failed: %w (original error: %w)", repErr, err)
 					}
-					slog.Info("Database repaired, retrying connect", "db", dbPath)
+					models.Log.Info("Database repaired, retrying connect", "db", dbPath)
 					continue
 				}
 				return err
@@ -314,16 +313,16 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(ctx contex
 				c.dbCache.Delete(dbPath)
 				sqlDB.Close()
 
-				slog.Warn("Database corruption detected on query, attempting repair", "db", dbPath)
+				models.Log.Warn("Database corruption detected on query, attempting repair", "db", dbPath)
 				if repErr := db.Repair(dbPath); repErr != nil {
-					slog.Error("Database repair failed", "db", dbPath, "error", repErr)
+					models.Log.Error("Database repair failed", "db", dbPath, "error", repErr)
 					return err // Return original error if repair fails
 				}
-				slog.Info("Database repaired, retrying operation", "db", dbPath)
+				models.Log.Info("Database repaired, retrying operation", "db", dbPath)
 				continue
 			}
 			if i > 0 {
-				slog.Error("Operation failed even after database repair", "db", dbPath, "error", err)
+				models.Log.Error("Operation failed even after database repair", "db", dbPath, "error", err)
 			}
 			return err
 		}
@@ -375,7 +374,7 @@ func (c *ServeCmd) Run() error {
 	for _, dbPath := range c.Databases {
 		sqlDB, _, err := db.ConnectWithInit(dbPath)
 		if err != nil {
-			slog.Error("Failed to connect to database on startup", "db", dbPath, "error", err)
+			models.Log.Error("Failed to connect to database on startup", "db", dbPath, "error", err)
 			continue
 		}
 		c.dbCache.Store(dbPath, sqlDB)
@@ -388,14 +387,14 @@ func (c *ServeCmd) Run() error {
 		for _, dbPath := range c.Databases {
 			if sqlDB, ok := c.dbCache.Load(dbPath); ok {
 				if err := db.RunMaintenance(sqlDB.(*sql.DB), config, dbPath); err != nil {
-					slog.Error("Maintenance failed", "db", dbPath, "error", err)
+					models.Log.Error("Maintenance failed", "db", dbPath, "error", err)
 				}
 			}
 		}
 	}()
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		slog.Warn("ffmpeg not found in PATH, on-the-fly transcoding will be unavailable")
+		models.Log.Warn("ffmpeg not found in PATH, on-the-fly transcoding will be unavailable")
 		c.hasFfmpeg = false
 	} else {
 		c.hasFfmpeg = true
@@ -405,7 +404,7 @@ func (c *ServeCmd) Run() error {
 
 	addr := fmt.Sprintf(":%d", c.Port)
 	baseURL := fmt.Sprintf("http://localhost:%d", c.Port)
-	slog.Info("Server starting", "addr", baseURL)
+	models.Log.Info("Server starting", "addr", baseURL)
 
 	// Open browser unless --no-browser is passed
 	if !c.NoBrowser {
@@ -429,7 +428,7 @@ func (c *ServeCmd) Run() error {
 				openArgs = append(openArgs, baseURL)
 				cmd := exec.Command(openCmd, openArgs...)
 				if err := cmd.Start(); err != nil {
-					slog.Debug("Failed to open browser", "error", err)
+					models.Log.Debug("Failed to open browser", "error", err)
 				}
 			}
 		}()

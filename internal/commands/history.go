@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 
 	"github.com/chapmanjacobd/discoteca/internal/history"
@@ -132,7 +131,7 @@ func (c *HistoryAddCmd) Run(ctx context.Context) error {
 
 	err := history.UpdateHistorySimple(ctx, c.Database, absPaths, 0, c.Done)
 	if err == nil {
-		slog.Info("History added", "count", len(absPaths), "database", c.Database)
+		models.Log.Info("History added", "count", len(absPaths), "database", c.Database)
 	}
 	return err
 }

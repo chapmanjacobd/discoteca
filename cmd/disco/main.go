@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,9 +50,8 @@ func main() {
 		parser.FatalIfErrorf(err)
 	}
 
-	// Configure default logger
-	// Subcommands will call models.SetupLogging to update models.Log if needed
-	models.Log = utils.NewDefaultLogger(&slog.LevelVar{}, os.Stderr)
+	// Configure default logger (Warn level by default)
+	models.SetupLogging(0)
 
 	err = ctx.Run()
 	if err != nil {

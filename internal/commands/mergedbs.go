@@ -3,7 +3,6 @@ package commands
 import (
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strings"
 
@@ -31,11 +30,11 @@ func (c *MergeDBsCmd) Run() error {
 
 	// Ensure target schema is initialized (if it's a new file)
 	if err := db.InitDB(targetConn); err != nil {
-		slog.Warn("Target DB initialization might have partially failed or it was already initialized", "error", err)
+		models.Log.Warn("Target DB initialization might have partially failed or it was already initialized", "error", err)
 	}
 
 	for _, srcPath := range c.SourceDBs {
-		slog.Info("Merging database", "src", srcPath)
+		models.Log.Info("Merging database", "src", srcPath)
 		if err := c.mergeDatabase(srcPath, targetConn); err != nil {
 			return err
 		}
@@ -60,9 +59,9 @@ func (c *MergeDBsCmd) mergeDatabase(srcPath string, targetConn *sql.DB) error {
 		if !c.shouldProcessTable(table) {
 			continue
 		}
-		slog.Info("Merging table", "table", table)
+		models.Log.Info("Merging table", "table", table)
 		if err := c.mergeTable(srcConn, targetConn, table); err != nil {
-			slog.Error("Failed to merge table", "table", table, "error", err)
+			models.Log.Error("Failed to merge table", "table", table, "error", err)
 			continue
 		}
 	}
@@ -148,7 +147,7 @@ func (c *MergeDBsCmd) mergeTable(srcConn, targetConn *sql.DB, table string) erro
 	}
 
 	if len(selectedCols) == 0 {
-		slog.Warn("No columns selected for table", "table", table)
+		models.Log.Warn("No columns selected for table", "table", table)
 		return nil
 	}
 
@@ -254,7 +253,7 @@ func (c *MergeDBsCmd) mergeTable(srcConn, targetConn *sql.DB, table string) erro
 		return err
 	}
 
-	slog.Info("Merged rows", "table", table, "count", count)
+	models.Log.Info("Merged rows", "table", table, "count", count)
 	return nil
 }
 

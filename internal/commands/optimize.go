@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,40 +22,40 @@ type OptimizeCmd struct {
 func (c *OptimizeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
-		slog.Info("Optimizing database", "path", dbPath)
+		models.Log.Info("Optimizing database", "path", dbPath)
 		sqlDB, queries, err := db.ConnectWithInit(dbPath)
 		if err != nil {
 			return err
 		}
 		defer sqlDB.Close()
 
-		slog.Info("Running VACUUM...")
+		models.Log.Info("Running VACUUM...")
 		if _, err := sqlDB.Exec("VACUUM"); err != nil {
 			return fmt.Errorf("VACUUM failed on %s: %w", dbPath, err)
 		}
 
-		slog.Info("Running ANALYZE...")
+		models.Log.Info("Running ANALYZE...")
 		if _, err := sqlDB.Exec("ANALYZE"); err != nil {
 			return fmt.Errorf("ANALYZE failed on %s: %w", dbPath, err)
 		}
 
-		slog.Info("Optimizing FTS index...")
+		models.Log.Info("Optimizing FTS index...")
 		// FTS5 optimize command
 		if _, err := sqlDB.Exec("INSERT INTO media_fts(media_fts) VALUES('optimize')"); err != nil {
-			slog.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
+			models.Log.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
 		}
 
 		if err := c.BulkMarkOptimizedExtensions(ctx, sqlDB, queries); err != nil {
-			slog.Warn("BulkMarkOptimizedExtensions failed", "path", dbPath, "error", err)
+			models.Log.Warn("BulkMarkOptimizedExtensions failed", "path", dbPath, "error", err)
 		}
 
-		slog.Info("Optimization complete", "path", dbPath)
+		models.Log.Info("Optimization complete", "path", dbPath)
 	}
 	return nil
 }
 
 func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx context.Context, sqlDB *sql.DB, _ *db.Queries) error {
-	slog.Info("Running BulkMarkOptimizedExtensions...")
+	models.Log.Info("Running BulkMarkOptimizedExtensions...")
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err

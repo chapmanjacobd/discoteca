@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,7 +64,7 @@ func SampleHashFile(path string, threads int, gap float64, chunkSize int64) (str
 			buf := make([]byte, chunkSize)
 			n, err := file.ReadAt(buf, offset)
 			if err != nil && err != io.EOF {
-				slog.Error("Read error during hashing", "path", path, "offset", offset, "error", err)
+				models.Log.Error("Read error during hashing", "path", path, "offset", offset, "error", err)
 				return
 			}
 			data := buf[:n]
@@ -382,7 +381,7 @@ func Rename(flags models.GlobalFlags, src, dst string) error {
 		fmt.Fprintf(Stdout, "rename %s %s\n", src, dst)
 		return nil
 	}
-	slog.Debug("rename", "src", src, "dst", dst)
+	models.Log.Debug("rename", "src", src, "dst", dst)
 	return os.Rename(src, dst)
 }
 
@@ -392,7 +391,7 @@ func Unlink(flags models.GlobalFlags, path string) error {
 		fmt.Fprintf(Stdout, "unlink %s\n", path)
 		return nil
 	}
-	slog.Debug("unlink", "path", path)
+	models.Log.Debug("unlink", "path", path)
 	return os.Remove(path)
 }
 
@@ -402,7 +401,7 @@ func Rmtree(flags models.GlobalFlags, path string) error {
 		fmt.Fprintf(Stdout, "rmtree %s\n", path)
 		return nil
 	}
-	slog.Debug("rmtree", "path", path)
+	models.Log.Debug("rmtree", "path", path)
 	return os.RemoveAll(path)
 }
 

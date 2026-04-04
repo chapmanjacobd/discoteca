@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -92,7 +91,7 @@ func (c *ServeCmd) handleCategorizeDeleteCategory(w http.ResponseWriter, r *http
 			return err
 		})
 		if err != nil {
-			slog.Error("Failed to delete category", "db", dbPath, "error", err)
+			models.Log.Error("Failed to delete category", "db", dbPath, "error", err)
 		}
 	}
 
@@ -126,7 +125,7 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 				return err
 			})
 			if err != nil {
-				slog.Error("Failed to delete keyword", "db", dbPath, "error", err)
+				models.Log.Error("Failed to delete keyword", "db", dbPath, "error", err)
 			}
 		}
 		sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -158,7 +157,7 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 			return err
 		})
 		if err != nil {
-			slog.Error("Failed to save custom keyword", "db", dbPath, "error", err)
+			models.Log.Error("Failed to save custom keyword", "db", dbPath, "error", err)
 		}
 	}
 
@@ -183,7 +182,7 @@ func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch media for random clip", "error", err)
+			models.Log.Error("Failed to fetch media for random clip", "error", err)
 		}
 	}
 
@@ -303,7 +302,7 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch media for categorize suggest", "error", err)
+			models.Log.Error("Failed to fetch media for categorize suggest", "error", err)
 		}
 	}
 
@@ -444,7 +443,7 @@ func (c *ServeCmd) handleCategorizeApply(w http.ResponseWriter, r *http.Request)
 			return nil
 		})
 		if err != nil {
-			slog.Error("Failed to fetch media for categorize apply", "error", err)
+			models.Log.Error("Failed to fetch media for categorize apply", "error", err)
 		}
 	}
 
@@ -531,7 +530,7 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if c.isPathBlocklisted(path) {
-		slog.Warn("Access denied: path is blocklisted", "path", path)
+		models.Log.Warn("Access denied: path is blocklisted", "path", path)
 		http.Error(w, "Access denied: sensitive path", http.StatusForbidden)
 		return
 	}
@@ -547,7 +546,7 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slog.Debug("handleRaw request", "path", path)
+	models.Log.Debug("handleRaw request", "path", path)
 
 	var m models.Media
 	found := false
@@ -570,21 +569,21 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !found {
-		slog.Warn("Access denied: file not in database", "path", path)
+		models.Log.Warn("Access denied: file not in database", "path", path)
 		http.Error(w, "Media not found in database", http.StatusNotFound)
 		return
 	}
 
 	isLocal := utils.FileExists(localPath)
 	if !isLocal {
-		slog.Warn("File not found on disk, marking as deleted in databases", "path", path)
+		models.Log.Warn("File not found on disk, marking as deleted in databases", "path", path)
 		c.markDeletedInAllDBs(r.Context(), path, true)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 
 	strategy := utils.GetTranscodeStrategy(m)
-	slog.Debug(
+	models.Log.Debug(
 		"handleRaw strategy",
 		"path",
 		path,
@@ -603,11 +602,11 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 			c.handleTranscode(w, r, localPath, m, strategy)
 			return
 		} else {
-			slog.Error("ffmpeg not found in PATH, skipping transcoding", "path", path)
+			models.Log.Error("ffmpeg not found in PATH, skipping transcoding", "path", path)
 		}
 	}
 
-	slog.Debug("Serving local file", "path", localPath)
+	models.Log.Debug("Serving local file", "path", localPath)
 	http.ServeFile(w, r, localPath)
 }
 
@@ -621,7 +620,7 @@ func (c *ServeCmd) handleTrash(w http.ResponseWriter, r *http.Request) {
 
 	media, err := query.MediaQuery(r.Context(), c.Databases, flags)
 	if err != nil {
-		slog.Error("Trash query failed", "error", err)
+		models.Log.Error("Trash query failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -664,7 +663,7 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 		var err error
 		media, err = query.MediaQuery(r.Context(), c.Databases, flags)
 		if err != nil {
-			slog.Error("Trash query failed", "error", err)
+			models.Log.Error("Trash query failed", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -674,7 +673,7 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 	for _, m := range media {
 		if utils.FileExists(m.Path) {
 			if err := os.Remove(m.Path); err != nil {
-				slog.Error("Failed to delete file", "path", m.Path, "error", err)
+				models.Log.Error("Failed to delete file", "path", m.Path, "error", err)
 				continue
 			}
 		}
@@ -693,12 +692,12 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 			if err != nil {
-				slog.Error("Failed to delete from DB", "db", dbPath, "error", err)
+				models.Log.Error("Failed to delete from DB", "db", dbPath, "error", err)
 			}
 		}
 	}
 
-	slog.Info("Bin emptied", "files_removed", count)
+	models.Log.Info("Bin emptied", "files_removed", count)
 	fmt.Fprintf(w, "Deleted %d files", count)
 }
 
@@ -709,7 +708,7 @@ func (c *ServeCmd) handleOPDS(w http.ResponseWriter, r *http.Request) {
 
 	media, err := query.MediaQuery(r.Context(), c.Databases, flags)
 	if err != nil {
-		slog.Error("OPDS query failed", "error", err)
+		models.Log.Error("OPDS query failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -785,7 +784,7 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 			if err != nil {
-				slog.Error("Failed to fetch playlists", "db", dbPath, "error", err)
+				models.Log.Error("Failed to fetch playlists", "db", dbPath, "error", err)
 			}
 		}
 
@@ -830,7 +829,7 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 				return err
 			})
 			if err != nil {
-				slog.Error("Failed to insert playlist", "db", dbPath, "title", req.Title, "error", err)
+				models.Log.Error("Failed to insert playlist", "db", dbPath, "title", req.Title, "error", err)
 			}
 		}
 		w.WriteHeader(http.StatusCreated)
@@ -866,7 +865,7 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 			if err != nil {
-				slog.Error("Failed to delete playlist", "db", dbPath, "title", title, "error", err)
+				models.Log.Error("Failed to delete playlist", "db", dbPath, "title", title, "error", err)
 			}
 		}
 		w.WriteHeader(http.StatusOK)
@@ -954,7 +953,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 			if err != nil {
-				slog.Error("Failed to fetch playlist items", "db", dbPath, "title", title, "error", err)
+				models.Log.Error("Failed to fetch playlist items", "db", dbPath, "title", title, "error", err)
 			}
 		}
 
@@ -1044,7 +1043,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 				})
 			})
 			if err != nil {
-				slog.Error("Failed to insert playlist item", "db", dbPath, "title", req.PlaylistTitle, "error", err)
+				models.Log.Error("Failed to insert playlist item", "db", dbPath, "title", req.PlaylistTitle, "error", err)
 			}
 		}
 		w.WriteHeader(http.StatusOK)
@@ -1092,7 +1091,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 				})
 			})
 			if err != nil {
-				slog.Error(
+				models.Log.Error(
 					"Failed to delete playlist item",
 					"db",
 					dbPath,
@@ -1147,7 +1146,7 @@ func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
 
 	text, err := utils.ExtractText(path)
 	if err != nil {
-		slog.Error("Text extraction failed", "path", path, "error", err)
+		models.Log.Error("Text extraction failed", "path", path, "error", err)
 		http.Error(w, fmt.Sprintf("Text extraction failed: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -1174,7 +1173,7 @@ func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
 
 	wavPath := filepath.Join(tmpDir, "audio.wav")
 	if err := utils.GenerateTTS(text, wavPath, wpm); err != nil {
-		slog.Warn("TTS generation failed", "error", err)
+		models.Log.Warn("TTS generation failed", "error", err)
 		wavPath = ""
 	}
 
@@ -1209,14 +1208,14 @@ func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
 
 	args = append(args, "-f", "webm", "pipe:1")
 
-	slog.Info("Starting RSVP stream", "path", path, "wpm", wpm, "duration", duration)
+	models.Log.Info("Starting RSVP stream", "path", path, "wpm", wpm, "duration", duration)
 
 	cmd := exec.CommandContext(r.Context(), "ffmpeg", args...)
 	cmd.Stdout = w
 
 	if err := cmd.Run(); err != nil {
 		if r.Context().Err() == nil {
-			slog.Error("FFmpeg RSVP streaming failed", "error", err)
+			models.Log.Error("FFmpeg RSVP streaming failed", "error", err)
 		}
 	}
 }

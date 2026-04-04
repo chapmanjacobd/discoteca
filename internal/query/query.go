@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"math"
 	"sort"
 	"strconv"
@@ -50,7 +49,7 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 	// Expand related media if requested
 	if strings.Contains(sortConfig, "_related_media") {
 		if err := ExpandRelatedMedia(ctx, sqlDB, media, flags); err != nil {
-			slog.Warn("Related media expansion failed", "error", err)
+			models.Log.Warn("Related media expansion failed", "error", err)
 		}
 	}
 

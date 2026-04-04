@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"log/slog"
 	"regexp"
 	"sort"
 	"strings"
@@ -221,7 +220,7 @@ func TextProcessor(flags models.GlobalFlags, lines []string) []string {
 		for _, r := range flags.Regexs {
 			re, err := regexp.Compile(r)
 			if err != nil {
-				slog.Error("Invalid regex", "pattern", r, "error", err)
+				models.Log.Error("Invalid regex", "pattern", r, "error", err)
 				continue
 			}
 			regexs = append(regexs, re)

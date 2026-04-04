@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,7 +72,7 @@ func Trash(flags models.GlobalFlags, path string) error {
 	}
 
 	if err != nil {
-		slog.Debug("trash command failed, unlinking instead", "path", path, "error", err)
+		models.Log.Debug("trash command failed, unlinking instead", "path", path, "error", err)
 		if err := os.Remove(path); err != nil {
 			return fmt.Errorf("failed to remove file %s: %w", path, err)
 		}
@@ -99,7 +98,7 @@ func FlattenWrapperFolder(outputDir string) error {
 	if len(visibleEntries) == 1 && visibleEntries[0].IsDir() {
 		wrapperName := visibleEntries[0].Name()
 		wrapperPath := filepath.Join(outputDir, wrapperName)
-		slog.Info("Flattening wrapper folder", "folder", wrapperName)
+		models.Log.Info("Flattening wrapper folder", "folder", wrapperName)
 
 		subEntries, err := os.ReadDir(wrapperPath)
 		if err != nil {
