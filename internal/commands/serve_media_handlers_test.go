@@ -17,7 +17,6 @@ import (
 
 // TestHandleRate tests the rate endpoint
 func TestHandleRate(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_rate.db")
 
@@ -92,7 +91,6 @@ func TestHandleRate(t *testing.T) {
 
 // TestHandleDelete tests the delete endpoint
 func TestHandleDelete(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_delete.db")
 
@@ -182,7 +180,6 @@ func TestHandleDelete(t *testing.T) {
 
 // TestHandleProgress tests the progress endpoint
 func TestHandleProgress(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_progress.db")
 

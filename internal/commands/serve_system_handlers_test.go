@@ -14,7 +14,6 @@ import (
 )
 
 func TestServeHandlers_Health(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_health.db")
 
@@ -42,7 +41,6 @@ func TestServeHandlers_Health(t *testing.T) {
 }
 
 func TestServeHandlers_Favicon(t *testing.T) {
-	t.Parallel()
 	cmd := &ServeCmd{}
 	defer cmd.Close()
 	mux := cmd.Mux()

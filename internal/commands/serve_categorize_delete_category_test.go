@@ -11,7 +11,6 @@ import (
 )
 
 func TestHandleCategorizeDeleteCategory(t *testing.T) {
-	t.Parallel()
 	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_delete_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db: %v", err)

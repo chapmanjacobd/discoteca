@@ -9,7 +9,6 @@ import (
 )
 
 func TestStatsCmd_Run(t *testing.T) {
-	t.Parallel()
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 

@@ -9,7 +9,6 @@ import (
 )
 
 func TestHistoryCmd_Run(t *testing.T) {
-	t.Parallel()
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
@@ -52,7 +51,6 @@ func TestHistoryCmd_Run(t *testing.T) {
 }
 
 func TestHistoryAddCmd_Run(t *testing.T) {
-	t.Parallel()
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 

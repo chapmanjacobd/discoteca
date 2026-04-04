@@ -12,7 +12,6 @@ import (
 )
 
 func TestHandleCategorizeKeywords(t *testing.T) {
-	t.Parallel()
 	// Create temporary test database
 	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_cat_*.db")
 	if err != nil {

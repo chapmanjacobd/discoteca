@@ -10,7 +10,6 @@ import (
 )
 
 func TestSearchDBCmd_Run(t *testing.T) {
-	t.Parallel()
 	f, err := os.CreateTemp(t.TempDir(), "sdb-test-*.db")
 	if err != nil {
 		t.Fatal(err)

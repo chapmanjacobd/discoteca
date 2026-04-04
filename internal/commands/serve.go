@@ -146,7 +146,7 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/api/genres", c.authMiddleware(c.handleGenres))
 	mux.HandleFunc("/api/languages", c.authMiddleware(c.handleLanguages))
 	mux.HandleFunc("/api/ratings", c.authMiddleware(c.handleRatings))
-	mux.HandleFunc("/api/query", c.authMiddleware(c.handleQuery))
+	mux.HandleFunc("/api/query", c.authMiddleware(c.HandleQuery))
 	mux.HandleFunc("/api/metadata", c.authMiddleware(c.handleMetadata))
 	mux.HandleFunc("/api/play", c.authMiddleware(c.handlePlay))
 	mux.HandleFunc("/api/delete", c.authMiddleware(c.handleDelete))

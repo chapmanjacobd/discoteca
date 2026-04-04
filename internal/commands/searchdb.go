@@ -263,7 +263,6 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 		}
 		// ... (rest of loop)
 
-
 		entry := make(map[string]any)
 		for i, col := range cols {
 			val := values[i]

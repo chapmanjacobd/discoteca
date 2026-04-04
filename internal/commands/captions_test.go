@@ -1,7 +1,6 @@
-package commands_test
+package commands
 
 import (
-	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -16,7 +15,6 @@ import (
 )
 
 func TestHandleDU_CaptionsView(t *testing.T) {
-	t.Parallel()
 	// Create temporary test database
 	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_*.db")
 	if err != nil {
@@ -84,18 +82,17 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 
 	db.Close()
 
-	// Create commands.ServeCmd with test database
-	cmd := &commands.ServeCmd{
+	// Create ServeCmd with test database
+	cmd := &ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
 	defer cmd.Close()
 
 	t.Run("GetAllCaptions returns all captions", func(t *testing.T) {
-	t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=100", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleQuery(w, req)
+		cmd.HandleQuery(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -125,11 +122,10 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	})
 
 	t.Run("GetAllCaptions respects limit", func(t *testing.T) {
-	t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=2", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleQuery(w, req)
+		cmd.HandleQuery(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -146,11 +142,10 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	})
 
 	t.Run("GetAllCaptions returns X-Total-Count header", func(t *testing.T) {
-	t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=2", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleQuery(w, req)
+		cmd.HandleQuery(w, req)
 
 		totalCount := w.Header().Get("X-Total-Count")
 		if totalCount == "" {
@@ -159,11 +154,10 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	})
 
 	t.Run("GetAllCaptions with all flag returns all captions", func(t *testing.T) {
-	t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&all=true", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleQuery(w, req)
+		cmd.HandleQuery(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -182,7 +176,6 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 }
 
 func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
-	t.Parallel()
 	// Create temporary test database
 	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_empty_*.db")
 	if err != nil {
@@ -220,17 +213,16 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 
 	db.Close()
 
-	cmd := &commands.ServeCmd{
+	cmd := &ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
 	defer cmd.Close()
 
 	t.Run("GetAllCaptions with no captions returns empty array", func(t *testing.T) {
-	t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=100", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleQuery(w, req)
+		cmd.HandleQuery(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -248,7 +240,6 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 }
 
 func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
-	t.Parallel()
 	// Create two temporary test databases
 	tmpDB1, err := os.CreateTemp(t.TempDir(), "disco_test_multi1_*.db")
 	if err != nil {
@@ -296,17 +287,16 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 	}
 	db2.Close()
 
-	cmd := &commands.ServeCmd{
+	cmd := &ServeCmd{
 		Databases: []string{tmpDB1.Name(), tmpDB2.Name()},
 	}
 	defer cmd.Close()
 
 	t.Run("GetAllCaptions merges results from multiple databases", func(t *testing.T) {
-	t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/api/query?captions=true&limit=100", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleQuery(w, req)
+		cmd.HandleQuery(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())

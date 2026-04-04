@@ -89,10 +89,7 @@ func TruncateMiddle(s string, maxWidth int) string {
 	if len(s) <= maxWidth {
 		return s
 	}
-	half := maxWidth / 2
-	if half < 2 {
-		half = 2
-	}
+	half := max(maxWidth/2, 2)
 	return s[:half-1] + "…" + s[len(s)-half+1:]
 }
 

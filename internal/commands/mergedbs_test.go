@@ -8,7 +8,6 @@ import (
 )
 
 func TestMergeDBsCmd_Run(t *testing.T) {
-	t.Parallel()
 	// 1. Setup Source 1
 	src1, _ := os.CreateTemp(t.TempDir(), "merge-src1-*.db")
 	src1Path := src1.Name()

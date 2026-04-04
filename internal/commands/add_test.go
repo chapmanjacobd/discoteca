@@ -11,7 +11,6 @@ import (
 )
 
 func TestAddCmd_Run(t *testing.T) {
-	t.Parallel()
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
@@ -44,7 +43,6 @@ func TestAddCmd_Run(t *testing.T) {
 }
 
 func TestAddCmd_Skip(t *testing.T) {
-	t.Parallel()
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 

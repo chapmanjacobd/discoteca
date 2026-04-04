@@ -9,7 +9,6 @@ import (
 )
 
 func TestRegexSortCmd_Run(t *testing.T) {
-	t.Parallel()
 	input := "red apple\nbroccoli\nyellow\ngreen\norange apple\nred apple\n"
 
 	t.Run("DefaultSort", func(t *testing.T) {

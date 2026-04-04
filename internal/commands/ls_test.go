@@ -48,12 +48,13 @@ func TestServeCmd_HandleLs(t *testing.T) {
 	}
 
 	cmd := setupTestServeCmd(fixture.DBPath)
+	mux := cmd.Mux()
 
 	t.Run("Absolute Path - Root", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=/", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
-		cmd.handleLs(w, req)
+		mux.ServeHTTP(w, req)
 
 		var resp []any
 		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
@@ -83,7 +84,7 @@ func TestServeCmd_HandleLs(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=/home/user/music/", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
-		cmd.handleLs(w, req)
+		mux.ServeHTTP(w, req)
 
 		var resp []any
 		json.NewDecoder(w.Body).Decode(&resp)
@@ -99,7 +100,7 @@ func TestServeCmd_HandleLs(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=./home/", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
-		cmd.handleLs(w, req)
+		mux.ServeHTTP(w, req)
 
 		var resp []any
 		json.NewDecoder(w.Body).Decode(&resp)
@@ -123,7 +124,7 @@ func TestServeCmd_HandleLs(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=./home/user/xk/sync/au", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
-		cmd.handleLs(w, req)
+		mux.ServeHTTP(w, req)
 
 		var resp []any
 		json.NewDecoder(w.Body).Decode(&resp)
@@ -150,7 +151,7 @@ func TestServeCmd_HandleLs(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=./music/", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
-		cmd.handleLs(w, req)
+		mux.ServeHTTP(w, req)
 
 		var resp []any
 		json.NewDecoder(w.Body).Decode(&resp)

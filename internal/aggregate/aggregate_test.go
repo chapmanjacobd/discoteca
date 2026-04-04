@@ -1,7 +1,6 @@
 package aggregate_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
@@ -205,7 +204,10 @@ func TestClusterFoldersByName(t *testing.T) {
 		{Path: "/path/to/completely_different_thing", Count: 1},
 	}
 
-	got := aggregate.ClusterFoldersByName(models.GlobalFlags{SimilarityFlags: models.SimilarityFlags{Similar: false}}, folders)
+	got := aggregate.ClusterFoldersByName(
+		models.GlobalFlags{SimilarityFlags: models.SimilarityFlags{Similar: false}},
+		folders,
+	)
 	if len(got) != 2 {
 		t.Errorf("Expected 2 groups, got %d", len(got))
 	}

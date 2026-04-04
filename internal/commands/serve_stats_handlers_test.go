@@ -17,7 +17,6 @@ import (
 
 // TestHandleCategories tests the categories endpoint
 func TestHandleCategories(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_categories.db")
 
@@ -72,7 +71,6 @@ func TestHandleCategories(t *testing.T) {
 
 // TestHandleGenres tests the genres endpoint
 func TestHandleGenres(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_genres.db")
 
@@ -127,7 +125,6 @@ func TestHandleGenres(t *testing.T) {
 
 // TestHandleRatings tests the ratings endpoint
 func TestHandleRatings(t *testing.T) {
-	t.Parallel()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_ratings.db")
 

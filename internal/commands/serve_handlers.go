@@ -26,9 +26,9 @@ func (c *ServeCmd) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-// handleQuery handles media searching and filtering.
+// HandleQuery handles media searching and filtering.
 // GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
-func (c *ServeCmd) handleQuery(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	flags := c.parseFlags(r)
 	q := r.URL.Query()
 
