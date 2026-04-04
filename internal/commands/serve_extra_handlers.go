@@ -681,7 +681,7 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 		// Remove from DB
 		for _, dbPath := range c.Databases {
 			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-				result, err := sqlDB.Exec("DELETE FROM media WHERE path = ?", m.Path)
+				result, err := sqlDB.ExecContext(ctx, "DELETE FROM media WHERE path = ?", m.Path)
 				if err != nil {
 					return err
 				}

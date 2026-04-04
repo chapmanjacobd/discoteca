@@ -141,7 +141,7 @@ func RunExitCommand(flags models.GlobalFlags, exitCode int, path string) error {
 	cmdStr = strings.ReplaceAll(cmdStr, "{}", shellquote.ShellQuote(path))
 
 	models.Log.Info("Running exit command", "code", exitCode, "command", cmdStr)
-	cmd := exec.Command("bash", "-c", cmdStr)
+	cmd := exec.CommandContext(context.Background(), "bash", "-c", cmdStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -251,7 +251,7 @@ func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.Medi
 
 		if flags.CastWithLocal {
 			// Start catt in background
-			cattCmd := exec.Command(args[0], args[1:]...)
+			cattCmd := exec.CommandContext(ctx, args[0], args[1:]...)
 			cattCmd.Start()
 
 			// Wait a bit for sync (lazy sync as in Python version)
@@ -263,7 +263,7 @@ func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.Medi
 				localArgs = append(localArgs, "--video=no")
 			}
 			localArgs = append(localArgs, m.Path)
-			localCmd := exec.Command(localArgs[0], localArgs[1:]...)
+			localCmd := exec.CommandContext(ctx, localArgs[0], localArgs[1:]...)
 			localCmd.Stdout = os.Stdout
 			localCmd.Stderr = os.Stderr
 			localCmd.Stdin = os.Stdin
@@ -272,7 +272,7 @@ func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.Medi
 			// Wait for catt to finish if it hasn't
 			cattCmd.Wait()
 		} else {
-			cmd := exec.Command(args[0], args[1:]...)
+			cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 

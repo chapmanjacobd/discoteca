@@ -3,6 +3,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -113,30 +114,36 @@ func Repair(dbPath string) error {
 			Log.Error("Failed to open recovered database for polish", "error", err)
 		} else {
 			Log.Info("Running final polish (REINDEX, FTS REBUILD, VACUUM)...")
-			if _, err := db.Exec("REINDEX;"); err != nil {
+			if _, err := db.ExecContext(context.Background(), "REINDEX;"); err != nil {
 				Log.Warn("REINDEX failed", "error", err)
 			}
 
 			// FTS rebuilding is critical as corruption often hides here
 			var hasMediaFTS bool
-			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
+			_ = db.QueryRowContext(context.Background(), "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
 				Scan(&hasMediaFTS)
 			if hasMediaFTS {
-				if _, err := db.Exec("INSERT INTO media_fts(media_fts) VALUES('rebuild');"); err != nil {
+				if _, err := db.ExecContext(
+					context.Background(),
+					"INSERT INTO media_fts(media_fts) VALUES('rebuild');",
+				); err != nil {
 					Log.Warn("media_fts rebuild failed", "error", err)
 				}
 			}
 
 			var hasCaptionsFTS bool
-			_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").
+			_ = db.QueryRowContext(context.Background(), "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").
 				Scan(&hasCaptionsFTS)
 			if hasCaptionsFTS {
-				if _, err := db.Exec("INSERT INTO captions_fts(captions_fts) VALUES('rebuild');"); err != nil {
+				if _, err := db.ExecContext(
+					context.Background(),
+					"INSERT INTO captions_fts(captions_fts) VALUES('rebuild');",
+				); err != nil {
 					Log.Warn("captions_fts rebuild failed", "error", err)
 				}
 			}
 
-			if _, err := db.Exec("VACUUM;"); err != nil {
+			if _, err := db.ExecContext(context.Background(), "VACUUM;"); err != nil {
 				Log.Error("Final VACUUM failed", "error", err)
 			}
 			db.Close()

@@ -30,18 +30,18 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 		defer sqlDB.Close()
 
 		models.Log.Info("Running VACUUM...")
-		if _, err := sqlDB.Exec("VACUUM"); err != nil {
+		if _, err := sqlDB.ExecContext(ctx, "VACUUM"); err != nil {
 			return fmt.Errorf("VACUUM failed on %s: %w", dbPath, err)
 		}
 
 		models.Log.Info("Running ANALYZE...")
-		if _, err := sqlDB.Exec("ANALYZE"); err != nil {
+		if _, err := sqlDB.ExecContext(ctx, "ANALYZE"); err != nil {
 			return fmt.Errorf("ANALYZE failed on %s: %w", dbPath, err)
 		}
 
 		models.Log.Info("Optimizing FTS index...")
 		// FTS5 optimize command
-		if _, err := sqlDB.Exec("INSERT INTO media_fts(media_fts) VALUES('optimize')"); err != nil {
+		if _, err := sqlDB.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('optimize')"); err != nil {
 			models.Log.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
 		}
 

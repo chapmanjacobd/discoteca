@@ -48,11 +48,11 @@ func (c *OpenCmd) Run(ctx context.Context) error {
 		var cmd *exec.Cmd
 		switch runtime.GOOS {
 		case "linux":
-			cmd = exec.Command("xdg-open", m.Path)
+			cmd = exec.CommandContext(ctx, "xdg-open", m.Path)
 		case "darwin":
-			cmd = exec.Command("open", m.Path)
+			cmd = exec.CommandContext(ctx, "open", m.Path)
 		case "windows":
-			cmd = exec.Command("cmd", "/c", "start", m.Path)
+			cmd = exec.CommandContext(ctx, "cmd", "/c", "start", m.Path)
 		}
 
 		if err := cmd.Start(); err != nil {
@@ -110,10 +110,10 @@ func (c *BrowseCmd) Run(ctx context.Context) error {
 	if runtime.GOOS == "windows" && browser == "cmd" {
 		// On Windows, use 'cmd /c start' to open URLs
 		args := append([]string{"/c", "start"}, urls...)
-		cmd = exec.Command("cmd", args...)
+		cmd = exec.CommandContext(ctx, "cmd", args...)
 	} else {
 		args := append([]string{browser}, urls...)
-		cmd = exec.Command(args[0], args[1:]...)
+		cmd = exec.CommandContext(ctx, args[0], args[1:]...)
 	}
 	return cmd.Start()
 }

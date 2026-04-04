@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"slices"
@@ -74,7 +75,8 @@ func (c *MergeDBsCmd) mergeDatabase(srcPath string, targetConn *sql.DB) error {
 }
 
 func (c *MergeDBsCmd) getTables(conn *sql.DB) ([]string, error) {
-	rows, err := conn.Query(
+	rows, err := conn.QueryContext(
+		context.Background(),
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fts%'",
 	)
 	if err != nil {
@@ -89,6 +91,9 @@ func (c *MergeDBsCmd) getTables(conn *sql.DB) ([]string, error) {
 			return nil, err
 		}
 		tables = append(tables, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return tables, nil
 }
@@ -172,7 +177,7 @@ func (c *MergeDBsCmd) mergeTable(srcConn, targetConn *sql.DB, table string) erro
 	}
 	selectQuery := fmt.Sprintf("SELECT %s FROM %s%s", strings.Join(selectedCols, ", "), table, whereClause)
 
-	rows, err := srcConn.Query(selectQuery)
+	rows, err := srcConn.QueryContext(context.Background(), selectQuery)
 	if err != nil {
 		return fmt.Errorf("failed to select from source: %w", err)
 	}
@@ -224,13 +229,13 @@ func (c *MergeDBsCmd) mergeTable(srcConn, targetConn *sql.DB, table string) erro
 		}
 	}
 
-	tx, err := targetConn.Begin()
+	tx, err := targetConn.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(insertQuery)
+	stmt, err := tx.PrepareContext(context.Background(), insertQuery)
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert: %w", err)
 	}
@@ -247,10 +252,13 @@ func (c *MergeDBsCmd) mergeTable(srcConn, targetConn *sql.DB, table string) erro
 		if err := rows.Scan(destPtrs...); err != nil {
 			return err
 		}
-		if _, err := stmt.Exec(dest...); err != nil {
+		if _, err := stmt.ExecContext(context.Background(), dest...); err != nil {
 			return fmt.Errorf("failed to exec insert: %w", err)
 		}
 		count++
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -262,7 +270,7 @@ func (c *MergeDBsCmd) mergeTable(srcConn, targetConn *sql.DB, table string) erro
 }
 
 func (c *MergeDBsCmd) getTableColumns(conn *sql.DB, table string) ([]string, error) {
-	rows, err := conn.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	rows, err := conn.QueryContext(context.Background(), fmt.Sprintf("PRAGMA table_info(%s)", table))
 	if err != nil {
 		return nil, err
 	}
@@ -279,11 +287,14 @@ func (c *MergeDBsCmd) getTableColumns(conn *sql.DB, table string) ([]string, err
 		}
 		cols = append(cols, name)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return cols, nil
 }
 
 func (c *MergeDBsCmd) getPrimaryKeyColumns(conn *sql.DB, table string) ([]string, error) {
-	rows, err := conn.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	rows, err := conn.QueryContext(context.Background(), fmt.Sprintf("PRAGMA table_info(%s)", table))
 	if err != nil {
 		return nil, err
 	}
@@ -301,6 +312,9 @@ func (c *MergeDBsCmd) getPrimaryKeyColumns(conn *sql.DB, table string) ([]string
 		if pk > 0 {
 			pks = append(pks, name)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return pks, nil
 }
