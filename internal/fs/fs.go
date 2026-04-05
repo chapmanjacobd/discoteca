@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,7 +80,7 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 
 		i, err := d.Info()
 		if err != nil {
-			return nil // Skip files we can't access
+			return fmt.Errorf("failed to get file info for %s: %w", path, err)
 		}
 
 		fc := filesCount.Add(1)

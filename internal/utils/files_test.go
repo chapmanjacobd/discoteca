@@ -291,7 +291,10 @@ func TestFolderSize(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "f1.txt"), make([]byte, 1000), 0o644)
 	os.WriteFile(filepath.Join(tempDir, "f2.txt"), make([]byte, 2000), 0o644)
 
-	size := utils.FolderSize(tempDir)
+	size, err := utils.FolderSize(tempDir)
+	if err != nil {
+		t.Fatalf("FolderSize failed: %v", err)
+	}
 	if size < 3000 {
 		t.Errorf("expected size at least 3000, got %d", size)
 	}

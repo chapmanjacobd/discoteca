@@ -1140,7 +1140,10 @@ func extractImageTextFromCBR(ctx context.Context, path, ocrEngine string) ([]db.
 
 	var imageFiles []string
 	err = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))

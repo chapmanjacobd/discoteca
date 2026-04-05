@@ -37,12 +37,15 @@ func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {
 	}
 
 	// 2. Increment play count via /api/progress
-	reqBody, _ := json.Marshal(map[string]any{
+	reqBody, err := json.Marshal(map[string]any{
 		"path":      f1,
 		"playhead":  100,
 		"duration":  200,
 		"completed": true,
 	})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
 	w := httptest.NewRecorder()
 	cmd.HandleProgress(w, req)
@@ -91,7 +94,10 @@ func TestServeCmd_HandleMarkPlayed(t *testing.T) {
 	defer dbConn.Close()
 
 	// 1. Mark as played
-	reqBody, _ := json.Marshal(map[string]string{"path": f1})
+	reqBody, err := json.Marshal(map[string]string{"path": f1})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/mark-played", bytes.NewBuffer(reqBody))
 	w := httptest.NewRecorder()
 	cmd.HandleMarkPlayed(w, req)
@@ -136,7 +142,10 @@ func TestServeCmd_HandleMarkUnplayed(t *testing.T) {
 	defer dbConn.Close()
 
 	// 1. Mark as played first
-	reqBody, _ := json.Marshal(map[string]string{"path": f1})
+	reqBody, err := json.Marshal(map[string]string{"path": f1})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/mark-played", bytes.NewBuffer(reqBody))
 	cmd.HandleMarkPlayed(httptest.NewRecorder(), req)
 

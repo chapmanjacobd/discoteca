@@ -51,7 +51,10 @@ func TestServeReorder_Playlist(t *testing.T) {
 		"media_path":     filepath.FromSlash("/media3.mp4"),
 		"new_index":      0, // 0-based index means track_number 1
 	}
-	body, _ := json.Marshal(reorderReq)
+	body, err := json.Marshal(reorderReq)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()

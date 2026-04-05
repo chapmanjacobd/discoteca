@@ -179,7 +179,11 @@ func (c *ServeCmd) HandleEpubConvert(w http.ResponseWriter, r *http.Request) {
 // serveHTMLWithTOC serves calibre HTML output with a sticky TOC header
 func serveHTMLWithTOC(w http.ResponseWriter, _ *http.Request, htmlDir, originalPath string) {
 	// Get list of HTML files for TOC
-	htmlFiles := utils.GetHTMLFiles(htmlDir)
+	htmlFiles, err := utils.GetHTMLFiles(htmlDir)
+	if err != nil {
+		http.Error(w, "Failed to get HTML files", http.StatusInternalServerError)
+		return
+	}
 
 	// Find actual book content HTML for the main frame (relative to htmlDir)
 	initialSrc := ""
@@ -312,7 +316,11 @@ func unescapePath(path string) (string, error) {
 // serveHTMLFolderWithTOC serves an HTML folder with a sticky TOC header
 func serveHTMLFolderWithTOC(w http.ResponseWriter, _ *http.Request, htmlDir, originalPath string) {
 	// Get list of HTML files for TOC
-	htmlFiles := utils.GetHTMLFiles(htmlDir)
+	htmlFiles, err := utils.GetHTMLFiles(htmlDir)
+	if err != nil {
+		http.Error(w, "Failed to get HTML files", http.StatusInternalServerError)
+		return
+	}
 
 	// Find actual book content HTML for the main frame (relative to htmlDir)
 	initialSrc := ""

@@ -167,7 +167,9 @@ func TestFolderFunctions(t *testing.T) {
 		t.Error("utils.IsEmptyFolder should be false for non-empty dir")
 	}
 
-	if got := utils.FolderSize(tmpDir); got != 5 {
+	if got, err := utils.FolderSize(tmpDir); err != nil {
+		t.Fatalf("FolderSize failed: %v", err)
+	} else if got != 5 {
 		t.Errorf("utils.FolderSize = %d, want 5", got)
 	}
 }

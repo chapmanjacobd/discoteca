@@ -42,7 +42,10 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 	defer cmd.Close()
 
 	// 4. Create request
-	reqBody, _ := json.Marshal(map[string]string{"path": f1})
+	reqBody, err := json.Marshal(map[string]string{"path": f1})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/play", bytes.NewBuffer(reqBody))
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
@@ -60,7 +63,7 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()
 	var timeDeleted sql.NullInt64
-	err := dbConn.QueryRow("SELECT time_deleted FROM media WHERE path = ?", f1).Scan(&timeDeleted)
+	err = dbConn.QueryRow("SELECT time_deleted FROM media WHERE path = ?", f1).Scan(&timeDeleted)
 	if err != nil {
 		t.Fatalf("Query failed: %v", err)
 	}

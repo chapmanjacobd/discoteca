@@ -43,7 +43,11 @@ func TestMpvCall(t *testing.T) {
 					} else {
 						resp = utils.MpvResponse{Data: "pong", Error: "success"}
 					}
-					jsonData, _ := json.Marshal(resp)
+					jsonData, err := json.Marshal(resp)
+					if err != nil {
+						t.Logf("json.Marshal failed: %v", err)
+						return
+					}
 					c.Write(append(jsonData, '\n'))
 				}
 			}(conn)

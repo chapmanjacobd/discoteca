@@ -82,7 +82,7 @@ func (c *DiskUsageCmd) Run(ctx context.Context) error {
 				ProbeImages:   c.ProbeImages,
 			})
 			if err != nil {
-				return nil
+				return err
 			}
 			allMedia = append(allMedia, models.MediaWithDB{
 				Media: models.Media{

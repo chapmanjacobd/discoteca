@@ -109,7 +109,10 @@ func RebuildFTS(ctx context.Context, db *sql.DB, dbPath string) error {
 			WHERE type='virtual' AND name='media_fts'
 		)
 	`).Scan(&exists)
-	if err != nil || !exists {
+	if err != nil {
+		return fmt.Errorf("failed to check FTS table: %w", err)
+	}
+	if !exists {
 		Log.Debug("FTS table does not exist, skipping rebuild", "db", dbPath)
 		return nil
 	}

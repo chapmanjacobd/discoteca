@@ -899,14 +899,14 @@ func migrateTables(ctx context.Context, db *sql.DB, hasStrict bool) error {
 					ctx,
 					"INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) SELECT rowid, path, path_tokenized, title, description, time_deleted FROM media",
 				); err != nil {
-					return nil
+					return fmt.Errorf("failed to rebuild media_fts: %w", err)
 				}
 			case "captions_fts":
 				if _, err := db.ExecContext(
 					ctx,
 					"INSERT INTO captions_fts(rowid, media_path, text) SELECT rowid, media_path, text FROM captions",
 				); err != nil {
-					return nil
+					return fmt.Errorf("failed to rebuild captions_fts: %w", err)
 				}
 			}
 		}

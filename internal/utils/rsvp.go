@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1297,7 +1296,10 @@ func extractTextWithCalibre(ctx context.Context, path string) (string, error) {
 		return "", fmt.Errorf("calibre conversion failed: %w", err)
 	}
 
-	htmlFiles := GetHTMLFiles(htmlDir)
+	htmlFiles, err := GetHTMLFiles(htmlDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get HTML files: %w", err)
+	}
 	var fullText strings.Builder
 	for _, relPath := range htmlFiles {
 		absPath := filepath.Join(htmlDir, relPath)
@@ -1634,11 +1636,11 @@ func GenerateTTS(ctx context.Context, text, outputPath string, wpm int) error {
 }
 
 // GetHTMLFiles returns a list of HTML files in the directory sorted by filename
-func GetHTMLFiles(dir string) []string {
+func GetHTMLFiles(dir string) ([]string, error) {
 	var files []string
-	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if !info.IsDir() {
 			ext := strings.ToLower(filepath.Ext(path))
@@ -1651,18 +1653,20 @@ func GetHTMLFiles(dir string) []string {
 					!strings.Contains(base, "nav.xhtml") &&
 					!strings.Contains(base, "content.opf") {
 
-					relPath, _ := filepath.Rel(dir, path)
+					relPath, err := filepath.Rel(dir, path)
+					if err != nil {
+						return err
+					}
 					files = append(files, relPath)
 				}
 			}
 		}
 		return nil
 	})
-
-	// Sort files for consistent ordering
-	sort.Strings(files)
-
-	return files
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }
 
 // FindMainContentFile finds the main HTML content file in a calibre output directory
@@ -1714,7 +1718,7 @@ func FindMainContentFile(oebDir string) string {
 	var firstContentHTML string
 	_ = filepath.Walk(oebDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if !info.IsDir() {
 			ext := strings.ToLower(filepath.Ext(path))

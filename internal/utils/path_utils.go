@@ -161,11 +161,11 @@ func IsEmptyFolder(path string) bool {
 }
 
 // FolderSize calculates the total size of all files in a folder (recursively)
-func FolderSize(path string) int64 {
+func FolderSize(path string) (int64, error) {
 	var size int64
-	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if !d.IsDir() {
 			info, err := d.Info()
@@ -175,7 +175,10 @@ func FolderSize(path string) int64 {
 		}
 		return nil
 	})
-	return size
+	if err != nil {
+		return 0, err
+	}
+	return size, nil
 }
 
 // PathTupleFromURL returns (parentDir, filename) from a URL
