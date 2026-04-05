@@ -357,6 +357,71 @@ func AggregateMediaWithMode(media []models.MediaWithDB, flags models.GlobalFlags
 	return applyFolderStatsFilters(stats, flags)
 }
 
+func matchesFolderStatsFilters(f models.FolderStats, flags models.GlobalFlags) bool {
+	if flags.FoldersOnly && f.Count == 0 {
+		return false
+	}
+	if flags.FilesOnly && f.Count > 0 {
+		return false
+	}
+
+	if !matchesFolderSizeFilter(f, flags) {
+		return false
+	}
+
+	if !matchesFileCountFilter(f, flags) {
+		return false
+	}
+
+	if !matchesFolderCountFilter(f, flags) {
+		return false
+	}
+
+	return true
+}
+
+func matchesFolderSizeFilter(f models.FolderStats, flags models.GlobalFlags) bool {
+	if len(flags.FolderSizes) == 0 {
+		return true
+	}
+	for _, fs := range flags.FolderSizes {
+		if r, err := utils.ParseRange(fs, utils.HumanToBytes); err == nil {
+			if !r.Matches(f.TotalSize) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func matchesFileCountFilter(f models.FolderStats, flags models.GlobalFlags) bool {
+	if flags.FileCounts == "" {
+		return true
+	}
+	if r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
+		return strconv.ParseInt(s, 10, 64)
+	}); err == nil {
+		if !r.Matches(int64(utils.Max(f.ExistsCount, f.Count))) {
+			return false
+		}
+	}
+	return true
+}
+
+func matchesFolderCountFilter(f models.FolderStats, flags models.GlobalFlags) bool {
+	if flags.FolderCounts == "" {
+		return true
+	}
+	if r, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
+		return strconv.ParseInt(s, 10, 64)
+	}); err == nil {
+		if !r.Matches(int64(f.FolderCount)) {
+			return false
+		}
+	}
+	return true
+}
+
 func applyFolderStatsFilters(stats []models.FolderStats, flags models.GlobalFlags) []models.FolderStats {
 	if !flags.FoldersOnly && !flags.FilesOnly && flags.FolderSizes == nil && flags.FileCounts == "" &&
 		flags.FolderCounts == "" {
@@ -366,43 +431,7 @@ func applyFolderStatsFilters(stats []models.FolderStats, flags models.GlobalFlag
 
 	var filtered []models.FolderStats
 	for _, f := range stats {
-		keep := true
-		if flags.FoldersOnly && f.Count == 0 {
-			keep = false
-		} else if flags.FilesOnly && f.Count > 0 {
-			keep = false
-		}
-
-		if keep && len(flags.FolderSizes) > 0 {
-			for _, fs := range flags.FolderSizes {
-				if r, err := utils.ParseRange(fs, utils.HumanToBytes); err == nil {
-					if !r.Matches(f.TotalSize) {
-						keep = false
-						break
-					}
-				}
-			}
-		}
-		if keep && flags.FileCounts != "" {
-			if r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
-				return strconv.ParseInt(s, 10, 64)
-			}); err == nil {
-				// In Python, file_counts applies to 'exists' or 'count'
-				if !r.Matches(int64(utils.Max(f.ExistsCount, f.Count))) {
-					keep = false
-				}
-			}
-		}
-		if keep && flags.FolderCounts != "" {
-			if r, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
-				return strconv.ParseInt(s, 10, 64)
-			}); err == nil {
-				if !r.Matches(int64(f.FolderCount)) {
-					keep = false
-				}
-			}
-		}
-		if keep {
+		if matchesFolderStatsFilters(f, flags) {
 			filtered = append(filtered, f)
 		}
 	}
@@ -613,9 +642,27 @@ func countSubdirectories(groups map[string]*models.FolderStats) {
 	}
 }
 
+func calculateMedians(f *models.FolderStats) {
+	sizes := make([]int64, 0, f.ExistsCount)
+	durations := make([]int64, 0, f.ExistsCount)
+	for _, m := range f.Files {
+		isDeleted := m.TimeDeleted != nil && *m.TimeDeleted > 0
+		if !isDeleted {
+			if m.Size != nil {
+				sizes = append(sizes, *m.Size)
+			}
+			if m.Duration != nil {
+				durations = append(durations, *m.Duration)
+			}
+		}
+	}
+	f.MedianSize = int64(utils.SafeMedian(sizes))
+	f.MedianDuration = int64(utils.SafeMedian(durations))
+}
+
 func calculateFinalStats(
 	groups map[string]*models.FolderStats,
-	calculateMedians bool,
+	calculateMediansFlag bool,
 	shouldStoreFiles bool,
 ) []models.FolderStats {
 	result := make([]models.FolderStats, 0, len(groups))
@@ -625,22 +672,8 @@ func calculateFinalStats(
 			f.AvgDuration = f.TotalDuration / int64(f.ExistsCount)
 
 			// Skip expensive median calculation and file storage for fast mode
-			if calculateMedians {
-				sizes := make([]int64, 0, f.ExistsCount)
-				durations := make([]int64, 0, f.ExistsCount)
-				for _, m := range f.Files {
-					isDeleted := m.TimeDeleted != nil && *m.TimeDeleted > 0
-					if !isDeleted {
-						if m.Size != nil {
-							sizes = append(sizes, *m.Size)
-						}
-						if m.Duration != nil {
-							durations = append(durations, *m.Duration)
-						}
-					}
-				}
-				f.MedianSize = int64(utils.SafeMedian(sizes))
-				f.MedianDuration = int64(utils.SafeMedian(durations))
+			if calculateMediansFlag {
+				calculateMedians(f)
 			}
 
 			// Clear files slice if not needed (saves memory)
@@ -878,7 +911,14 @@ func AggregateDUByPathWithFilters(
 	}
 
 	// Phase 3: Aggregate only matching parent directories
-	return aggregateDUWithParentFilter(ctx, sqlDB, pathPrefix, targetDepth, flags, matchingParents)
+	return aggregateDUWithParentFilter(DUAggregationOptions{
+		ctx:             ctx,
+		sqlDB:           sqlDB,
+		pathPrefix:      pathPrefix,
+		targetDepth:     targetDepth,
+		flags:           flags,
+		matchingParents: matchingParents,
+	})
 }
 
 // aggregateDUWithBasicFilters performs SQL aggregation with only basic filters (fast path)
@@ -995,18 +1035,26 @@ func aggregateDUWithBasicFilters(
 	return results, rows.Err()
 }
 
-// aggregateDUWithParentFilter performs SQL aggregation filtered by matching parent directories (slow path)
-func aggregateDUWithParentFilter(
-	ctx context.Context,
-	sqlDB *sql.DB,
-	pathPrefix string,
-	targetDepth int,
-	flags models.GlobalFlags,
-	matchingParents map[string]struct{},
-) ([]DUQueryResult, error) {
-	query, args := buildDUWithParentFilterQuery(ctx, pathPrefix, targetDepth, flags, matchingParents)
+type DUAggregationOptions struct {
+	ctx             context.Context
+	sqlDB           *sql.DB
+	pathPrefix      string
+	targetDepth     int
+	flags           models.GlobalFlags
+	matchingParents map[string]struct{}
+}
 
-	rows, err := sqlDB.QueryContext(ctx, query, args...)
+// aggregateDUWithParentFilter performs SQL aggregation filtered by matching parent directories (slow path)
+func aggregateDUWithParentFilter(opts DUAggregationOptions) ([]DUQueryResult, error) {
+	query, args := buildDUWithParentFilterQuery(
+		opts.ctx,
+		opts.pathPrefix,
+		opts.targetDepth,
+		opts.flags,
+		opts.matchingParents,
+	)
+
+	rows, err := opts.sqlDB.QueryContext(opts.ctx, query, args...)
 	if err != nil {
 		models.Log.Error("DU aggregation with parent filter failed", "error", err)
 		return nil, err
@@ -1023,7 +1071,7 @@ func aggregateDUWithParentFilter(
 	}
 
 	// Apply post-aggregation filters (FolderCounts, FolderSizes)
-	results = applyPostAggregationFilters(results, flags)
+	results = applyPostAggregationFilters(results, opts.flags)
 
 	return results, rows.Err()
 }

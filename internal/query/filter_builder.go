@@ -2524,21 +2524,23 @@ func (qe *QueryExecutor) applyPercentileToRange(ranges []string, mapping []int64
 	return newRanges
 }
 
-func (qe *QueryExecutor) resolveTimePercentiles(
-	ctx context.Context,
-	dbs []string,
-	flags *models.GlobalFlags,
-	field string,
-	ranges []string,
-	after, before *string,
-) {
-	values := qe.getPercentileValues(ctx, dbs, *flags, field)
+type TimePercentileOptions struct {
+	ctx           context.Context
+	dbs           []string
+	flags         *models.GlobalFlags
+	field         string
+	ranges        []string
+	after, before *string
+}
+
+func (qe *QueryExecutor) resolveTimePercentiles(opts TimePercentileOptions) {
+	values := qe.getPercentileValues(opts.ctx, opts.dbs, *opts.flags, opts.field)
 	if len(values) > 0 {
 		mapping := utils.CalculatePercentiles(values)
-		for _, r := range ranges {
+		for _, r := range opts.ranges {
 			if pmin, pmax, ok := utils.ParsePercentileRange(r); ok {
-				*after = strconv.FormatInt(mapping[int(pmin)], 10)
-				*before = strconv.FormatInt(mapping[int(pmax)], 10)
+				*opts.after = strconv.FormatInt(mapping[int(pmin)], 10)
+				*opts.before = strconv.FormatInt(mapping[int(pmax)], 10)
 			}
 		}
 	}
@@ -2599,18 +2601,18 @@ func (qe *QueryExecutor) resolveAllPercentiles(ctx context.Context, dbs []string
 	qe.resolveSizePercentiles(ctx, dbs, flags)
 	qe.resolveDurationPercentiles(ctx, dbs, flags)
 
-	qe.resolveTimePercentiles(
-		ctx, dbs, flags, "time_modified",
-		flags.Modified, &flags.ModifiedAfter, &flags.ModifiedBefore,
-	)
-	qe.resolveTimePercentiles(
-		ctx, dbs, flags, "time_created",
-		flags.Created, &flags.CreatedAfter, &flags.CreatedBefore,
-	)
-	qe.resolveTimePercentiles(
-		ctx, dbs, flags, "time_downloaded",
-		flags.Downloaded, &flags.DownloadedAfter, &flags.DownloadedBefore,
-	)
+	qe.resolveTimePercentiles(TimePercentileOptions{
+		ctx: ctx, dbs: dbs, flags: flags, field: "time_modified",
+		ranges: flags.Modified, after: &flags.ModifiedAfter, before: &flags.ModifiedBefore,
+	})
+	qe.resolveTimePercentiles(TimePercentileOptions{
+		ctx: ctx, dbs: dbs, flags: flags, field: "time_created",
+		ranges: flags.Created, after: &flags.CreatedAfter, before: &flags.CreatedBefore,
+	})
+	qe.resolveTimePercentiles(TimePercentileOptions{
+		ctx: ctx, dbs: dbs, flags: flags, field: "time_downloaded",
+		ranges: flags.Downloaded, after: &flags.DownloadedAfter, before: &flags.DownloadedBefore,
+	})
 
 	qe.resolveEpisodePercentiles(ctx, dbs, flags)
 }

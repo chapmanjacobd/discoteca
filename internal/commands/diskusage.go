@@ -41,18 +41,18 @@ func (c *DiskUsageCmd) AfterApply() error {
 
 func (c *DiskUsageCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := models.BuildQueryGlobalFlags(
-		c.CoreFlags,
-		models.QueryFlags{},
-		c.PathFilterFlags,
-		c.FilterFlags,
-		c.MediaFilterFlags,
-		c.TimeFilterFlags,
-		c.DeletedFlags,
-		c.SortFlags,
-		c.DisplayFlags,
-		c.FTSFlags,
-	)
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        c.CoreFlags,
+		Query:       models.QueryFlags{},
+		PathFilter:  c.PathFilterFlags,
+		Filter:      c.FilterFlags,
+		MediaFilter: c.MediaFilterFlags,
+		TimeFilter:  c.TimeFilterFlags,
+		Deleted:     c.DeletedFlags,
+		Sort:        c.SortFlags,
+		Display:     c.DisplayFlags,
+		FTS:         c.FTSFlags,
+	})
 	flags.AggregateFlags = c.AggregateFlags
 
 	var allMedia []models.MediaWithDB

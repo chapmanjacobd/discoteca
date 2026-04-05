@@ -49,20 +49,30 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 		}
 
 		for _, m := range media {
-			c.checkSingleMedia(ctx, m, gap, deleteThreshold, fullScanThreshold, flags.Simulate)
+			c.checkSingleMedia(ctx, checkMediaOptions{
+				m:                 m,
+				gap:               gap,
+				deleteThreshold:   deleteThreshold,
+				fullScanThreshold: fullScanThreshold,
+				simulate:          flags.Simulate,
+			})
 		}
 		return nil
 	})
 }
 
-func (c *MediaCheckCmd) checkSingleMedia(
-	ctx context.Context,
-	m models.MediaWithDB,
-	gap, deleteThreshold, fullScanThreshold float64,
-	simulate bool,
-) {
+type checkMediaOptions struct {
+	m                 models.MediaWithDB
+	gap               float64
+	deleteThreshold   float64
+	fullScanThreshold float64
+	simulate          bool
+}
+
+func (c *MediaCheckCmd) checkSingleMedia(ctx context.Context, opts checkMediaOptions) {
 	var corruption float64
 	duration := 0.0
+	m := opts.m
 	if m.Duration != nil {
 		duration = float64(*m.Duration)
 	}
@@ -78,10 +88,10 @@ func (c *MediaCheckCmd) checkSingleMedia(
 		if duration == 0 {
 			corruption = 0.5
 		} else {
-			scans := utils.CalculateSegments(duration, c.ChunkSize, gap)
+			scans := utils.CalculateSegments(duration, c.ChunkSize, opts.gap)
 			corruption = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
 
-			if fullScanThreshold > 0 && corruption >= fullScanThreshold {
+			if opts.fullScanThreshold > 0 && corruption >= opts.fullScanThreshold {
 				models.Log.Info(
 					"Corruption threshold reached, performing full scan",
 					"path",
@@ -100,8 +110,8 @@ func (c *MediaCheckCmd) checkSingleMedia(
 
 	fmt.Printf("%.2f%%\t%s\n", corruption*100, m.Path)
 
-	if deleteThreshold > 0 && corruption >= deleteThreshold {
-		c.handleCorruptFile(ctx, m, corruption, simulate)
+	if opts.deleteThreshold > 0 && corruption >= opts.deleteThreshold {
+		c.handleCorruptFile(ctx, m, corruption, opts.simulate)
 	}
 }
 

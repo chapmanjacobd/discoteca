@@ -35,18 +35,18 @@ type WatchCmd struct {
 
 func (c *WatchCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := models.BuildQueryGlobalFlags(
-		c.CoreFlags,
-		c.QueryFlags,
-		c.PathFilterFlags,
-		c.FilterFlags,
-		c.MediaFilterFlags,
-		c.TimeFilterFlags,
-		c.DeletedFlags,
-		c.SortFlags,
-		c.DisplayFlags,
-		c.FTSFlags,
-	)
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        c.CoreFlags,
+		Query:       c.QueryFlags,
+		PathFilter:  c.PathFilterFlags,
+		Filter:      c.FilterFlags,
+		MediaFilter: c.MediaFilterFlags,
+		TimeFilter:  c.TimeFilterFlags,
+		Deleted:     c.DeletedFlags,
+		Sort:        c.SortFlags,
+		Display:     c.DisplayFlags,
+		FTS:         c.FTSFlags,
+	})
 	flags.PlaybackFlags = c.PlaybackFlags
 	flags.MpvActionFlags = c.MpvActionFlags
 	flags.PostActionFlags = c.PostActionFlags
@@ -240,18 +240,18 @@ type ListenCmd struct {
 
 func (c *ListenCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := models.BuildQueryGlobalFlags(
-		c.CoreFlags,
-		c.QueryFlags,
-		c.PathFilterFlags,
-		c.FilterFlags,
-		c.MediaFilterFlags,
-		c.TimeFilterFlags,
-		c.DeletedFlags,
-		c.SortFlags,
-		c.DisplayFlags,
-		c.FTSFlags,
-	)
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        c.CoreFlags,
+		Query:       c.QueryFlags,
+		PathFilter:  c.PathFilterFlags,
+		Filter:      c.FilterFlags,
+		MediaFilter: c.MediaFilterFlags,
+		TimeFilter:  c.TimeFilterFlags,
+		Deleted:     c.DeletedFlags,
+		Sort:        c.SortFlags,
+		Display:     c.DisplayFlags,
+		FTS:         c.FTSFlags,
+	})
 	flags.PlaybackFlags = c.PlaybackFlags
 	flags.MpvActionFlags = c.MpvActionFlags
 	flags.PostActionFlags = c.PostActionFlags

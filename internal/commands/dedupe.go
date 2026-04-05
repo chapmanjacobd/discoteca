@@ -522,16 +522,12 @@ func (c *DedupeCmd) processFSSizeGroup(
 	return c.groupByHashes(ctx, sqlDB, paths, size, flags)
 }
 
-func (c *DedupeCmd) groupByHashes(
+func (c *DedupeCmd) groupByFastHash(
 	ctx context.Context,
 	sqlDB *sql.DB,
 	paths []pathInfo,
-	size int64,
 	flags models.GlobalFlags,
-) []DedupeDuplicate {
-	var dups []DedupeDuplicate
-
-	// Group by fasthash (calculate if not exists)
+) map[string][]pathInfo {
 	fastHashGroups := make(map[string][]pathInfo)
 	for _, p := range paths {
 		if p.fasthash == "" {
@@ -545,6 +541,68 @@ func (c *DedupeCmd) groupByHashes(
 		}
 		fastHashGroups[p.fasthash] = append(fastHashGroups[p.fasthash], p)
 	}
+	return fastHashGroups
+}
+
+func (c *DedupeCmd) groupBySHA256(
+	ctx context.Context,
+	sqlDB *sql.DB,
+	fhPaths []pathInfo,
+) map[string][]pathInfo {
+	sha256Groups := make(map[string][]pathInfo)
+	for _, p := range fhPaths {
+		if p.sha256 == "" {
+			h, err := utils.FullHashFile(p.path)
+			if err == nil && h != "" {
+				p.sha256 = h
+				_, _ = sqlDB.ExecContext(ctx, "UPDATE media SET sha256 = ? WHERE path = ?", h, p.path)
+			} else {
+				continue
+			}
+		}
+		sha256Groups[p.sha256] = append(sha256Groups[p.sha256], p)
+	}
+	return sha256Groups
+}
+
+func (c *DedupeCmd) collectDuplicatesFromGroup(
+	ctx context.Context,
+	sqlDB *sql.DB,
+	sPaths []pathInfo,
+	size int64,
+) []DedupeDuplicate {
+	var dups []DedupeDuplicate
+	// Priority sorting for "keep" candidate
+	sort.Slice(sPaths, func(i, j int) bool {
+		if sPaths[i].isDeduped != sPaths[j].isDeduped {
+			return sPaths[i].isDeduped
+		}
+		return sPaths[i].path < sPaths[j].path
+	})
+
+	keep := sPaths[0].path
+	for _, dup := range sPaths[1:] {
+		_, _ = sqlDB.ExecContext(ctx, "UPDATE media SET is_deduped = 1 WHERE path = ?", keep)
+		dups = append(dups, DedupeDuplicate{
+			KeepPath:      keep,
+			DuplicatePath: dup.path,
+			DuplicateSize: size,
+		})
+	}
+	return dups
+}
+
+func (c *DedupeCmd) groupByHashes(
+	ctx context.Context,
+	sqlDB *sql.DB,
+	paths []pathInfo,
+	size int64,
+	flags models.GlobalFlags,
+) []DedupeDuplicate {
+	var dups []DedupeDuplicate
+
+	// Group by fasthash (calculate if not exists)
+	fastHashGroups := c.groupByFastHash(ctx, sqlDB, paths, flags)
 
 	for _, fhPaths := range fastHashGroups {
 		if len(fhPaths) < 2 {
@@ -552,42 +610,14 @@ func (c *DedupeCmd) groupByHashes(
 		}
 
 		// Group by sha256 (calculate only if fasthash matches)
-		sha256Groups := make(map[string][]pathInfo)
-		for _, p := range fhPaths {
-			if p.sha256 == "" {
-				h, err := utils.FullHashFile(p.path)
-				if err == nil && h != "" {
-					p.sha256 = h
-					_, _ = sqlDB.ExecContext(ctx, "UPDATE media SET sha256 = ? WHERE path = ?", h, p.path)
-				} else {
-					continue
-				}
-			}
-			sha256Groups[p.sha256] = append(sha256Groups[p.sha256], p)
-		}
+		sha256Groups := c.groupBySHA256(ctx, sqlDB, fhPaths)
 
 		for _, sPaths := range sha256Groups {
 			if len(sPaths) < 2 {
 				continue
 			}
 
-			// Priority sorting for "keep" candidate
-			sort.Slice(sPaths, func(i, j int) bool {
-				if sPaths[i].isDeduped != sPaths[j].isDeduped {
-					return sPaths[i].isDeduped
-				}
-				return sPaths[i].path < sPaths[j].path
-			})
-
-			keep := sPaths[0].path
-			for _, dup := range sPaths[1:] {
-				_, _ = sqlDB.ExecContext(ctx, "UPDATE media SET is_deduped = 1 WHERE path = ?", keep)
-				dups = append(dups, DedupeDuplicate{
-					KeepPath:      keep,
-					DuplicatePath: dup.path,
-					DuplicateSize: size,
-				})
-			}
+			dups = append(dups, c.collectDuplicatesFromGroup(ctx, sqlDB, sPaths, size)...)
 		}
 	}
 	return dups

@@ -38,18 +38,18 @@ func (c *TuiCmd) Run(ctx context.Context) error {
 	deletedFlags.HideDeleted = false
 	deletedFlags.OnlyDeleted = false
 
-	flags := models.BuildQueryGlobalFlags(
-		c.CoreFlags,
-		c.QueryFlags,
-		c.PathFilterFlags,
-		c.FilterFlags,
-		c.MediaFilterFlags,
-		c.TimeFilterFlags,
-		deletedFlags,
-		c.SortFlags,
-		c.DisplayFlags,
-		c.FTSFlags,
-	)
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        c.CoreFlags,
+		Query:       c.QueryFlags,
+		PathFilter:  c.PathFilterFlags,
+		Filter:      c.FilterFlags,
+		MediaFilter: c.MediaFilterFlags,
+		TimeFilter:  c.TimeFilterFlags,
+		Deleted:     deletedFlags,
+		Sort:        c.SortFlags,
+		Display:     c.DisplayFlags,
+		FTS:         c.FTSFlags,
+	})
 
 	media, err := query.MediaQuery(ctx, c.Databases, flags)
 	if err != nil {
