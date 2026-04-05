@@ -13,6 +13,7 @@ import (
 )
 
 // Criteria defines filter criteria for in-memory filtering.
+//
 // Deprecated: Use query.FilterBuilder.CreateInMemoryFilter() instead.
 type Criteria struct {
 	Include      []string
@@ -27,6 +28,7 @@ type Criteria struct {
 }
 
 // Apply filters media in-memory using the provided criteria.
+//
 // Deprecated: Use query.FilterBuilder.FilterMedia() instead which provides
 // unified filtering logic shared with SQL query building.
 func Apply(media []models.Media, criteria Criteria) []models.Media {

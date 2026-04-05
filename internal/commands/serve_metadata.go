@@ -200,7 +200,7 @@ func (c *ServeCmd) HandleRatings(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			for _, s := range stats {
-				counts[s.Rating] = counts[s.Rating] + s.Count
+				counts[s.Rating] += s.Count
 			}
 			return nil
 		})

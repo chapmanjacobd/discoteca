@@ -44,8 +44,7 @@ func (c *NowCmd) Run(ctx context.Context) error {
 	posResp, err := utils.MpvCall(ctx, socketPath, "get_property", "time-pos")
 	if err == nil && posResp.Data != nil {
 		pos := 0.0
-		switch v := posResp.Data.(type) {
-		case float64:
+		if v, ok := posResp.Data.(float64); ok {
 			pos = v
 		}
 		fmt.Printf("    Playhead: %s\n", utils.SecondsToHHMMSS(int64(pos)))
@@ -54,8 +53,7 @@ func (c *NowCmd) Run(ctx context.Context) error {
 	durResp, err := utils.MpvCall(ctx, socketPath, "get_property", "duration")
 	if err == nil && durResp.Data != nil {
 		dur := 0.0
-		switch v := durResp.Data.(type) {
-		case float64:
+		if v, ok := durResp.Data.(float64); ok {
 			dur = v
 		}
 		fmt.Printf("    Duration: %s\n", utils.SecondsToHHMMSS(int64(dur)))
