@@ -1,4 +1,4 @@
-package db
+package db_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestRepairRace(t *testing.T) {
@@ -24,25 +26,25 @@ func TestRepairRace(t *testing.T) {
 	defer os.Remove(dbPath)
 
 	// Initialize it in WAL mode
-	db, err := sql.Open("sqlite3", dbPath)
+	sqlDB, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	_, err = sqlDB.Exec("PRAGMA journal_mode=WAL")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
+	_, err = sqlDB.Exec("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := range 100 {
-		_, err = db.Exec("INSERT INTO test (name) VALUES (?)", fmt.Sprintf("name-%d", i))
+		_, err = sqlDB.Exec("INSERT INTO test (name) VALUES (?)", fmt.Sprintf("name-%d", i))
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	db.Close()
+	sqlDB.Close()
 
 	// Ensure WAL file exists for testing sidecar handling
 	walPath := dbPath + "-wal"
@@ -58,18 +60,18 @@ func TestRepairRace(t *testing.T) {
 	file.WriteAt([]byte("CORRUPT"), 100)
 	file.Close()
 
-	// After repairs, we can't easily check for the backups because they are timestamped and then REMOVED by Repair on success.
-	// To test backup handling, we might need a separate test that doesn't successfully repair or we modify Repair to not remove them.
+	// After repairs, we can't easily check for the backups because they are timestamped and then REMOVED by db.Repair on success.
+	// To test backup handling, we might need a separate test that doesn't successfully repair or we modify db.Repair to not remove them.
 	// Actually, let's just trust the code if it passes the concurrency test.
 
 	// Verify it's corrupt
-	if isHealthy(context.Background(), dbPath) {
-		t.Log("Warning: isHealthy didn't detect corruption at offset 5000, trying more extensive corruption")
+	if !db.IsHealthy(context.Background(), dbPath) {
+		t.Log("Warning: db.IsHealthy didn't detect corruption at offset 5000, trying more extensive corruption")
 		file, _ = os.OpenFile(dbPath, os.O_WRONLY, 0o644)
 		file.WriteAt([]byte("CORRUPT"), 100) // Near header
 		file.Close()
-		if isHealthy(context.Background(), dbPath) {
-			t.Fatal("Failed to create a corrupt database that isHealthy detects")
+		if db.IsHealthy(context.Background(), dbPath) {
+			t.Fatal("Failed to create a corrupt database that db.IsHealthy detects")
 		}
 	}
 
@@ -81,7 +83,7 @@ func TestRepairRace(t *testing.T) {
 	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
-			err := Repair(context.Background(), dbPath)
+			err := db.Repair(context.Background(), dbPath)
 			if err != nil {
 				// Some might fail if they catch it in a weird state, but the goal is at least one succeeds
 				// and others either wait and see health or fail gracefully.
@@ -94,7 +96,7 @@ func TestRepairRace(t *testing.T) {
 	wg.Wait()
 
 	// Final check
-	if !isHealthy(context.Background(), dbPath) {
+	if !db.IsHealthy(context.Background(), dbPath) {
 		t.Error("Database should be healthy after repairs")
 	}
 

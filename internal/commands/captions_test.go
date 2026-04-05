@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"database/sql"
@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -82,8 +83,8 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 
 	db.Close()
 
-	// Create ServeCmd with test database
-	cmd := &ServeCmd{
+	// Create commands.ServeCmd with test database
+	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
 	defer cmd.Close()
@@ -213,7 +214,7 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 
 	db.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
 	defer cmd.Close()
@@ -287,7 +288,7 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 	}
 	db2.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB1.Name(), tmpDB2.Name()},
 	}
 	defer cmd.Close()

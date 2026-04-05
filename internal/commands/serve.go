@@ -134,63 +134,63 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux := http.NewServeMux()
 
 	// Health and Static
-	mux.HandleFunc("/health", c.handleHealth)
+	mux.HandleFunc("/health", c.HandleHealth)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		w.WriteHeader(http.StatusOK)
 	})
 
 	// API routes
-	mux.HandleFunc("/api/databases", c.authMiddleware(c.handleDatabases))
-	mux.HandleFunc("/api/categories", c.authMiddleware(c.handleCategories))
-	mux.HandleFunc("/api/genres", c.authMiddleware(c.handleGenres))
-	mux.HandleFunc("/api/languages", c.authMiddleware(c.handleLanguages))
-	mux.HandleFunc("/api/ratings", c.authMiddleware(c.handleRatings))
+	mux.HandleFunc("/api/databases", c.authMiddleware(c.HandleDatabases))
+	mux.HandleFunc("/api/categories", c.authMiddleware(c.HandleCategories))
+	mux.HandleFunc("/api/genres", c.authMiddleware(c.HandleGenres))
+	mux.HandleFunc("/api/languages", c.authMiddleware(c.HandleLanguages))
+	mux.HandleFunc("/api/ratings", c.authMiddleware(c.HandleRatings))
 	mux.HandleFunc("/api/query", c.authMiddleware(c.HandleQuery))
-	mux.HandleFunc("/api/metadata", c.authMiddleware(c.handleMetadata))
-	mux.HandleFunc("/api/play", c.authMiddleware(c.handlePlay))
-	mux.HandleFunc("/api/delete", c.authMiddleware(c.handleDelete))
-	mux.HandleFunc("/api/progress", c.authMiddleware(c.handleProgress))
-	mux.HandleFunc("/api/mark-played", c.authMiddleware(c.handleMarkPlayed))
-	mux.HandleFunc("/api/mark-unplayed", c.authMiddleware(c.handleMarkUnplayed))
-	mux.HandleFunc("/api/rate", c.authMiddleware(c.handleRate))
-	mux.HandleFunc("/api/playlists", c.authMiddleware(c.handlePlaylists))
-	mux.HandleFunc("/api/playlists/items", c.authMiddleware(c.handlePlaylistItems))
-	mux.HandleFunc("/api/playlists/reorder", c.authMiddleware(c.handlePlaylistReorder))
-	mux.HandleFunc("/api/events", c.authMiddleware(c.handleEvents))
-	mux.HandleFunc("/api/ls", c.authMiddleware(c.handleLs))
-	mux.HandleFunc("/api/du", c.authMiddleware(c.handleDU))
-	mux.HandleFunc("/api/episodes", c.authMiddleware(c.handleEpisodes))
-	mux.HandleFunc("/api/filter-bins", c.authMiddleware(c.handleFilterBins))
-	mux.HandleFunc("/api/random-clip", c.authMiddleware(c.handleRandomClip))
-	mux.HandleFunc("/api/categorize/suggest", c.authMiddleware(c.handleCategorizeSuggest))
-	mux.HandleFunc("/api/categorize/apply", c.authMiddleware(c.handleCategorizeApply))
-	mux.HandleFunc("/api/categorize/keywords", c.authMiddleware(c.handleCategorizeKeywords))
-	mux.HandleFunc("/api/categorize/category", c.authMiddleware(c.handleCategorizeDeleteCategory))
-	mux.HandleFunc("/api/categorize/keyword", c.authMiddleware(c.handleCategorizeKeyword))
-	mux.HandleFunc("/api/raw", c.authMiddleware(c.handleRaw))
+	mux.HandleFunc("/api/metadata", c.authMiddleware(c.HandleMetadata))
+	mux.HandleFunc("/api/play", c.authMiddleware(c.HandlePlay))
+	mux.HandleFunc("/api/delete", c.authMiddleware(c.HandleDelete))
+	mux.HandleFunc("/api/progress", c.authMiddleware(c.HandleProgress))
+	mux.HandleFunc("/api/mark-played", c.authMiddleware(c.HandleMarkPlayed))
+	mux.HandleFunc("/api/mark-unplayed", c.authMiddleware(c.HandleMarkUnplayed))
+	mux.HandleFunc("/api/rate", c.authMiddleware(c.HandleRate))
+	mux.HandleFunc("/api/playlists", c.authMiddleware(c.HandlePlaylists))
+	mux.HandleFunc("/api/playlists/items", c.authMiddleware(c.HandlePlaylistItems))
+	mux.HandleFunc("/api/playlists/reorder", c.authMiddleware(c.HandlePlaylistReorder))
+	mux.HandleFunc("/api/events", c.authMiddleware(c.HandleEvents))
+	mux.HandleFunc("/api/ls", c.authMiddleware(c.HandleLs))
+	mux.HandleFunc("/api/du", c.authMiddleware(c.HandleDU))
+	mux.HandleFunc("/api/episodes", c.authMiddleware(c.HandleEpisodes))
+	mux.HandleFunc("/api/filter-bins", c.authMiddleware(c.HandleFilterBins))
+	mux.HandleFunc("/api/random-clip", c.authMiddleware(c.HandleRandomClip))
+	mux.HandleFunc("/api/categorize/suggest", c.authMiddleware(c.HandleCategorizeSuggest))
+	mux.HandleFunc("/api/categorize/apply", c.authMiddleware(c.HandleCategorizeApply))
+	mux.HandleFunc("/api/categorize/keywords", c.authMiddleware(c.HandleCategorizeKeywords))
+	mux.HandleFunc("/api/categorize/category", c.authMiddleware(c.HandleCategorizeDeleteCategory))
+	mux.HandleFunc("/api/categorize/keyword", c.authMiddleware(c.HandleCategorizeKeyword))
+	mux.HandleFunc("/api/raw", c.authMiddleware(c.HandleRaw))
 
 	// Query statistics / slow query dashboard
-	mux.HandleFunc("/api/queries", c.authMiddleware(c.handleQueries))
+	mux.HandleFunc("/api/queries", c.authMiddleware(c.HandleQueries))
 
 	// ZIM routes
-	mux.HandleFunc("/api/zim/view", c.authMiddleware(c.handleZimView))
-	mux.HandleFunc("/api/zim/proxy/{port}/{rest...}", c.authMiddleware(c.handleZimProxy))
+	mux.HandleFunc("/api/zim/view", c.authMiddleware(c.HandleZimView))
+	mux.HandleFunc("/api/zim/proxy/{port}/{rest...}", c.authMiddleware(c.HandleZimProxy))
 
 	// Special features
-	mux.HandleFunc("/api/rsvp", c.authMiddleware(c.handleRSVP))
-	mux.HandleFunc("/api/epub/{path...}", c.authMiddleware(c.handleEpubConvert))
+	mux.HandleFunc("/api/rsvp", c.authMiddleware(c.HandleRSVP))
+	mux.HandleFunc("/api/epub/{path...}", c.authMiddleware(c.HandleEpubConvert))
 
 	// Streaming
-	mux.HandleFunc("/api/hls/playlist", c.authMiddleware(c.handleHLSPlaylist))
-	mux.HandleFunc("/api/hls/segment", c.authMiddleware(c.handleHLSSegment))
-	mux.HandleFunc("/api/subtitles", c.authMiddleware(c.handleSubtitles))
-	mux.HandleFunc("/api/thumbnail", c.authMiddleware(c.handleThumbnail))
-	mux.HandleFunc("/opds", c.authMiddleware(c.handleOPDS))
+	mux.HandleFunc("/api/hls/playlist", c.authMiddleware(c.HandleHLSPlaylist))
+	mux.HandleFunc("/api/hls/segment", c.authMiddleware(c.HandleHLSSegment))
+	mux.HandleFunc("/api/subtitles", c.authMiddleware(c.HandleSubtitles))
+	mux.HandleFunc("/api/thumbnail", c.authMiddleware(c.HandleThumbnail))
+	mux.HandleFunc("/opds", c.authMiddleware(c.HandleOPDS))
 
 	// Trash endpoints (respects ReadOnly mode)
-	mux.HandleFunc("/api/trash", c.authMiddleware(c.handleTrash))
-	mux.HandleFunc("/api/empty-bin", c.authMiddleware(c.handleEmptyBin))
+	mux.HandleFunc("/api/trash", c.authMiddleware(c.HandleTrash))
+	mux.HandleFunc("/api/empty-bin", c.authMiddleware(c.HandleEmptyBin))
 
 	// Static assets
 	mux.HandleFunc("/lib/", func(w http.ResponseWriter, r *http.Request) {
@@ -426,7 +426,7 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 
 			if openCmd != "" {
 				openArgs = append(openArgs, baseURL)
-				cmd := exec.Command(openCmd, openArgs...)
+				cmd := exec.CommandContext(context.Background(), openCmd, openArgs...)
 				if err := cmd.Start(); err != nil {
 					models.Log.Debug("Failed to open browser", "error", err)
 				}
@@ -465,7 +465,7 @@ func (c *ServeCmd) GetGlobalFlags() models.GlobalFlags {
 }
 
 // parseFlags extracts query parameters into GlobalFlags
-func (c *ServeCmd) parseFlags(r *http.Request) models.GlobalFlags {
+func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	flags := c.GetGlobalFlags()
 	q := r.URL.Query()
 	if search := q.Get("search"); search != "" {

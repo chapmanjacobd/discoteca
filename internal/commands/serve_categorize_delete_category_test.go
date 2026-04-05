@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"database/sql"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 )
 
 func TestHandleCategorizeDeleteCategory(t *testing.T) {
@@ -41,7 +43,7 @@ func TestHandleCategorizeDeleteCategory(t *testing.T) {
 
 	db.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 		ReadOnly:  false,
 	}
@@ -50,7 +52,7 @@ func TestHandleCategorizeDeleteCategory(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/categorize/category?category=Genre", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeDeleteCategory(w, req)
+		cmd.HandleCategorizeDeleteCategory(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -88,7 +90,7 @@ func TestHandleCategorizeDeleteCategory(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/categorize/category", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeDeleteCategory(w, req)
+		cmd.HandleCategorizeDeleteCategory(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected status 400, got %d", w.Code)
@@ -102,7 +104,7 @@ func TestHandleCategorizeDeleteCategory(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/categorize/category?category=Genre", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeDeleteCategory(w, req)
+		cmd.HandleCategorizeDeleteCategory(w, req)
 
 		if w.Code != http.StatusForbidden {
 			t.Errorf("Expected status 403 in read-only mode, got %d", w.Code)
@@ -113,7 +115,7 @@ func TestHandleCategorizeDeleteCategory(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/category?category=Genre", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeDeleteCategory(w, req)
+		cmd.HandleCategorizeDeleteCategory(w, req)
 
 		if w.Code != http.StatusMethodNotAllowed {
 			t.Errorf("Expected status 405 for POST, got %d", w.Code)

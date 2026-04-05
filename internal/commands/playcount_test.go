@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -16,13 +17,13 @@ func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {
 	defer fixture.Cleanup()
 
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
 	addCmd.Run(context.Background())
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 
@@ -44,7 +45,7 @@ func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
 	w := httptest.NewRecorder()
-	cmd.handleProgress(w, req)
+	cmd.HandleProgress(w, req)
 
 	if w.Result().StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Result().StatusCode)
@@ -59,7 +60,7 @@ func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {
 	cmd.ReadOnly = true
 	req = httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
 	w = httptest.NewRecorder()
-	cmd.handleProgress(w, req)
+	cmd.HandleProgress(w, req)
 
 	if w.Result().StatusCode != http.StatusForbidden {
 		t.Errorf("Expected status 403 in read-only mode, got %d", w.Result().StatusCode)
@@ -76,13 +77,13 @@ func TestServeCmd_HandleMarkPlayed(t *testing.T) {
 	defer fixture.Cleanup()
 
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
 	addCmd.Run(context.Background())
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 
@@ -93,7 +94,7 @@ func TestServeCmd_HandleMarkPlayed(t *testing.T) {
 	reqBody, _ := json.Marshal(map[string]string{"path": f1})
 	req := httptest.NewRequest(http.MethodPost, "/api/mark-played", bytes.NewBuffer(reqBody))
 	w := httptest.NewRecorder()
-	cmd.handleMarkPlayed(w, req)
+	cmd.HandleMarkPlayed(w, req)
 
 	if w.Result().StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Result().StatusCode)
@@ -108,7 +109,7 @@ func TestServeCmd_HandleMarkPlayed(t *testing.T) {
 	// 2. Mark as played again
 	req = httptest.NewRequest(http.MethodPost, "/api/mark-played", bytes.NewBuffer(json.RawMessage(reqBody)))
 	w = httptest.NewRecorder()
-	cmd.handleMarkPlayed(w, req)
+	cmd.HandleMarkPlayed(w, req)
 
 	dbConn.QueryRow("SELECT COALESCE(play_count, 0) FROM media WHERE path = ?", f1).Scan(&playCount)
 	if playCount != 2 {
@@ -121,13 +122,13 @@ func TestServeCmd_HandleMarkUnplayed(t *testing.T) {
 	defer fixture.Cleanup()
 
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
 	addCmd.Run(context.Background())
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 
@@ -137,12 +138,12 @@ func TestServeCmd_HandleMarkUnplayed(t *testing.T) {
 	// 1. Mark as played first
 	reqBody, _ := json.Marshal(map[string]string{"path": f1})
 	req := httptest.NewRequest(http.MethodPost, "/api/mark-played", bytes.NewBuffer(reqBody))
-	cmd.handleMarkPlayed(httptest.NewRecorder(), req)
+	cmd.HandleMarkPlayed(httptest.NewRecorder(), req)
 
 	// 2. Mark as unplayed
 	req = httptest.NewRequest(http.MethodPost, "/api/mark-unplayed", bytes.NewBuffer(reqBody))
 	w := httptest.NewRecorder()
-	cmd.handleMarkUnplayed(w, req)
+	cmd.HandleMarkUnplayed(w, req)
 
 	if w.Result().StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Result().StatusCode)

@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -20,7 +21,7 @@ func TestServeCmd_Validation(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 	handler := cmd.Mux()
@@ -144,7 +145,7 @@ func TestServeCmd_HandleHLSSegment_Validation(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 	handler := cmd.Mux()
@@ -181,7 +182,7 @@ func TestServeCmd_HandleHLSPlaylist_Validation(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 	handler := cmd.Mux()

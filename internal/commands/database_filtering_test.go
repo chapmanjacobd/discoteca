@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
@@ -22,8 +23,8 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	db.InitDB(context.Background(), sqlDB)
 	sqlDB.Close()
 
-	// Create ServeCmd with only the fixture database
-	cmd := &ServeCmd{
+	// Create commands.ServeCmd with only the fixture database
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 	handler := cmd.Mux()
@@ -114,7 +115,7 @@ func TestDatabaseFiltering_FilterBins(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 	handler := cmd.Mux()
@@ -160,7 +161,7 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 	db.InitDB(context.Background(), db2)
 	db2.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture1.DBPath, fixture2.DBPath},
 	}
 	handler := cmd.Mux()

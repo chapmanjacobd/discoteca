@@ -21,7 +21,7 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
-func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleCategorizeKeywords(w http.ResponseWriter, r *http.Request) {
 	type catKeywords struct {
 		Category string   `json:"category"`
 		Keywords []string `json:"keywords"`
@@ -69,7 +69,7 @@ func (c *ServeCmd) handleCategorizeKeywords(w http.ResponseWriter, r *http.Reque
 	sendJSON(w, http.StatusOK, results)
 }
 
-func (c *ServeCmd) handleCategorizeDeleteCategory(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleCategorizeDeleteCategory(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return
@@ -98,7 +98,7 @@ func (c *ServeCmd) handleCategorizeDeleteCategory(w http.ResponseWriter, r *http
 	sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return
@@ -164,7 +164,7 @@ func (c *ServeCmd) handleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 	sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleRandomClip(w http.ResponseWriter, r *http.Request) {
 	var allMedia []models.MediaWithDB
 	for _, dbPath := range c.Databases {
 		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
@@ -282,7 +282,7 @@ func (c *ServeCmd) handleRandomClip(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, http.StatusOK, response)
 }
 
-func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleCategorizeSuggest(w http.ResponseWriter, r *http.Request) {
 	fullPath := r.URL.Query().Get("full_path") == "true"
 
 	var allMedia []models.MediaWithDB
@@ -418,7 +418,7 @@ func (c *ServeCmd) handleCategorizeSuggest(w http.ResponseWriter, r *http.Reques
 	sendJSON(w, http.StatusOK, freqs[:limit])
 }
 
-func (c *ServeCmd) handleCategorizeApply(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleCategorizeApply(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return
@@ -520,7 +520,7 @@ func (c *ServeCmd) handleCategorizeApply(w http.ResponseWriter, r *http.Request)
 	fmt.Fprintf(w, `{"count": %d}`, count)
 }
 
-func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleRaw(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	dbParam := r.URL.Query().Get("db")
 
@@ -599,7 +599,7 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 
 	if strategy.NeedsTranscode {
 		if c.hasFfmpeg {
-			c.handleTranscode(w, r, localPath, m, strategy)
+			c.HandleTranscode(w, r, localPath, m, strategy)
 			return
 		} else {
 			models.Log.Error("ffmpeg not found in PATH, skipping transcoding", "path", path)
@@ -610,7 +610,7 @@ func (c *ServeCmd) handleRaw(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, localPath)
 }
 
-func (c *ServeCmd) handleTrash(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleTrash(w http.ResponseWriter, r *http.Request) {
 	flags := c.GetGlobalFlags()
 	flags.OnlyDeleted = true
 	flags.HideDeleted = false
@@ -629,7 +629,7 @@ func (c *ServeCmd) handleTrash(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, http.StatusOK, media)
 }
 
-func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleEmptyBin(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return
@@ -701,7 +701,7 @@ func (c *ServeCmd) handleEmptyBin(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Deleted %d files", count)
 }
 
-func (c *ServeCmd) handleOPDS(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleOPDS(w http.ResponseWriter, r *http.Request) {
 	flags := c.GetGlobalFlags()
 	flags.TextOnly = true
 	flags.All = true
@@ -766,7 +766,7 @@ func (c *ServeCmd) handleOPDS(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "\n</feed>")
 }
 
-func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandlePlaylists(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		titles := make(map[string]bool)
 		for _, dbPath := range c.Databases {
@@ -873,7 +873,7 @@ func (c *ServeCmd) handlePlaylists(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		title := r.URL.Query().Get("title")
 		if title == "" {
@@ -1117,7 +1117,7 @@ func (c *ServeCmd) handlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ServeCmd) handleRSVP(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleRSVP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "Path required", http.StatusBadRequest)

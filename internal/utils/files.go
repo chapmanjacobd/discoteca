@@ -32,7 +32,7 @@ func SampleHashFile(path string, threads int, gap float64, chunkSize int64) (str
 	}
 
 	if chunkSize <= 0 {
-		// Linear interpolation for chunk size based on file size
+		// Linear interpolation for Chunk size based on file size
 		dataPoints := [][2]float64{
 			{26214400, 262144},      // 25MB -> 256KB
 			{52428800000, 10485760}, // 50GB -> 10MB

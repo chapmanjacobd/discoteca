@@ -1,4 +1,4 @@
-package utils
+package utils_test
 
 import (
 	"fmt"
@@ -6,12 +6,14 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestGenerateRSVPAss(t *testing.T) {
 	text := "Hello world this is RSVP"
 	wpm := 60 // 1 word per second
-	ass, duration := GenerateRSVPAss(text, wpm)
+	ass, duration := utils.GenerateRSVPAss(text, wpm)
 
 	if duration != 5.0 {
 		t.Errorf("expected duration 5.0, got %f", duration)
@@ -32,9 +34,9 @@ func TestExtractText(t *testing.T) {
 	content := "Test content"
 	os.WriteFile(tmpFile.Name(), []byte(content), 0o644)
 
-	text, err := ExtractText(tmpFile.Name())
+	text, err := utils.ExtractText(tmpFile.Name())
 	if err != nil {
-		t.Fatalf("ExtractText failed: %v", err)
+		t.Fatalf("utils.ExtractText failed: %v", err)
 	}
 	if strings.TrimSpace(text) != content {
 		t.Errorf("expected %q, got %q", content, text)
@@ -43,16 +45,16 @@ func TestExtractText(t *testing.T) {
 	// Test empty file
 	emptyFile, _ := os.CreateTemp(t.TempDir(), "empty*.txt")
 	defer os.Remove(emptyFile.Name())
-	text, err = ExtractText(emptyFile.Name())
+	text, err = utils.ExtractText(emptyFile.Name())
 	if err != nil {
-		t.Fatalf("ExtractText failed on empty file: %v", err)
+		t.Fatalf("utils.ExtractText failed on empty file: %v", err)
 	}
 	if text != "" {
 		t.Errorf("expected empty string, got %q", text)
 	}
 
 	// Test non-existent file
-	_, err = ExtractText("/non/existent/path.txt")
+	_, err = utils.ExtractText("/non/existent/path.txt")
 	if err == nil {
 		t.Error("expected error for non-existent file, got nil")
 	}
@@ -63,7 +65,7 @@ func TestExtractText(t *testing.T) {
 		badPdf, _ := os.CreateTemp(t.TempDir(), "bad*.pdf")
 		defer os.Remove(badPdf.Name())
 		os.WriteFile(badPdf.Name(), []byte("not a pdf"), 0o644)
-		_, err = ExtractText(badPdf.Name())
+		_, err = utils.ExtractText(badPdf.Name())
 		if err == nil {
 			t.Error("expected error for malformed PDF, got nil")
 		}
@@ -71,7 +73,7 @@ func TestExtractText(t *testing.T) {
 		badEpub, _ := os.CreateTemp(t.TempDir(), "bad*.epub")
 		defer os.Remove(badEpub.Name())
 		os.WriteFile(badEpub.Name(), []byte("not a zip"), 0o644)
-		_, err = ExtractText(badEpub.Name())
+		_, err = utils.ExtractText(badEpub.Name())
 		if err == nil {
 			t.Error("expected error for malformed EPUB, got nil")
 		}
@@ -79,12 +81,12 @@ func TestExtractText(t *testing.T) {
 }
 
 func TestGenerateRSVPAss_Empty(t *testing.T) {
-	ass, duration := GenerateRSVPAss("", 60)
+	ass, duration := utils.GenerateRSVPAss("", 60)
 	if ass != "" || duration != 0 {
 		t.Errorf("expected empty string and 0 duration for empty input, got %q and %f", ass, duration)
 	}
 
-	ass, duration = GenerateRSVPAss("   ", 60)
+	ass, duration = utils.GenerateRSVPAss("   ", 60)
 	if ass != "" || duration != 0 {
 		t.Errorf("expected empty string and 0 duration for whitespace input, got %q and %f", ass, duration)
 	}
@@ -107,9 +109,9 @@ func TestCountWordsFast(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := CountWordsFast([]byte(tt.input))
+			result := utils.CountWordsFast([]byte(tt.input))
 			if result != tt.expected {
-				t.Errorf("CountWordsFast(%q) = %d, expected %d", tt.input, result, tt.expected)
+				t.Errorf("utils.CountWordsFast(%q) = %d, expected %d", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -127,9 +129,9 @@ func TestQuickWordCount(t *testing.T) {
 	os.WriteFile(tmpFile.Name(), []byte(content.String()), 0o644)
 	stat, _ := os.Stat(tmpFile.Name())
 
-	count, err := QuickWordCount(tmpFile.Name(), stat.Size())
+	count, err := utils.QuickWordCount(tmpFile.Name(), stat.Size())
 	if err != nil {
-		t.Fatalf("QuickWordCount failed: %v", err)
+		t.Fatalf("utils.QuickWordCount failed: %v", err)
 	}
 	// 35 * 9 = 315 words expected
 	if count < 310 || count > 320 {
@@ -150,18 +152,18 @@ func TestQuickWordCount(t *testing.T) {
 	os.WriteFile(htmlFile.Name(), []byte(htmlContent.String()), 0o644)
 	stat, _ = os.Stat(htmlFile.Name())
 
-	count, err = QuickWordCount(htmlFile.Name(), stat.Size())
+	count, err = utils.QuickWordCount(htmlFile.Name(), stat.Size())
 	if err != nil {
-		t.Fatalf("QuickWordCount for HTML failed: %v", err)
+		t.Fatalf("utils.QuickWordCount for HTML failed: %v", err)
 	}
 	// Should find approximately 35 * 6 = 210 words plus tag artifacts
-	// CountWordsFast counts spaces from tag replacement too
+	// utils.CountWordsFast counts spaces from tag replacement too
 	if count < 200 || count > 400 {
 		t.Errorf("expected 200-400 words for HTML, got %d", count)
 	}
 
 	// Test non-existent file
-	_, err = QuickWordCount("/non/existent/file.txt", 0)
+	_, err = utils.QuickWordCount("/non/existent/file.txt", 0)
 	if err == nil {
 		t.Error("expected error for non-existent file, got nil")
 	}
@@ -180,14 +182,14 @@ func TestEstimateReadingDuration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := EstimateReadingDuration(tt.wordCount)
+		result := utils.EstimateReadingDuration(tt.wordCount)
 		diff := result - tt.expected
 		if diff < 0 {
 			diff = -diff
 		}
 		if diff > tt.tolerance {
 			t.Errorf(
-				"EstimateReadingDuration(%d) = %d, expected ~%d (±%d)",
+				"utils.EstimateReadingDuration(%d) = %d, expected ~%d (±%d)",
 				tt.wordCount,
 				result,
 				tt.expected,
@@ -218,9 +220,9 @@ func TestEstimateWordCountFromSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := EstimateWordCountFromSize("test"+tt.ext, tt.size)
+			result := utils.EstimateWordCountFromSize("test"+tt.ext, tt.size)
 			if result < tt.minWords || result > tt.maxWords {
-				t.Errorf("EstimateWordCountFromSize(%s, %d) = %d, expected %d-%d",
+				t.Errorf("utils.EstimateWordCountFromSize(%s, %d) = %d, expected %d-%d",
 					tt.ext, tt.size, result, tt.minWords, tt.maxWords)
 			}
 		})
@@ -234,7 +236,7 @@ func BenchmarkCountWordsFast(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		CountWordsFast(text)
+		utils.CountWordsFast(text)
 	}
 }
 
@@ -253,7 +255,7 @@ func BenchmarkQuickWordCount_PlainText(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		QuickWordCount(tmpFile.Name(), stat.Size())
+		utils.QuickWordCount(tmpFile.Name(), stat.Size())
 	}
 }
 
@@ -274,6 +276,6 @@ func BenchmarkQuickWordCount_HTML(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		QuickWordCount(tmpFile.Name(), stat.Size())
+		utils.QuickWordCount(tmpFile.Name(), stat.Size())
 	}
 }

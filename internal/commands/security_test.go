@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -12,7 +13,7 @@ func TestSecurity_Blocklist(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
 	defer cmd.Close()
@@ -47,7 +48,7 @@ func TestSecurity_Blocklist(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/raw?path="+tc.path, nil)
 			req.Header.Set("X-Disco-Token", cmd.APIToken)
 			w := httptest.NewRecorder()
-			cmd.handleRaw(w, req)
+			cmd.HandleRaw(w, req)
 			if w.Code != tc.expected {
 				t.Errorf("Path %s: expected status %d, got %d", tc.path, tc.expected, w.Code)
 			}

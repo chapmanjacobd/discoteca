@@ -17,7 +17,7 @@ type CmdResult struct {
 
 // Cmd runs a command and returns its output and exit code
 func Cmd(name string, args ...string) (CmdResult, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -49,7 +49,7 @@ func Cmd(name string, args ...string) (CmdResult, error) {
 
 // CmdInteractive runs a command connected to the current process's terminal
 func CmdInteractive(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
 	cmd.Stdin = Stdin
@@ -96,7 +96,7 @@ func FzfSelect(items []string, multi bool) ([]string, error) {
 		args = append(args, "--multi")
 	}
 
-	cmd := exec.Command("fzf", args...)
+	cmd := exec.CommandContext(context.Background(), "fzf", args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

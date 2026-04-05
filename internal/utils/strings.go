@@ -231,12 +231,12 @@ func Shorten(text string, maxWidth int) string {
 
 	g := uniseg.NewGraphemes(text)
 	for g.Next() {
-		chunk := g.Str()
-		chunkWidth := runewidth.StringWidth(chunk)
+		Chunk := g.Str()
+		chunkWidth := runewidth.StringWidth(Chunk)
 		if currentWidth+chunkWidth > available {
 			break
 		}
-		truncated.WriteString(chunk)
+		truncated.WriteString(Chunk)
 		currentWidth += chunkWidth
 	}
 
@@ -267,12 +267,12 @@ func ShortenMiddle(text string, maxWidth int) string {
 
 	var left strings.Builder
 	currentWidth := 0
-	for _, chunk := range chunks {
-		w := runewidth.StringWidth(chunk)
+	for _, Chunk := range chunks {
+		w := runewidth.StringWidth(Chunk)
 		if currentWidth+w > leftWidth {
 			break
 		}
-		left.WriteString(chunk)
+		left.WriteString(Chunk)
 		currentWidth += w
 	}
 
@@ -295,17 +295,17 @@ func ShortenMiddle(text string, maxWidth int) string {
 }
 
 func NaturalLess(s1, s2 string) bool {
-	n1, n2 := extractNumbers(s1), extractNumbers(s2)
+	n1, n2 := ExtractNumbers(s1), ExtractNumbers(s2)
 
 	idx1, idx2 := 0, 0
 	for idx1 < len(n1) && idx2 < len(n2) {
-		if n1[idx1].isNum && n2[idx2].isNum {
-			if n1[idx1].num != n2[idx2].num {
-				return n1[idx1].num < n2[idx2].num
+		if n1[idx1].IsNum && n2[idx2].IsNum {
+			if n1[idx1].Num != n2[idx2].Num {
+				return n1[idx1].Num < n2[idx2].Num
 			}
 		} else {
-			if n1[idx1].str != n2[idx2].str {
-				return n1[idx1].str < n2[idx2].str
+			if n1[idx1].Str != n2[idx2].Str {
+				return n1[idx1].Str < n2[idx2].Str
 			}
 		}
 		idx1++
@@ -315,22 +315,22 @@ func NaturalLess(s1, s2 string) bool {
 	return len(n1) < len(n2)
 }
 
-type chunk struct {
-	str   string
-	num   int
-	isNum bool
+type Chunk struct {
+	Str   string
+	Num   int
+	IsNum bool
 }
 
-func extractNumbers(s string) []chunk {
+func ExtractNumbers(s string) []Chunk {
 	re := regexp.MustCompile(`\d+|\D+`)
 	matches := re.FindAllString(s, -1)
 
-	var chunks []chunk
+	var chunks []Chunk
 	for _, m := range matches {
 		if num, err := strconv.Atoi(m); err == nil {
-			chunks = append(chunks, chunk{num: num, isNum: true})
+			chunks = append(chunks, Chunk{Num: num, IsNum: true})
 		} else {
-			chunks = append(chunks, chunk{str: strings.ToLower(m), isNum: false})
+			chunks = append(chunks, Chunk{Str: strings.ToLower(m), IsNum: false})
 		}
 	}
 	return chunks

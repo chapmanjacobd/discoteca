@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
@@ -33,7 +34,7 @@ func TestServeAPI_Query(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -82,7 +83,7 @@ func TestServeAPI_Metadata(t *testing.T) {
 	)
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()

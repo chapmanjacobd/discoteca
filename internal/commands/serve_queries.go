@@ -103,7 +103,7 @@ type QueryStatsResponse struct {
 }
 
 // handleQueries handles the /api/queries endpoint for slow query dashboard
-func (c *ServeCmd) handleQueries(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleQueries(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	action := q.Get("action")
 

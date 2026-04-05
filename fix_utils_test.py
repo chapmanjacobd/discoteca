@@ -1,0 +1,298 @@
+import os
+import re
+
+symbols = """
+AdjustDuration
+AllowDictsLikeSQL
+AltName
+ArchiveExtensions
+AudioExtensions
+AutoUpdate
+BlockDictsLikeSQL
+BoolToInt64
+CalculatePercentiles
+CalculateSegments
+CalculateSegmentsInt
+CastCommand
+Chunks
+CleanPath
+CleanPathOptions
+CleanString
+ClearSeq
+Cmd
+CmdDetach
+CmdInteractive
+CmdResult
+CmdWithTimeout
+ColDuration
+ColFilesize
+ColNaturalDate
+Combine
+ComicExtensions
+CommandExists
+CommonPath
+CommonPathFull
+CompareBlockStrings
+Concat
+Confirm
+Conform
+ConstructSearchBindings
+ConvertEpubToOEB
+CorpusStats
+CountWordsFast
+DetectMimeType
+DictFilterBool
+DirExists
+DivideSequence
+Divisors
+DurationShort
+EscapeXML
+EstimateDurationFromSize
+EstimateDurationFromSizeWithFormat
+EstimateReadingDuration
+EstimateWordCountFromSize
+ExpandStdin
+ExtractSubtitleInfo
+ExtractText
+ExtractWords
+FFProbe
+FFProbeCountFrames
+FileExists
+FileStats
+FilterDeleted
+FilterPath
+FindMainContentFile
+Flatten
+FlattenWrapperFolder
+Float64Value
+FloatFromPercent
+FolderSize
+FormatDuration
+FormatDurationShort
+FormatPlaybackDuration
+FormatSize
+FormatTime
+FromTimestampSeconds
+FtsQuote
+FullHashFile
+FzfSelect
+GenerateHLSPlaylist
+GenerateRSVPAss
+GenerateTTS
+GetAccessTime
+GetCattNowPlayingFile
+GetCommandPath
+GetConfigDir
+GetContentTypeFromExt
+GetDefaultBrowser
+GetDeviceID
+GetDurationForTimeout
+GetEstimatedBitrate
+GetExternalSubtitles
+GetFileStats
+GetFloat64
+GetHLSSegmentArgs
+GetHTMLFiles
+GetImageBrightness
+GetInt
+GetInt64
+GetLanguageCode
+GetLanguageName
+GetMountPoint
+GetMpvListenSocket
+GetMpvSocketPath
+GetMpvWatchLaterDir
+GetMpvWatchSocket
+GetPathDisplayWidth
+GetPlayhead
+GetString
+GetTempDir
+GetTerminalHeight
+GetTerminalWidth
+GetTranscodeStrategy
+GlobMatchAll
+GlobMatchAny
+HasUnreliableDuration
+HumanToBits
+HumanToBytes
+HumanToSeconds
+HybridSearchQuery
+ImageExtensions
+Int64Value
+IsDigit
+IsEmptyFolder
+IsFileOpen
+IsGenericTitle
+IsImageTooDark
+IsLanguageCode
+IsSQLite
+IsTZAware
+IsTimecodeLike
+LastChars
+LineSorter
+LineSplitter
+LinearInterpolation
+ListDictFilterBool
+LoadString
+Logger
+MatchesAny
+Max
+MaybeUpdate
+Min
+MostSimilarSchema
+MoveFile
+MpvArgsToMap
+MpvCall
+MpvCommand
+MpvGetProperty
+MpvLoadFile
+MpvPause
+MpvResponse
+MpvSeek
+MpvSetProperty
+MpvWatchLaterValue
+NaturalLess
+NewDefaultLogger
+NewLogger
+Number
+OrderedSet
+ParseBitrate
+ParseDate
+ParseDateOrRelative
+ParseDurationString
+ParseHybridSearchQuery
+ParsePercentOrBytes
+ParsePercentileRange
+ParseRange
+ParseSize
+ParseSlice
+PartialStartswith
+PathToMpvWatchLaterMD5
+PathToSentence
+PathToTokenized
+PathTupleFromURL
+Percent
+PercentageDifference
+Percentile
+PlainHandler
+PrintJSON
+PrintOverwrite
+Prompt
+QuickWordCount
+RandomFilename
+RandomFloat
+RandomInt
+RandomString
+Range
+ReadLines
+RelativeDatetime
+Relativize
+RemoveConsecutive
+RemoveConsecutiveWhitespace
+RemoveConsecutives
+RemoveExcessiveLinebreaks
+RemovePrefixes
+RemoveSuffixes
+RemoveTextInsideBrackets
+Rename
+RenameMoveFile
+RenameNoReplace
+ResolveAbsolutePath
+Rmtree
+SQLHumanTime
+SQLiteExtensions
+SafeFloat
+SafeIndex
+SafeInt
+SafeJSONLoads
+SafeJoin
+SafeLen
+SafeMean
+SafeMedian
+SafePop
+SafeSum
+SafeUnpack
+SampleHashFile
+SanitizeFilename
+SecondsToHHMMSS
+Shorten
+ShortenMiddle
+ShouldOverrideDuration
+Similarity
+SizeTimeout
+Slice
+SpecificDate
+SplitAndTrim
+StringValue
+StripEnclosingQuotes
+StripMountSyntax
+SubtitleExtensions
+SuperParser
+TerminalSize
+TextExtensions
+TextProcessor
+Title
+ToDecade
+ToNullFloat64
+ToNullInt64
+ToNullString
+TranscodeStrategy
+Trash
+TrimPathSegments
+TruncateMiddle
+TubeDate
+UnParagraph
+Unique
+Unlink
+UnreliableDurationFormats
+UtcFromLocalTimestamp
+ValueCounts
+VideoExtensions
+WordSorter
+""".strip().split()
+
+files_to_fix = [
+    "files_test.go",
+    "formatting_test.go",
+    "fts_hybrid_test.go",
+    "image_test.go",
+    "io_test.go",
+    "iterables_test.go",
+    "logger_test.go",
+    "mpv_test.go",
+    "nums_test.go",
+    "path_utils_test.go",
+    "printing_test.go",
+    "processes_test.go",
+    "rsvp_test.go",
+    "selfupdate_test.go",
+    "shell_utils_test.go",
+    "strings_test.go",
+    "terminal_test.go",
+    "text_processor_test.go",
+    "time_test.go",
+    "transcode_test.go",
+]
+
+dir_path = "/home/xk/github/xk/discoteca/internal/utils/"
+
+for file_name in files_to_fix:
+    file_path = os.path.join(dir_path, file_name)
+    with open(file_path, "r") as f:
+        content = f.read()
+
+    # Sort symbols by length descending to avoid partial matches
+    sorted_symbols = sorted(symbols, key=len, reverse=True)
+    
+    for symbol in sorted_symbols:
+        # Use regex to match only whole words NOT preceded by a dot
+        # And NOT followed by a colon (for struct field names in initializers, although those might need it too if it's a type name)
+        # Actually, in Go, if it's an exported type from another package, it needs utils.Prefix
+        # If it's a function call, it needs utils.Prefix
+        # If it's a constant, it needs utils.Prefix
+        
+        pattern = r'(?<!\.)\b' + re.escape(symbol) + r'\b'
+        content = re.sub(pattern, "utils." + symbol, content)
+
+    with open(file_path, "w") as f:
+        f.write(content)

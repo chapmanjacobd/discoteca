@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
@@ -31,11 +32,11 @@ func TestCategorizeCmd_Run(t *testing.T) {
 	sqlDB.Close()
 
 	t.Run("ApplyCategories", func(t *testing.T) {
-		cmd := &CategorizeCmd{
+		cmd := &commands.CategorizeCmd{
 			Databases: []string{dbPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("CategorizeCmd failed: %v", err)
+			t.Fatalf("commands.CategorizeCmd failed: %v", err)
 		}
 
 		// Verify categorization
@@ -52,12 +53,12 @@ func TestCategorizeCmd_Run(t *testing.T) {
 	})
 
 	t.Run("MineCategories", func(t *testing.T) {
-		cmd := &CategorizeCmd{
+		cmd := &commands.CategorizeCmd{
 			Databases: []string{dbPath},
 			Other:     true,
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("CategorizeCmd (Other) failed: %v", err)
+			t.Fatalf("commands.CategorizeCmd (Other) failed: %v", err)
 		}
 	})
 }

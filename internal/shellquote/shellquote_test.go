@@ -1,7 +1,9 @@
-package shellquote
+package shellquote_test
 
 import (
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
 
 func TestShellQuote(t *testing.T) {
@@ -25,7 +27,7 @@ func TestShellQuote(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
-			got := ShellQuote(tt.in)
+			got := shellquote.ShellQuote(tt.in)
 			if got != tt.expected {
 				t.Errorf("ShellQuote(%q) = %q; want %q", tt.in, got, tt.expected)
 			}

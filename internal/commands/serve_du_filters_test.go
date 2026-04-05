@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func TestHandleDU_WithFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := setupTestServeCmd(dbPath)
+	cmd := SetupTestServeCmd(dbPath)
 	defer cmd.Close()
 	mux := cmd.Mux()
 
@@ -551,7 +551,7 @@ func TestHandleDU_WithFilters_WindowsPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := setupTestServeCmd(dbPath)
+	cmd := SetupTestServeCmd(dbPath)
 	defer cmd.Close()
 	mux := cmd.Mux()
 
@@ -776,7 +776,7 @@ func TestHandleDU_MixedUnixWindowsPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := setupTestServeCmd(dbPath)
+	cmd := SetupTestServeCmd(dbPath)
 	defer cmd.Close()
 	mux := cmd.Mux()
 

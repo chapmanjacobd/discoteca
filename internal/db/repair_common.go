@@ -24,13 +24,13 @@ func IsCorruptionError(err error) bool {
 	return strings.Contains(err.Error(), "database disk image is malformed")
 }
 
-func isHealthy(ctx context.Context, dbPath string) bool {
+func IsHealthy(ctx context.Context, dbPath string) bool {
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return false
 	}
 
 	// Use sql.Open directly instead of Connect to avoid connection pool deadlocks.
-	// isHealthy needs to be able to open its own connection regardless of global pool limits.
+	// IsHealthy needs to be able to open its own connection regardless of global pool limits.
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		Log.Debug("Health check: failed to open connection", "path", dbPath, "error", err)

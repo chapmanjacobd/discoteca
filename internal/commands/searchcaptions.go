@@ -178,7 +178,7 @@ func (c *SearchCaptionsCmd) playCaptions(captions []MergedCaption) {
 			fmt.Sprintf("--end=%f", cap.End+1.5),
 		}
 
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.CommandContext(context.Background(), args[0], args[1:]...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin

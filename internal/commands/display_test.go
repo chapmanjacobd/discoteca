@@ -1,37 +1,38 @@
-package commands
+package commands_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestErrUserQuit(t *testing.T) {
-	t.Run("ErrUserQuit is defined", func(t *testing.T) {
-		if ErrUserQuit == nil {
-			t.Fatal("ErrUserQuit should be defined")
+	t.Run("commands.ErrUserQuit is defined", func(t *testing.T) {
+		if commands.ErrUserQuit == nil {
+			t.Fatal("commands.ErrUserQuit should be defined")
 		}
-		if ErrUserQuit.Error() != "user requested quit" {
-			t.Errorf("ErrUserQuit.Error() = %q, want %q", ErrUserQuit.Error(), "user requested quit")
-		}
-	})
-
-	t.Run("errors.Is recognizes ErrUserQuit", func(t *testing.T) {
-		if !errors.Is(ErrUserQuit, ErrUserQuit) {
-			t.Error("errors.Is(ErrUserQuit, ErrUserQuit) should return true")
+		if commands.ErrUserQuit.Error() != "user requested quit" {
+			t.Errorf("commands.ErrUserQuit.Error() = %q, want %q", commands.ErrUserQuit.Error(), "user requested quit")
 		}
 	})
 
-	t.Run("wrapped ErrUserQuit is recognized", func(t *testing.T) {
-		wrapped := errors.New("outer: " + ErrUserQuit.Error())
-		if errors.Is(wrapped, ErrUserQuit) {
+	t.Run("errors.Is recognizes commands.ErrUserQuit", func(t *testing.T) {
+		if !errors.Is(commands.ErrUserQuit, commands.ErrUserQuit) {
+			t.Error("errors.Is(commands.ErrUserQuit, commands.ErrUserQuit) should return true")
+		}
+	})
+
+	t.Run("wrapped commands.ErrUserQuit is recognized", func(t *testing.T) {
+		wrapped := errors.New("outer: " + commands.ErrUserQuit.Error())
+		if errors.Is(wrapped, commands.ErrUserQuit) {
 			t.Error("errors.Is should not recognize non-wrapped error with same message")
 		}
 
-		properlyWrapped := errors.Join(ErrUserQuit)
-		if !errors.Is(properlyWrapped, ErrUserQuit) {
-			t.Error("errors.Is should recognize properly wrapped ErrUserQuit")
+		properlyWrapped := errors.Join(commands.ErrUserQuit)
+		if !errors.Is(properlyWrapped, commands.ErrUserQuit) {
+			t.Error("errors.Is should recognize properly wrapped commands.ErrUserQuit")
 		}
 	})
 }

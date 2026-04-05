@@ -1,9 +1,11 @@
-package pathutil
+package pathutil_test
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
 )
 
 func TestIsAbs(t *testing.T) {
@@ -41,7 +43,7 @@ func TestIsAbs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := IsAbs(tt.path); got != tt.want {
+			if got := pathutil.IsAbs(tt.path); got != tt.want {
 				t.Errorf("IsAbs(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
@@ -79,7 +81,7 @@ func TestSplit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			parts, isAbs := Split(tt.path)
+			parts, isAbs := pathutil.Split(tt.path)
 			if len(parts) != len(tt.wantParts) {
 				t.Errorf(
 					"Split(%q) parts = %v (len=%d), want %v (len=%d)",
@@ -126,7 +128,7 @@ func TestJoin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			got := Join(tt.parts, tt.addLeadingSep)
+			got := pathutil.Join(tt.parts, tt.addLeadingSep)
 			if got != tt.want {
 				t.Errorf("Join(%v, %v) = %q, want %q", tt.parts, tt.addLeadingSep, got, tt.want)
 			}
@@ -163,7 +165,7 @@ func TestDepth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := Depth(tt.path); got != tt.want {
+			if got := pathutil.Depth(tt.path); got != tt.want {
 				t.Errorf("Depth(%q) = %d, want %d", tt.path, got, tt.want)
 			}
 		})
@@ -196,7 +198,7 @@ func TestPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got := Prefix(tt.path)
+			got := pathutil.Prefix(tt.path)
 			if got != tt.want {
 				t.Errorf("Prefix(%q) = %q, want %q", tt.path, got, tt.want)
 			}
@@ -219,7 +221,7 @@ func TestHasLeadingSep(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := HasLeadingSep(tt.path); got != tt.want {
+			if got := pathutil.HasLeadingSep(tt.path); got != tt.want {
 				t.Errorf("HasLeadingSep(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
@@ -241,7 +243,7 @@ func TestHasTrailingSep(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := HasTrailingSep(tt.path); got != tt.want {
+			if got := pathutil.HasTrailingSep(tt.path); got != tt.want {
 				t.Errorf("HasTrailingSep(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
@@ -263,7 +265,7 @@ func TestEnsureTrailingSep(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got := EnsureTrailingSep(tt.path)
+			got := pathutil.EnsureTrailingSep(tt.path)
 			if got != tt.want {
 				t.Errorf("EnsureTrailingSep(%q) = %q, want %q", tt.path, got, tt.want)
 			}
@@ -286,7 +288,7 @@ func TestStripTrailingSep(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got := StripTrailingSep(tt.path)
+			got := pathutil.StripTrailingSep(tt.path)
 			if got != tt.want {
 				t.Errorf("StripTrailingSep(%q) = %q, want %q", tt.path, got, tt.want)
 			}
@@ -304,7 +306,7 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"/",
 		}
 		for _, p := range paths {
-			_, isAbs := Split(p)
+			_, isAbs := pathutil.Split(p)
 			if !isAbs {
 				t.Errorf("Unix path %q should be absolute", p)
 			}
@@ -317,7 +319,7 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"D:\\data\\folder",
 		}
 		for _, p := range paths {
-			parts, isAbs := Split(p)
+			parts, isAbs := pathutil.Split(p)
 			if !isAbs {
 				t.Errorf("Windows path %q should be absolute", p)
 			}
@@ -333,7 +335,7 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"\\\\nas\\media\\movies",
 		}
 		for _, p := range paths {
-			_, isAbs := Split(p)
+			_, isAbs := pathutil.Split(p)
 			if !isAbs {
 				t.Errorf("UNC path %q should be absolute", p)
 			}
@@ -347,7 +349,7 @@ func TestCrossPlatformConsistency(t *testing.T) {
 			"folder\\subfolder/file.txt",
 		}
 		for _, p := range paths {
-			parts, _ := Split(p)
+			parts, _ := pathutil.Split(p)
 			if len(parts) == 0 {
 				t.Errorf("Mixed separator path %q should have parts", p)
 			}
@@ -378,7 +380,7 @@ func TestToURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ToURL(tt.path)
+			got := pathutil.ToURL(tt.path)
 			if got != tt.want {
 				t.Errorf("ToURL(%q) = %q, want %q", tt.path, got, tt.want)
 			}
@@ -428,7 +430,7 @@ func TestFromURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FromURL(tt.url)
+			got := pathutil.FromURL(tt.url)
 			if got != tt.want {
 				t.Errorf("FromURL(%q) = %q, want %q", tt.url, got, tt.want)
 			}
@@ -455,14 +457,14 @@ func TestToURLFromURLRoundTrip(t *testing.T) {
 	for _, path := range tests {
 		t.Run(path, func(t *testing.T) {
 			// FS -> URL -> FS should preserve original on native OS
-			url := ToURL(path)
-			back := FromURL(url)
+			url := pathutil.ToURL(path)
+			back := pathutil.FromURL(url)
 			if back != path {
 				t.Errorf("FromURL(ToURL(%q)) = %q, want %q", path, back, path)
 			}
 
 			// URL -> FS -> URL should preserve original
-			url2 := ToURL(FromURL(path))
+			url2 := pathutil.ToURL(pathutil.FromURL(path))
 			if url2 != url {
 				t.Errorf("ToURL(FromURL(%q)) = %q, want %q", path, url2, url)
 			}
@@ -472,13 +474,13 @@ func TestToURLFromURLRoundTrip(t *testing.T) {
 	// Cross-platform test: On Linux, Windows paths convert to URL but don't round-trip
 	if !isWindows {
 		winPath := "C:\\Users\\file.txt"
-		url := ToURL(winPath)
+		url := pathutil.ToURL(winPath)
 		if url != "C:/Users/file.txt" {
 			t.Errorf("On Linux, ToURL(%q) = %q, want C:/Users/file.txt", winPath, url)
 		}
 		// FromURL on Linux returns the URL as-is (forward slashes)
 		// This is expected - only Windows converts forward slashes to backslashes
-		back := FromURL(url)
+		back := pathutil.FromURL(url)
 		if back != "C:/Users/file.txt" {
 			t.Errorf("On Linux, FromURL(%q) = %q, want C:/Users/file.txt", url, back)
 		}

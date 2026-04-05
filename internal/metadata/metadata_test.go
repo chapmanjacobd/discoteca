@@ -1,4 +1,4 @@
-package metadata
+package metadata_test
 
 import (
 	"archive/zip"
@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/metadata"
 )
 
 func TestExtract_BasicInfo(t *testing.T) {
@@ -18,9 +20,9 @@ func TestExtract_BasicInfo(t *testing.T) {
 	f.WriteString("test content")
 	f.Close()
 
-	meta, err := Extract(context.Background(), f.Name(), ExtractOptions{})
+	meta, err := metadata.Extract(context.Background(), f.Name(), metadata.ExtractOptions{})
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	if meta.Media.Path != f.Name() {
@@ -49,7 +51,7 @@ func TestExtract_MimeTypes(t *testing.T) {
 		defer os.Remove(name)
 
 		// We don't care if ffprobe fails, we want to see the mime-based detection in basicInfo or fallback
-		meta, _ := Extract(context.Background(), name, ExtractOptions{})
+		meta, _ := metadata.Extract(context.Background(), name, metadata.ExtractOptions{})
 		if meta != nil && meta.Media.MediaType.String != tt.expected {
 			// Note: DetectMimeType might depend on extension if content is empty
 		}
@@ -57,7 +59,7 @@ func TestExtract_MimeTypes(t *testing.T) {
 }
 
 func TestExtract_NonExistent(t *testing.T) {
-	_, err := Extract(context.Background(), "/non/existent/file", ExtractOptions{})
+	_, err := metadata.Extract(context.Background(), "/non/existent/file", metadata.ExtractOptions{})
 	if err == nil {
 		t.Error("Expected error for non-existent file")
 	}
@@ -106,9 +108,9 @@ func TestExtract_WithMockFFProbe(t *testing.T) {
 	) // Basic mp4 header to avoid text detection
 	defer os.Remove(f.Name())
 
-	meta, err := Extract(context.Background(), f.Name(), ExtractOptions{})
+	meta, err := metadata.Extract(context.Background(), f.Name(), metadata.ExtractOptions{})
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	if meta.Media.Title.String != "Mock Title" {
@@ -143,9 +145,9 @@ func TestParseFPS(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := parseFPS(tt.input)
+		got := metadata.ParseFPS(tt.input)
 		if got != tt.expected {
-			t.Errorf("parseFPS(%s) = %v, want %v", tt.input, got, tt.expected)
+			t.Errorf("metadata.ParseFPS(%s) = %v, want %v", tt.input, got, tt.expected)
 		}
 	}
 }
@@ -165,9 +167,9 @@ func TestExtract_ComicArchive_OCR(t *testing.T) {
 	createZip(t, cbzPath, []string{img1, img2})
 
 	// Test with OCR disabled - should return no captions
-	meta, err := Extract(context.Background(), cbzPath, ExtractOptions{})
+	meta, err := metadata.Extract(context.Background(), cbzPath, metadata.ExtractOptions{})
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	if meta.Media.MediaType.String != "text" {
@@ -197,7 +199,7 @@ func TestExtractImageTextFromCBZ_Structure(t *testing.T) {
 	createZip(t, cbzPath, []string{img1, img2, img3})
 
 	// Test extraction (will fail without tesseract, but we can check the function runs)
-	captions, err := extractImageTextFromComicArchive(cbzPath, "tesseract")
+	captions, err := metadata.ExtractImageTextFromComicArchive(cbzPath, "tesseract")
 
 	// We expect an error because tesseract won't process mock data
 	// But the function should at least attempt to open the archive
@@ -305,7 +307,7 @@ func TestExtractImageTextFromCBZ_TIFFConversion(t *testing.T) {
 
 	// Test extraction with OCR enabled
 	// This tests that TIFF files are converted to PNG before OCR
-	captions, err := extractImageTextFromComicArchive(cbzPath, "tesseract")
+	captions, err := metadata.ExtractImageTextFromComicArchive(cbzPath, "tesseract")
 	// The function should handle TIFF files without error
 	// Even if tesseract is not installed or can't read the mock image,
 	// the conversion pipeline should work
@@ -379,9 +381,9 @@ func TestExtract_Audio_SpeechRecognition(t *testing.T) {
 	}
 
 	// Test with speech recognition disabled - should return no captions
-	meta, err := Extract(context.Background(), audioPath, ExtractOptions{})
+	meta, err := metadata.Extract(context.Background(), audioPath, metadata.ExtractOptions{})
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	if meta.Media.MediaType.String != "audio" {
@@ -416,13 +418,13 @@ func TestExtract_Audio_SpeechRecognition_Enabled(t *testing.T) {
 
 	// Test with speech recognition enabled (vosk)
 	// This will fail gracefully when vosk is not installed, but we verify the flow
-	meta, err := Extract(
+	meta, err := metadata.Extract(
 		context.Background(),
 		audioPath,
-		ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"},
+		metadata.ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"},
 	)
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	// Should still return metadata even if speech recognition fails
@@ -455,7 +457,7 @@ func TestExtractSpeechToText_EngineSelection(t *testing.T) {
 	}
 
 	// Test vosk engine selection (will fail without vosk, but should not panic)
-	_, err := extractSpeechToText(audioPath, "vosk")
+	_, err := metadata.ExtractSpeechToText(audioPath, "vosk")
 	if err == nil {
 		t.Log("Vosk extraction succeeded (vosk installed)")
 	} else {
@@ -463,7 +465,7 @@ func TestExtractSpeechToText_EngineSelection(t *testing.T) {
 	}
 
 	// Test whisper engine selection (will fail without whisper, but should not panic)
-	_, err = extractSpeechToText(audioPath, "whisper")
+	_, err = metadata.ExtractSpeechToText(audioPath, "whisper")
 	if err == nil {
 		t.Log("Whisper extraction succeeded (whisper installed)")
 	} else {
@@ -471,7 +473,7 @@ func TestExtractSpeechToText_EngineSelection(t *testing.T) {
 	}
 
 	// Test default engine (should default to vosk)
-	_, err = extractSpeechToText(audioPath, "")
+	_, err = metadata.ExtractSpeechToText(audioPath, "")
 	if err == nil {
 		t.Log("Default engine extraction succeeded")
 	} else {
@@ -499,13 +501,13 @@ func TestExtract_Video_SpeechRecognition(t *testing.T) {
 	}
 
 	// Test with speech recognition enabled for video
-	meta, err := Extract(
+	meta, err := metadata.Extract(
 		context.Background(),
 		videoPath,
-		ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"},
+		metadata.ExtractOptions{SpeechRecognition: true, SpeechRecEngine: "vosk"},
 	)
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	if meta.Media.MediaType.String != "video" {
@@ -540,9 +542,9 @@ func TestExtract_Image_MediaType(t *testing.T) {
 	}
 
 	// Test with all features disabled - should detect as image type
-	meta, err := Extract(context.Background(), imagePath, ExtractOptions{})
+	meta, err := metadata.Extract(context.Background(), imagePath, metadata.ExtractOptions{})
 	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
+		t.Fatalf("metadata.Extract failed: %v", err)
 	}
 
 	if meta.Media.MediaType.String != "image" {
@@ -575,10 +577,10 @@ func TestExtract_Image_WithoutOCR_NoTesseract(t *testing.T) {
 	}
 
 	// Test 1: OCR disabled, extractText disabled
-	// Extract(ctx, path, opts)
-	meta1, err := Extract(context.Background(), imagePath, ExtractOptions{})
+	// metadata.Extract(ctx, path, opts)
+	meta1, err := metadata.Extract(context.Background(), imagePath, metadata.ExtractOptions{})
 	if err != nil {
-		t.Fatalf("Extract failed (OCR=false, extractText=false): %v", err)
+		t.Fatalf("metadata.Extract failed (OCR=false, extractText=false): %v", err)
 	}
 	if meta1.Media.MediaType.String != "image" {
 		t.Errorf("Expected type image, got %s", meta1.Media.MediaType.String)
@@ -589,9 +591,9 @@ func TestExtract_Image_WithoutOCR_NoTesseract(t *testing.T) {
 
 	// Test 2: OCR disabled, extractText ENABLED - should still NOT run OCR on images
 	// Images use OCR flag, not extractText flag
-	meta2, err := Extract(context.Background(), imagePath, ExtractOptions{ExtractText: true})
+	meta2, err := metadata.Extract(context.Background(), imagePath, metadata.ExtractOptions{ExtractText: true})
 	if err != nil {
-		t.Fatalf("Extract failed (OCR=false, extractText=true): %v", err)
+		t.Fatalf("metadata.Extract failed (OCR=false, extractText=true): %v", err)
 	}
 	if meta2.Media.MediaType.String != "image" {
 		t.Errorf("Expected type image, got %s", meta2.Media.MediaType.String)
@@ -607,13 +609,13 @@ func TestExtract_Image_WithoutOCR_NoTesseract(t *testing.T) {
 }
 
 func TestConvertImageForOCR(t *testing.T) {
-	// Test that convertImageForOCR handles different formats correctly
+	// Test that metadata.ConvertImageForOCR handles different formats correctly
 	tmpDir := t.TempDir()
 
 	// Test 1: PNG should return original path (no conversion needed)
 	pngPath := filepath.Join(tmpDir, "test.png")
 	os.WriteFile(pngPath, []byte("mock png"), 0o644)
-	converted, err := convertImageForOCR(pngPath)
+	converted, err := metadata.ConvertImageForOCR(pngPath)
 	if err != nil {
 		t.Errorf("PNG conversion failed unexpectedly: %v", err)
 	}
@@ -624,7 +626,7 @@ func TestConvertImageForOCR(t *testing.T) {
 	// Test 2: JPG should return original path (no conversion needed)
 	jpgPath := filepath.Join(tmpDir, "test.jpg")
 	os.WriteFile(jpgPath, []byte("mock jpg"), 0o644)
-	converted, err = convertImageForOCR(jpgPath)
+	converted, err = metadata.ConvertImageForOCR(jpgPath)
 	if err != nil {
 		t.Errorf("JPG conversion failed unexpectedly: %v", err)
 	}
@@ -650,7 +652,7 @@ func TestConvertImageForOCR(t *testing.T) {
 		0xFF,
 	}
 	os.WriteFile(tiffPath, minimalTIFF, 0o644)
-	converted, err = convertImageForOCR(tiffPath)
+	converted, err = metadata.ConvertImageForOCR(tiffPath)
 	if err != nil {
 		t.Errorf("TIFF conversion failed: %v", err)
 	}
@@ -683,7 +685,7 @@ func TestConvertImageForOCR(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00,
 	}
 	os.WriteFile(webpPath, minimalWebP, 0o644)
-	converted, err = convertImageForOCR(webpPath)
+	converted, err = metadata.ConvertImageForOCR(webpPath)
 	if err != nil {
 		t.Errorf("WebP conversion failed: %v", err)
 	}
@@ -717,9 +719,13 @@ func TestExtract_Image_WithOCR_Tesseract(t *testing.T) {
 	}
 
 	// Test with OCR enabled - should attempt tesseract
-	meta, err := Extract(context.Background(), imagePath, ExtractOptions{OCR: true, OCREngine: "tesseract"})
+	meta, err := metadata.Extract(
+		context.Background(),
+		imagePath,
+		metadata.ExtractOptions{OCR: true, OCREngine: "tesseract"},
+	)
 	if err != nil {
-		t.Fatalf("Extract failed (OCR=true): %v", err)
+		t.Fatalf("metadata.Extract failed (OCR=true): %v", err)
 	}
 
 	if meta.Media.MediaType.String != "image" {
@@ -754,7 +760,11 @@ func TestExtract_Image_OCREngineSelection(t *testing.T) {
 	}
 
 	// Test tesseract engine
-	_, err := Extract(context.Background(), imagePath, ExtractOptions{OCR: true, OCREngine: "tesseract"})
+	_, err := metadata.Extract(
+		context.Background(),
+		imagePath,
+		metadata.ExtractOptions{OCR: true, OCREngine: "tesseract"},
+	)
 	if err != nil {
 		t.Logf("Tesseract OCR failed (expected if not installed): %v", err)
 	} else {
@@ -762,7 +772,7 @@ func TestExtract_Image_OCREngineSelection(t *testing.T) {
 	}
 
 	// Test paddle engine
-	_, err = Extract(context.Background(), imagePath, ExtractOptions{OCR: true, OCREngine: "paddle"})
+	_, err = metadata.Extract(context.Background(), imagePath, metadata.ExtractOptions{OCR: true, OCREngine: "paddle"})
 	if err != nil {
 		t.Logf("Paddle OCR failed (expected if not installed): %v", err)
 	} else {
@@ -770,7 +780,7 @@ func TestExtract_Image_OCREngineSelection(t *testing.T) {
 	}
 
 	// Test default engine (should default to tesseract)
-	_, err = Extract(context.Background(), imagePath, ExtractOptions{OCR: true})
+	_, err = metadata.Extract(context.Background(), imagePath, metadata.ExtractOptions{OCR: true})
 	if err != nil {
 		t.Logf("Default OCR failed (expected if tesseract not installed): %v", err)
 	} else {

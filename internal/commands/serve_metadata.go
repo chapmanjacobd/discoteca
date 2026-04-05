@@ -13,7 +13,7 @@ import (
 
 // handleMetadata returns detailed metadata for a specific media file.
 // GET /api/metadata?db=...&path=...
-func (c *ServeCmd) handleMetadata(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	dbPath := r.URL.Query().Get("db")
 	path := r.URL.Query().Get("path")
 
@@ -56,7 +56,7 @@ func (c *ServeCmd) handleMetadata(w http.ResponseWriter, r *http.Request) {
 
 // handleDatabases returns server configuration.
 // GET /api/databases
-func (c *ServeCmd) handleDatabases(w http.ResponseWriter, _ *http.Request) {
+func (c *ServeCmd) HandleDatabases(w http.ResponseWriter, _ *http.Request) {
 	resp := models.DatabaseInfo{
 		Databases: c.Databases,
 		ReadOnly:  c.ReadOnly,
@@ -67,7 +67,7 @@ func (c *ServeCmd) handleDatabases(w http.ResponseWriter, _ *http.Request) {
 
 // handleCategories returns a list of categories and their media counts.
 // GET /api/categories
-func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleCategories(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int64)
 	isCustom := make(map[string]bool)
 
@@ -149,7 +149,7 @@ func (c *ServeCmd) handleCategories(w http.ResponseWriter, r *http.Request) {
 
 // handleGenres returns genre statistics.
 // GET /api/genres
-func (c *ServeCmd) handleGenres(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleGenres(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int64)
 
 	for _, dbPath := range c.Databases {
@@ -189,7 +189,7 @@ func (c *ServeCmd) handleGenres(w http.ResponseWriter, r *http.Request) {
 
 // handleRatings returns rating statistics.
 // GET /api/ratings
-func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleRatings(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[int64]int64)
 
 	for _, dbPath := range c.Databases {
@@ -226,7 +226,7 @@ func (c *ServeCmd) handleRatings(w http.ResponseWriter, r *http.Request) {
 
 // handleLanguages returns language statistics.
 // GET /api/languages
-func (c *ServeCmd) handleLanguages(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleLanguages(w http.ResponseWriter, r *http.Request) {
 	counts := make(map[string]int64)
 
 	for _, dbPath := range c.Databases {

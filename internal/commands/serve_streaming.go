@@ -22,7 +22,7 @@ import (
 
 const HlsSegmentDuration = 10
 
-func (c *ServeCmd) handleTranscode(
+func (c *ServeCmd) HandleTranscode(
 	w http.ResponseWriter,
 	r *http.Request,
 	path string,
@@ -145,7 +145,7 @@ func (c *ServeCmd) handleTranscode(
 	}
 }
 
-func (c *ServeCmd) handleSubtitles(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleSubtitles(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "Path required", http.StatusBadRequest)
@@ -480,7 +480,7 @@ func (c *ServeCmd) generateEpubThumbnail(path string) ([]byte, string, error) {
 	return c.generateTextSnippetSVG("EPUB", title, path), "image/svg+xml", nil
 }
 
-func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "Path required", http.StatusBadRequest)
@@ -670,7 +670,7 @@ func (c *ServeCmd) handleThumbnail(w http.ResponseWriter, r *http.Request) {
 	w.Write(thumb)
 }
 
-func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "Path required", http.StatusBadRequest)
@@ -712,7 +712,7 @@ func (c *ServeCmd) handleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, playlist)
 }
 
-func (c *ServeCmd) handleHLSSegment(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	indexStr := r.URL.Query().Get("index")
 	if path == "" || indexStr == "" {

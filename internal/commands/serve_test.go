@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bytes"
@@ -10,11 +10,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
-func setupTestServeCmd(dbPath string) *ServeCmd {
-	cmd := &ServeCmd{
+func SetupTestServeCmd(dbPath string) *commands.ServeCmd {
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	cmd.APIToken = "test-token"
@@ -27,7 +28,7 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 
 	// 1. Add a file to DB
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
@@ -36,8 +37,8 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
 
-	// Setup ServeCmd
-	cmd := setupTestServeCmd(fixture.DBPath)
+	// Setup commands.ServeCmd
+	cmd := SetupTestServeCmd(fixture.DBPath)
 	defer cmd.Close()
 
 	// 4. Create request
@@ -47,7 +48,7 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// 5. Call handlePlay
-	cmd.handlePlay(w, req)
+	cmd.HandlePlay(w, req)
 
 	// 6. Verify response
 	resp := w.Result()
@@ -74,7 +75,7 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 
 	// 1. Add a file to DB
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
@@ -83,8 +84,8 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
 
-	// Setup ServeCmd
-	cmd := setupTestServeCmd(fixture.DBPath)
+	// Setup commands.ServeCmd
+	cmd := SetupTestServeCmd(fixture.DBPath)
 	defer cmd.Close()
 
 	// 4. Create request
@@ -93,7 +94,7 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// 5. Call handleHLSSegment
-	cmd.handleHLSSegment(w, req)
+	cmd.HandleHLSSegment(w, req)
 
 	// 6. Verify response
 	resp := w.Result()
@@ -120,7 +121,7 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 
 	// 1. Add a file to DB
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
@@ -129,8 +130,8 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 	// 2. Delete the file from filesystem
 	os.Remove(f1)
 
-	// Setup ServeCmd
-	cmd := setupTestServeCmd(fixture.DBPath)
+	// Setup commands.ServeCmd
+	cmd := SetupTestServeCmd(fixture.DBPath)
 	defer cmd.Close()
 
 	// 4. Create request
@@ -139,7 +140,7 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// 5. Call handleSubtitles
-	cmd.handleSubtitles(w, req)
+	cmd.HandleSubtitles(w, req)
 
 	// 6. Verify response
 	resp := w.Result()

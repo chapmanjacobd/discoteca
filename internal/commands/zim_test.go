@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -14,58 +14,59 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
 // TestKiwixManager_findAvailablePort tests port allocation logic
 func TestKiwixManager_findAvailablePort(t *testing.T) {
-	manager := &KiwixManager{
-		instances: make(map[string]*KiwixInstance),
-		usedPorts: make(map[int]bool),
+	manager := &commands.KiwixManager{
+		Instances: make(map[string]*commands.KiwixInstance),
+		UsedPorts: make(map[int]bool),
 	}
 
-	t.Run("returns first available port starting from KiwixPortStart", func(t *testing.T) {
-		port := manager.findAvailablePort()
-		if port != KiwixPortStart {
-			t.Errorf("Expected port %d, got %d", KiwixPortStart, port)
+	t.Run("returns first available port starting from commands.KiwixPortStart", func(t *testing.T) {
+		port := manager.FindAvailablePort()
+		if port != commands.KiwixPortStart {
+			t.Errorf("Expected port %d, got %d", commands.KiwixPortStart, port)
 		}
 	})
 
-	t.Run("skips used ports in usedPorts map", func(t *testing.T) {
-		manager.usedPorts[KiwixPortStart] = true
-		port := manager.findAvailablePort()
-		if port != KiwixPortStart+1 {
-			t.Errorf("Expected port %d, got %d", KiwixPortStart+1, port)
+	t.Run("skips used ports in UsedPorts map", func(t *testing.T) {
+		manager.UsedPorts[commands.KiwixPortStart] = true
+		port := manager.FindAvailablePort()
+		if port != commands.KiwixPortStart+1 {
+			t.Errorf("Expected port %d, got %d", commands.KiwixPortStart+1, port)
 		}
 	})
 
 	t.Run("skips ports that are not available", func(t *testing.T) {
-		// This test verifies that isPortAvailable is called
-		// We can't easily mock isPortAvailable, but we can verify the logic
-		manager2 := &KiwixManager{
-			instances: make(map[string]*KiwixInstance),
-			usedPorts: make(map[int]bool),
+		// This test verifies that commands.IsPortAvailable is called
+		// We can't easily mock commands.IsPortAvailable, but we can verify the logic
+		manager2 := &commands.KiwixManager{
+			Instances: make(map[string]*commands.KiwixInstance),
+			UsedPorts: make(map[int]bool),
 		}
 		// Mark first 5 ports as used
 		for i := range 5 {
-			manager2.usedPorts[KiwixPortStart+i] = true
+			manager2.UsedPorts[commands.KiwixPortStart+i] = true
 		}
-		port := manager2.findAvailablePort()
-		if port != KiwixPortStart+5 {
-			t.Errorf("Expected port %d, got %d", KiwixPortStart+5, port)
+		port := manager2.FindAvailablePort()
+		if port != commands.KiwixPortStart+5 {
+			t.Errorf("Expected port %d, got %d", commands.KiwixPortStart+5, port)
 		}
 	})
 
 	t.Run("returns 0 when no ports available in range", func(t *testing.T) {
-		manager3 := &KiwixManager{
-			instances: make(map[string]*KiwixInstance),
-			usedPorts: make(map[int]bool),
+		manager3 := &commands.KiwixManager{
+			Instances: make(map[string]*commands.KiwixInstance),
+			UsedPorts: make(map[int]bool),
 		}
 		// Mark all 100 ports as used
 		for i := range 100 {
-			manager3.usedPorts[KiwixPortStart+i] = true
+			manager3.UsedPorts[commands.KiwixPortStart+i] = true
 		}
-		port := manager3.findAvailablePort()
+		port := manager3.FindAvailablePort()
 		if port != 0 {
 			t.Errorf("Expected port 0 (no available ports), got %d", port)
 		}
@@ -74,17 +75,17 @@ func TestKiwixManager_findAvailablePort(t *testing.T) {
 
 // TestKiwixManager_ensureKiwixServing tests instance management
 func TestKiwixManager_ensureKiwixServing(t *testing.T) {
-	manager := &KiwixManager{
-		instances: make(map[string]*KiwixInstance),
-		usedPorts: make(map[int]bool),
+	manager := &commands.KiwixManager{
+		Instances: make(map[string]*commands.KiwixInstance),
+		UsedPorts: make(map[int]bool),
 	}
 
 	t.Run("attempts to start kiwix-serve for any file", func(t *testing.T) {
-		// Note: ensureKiwixServing doesn't validate file existence
-		// That validation happens in handleZimView before calling ensureKiwixServing
+		// Note: EnsureKiwixServing doesn't validate file existence
+		// That validation happens in handleZimView before calling EnsureKiwixServing
 		// This test verifies the function tries to start kiwix-serve
 		nonExistentPath := "/tmp/nonexistent.zim"
-		port, err := manager.ensureKiwixServing(nonExistentPath)
+		port, err := manager.EnsureKiwixServing(nonExistentPath)
 		// The function will try to start kiwix-serve, which may fail if not installed
 		// or succeed if kiwix-serve is installed (it doesn't validate the file)
 		if err != nil {
@@ -108,19 +109,19 @@ func TestKiwixManager_ensureKiwixServing(t *testing.T) {
 
 		// First call - would try to start kiwix-serve (which may not be installed)
 		// We're testing the caching logic, so we'll mock the instance directly
-		manager.instances[zimPath] = &KiwixInstance{
-			Port:     KiwixPortStart + 10,
+		manager.Instances[zimPath] = &commands.KiwixInstance{
+			Port:     commands.KiwixPortStart + 10,
 			ZimPath:  zimPath,
 			LastUsed: time.Now(),
 		}
 
 		// Second call should return cached instance
-		port, err := manager.ensureKiwixServing(zimPath)
+		port, err := manager.EnsureKiwixServing(zimPath)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		if port != KiwixPortStart+10 {
-			t.Errorf("Expected cached port %d, got %d", KiwixPortStart+10, port)
+		if port != commands.KiwixPortStart+10 {
+			t.Errorf("Expected cached port %d, got %d", commands.KiwixPortStart+10, port)
 		}
 	})
 
@@ -132,18 +133,18 @@ func TestKiwixManager_ensureKiwixServing(t *testing.T) {
 		}
 
 		oldTime := time.Now().Add(-1 * time.Hour)
-		manager.instances[zimPath] = &KiwixInstance{
-			Port:     KiwixPortStart + 11,
+		manager.Instances[zimPath] = &commands.KiwixInstance{
+			Port:     commands.KiwixPortStart + 11,
 			ZimPath:  zimPath,
 			LastUsed: oldTime,
 		}
 
-		_, err := manager.ensureKiwixServing(zimPath)
+		_, err := manager.EnsureKiwixServing(zimPath)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
 
-		instance := manager.instances[zimPath]
+		instance := manager.Instances[zimPath]
 		if instance.LastUsed.Before(oldTime.Add(30 * time.Minute)) {
 			t.Errorf("Expected LastUsed to be updated, got %v", instance.LastUsed)
 		}
@@ -152,9 +153,9 @@ func TestKiwixManager_ensureKiwixServing(t *testing.T) {
 
 // TestKiwixManager_cleanupOldInstances tests cleanup logic
 func TestKiwixManager_cleanupOldInstances(t *testing.T) {
-	manager := &KiwixManager{
-		instances: make(map[string]*KiwixInstance),
-		usedPorts: make(map[int]bool),
+	manager := &commands.KiwixManager{
+		Instances: make(map[string]*commands.KiwixInstance),
+		UsedPorts: make(map[int]bool),
 	}
 
 	tmpDir := t.TempDir()
@@ -165,53 +166,53 @@ func TestKiwixManager_cleanupOldInstances(t *testing.T) {
 
 	// Add old instance (should be cleaned up)
 	oldTime := time.Now().Add(-31 * time.Minute)
-	port1 := KiwixPortStart + 20
-	manager.instances[zimPath1] = &KiwixInstance{
+	port1 := commands.KiwixPortStart + 20
+	manager.Instances[zimPath1] = &commands.KiwixInstance{
 		Port:     port1,
 		ZimPath:  zimPath1,
 		LastUsed: oldTime,
 	}
-	manager.usedPorts[port1] = true
+	manager.UsedPorts[port1] = true
 
 	// Add recent instance (should NOT be cleaned up)
 	recentTime := time.Now().Add(-10 * time.Minute)
-	port2 := KiwixPortStart + 21
-	manager.instances[zimPath2] = &KiwixInstance{
+	port2 := commands.KiwixPortStart + 21
+	manager.Instances[zimPath2] = &commands.KiwixInstance{
 		Port:     port2,
 		ZimPath:  zimPath2,
 		LastUsed: recentTime,
 	}
-	manager.usedPorts[port2] = true
+	manager.UsedPorts[port2] = true
 
 	// Manually trigger cleanup logic (without goroutine/ticker)
 	cutoff := time.Now().Add(-30 * time.Minute)
-	for path, instance := range manager.instances {
+	for path, instance := range manager.Instances {
 		if instance.LastUsed.Before(cutoff) {
-			delete(manager.usedPorts, instance.Port)
-			delete(manager.instances, path)
+			delete(manager.UsedPorts, instance.Port)
+			delete(manager.Instances, path)
 		}
 	}
 
-	if _, exists := manager.instances[zimPath1]; exists {
+	if _, exists := manager.Instances[zimPath1]; exists {
 		t.Errorf("Expected old instance to be cleaned up")
 	}
-	if _, exists := manager.usedPorts[port1]; exists {
+	if _, exists := manager.UsedPorts[port1]; exists {
 		t.Errorf("Expected old port to be released")
 	}
-	if _, exists := manager.instances[zimPath2]; !exists {
+	if _, exists := manager.Instances[zimPath2]; !exists {
 		t.Errorf("Expected recent instance to remain")
 	}
-	if _, exists := manager.usedPorts[port2]; !exists {
+	if _, exists := manager.UsedPorts[port2]; !exists {
 		t.Errorf("Expected recent port to remain reserved")
 	}
 }
 
 // TestKiwixManager_concurrentAccess tests thread safety
 func TestKiwixManager_concurrentAccess(t *testing.T) {
-	manager := &KiwixManager{
-		instances: make(map[string]*KiwixInstance),
-		usedPorts: make(map[int]bool),
-		mutex:     sync.Mutex{},
+	manager := &commands.KiwixManager{
+		Instances: make(map[string]*commands.KiwixInstance),
+		UsedPorts: make(map[int]bool),
+		Mutex:     sync.Mutex{},
 	}
 
 	tmpDir := t.TempDir()
@@ -219,8 +220,8 @@ func TestKiwixManager_concurrentAccess(t *testing.T) {
 	os.WriteFile(zimPath, []byte("dummy"), 0o644)
 
 	// Pre-populate with a mock instance
-	manager.instances[zimPath] = &KiwixInstance{
-		Port:     KiwixPortStart + 30,
+	manager.Instances[zimPath] = &commands.KiwixInstance{
+		Port:     commands.KiwixPortStart + 30,
 		ZimPath:  zimPath,
 		LastUsed: time.Now(),
 	}
@@ -231,13 +232,13 @@ func TestKiwixManager_concurrentAccess(t *testing.T) {
 	// Simulate concurrent access
 	for range 50 {
 		wg.Go(func() {
-			port, err := manager.ensureKiwixServing(zimPath)
+			port, err := manager.EnsureKiwixServing(zimPath)
 			if err != nil {
 				errors <- err
 				return
 			}
-			if port != KiwixPortStart+30 {
-				errors <- fmt.Errorf("expected port %d, got %d", KiwixPortStart+30, port)
+			if port != commands.KiwixPortStart+30 {
+				errors <- fmt.Errorf("expected port %d, got %d", commands.KiwixPortStart+30, port)
 			}
 		})
 	}
@@ -255,7 +256,7 @@ func TestHandleZimView(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 		APIToken:  "test-token",
 	}
@@ -265,7 +266,7 @@ func TestHandleZimView(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/zim/view", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleZimView(w, req)
+		cmd.HandleZimView(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -277,7 +278,7 @@ func TestHandleZimView(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path=/tmp/test.mp4", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleZimView(w, req)
+		cmd.HandleZimView(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -289,7 +290,7 @@ func TestHandleZimView(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path=/tmp/nonexistent.zim", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleZimView(w, req)
+		cmd.HandleZimView(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusNotFound {
@@ -313,32 +314,32 @@ func TestHandleZimView(t *testing.T) {
 
 		// Extract port from mock server
 		mockPort := 8181 + 50
-		// We need to intercept the waitForKiwixReady call
-		originalWaitFunc := waitForKiwixReady
-		waitForKiwixReady = func(ctx context.Context, port int, timeout time.Duration) error {
+		// We need to intercept the commands.WaitForKiwixReady call
+		originalWaitFunc := commands.WaitForKiwixReady
+		commands.WaitForKiwixReady = func(ctx context.Context, port int, timeout time.Duration) error {
 			// Skip actual check, assume server is ready
 			return nil
 		}
-		defer func() { waitForKiwixReady = originalWaitFunc }()
+		defer func() { commands.WaitForKiwixReady = originalWaitFunc }()
 
-		// Mock the zimManager to avoid actually starting kiwix-serve
-		originalManager := zimManager
-		mockManager := &KiwixManager{
-			instances: make(map[string]*KiwixInstance),
-			usedPorts: make(map[int]bool),
+		// Mock the commands.ZimManager to avoid actually starting kiwix-serve
+		originalManager := commands.ZimManager
+		mockManager := &commands.KiwixManager{
+			Instances: make(map[string]*commands.KiwixInstance),
+			UsedPorts: make(map[int]bool),
 		}
-		mockManager.instances[zimPath] = &KiwixInstance{
+		mockManager.Instances[zimPath] = &commands.KiwixInstance{
 			Port:     mockPort,
 			ZimPath:  zimPath,
 			LastUsed: time.Now(),
 		}
-		zimManager = mockManager
-		defer func() { zimManager = originalManager }()
+		commands.ZimManager = mockManager
+		defer func() { commands.ZimManager = originalManager }()
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/zim/view?path=%s", zimPath), nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleZimView(w, req)
+		cmd.HandleZimView(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusOK {
@@ -357,7 +358,7 @@ func TestHandleZimView(t *testing.T) {
 
 // TestHandleZimProxy tests the proxy HTTP handler
 func TestHandleZimProxy(t *testing.T) {
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{"/tmp/test.db"},
 		APIToken:  "test-token",
 	}
@@ -367,7 +368,7 @@ func TestHandleZimProxy(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/zim/proxy/", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleZimProxy(w, req)
+		cmd.HandleZimProxy(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusBadRequest {
@@ -390,7 +391,7 @@ func TestHandleZimProxy(t *testing.T) {
 		// We need to use a mux to properly set up path values
 		mux := http.NewServeMux()
 		mux.HandleFunc("/api/zim/proxy/{port}/{rest...}", func(w http.ResponseWriter, r *http.Request) {
-			cmd.handleZimProxy(w, r)
+			cmd.HandleZimProxy(w, r)
 		})
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/zim/proxy/%s/content", port), nil)
@@ -430,8 +431,8 @@ func TestGetKiwixContentURL(t *testing.T) {
 
 		// Parse the catalog to verify structure
 		var feed struct {
-			XMLName xml.Name    `xml:"feed"`
-			Entries []OpdsEntry `xml:"entry"`
+			XMLName xml.Name             `xml:"feed"`
+			Entries []commands.OpdsEntry `xml:"entry"`
 		}
 		if err := xml.Unmarshal([]byte(catalogXML), &feed); err != nil {
 			t.Fatalf("Failed to parse catalog: %v", err)
@@ -460,8 +461,8 @@ func TestGetKiwixContentURL(t *testing.T) {
 </feed>`
 
 		var feed struct {
-			XMLName xml.Name    `xml:"feed"`
-			Entries []OpdsEntry `xml:"entry"`
+			XMLName xml.Name             `xml:"feed"`
+			Entries []commands.OpdsEntry `xml:"entry"`
 		}
 		if err := xml.Unmarshal([]byte(emptyXML), &feed); err != nil {
 			t.Fatalf("Failed to parse empty catalog: %v", err)
@@ -476,8 +477,8 @@ func TestGetKiwixContentURL(t *testing.T) {
 func TestIsPortAvailable(t *testing.T) {
 	t.Run("returns true for available port", func(t *testing.T) {
 		// Find a truly available port
-		port := KiwixPortStart + 100
-		if !isPortAvailable(port) {
+		port := commands.KiwixPortStart + 100
+		if !commands.IsPortAvailable(port) {
 			t.Errorf("Expected port %d to be available", port)
 		}
 	})
@@ -495,7 +496,7 @@ func TestIsPortAvailable(t *testing.T) {
 		port := 0
 		fmt.Sscanf(parts[1], "%d", &port)
 
-		if isPortAvailable(port) {
+		if commands.IsPortAvailable(port) {
 			t.Errorf("Expected port %d to be unavailable", port)
 		}
 	})
@@ -517,7 +518,7 @@ func TestWaitForKiwixReady(t *testing.T) {
 		// This would test the actual function, but it uses hardcoded URL patterns
 		// We document the expected behavior instead
 		start := time.Now()
-		err := waitForKiwixReady(context.Background(), port, 2*time.Second)
+		err := commands.WaitForKiwixReady(context.Background(), port, 2*time.Second)
 		elapsed := time.Since(start)
 
 		// Should return quickly if server is ready
@@ -528,10 +529,10 @@ func TestWaitForKiwixReady(t *testing.T) {
 
 	t.Run("returns error for unavailable server", func(t *testing.T) {
 		// Use a port that's definitely not running anything
-		port := KiwixPortStart + 999
+		port := commands.KiwixPortStart + 999
 
 		start := time.Now()
-		err := waitForKiwixReady(context.Background(), port, 100*time.Millisecond)
+		err := commands.WaitForKiwixReady(context.Background(), port, 100*time.Millisecond)
 		elapsed := time.Since(start)
 
 		if err == nil {

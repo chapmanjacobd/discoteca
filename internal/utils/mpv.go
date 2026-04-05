@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bufio"
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -41,13 +42,15 @@ func CastCommand(castDevice string, args ...string) error {
 		cmdArgs = append(cmdArgs, "-d", castDevice)
 	}
 	cmdArgs = append(cmdArgs, args...)
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	cmd := exec.CommandContext(context.Background(), cmdArgs[0], cmdArgs[1:]...)
 	return cmd.Run()
 }
 
 // MpvCall sends a command to mpv via IPC socket and returns the response
 func MpvCall(socketPath string, args ...any) (*MpvResponse, error) {
-	conn, err := net.DialTimeout("unix", socketPath, 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
 	if err != nil {
 		return nil, err
 	}

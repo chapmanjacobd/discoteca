@@ -48,21 +48,21 @@ type KiwixInstance struct {
 }
 
 type KiwixManager struct {
-	instances map[string]*KiwixInstance // zimPath -> instance
-	mutex     sync.Mutex
-	usedPorts map[int]bool
+	Instances map[string]*KiwixInstance // zimPath -> instance
+	Mutex     sync.Mutex
+	UsedPorts map[int]bool
 }
 
-var zimManager = &KiwixManager{
-	instances: make(map[string]*KiwixInstance),
-	usedPorts: make(map[int]bool),
+var ZimManager = &KiwixManager{
+	Instances: make(map[string]*KiwixInstance),
+	UsedPorts: make(map[int]bool),
 }
 
 func init() {
-	go zimManager.cleanupOldInstances()
+	go ZimManager.cleanupOldInstances()
 }
 
-func (c *ServeCmd) handleZimProxy(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleZimProxy(w http.ResponseWriter, r *http.Request) {
 	port := r.PathValue("port")
 	if port == "" {
 		http.Error(w, "Missing port", http.StatusBadRequest)
@@ -83,7 +83,7 @@ func (c *ServeCmd) handleZimProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
-func (c *ServeCmd) handleZimView(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleZimView(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "Missing path parameter", http.StatusBadRequest)
@@ -102,13 +102,13 @@ func (c *ServeCmd) handleZimView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	port, err := zimManager.ensureKiwixServing(localPath)
+	port, err := ZimManager.EnsureKiwixServing(localPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := waitForKiwixReady(r.Context(), port, 10*time.Second); err != nil {
+	if err := WaitForKiwixReady(r.Context(), port, 10*time.Second); err != nil {
 		http.Error(w, fmt.Sprintf("Kiwix server did not start in time: %s", err.Error()), http.StatusServiceUnavailable)
 		return
 	}
@@ -140,16 +140,16 @@ func (c *ServeCmd) handleZimView(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
-func (m *KiwixManager) ensureKiwixServing(zimPath string) (int, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (m *KiwixManager) EnsureKiwixServing(zimPath string) (int, error) {
+	m.Mutex.Lock()
+	defer m.Mutex.Unlock()
 
-	if instance, exists := m.instances[zimPath]; exists {
+	if instance, exists := m.Instances[zimPath]; exists {
 		instance.LastUsed = time.Now()
 		return instance.Port, nil
 	}
 
-	port := m.findAvailablePort()
+	port := m.FindAvailablePort()
 	if port == 0 {
 		return 0, errors.New("no available ports for kiwix-serve")
 	}
@@ -166,22 +166,22 @@ func (m *KiwixManager) ensureKiwixServing(zimPath string) (int, error) {
 		return 0, fmt.Errorf("failed to start kiwix-serve: %w", err)
 	}
 
-	m.instances[zimPath] = &KiwixInstance{
+	m.Instances[zimPath] = &KiwixInstance{
 		Process:  cmd,
 		Port:     port,
 		ZimPath:  zimPath,
 		LastUsed: time.Now(),
 	}
-	m.usedPorts[port] = true
+	m.UsedPorts[port] = true
 
 	models.Log.Info("Started kiwix-serve", "port", port, "path", zimPath)
 	return port, nil
 }
 
-func (m *KiwixManager) findAvailablePort() int {
+func (m *KiwixManager) FindAvailablePort() int {
 	for i := range 100 {
 		port := KiwixPortStart + i
-		if !m.usedPorts[port] && isPortAvailable(port) {
+		if !m.UsedPorts[port] && IsPortAvailable(port) {
 			return port
 		}
 	}
@@ -191,24 +191,24 @@ func (m *KiwixManager) findAvailablePort() int {
 func (m *KiwixManager) cleanupOldInstances() {
 	ticker := time.NewTicker(5 * time.Minute)
 	for range ticker.C {
-		m.mutex.Lock()
+		m.Mutex.Lock()
 		cutoff := time.Now().Add(-30 * time.Minute)
-		for path, instance := range m.instances {
+		for path, instance := range m.Instances {
 			if instance.LastUsed.Before(cutoff) {
 				models.Log.Info("Cleaning up unused kiwix-serve instance", "port", instance.Port, "path", path)
 				if instance.Process.Process != nil {
 					instance.Process.Process.Kill()
 				}
 				instance.Process.Wait()
-				delete(m.usedPorts, instance.Port)
-				delete(m.instances, path)
+				delete(m.UsedPorts, instance.Port)
+				delete(m.Instances, path)
 			}
 		}
-		m.mutex.Unlock()
+		m.Mutex.Unlock()
 	}
 }
 
-func isPortAvailable(port int) bool {
+func IsPortAvailable(port int) bool {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -218,9 +218,9 @@ func isPortAvailable(port int) bool {
 	return true
 }
 
-var waitForKiwixReady = defaultWaitForKiwixReady
+var WaitForKiwixReady = DefaultWaitForKiwixReady
 
-func defaultWaitForKiwixReady(ctx context.Context, port int, timeout time.Duration) error {
+func DefaultWaitForKiwixReady(ctx context.Context, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	urlRoot := fmt.Sprintf("/api/zim/proxy/%d/", port)
 	checkURL := fmt.Sprintf("http://127.0.0.1:%d%s", port, urlRoot)

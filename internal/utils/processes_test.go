@@ -1,8 +1,10 @@
-package utils
+package utils_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestAdjustDuration(t *testing.T) {
@@ -21,26 +23,26 @@ func TestAdjustDuration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := AdjustDuration(tt.duration, tt.start, tt.end)
+		got := utils.AdjustDuration(tt.duration, tt.start, tt.end)
 		if got != tt.expected {
-			t.Errorf("AdjustDuration(%d, %v, %v) = %d, want %d", tt.duration, tt.start, tt.end, got, tt.expected)
+			t.Errorf("utils.AdjustDuration(%d, %v, %v) = %d, want %d", tt.duration, tt.start, tt.end, got, tt.expected)
 		}
 	}
 }
 
 func TestSizeTimeout(t *testing.T) {
-	if SizeTimeout("10MB", 5*1024*1024) {
-		t.Error("SizeTimeout(10MB, 5MB) should be false")
+	if utils.SizeTimeout("10MB", 5*1024*1024) {
+		t.Error("utils.SizeTimeout(10MB, 5MB) should be false")
 	}
-	if !SizeTimeout("10MB", 11*1024*1024) {
-		t.Error("SizeTimeout(10MB, 11MB) should be true")
+	if !utils.SizeTimeout("10MB", 11*1024*1024) {
+		t.Error("utils.SizeTimeout(10MB, 11MB) should be true")
 	}
 }
 
 func TestCmd(t *testing.T) {
-	res, err := Cmd("echo", "hello")
+	res, err := utils.Cmd("echo", "hello")
 	if err != nil {
-		t.Fatalf("Cmd failed: %v", err)
+		t.Fatalf("utils.Cmd failed: %v", err)
 	}
 	if strings.TrimSpace(res.Stdout) != "hello" {
 		t.Errorf("Expected hello, got %q", res.Stdout)
@@ -49,9 +51,9 @@ func TestCmd(t *testing.T) {
 		t.Errorf("Expected exit code 0, got %d", res.ExitCode)
 	}
 
-	res, err = Cmd("false")
+	res, err = utils.Cmd("false")
 	if err == nil {
-		t.Error("Expected error for Cmd('false'), got nil")
+		t.Error("Expected error for utils.Cmd('false'), got nil")
 	}
 	if res.ExitCode != 1 {
 		t.Errorf("Expected exit code 1, got %d", res.ExitCode)

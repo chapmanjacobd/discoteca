@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -14,7 +15,7 @@ func TestCheckCmd_Run(t *testing.T) {
 	defer fixture.Cleanup()
 
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
@@ -23,12 +24,12 @@ func TestCheckCmd_Run(t *testing.T) {
 	// Delete file from FS
 	os.Remove(f1)
 
-	cmd := &CheckCmd{
+	cmd := &commands.CheckCmd{
 		Args: []string{fixture.DBPath},
 	}
 	cmd.AfterApply()
 	if err := cmd.Run(context.Background()); err != nil {
-		t.Fatalf("CheckCmd failed: %v", err)
+		t.Fatalf("commands.CheckCmd failed: %v", err)
 	}
 
 	// Verify it was marked as deleted

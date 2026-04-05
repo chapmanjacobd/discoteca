@@ -15,7 +15,7 @@ import (
 // handleEpubConvert serves converted EPUB/text documents as HTML format
 // URL format: /api/epub/{path} serves index.html with custom TOC header
 // URL format: /api/epub/{path}/{asset} serves CSS/images from the HTML directory
-func (c *ServeCmd) handleEpubConvert(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleEpubConvert(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

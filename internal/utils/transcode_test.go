@@ -1,10 +1,11 @@
-package utils
+package utils_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestGenerateHLSPlaylist(t *testing.T) {
@@ -12,7 +13,7 @@ func TestGenerateHLSPlaylist(t *testing.T) {
 	duration := 15.0
 	segmentDuration := 6
 
-	playlist := GenerateHLSPlaylist(path, duration, segmentDuration)
+	playlist := utils.GenerateHLSPlaylist(path, duration, segmentDuration)
 
 	if !strings.Contains(playlist, "#EXTM3U") {
 		t.Error("Playlist missing #EXTM3U")
@@ -41,8 +42,8 @@ func TestGetHLSSegmentArgs(t *testing.T) {
 	segmentDuration := 6
 
 	t.Run("VideoCopy", func(t *testing.T) {
-		strategy := TranscodeStrategy{VideoCopy: true}
-		args := GetHLSSegmentArgs(path, startTime, segmentDuration, strategy)
+		strategy := utils.TranscodeStrategy{VideoCopy: true}
+		args := utils.GetHLSSegmentArgs(path, startTime, segmentDuration, strategy)
 
 		argStr := strings.Join(args, " ")
 		if !strings.Contains(argStr, "-c:v copy") {
@@ -54,8 +55,8 @@ func TestGetHLSSegmentArgs(t *testing.T) {
 	})
 
 	t.Run("VideoTranscode", func(t *testing.T) {
-		strategy := TranscodeStrategy{VideoCopy: false}
-		args := GetHLSSegmentArgs(path, startTime, segmentDuration, strategy)
+		strategy := utils.TranscodeStrategy{VideoCopy: false}
+		args := utils.GetHLSSegmentArgs(path, startTime, segmentDuration, strategy)
 
 		argStr := strings.Join(args, " ")
 		if !strings.Contains(argStr, "-c:v libx264") {
@@ -80,7 +81,7 @@ func TestGetTranscodeStrategy(t *testing.T) {
 			MediaType:       &mediaType,
 			ContainerFormat: &container,
 		}
-		strategy := GetTranscodeStrategy(m)
+		strategy := utils.GetTranscodeStrategy(m)
 		if strategy.NeedsTranscode {
 			t.Error("Expected no transcode for H264/AAC in MP4")
 		}
@@ -98,7 +99,7 @@ func TestGetTranscodeStrategy(t *testing.T) {
 			MediaType:       &mediaType,
 			ContainerFormat: &container,
 		}
-		strategy := GetTranscodeStrategy(m)
+		strategy := utils.GetTranscodeStrategy(m)
 		if !strategy.NeedsTranscode {
 			t.Error("Expected transcode for HEVC/AC3")
 		}

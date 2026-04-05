@@ -1,6 +1,6 @@
 //go:build fts5
 
-package db
+package db_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestFTSRepair(t *testing.T) {
@@ -22,7 +24,7 @@ func TestFTSRepair(t *testing.T) {
 	f.Close()
 	defer os.Remove(dbPath)
 
-	db, err := sql.Open("sqlite3", dbPath)
+	sqlDB, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,21 +53,21 @@ CREATE TRIGGER media_au AFTER UPDATE ON media BEGIN
     INSERT INTO media_fts(rowid, path, title) VALUES (new.rowid, new.path, new.title);
 END;
 `
-	if _, err := db.Exec(setupSQL); err != nil {
+	if _, err := sqlDB.Exec(setupSQL); err != nil {
 		t.Fatal(err)
 	}
 
 	// Insert data
 	for i := range 100 {
-		if _, err := db.Exec("INSERT INTO media (path, title) VALUES (?, ?)",
+		if _, err := sqlDB.Exec("INSERT INTO media (path, title) VALUES (?, ?)",
 			fmt.Sprintf("file%d.mp4", i), fmt.Sprintf("Video %d", i)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	db.Close()
+	sqlDB.Close()
 
 	// 2. Verify Healthy
-	if !isHealthy(context.Background(), dbPath) {
+	if !db.IsHealthy(context.Background(), dbPath) {
 		t.Fatal("Database should be healthy initially")
 	}
 
@@ -91,39 +93,39 @@ END;
 	file.Close()
 
 	// 4. Verify Corrupt
-	if isHealthy(context.Background(), dbPath) {
-		t.Log("isHealthy did NOT detect corruption, trying additional corruption")
+	if db.IsHealthy(context.Background(), dbPath) {
+		t.Log("db.IsHealthy did NOT detect corruption, trying additional corruption")
 		// Add more corruption to ensure detection
 		file, _ = os.OpenFile(dbPath, os.O_WRONLY, 0o644)
 		file.WriteAt([]byte("CORRUPT"), corruptOffset+4096)
 		file.WriteAt([]byte("CORRUPT"), corruptOffset+8192)
 		file.Close()
-		if isHealthy(context.Background(), dbPath) {
-			t.Fatal("Failed to corrupt database in a way isHealthy detects")
+		if db.IsHealthy(context.Background(), dbPath) {
+			t.Fatal("Failed to corrupt database in a way db.IsHealthy detects")
 		}
 	}
 
-	// 5. Repair
-	t.Log("Running Repair...")
-	if err := Repair(context.Background(), dbPath); err != nil {
-		t.Fatalf("Repair failed: %v", err)
+	// 5. db.Repair
+	t.Log("Running db.Repair...")
+	if err := db.Repair(context.Background(), dbPath); err != nil {
+		t.Fatalf("db.Repair failed: %v", err)
 	}
 
 	// 6. Verify Healthy again
-	if !isHealthy(context.Background(), dbPath) {
+	if !db.IsHealthy(context.Background(), dbPath) {
 		t.Fatal("Database should be healthy after repair")
 	}
 
 	// 7. Verify Data and FTS (best effort - recovery may not preserve everything)
-	db, err = sql.Open("sqlite3", dbPath)
+	sqlDB, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
 	// Check if media table exists and has some data
 	var mediaCount int
-	err = db.QueryRow("SELECT count(*) FROM media").Scan(&mediaCount)
+	err = sqlDB.QueryRow("SELECT count(*) FROM media").Scan(&mediaCount)
 	if err != nil {
 		t.Logf("Media table not recovered (this can happen with severe corruption): %v", err)
 		// This is acceptable - the main goal is that the database is healthy
@@ -134,7 +136,7 @@ END;
 
 	// Try to get a specific record (best effort)
 	var title string
-	err = db.QueryRow("SELECT title FROM media WHERE path = ?", "file42.mp4").Scan(&title)
+	err = sqlDB.QueryRow("SELECT title FROM media WHERE path = ?", "file42.mp4").Scan(&title)
 	if err == nil {
 		if title != "Video 42" {
 			t.Errorf("Expected 'Video 42', got %q", title)
@@ -146,10 +148,11 @@ END;
 
 	// Check FTS (best effort)
 	var hasFTS bool
-	_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").Scan(&hasFTS)
+	_ = sqlDB.QueryRow("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
+		Scan(&hasFTS)
 	if hasFTS {
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM media_fts WHERE media_fts MATCH 'Video'").Scan(&count)
+		err = sqlDB.QueryRow("SELECT count(*) FROM media_fts WHERE media_fts MATCH 'Video'").Scan(&count)
 		if err == nil {
 			t.Logf("Recovered FTS MATCH count: %d", count)
 			// FTS count may be less than 100 due to partial recovery

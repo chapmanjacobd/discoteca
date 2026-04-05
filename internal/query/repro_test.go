@@ -1,4 +1,4 @@
-package query
+package query_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -35,9 +36,13 @@ func TestMediaTypeAndEpisodicConstraint(t *testing.T) {
 
 	t.Run("Unconstrained FileCounts=1", func(t *testing.T) {
 		// Should return nothing because both dirs have 2 files (global count)
-		got, err := MediaQuery(ctx, dbs, models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: "1"}})
+		got, err := query.MediaQuery(
+			ctx,
+			dbs,
+			models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: "1"}},
+		)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 		if len(got) != 0 {
 			t.Errorf("Expected 0 results, got %d", len(got))
@@ -45,12 +50,12 @@ func TestMediaTypeAndEpisodicConstraint(t *testing.T) {
 	})
 
 	t.Run("Constrained VideoOnly and FileCounts=1", func(t *testing.T) {
-		got, err := MediaQuery(ctx, dbs, models.GlobalFlags{
+		got, err := query.MediaQuery(ctx, dbs, models.GlobalFlags{
 			MediaFilterFlags: models.MediaFilterFlags{VideoOnly: true},
 			AggregateFlags:   models.AggregateFlags{FileCounts: "1"},
 		})
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		if len(got) != 1 {

@@ -61,21 +61,21 @@ func WordSorter(flags models.GlobalFlags, corpusStats map[string]int, lineWords 
 			case "skip":
 				continue
 			case "len":
-				cmp = compareInt(len(w1), len(w2))
+				cmp = CompareInt(len(w1), len(w2))
 			case "count":
-				cmp = compareInt(corpusStats[w1], corpusStats[w2])
+				cmp = CompareInt(corpusStats[w1], corpusStats[w2])
 			case "dup":
-				cmp = compareBool(corpusStats[w1] > 1, corpusStats[w2] > 1)
+				cmp = CompareBool(corpusStats[w1] > 1, corpusStats[w2] > 1)
 			case "unique":
-				cmp = compareBool(corpusStats[w1] == 1, corpusStats[w2] == 1)
+				cmp = CompareBool(corpusStats[w1] == 1, corpusStats[w2] == 1)
 			case "index":
-				cmp = compareInt(indexOf(lineWords, w1), indexOf(lineWords, w2))
+				cmp = CompareInt(indexOf(lineWords, w1), indexOf(lineWords, w2))
 			case "lastindex":
-				cmp = compareInt(indexOf(reversed, w1), indexOf(reversed, w2))
+				cmp = CompareInt(indexOf(reversed, w1), indexOf(reversed, w2))
 			case "linecount":
-				cmp = compareInt(countOf(lineWords, w1), countOf(lineWords, w2))
+				cmp = CompareInt(countOf(lineWords, w1), countOf(lineWords, w2))
 			case "alpha", "python":
-				cmp = compareString(w1, w2)
+				cmp = CompareString(w1, w2)
 			case "natural", "natsort":
 				if NaturalLess(w1, w2) {
 					cmp = -1
@@ -136,27 +136,27 @@ func LineSorter(
 			case "skip":
 				continue
 			case "line":
-				cmp = compareString(l1.original, l2.original)
+				cmp = CompareString(l1.original, l2.original)
 			case "count":
-				cmp = compareInt(len(l1.words), len(l2.words))
+				cmp = CompareInt(len(l1.words), len(l2.words))
 			case "len":
-				cmp = compareInt(len(strings.Join(l1.words, "")), len(strings.Join(l2.words, "")))
+				cmp = CompareInt(len(strings.Join(l1.words, "")), len(strings.Join(l2.words, "")))
 			case "dup":
-				cmp = compareInt(sumDups(l1.words, corpusStats), sumDups(l2.words, corpusStats))
+				cmp = CompareInt(SumDups(l1.words, corpusStats), SumDups(l2.words, corpusStats))
 			case "unique":
-				cmp = compareInt(sumUnique(l1.words, corpusStats), sumUnique(l2.words, corpusStats))
+				cmp = CompareInt(SumUnique(l1.words, corpusStats), SumUnique(l2.words, corpusStats))
 			case "sum":
-				cmp = compareInt(sumCounts(l1.words, corpusStats), sumCounts(l2.words, corpusStats))
+				cmp = CompareInt(SumCounts(l1.words, corpusStats), SumCounts(l2.words, corpusStats))
 			case "dupmax":
-				cmp = compareInt(maxCount(l1.words, corpusStats), maxCount(l2.words, corpusStats))
+				cmp = CompareInt(MaxCount(l1.words, corpusStats), MaxCount(l2.words, corpusStats))
 			case "dupmin":
-				cmp = compareInt(minCount(l1.words, corpusStats), minCount(l2.words, corpusStats))
+				cmp = CompareInt(MinCount(l1.words, corpusStats), MinCount(l2.words, corpusStats))
 			case "dupavg", "dupmean":
-				cmp = compareFloat(avgCount(l1.words, corpusStats), avgCount(l2.words, corpusStats))
+				cmp = CompareFloat(avgCount(l1.words, corpusStats), avgCount(l2.words, corpusStats))
 			case "dupmedian":
-				cmp = compareFloat(medianCount(l1.words, corpusStats), medianCount(l2.words, corpusStats))
+				cmp = CompareFloat(medianCount(l1.words, corpusStats), medianCount(l2.words, corpusStats))
 			case "alpha", "python":
-				cmp = compareString(strings.Join(l1.words, " "), strings.Join(l2.words, " "))
+				cmp = CompareString(strings.Join(l1.words, " "), strings.Join(l2.words, " "))
 			case "natural", "natsort":
 				if NaturalLess(strings.Join(l1.words, " "), strings.Join(l2.words, " ")) {
 					cmp = -1
@@ -251,7 +251,7 @@ func TextProcessor(flags models.GlobalFlags, lines []string) []string {
 		var filteredLines []string
 		var filteredCorpus [][]string
 		for i, words := range corpus {
-			if filterCorpus(corpusStats, words, flags.UniqueOnly, flags.Duplicates) {
+			if FilterCorpus(corpusStats, words, flags.UniqueOnly, flags.Duplicates) {
 				filteredLines = append(filteredLines, lines[i])
 				filteredCorpus = append(filteredCorpus, words)
 			}
@@ -270,7 +270,7 @@ func TextProcessor(flags models.GlobalFlags, lines []string) []string {
 	return LineSorter(processorFlags, corpusStats, lines, corpus)
 }
 
-func filterCorpus(corpusStats map[string]int, words []string, unique, dups *bool) bool {
+func FilterCorpus(corpusStats map[string]int, words []string, unique, dups *bool) bool {
 	if len(words) == 0 {
 		return false
 	}
@@ -322,7 +322,7 @@ func filterCorpus(corpusStats map[string]int, words []string, unique, dups *bool
 
 // Comparison helpers
 
-func compareInt(a, b int) int {
+func CompareInt(a, b int) int {
 	if a < b {
 		return -1
 	}
@@ -332,7 +332,7 @@ func compareInt(a, b int) int {
 	return 0
 }
 
-func compareFloat(a, b float64) int {
+func CompareFloat(a, b float64) int {
 	if a < b {
 		return -1
 	}
@@ -342,7 +342,7 @@ func compareFloat(a, b float64) int {
 	return 0
 }
 
-func compareBool(a, b bool) int {
+func CompareBool(a, b bool) int {
 	if !a && b {
 		return -1
 	}
@@ -352,7 +352,7 @@ func compareBool(a, b bool) int {
 	return 0
 }
 
-func compareString(a, b string) int {
+func CompareString(a, b string) int {
 	if a < b {
 		return -1
 	}
@@ -381,7 +381,7 @@ func countOf(slice []string, val string) int {
 	return count
 }
 
-func sumDups(words []string, stats map[string]int) int {
+func SumDups(words []string, stats map[string]int) int {
 	sum := 0
 	for _, w := range words {
 		if stats[w] > 1 {
@@ -391,7 +391,7 @@ func sumDups(words []string, stats map[string]int) int {
 	return sum
 }
 
-func sumUnique(words []string, stats map[string]int) int {
+func SumUnique(words []string, stats map[string]int) int {
 	sum := 0
 	for _, w := range words {
 		if stats[w] == 1 {
@@ -401,7 +401,7 @@ func sumUnique(words []string, stats map[string]int) int {
 	return sum
 }
 
-func sumCounts(words []string, stats map[string]int) int {
+func SumCounts(words []string, stats map[string]int) int {
 	sum := 0
 	for _, w := range words {
 		sum += stats[w]
@@ -409,7 +409,7 @@ func sumCounts(words []string, stats map[string]int) int {
 	return sum
 }
 
-func maxCount(words []string, stats map[string]int) int {
+func MaxCount(words []string, stats map[string]int) int {
 	if len(words) == 0 {
 		return 0
 	}
@@ -422,7 +422,7 @@ func maxCount(words []string, stats map[string]int) int {
 	return maxVal
 }
 
-func minCount(words []string, stats map[string]int) int {
+func MinCount(words []string, stats map[string]int) int {
 	if len(words) == 0 {
 		return 0
 	}

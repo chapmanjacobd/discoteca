@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -24,19 +25,19 @@ func TestSearchDBCmd_Run(t *testing.T) {
 	dbConn.Close()
 
 	t.Run("FuzzyTableMatching", func(t *testing.T) {
-		cmd := &SearchDBCmd{
+		cmd := &commands.SearchDBCmd{
 			DisplayFlags: models.DisplayFlags{JSON: true},
 			Database:     dbPath,
 			Table:        "tes", // fuzzy match for 'test'
 			Search:       []string{"apple"},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchDBCmd failed: %v", err)
+			t.Fatalf("commands.SearchDBCmd failed: %v", err)
 		}
 	})
 
 	t.Run("DeleteRows", func(t *testing.T) {
-		cmd := &SearchDBCmd{
+		cmd := &commands.SearchDBCmd{
 			PostActionFlags: models.PostActionFlags{
 				DeleteRows: true,
 			},
@@ -45,7 +46,7 @@ func TestSearchDBCmd_Run(t *testing.T) {
 			Search:   []string{"carrot"},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchDBCmd failed: %v", err)
+			t.Fatalf("commands.SearchDBCmd failed: %v", err)
 		}
 
 		// Verify deletion
@@ -64,7 +65,7 @@ func TestSearchDBCmd_Run(t *testing.T) {
 		dbConn.Exec("INSERT INTO test (name, val) VALUES ('banana', 'fruit')")
 		dbConn.Close()
 
-		cmd := &SearchDBCmd{
+		cmd := &commands.SearchDBCmd{
 			PostActionFlags: models.PostActionFlags{
 				MarkDeleted: true,
 			},
@@ -73,7 +74,7 @@ func TestSearchDBCmd_Run(t *testing.T) {
 			Search:   []string{"banana"},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchDBCmd failed: %v", err)
+			t.Fatalf("commands.SearchDBCmd failed: %v", err)
 		}
 
 		dbConn, _ = sql.Open("sqlite3", dbPath)

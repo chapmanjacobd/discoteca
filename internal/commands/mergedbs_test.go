@@ -1,10 +1,12 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"database/sql"
 	"os"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 )
 
 func TestMergeDBsCmd_Run(t *testing.T) {
@@ -35,12 +37,12 @@ func TestMergeDBsCmd_Run(t *testing.T) {
 	defer os.Remove(targetPath)
 
 	// 4. Run Merge
-	cmd := &MergeDBsCmd{
+	cmd := &commands.MergeDBsCmd{
 		TargetDB:  targetPath,
 		SourceDBs: []string{src1Path, src2Path},
 	}
 	if err := cmd.Run(context.Background()); err != nil {
-		t.Fatalf("MergeDBsCmd failed: %v", err)
+		t.Fatalf("commands.MergeDBsCmd failed: %v", err)
 	}
 
 	// 5. Verify

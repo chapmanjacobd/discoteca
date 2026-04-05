@@ -1,7 +1,9 @@
-package utils
+package utils_test
 
 import (
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestParseHybridSearchQuery(t *testing.T) {
@@ -57,7 +59,7 @@ func TestParseHybridSearchQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ParseHybridSearchQuery(tt.query)
+			got := utils.ParseHybridSearchQuery(tt.query)
 
 			// Check FTS terms
 			if len(got.FTSTerms) != len(tt.wantFTSTerms) {
@@ -113,7 +115,7 @@ func TestHybridSearchQuery_BuildFTSQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &HybridSearchQuery{FTSTerms: tt.terms}
+			h := &utils.HybridSearchQuery{FTSTerms: tt.terms}
 			got := h.BuildFTSQuery(tt.joinOp)
 			if got != tt.wantQuery {
 				t.Errorf("BuildFTSQuery() = %q, want %q", got, tt.wantQuery)
@@ -169,7 +171,7 @@ func TestHybridSearchQuery_BuildFTSQueryExact(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &HybridSearchQuery{FTSTerms: tt.terms}
+			h := &utils.HybridSearchQuery{FTSTerms: tt.terms}
 			got := h.BuildFTSQueryExact(tt.joinOp)
 			if got != tt.wantQuery {
 				t.Errorf("BuildFTSQueryExact() = %q, want %q", got, tt.wantQuery)

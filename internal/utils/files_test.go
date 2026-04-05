@@ -1,4 +1,4 @@
-package utils
+package utils_test
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestSampleHashFile(t *testing.T) {
@@ -22,9 +23,9 @@ func TestSampleHashFile(t *testing.T) {
 	f.Close()
 
 	// want (path string, threads int, gap float64, chunkSize int64)
-	hash, err := SampleHashFile(f.Name(), 1, 0.1, 1024)
+	hash, err := utils.SampleHashFile(f.Name(), 1, 0.1, 1024)
 	if err != nil {
-		t.Fatalf("SampleHashFile failed: %v", err)
+		t.Fatalf("utils.SampleHashFile failed: %v", err)
 	}
 	if hash == "" {
 		t.Error("Expected non-empty hash")
@@ -44,9 +45,9 @@ func TestFullHashFile(t *testing.T) {
 	}
 	f.Close()
 
-	hash, err := FullHashFile(f.Name())
+	hash, err := utils.FullHashFile(f.Name())
 	if err != nil {
-		t.Fatalf("FullHashFile failed: %v", err)
+		t.Fatalf("utils.FullHashFile failed: %v", err)
 	}
 	if hash == "" {
 		t.Error("Expected non-empty hash")
@@ -57,16 +58,16 @@ func TestSimulationFunctions(t *testing.T) {
 	flags := models.GlobalFlags{}
 	flags.Simulate = true
 
-	if err := Rename(flags, "src", "dst"); err != nil {
-		t.Errorf("Rename failed in simulation: %v", err)
+	if err := utils.Rename(flags, "src", "dst"); err != nil {
+		t.Errorf("utils.Rename failed in simulation: %v", err)
 	}
 
-	if err := Unlink(flags, "path"); err != nil {
-		t.Errorf("Unlink failed in simulation: %v", err)
+	if err := utils.Unlink(flags, "path"); err != nil {
+		t.Errorf("utils.Unlink failed in simulation: %v", err)
 	}
 
-	if err := Rmtree(flags, "path"); err != nil {
-		t.Errorf("Rmtree failed in simulation: %v", err)
+	if err := utils.Rmtree(flags, "path"); err != nil {
+		t.Errorf("utils.Rmtree failed in simulation: %v", err)
 	}
 }
 
@@ -78,13 +79,13 @@ func TestAltName(t *testing.T) {
 	defer os.Remove(f.Name())
 	f.Close()
 
-	alt := AltName(f.Name())
+	alt := utils.AltName(f.Name())
 	if alt == f.Name() {
 		t.Errorf("Expected different name, got %s", alt)
 	}
 
 	nonexistent := f.Name() + ".nonexistent"
-	alt2 := AltName(nonexistent)
+	alt2 := utils.AltName(nonexistent)
 	if alt2 != nonexistent {
 		t.Errorf("Expected %s, got %s", nonexistent, alt2)
 	}
@@ -102,7 +103,7 @@ func TestGetExternalSubtitles(t *testing.T) {
 	vtt := filepath.Join(tmpDir, "movie.en.vtt")
 	os.WriteFile(vtt, []byte(""), 0o644)
 
-	got := GetExternalSubtitles(movie)
+	got := utils.GetExternalSubtitles(movie)
 	if len(got) != 2 {
 		t.Errorf("Expected 2 subtitles, got %d", len(got))
 	}
@@ -124,7 +125,7 @@ func TestGetExternalSubtitles_MorePatterns(t *testing.T) {
 		os.WriteFile(filepath.Join(tmpDir, s), []byte(""), 0o644)
 	}
 
-	got := GetExternalSubtitles(movie)
+	got := utils.GetExternalSubtitles(movie)
 	// We expect 3 matches
 	if len(got) != 3 {
 		t.Errorf("Expected 3 subtitles, got %d: %v", len(got), got)
@@ -141,34 +142,34 @@ func TestExtractSubtitleInfo(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		_, lang, _ := ExtractSubtitleInfo(tt.filename)
+		_, lang, _ := utils.ExtractSubtitleInfo(tt.filename)
 		if lang != tt.lang {
-			t.Errorf("ExtractSubtitleInfo(%q) lang = %q, want %q", tt.filename, lang, tt.lang)
+			t.Errorf("utils.ExtractSubtitleInfo(%q) lang = %q, want %q", tt.filename, lang, tt.lang)
 		}
 	}
 }
 
 func TestIsLanguageCode(t *testing.T) {
-	if !IsLanguageCode("en") {
+	if !utils.IsLanguageCode("en") {
 		t.Error("Expected en to be language code")
 	}
-	if !IsLanguageCode("eng") {
+	if !utils.IsLanguageCode("eng") {
 		t.Error("Expected eng to be language code")
 	}
-	if IsLanguageCode("forced") {
+	if utils.IsLanguageCode("forced") {
 		t.Error("Expected forced not to be language code")
 	}
 }
 
 func TestGetLanguageName(t *testing.T) {
-	if GetLanguageName("en") != "English" {
-		t.Errorf("Expected English, got %s", GetLanguageName("en"))
+	if utils.GetLanguageName("en") != "English" {
+		t.Errorf("Expected English, got %s", utils.GetLanguageName("en"))
 	}
-	if GetLanguageName("eng") != "English" {
-		t.Errorf("Expected English, got %s", GetLanguageName("eng"))
+	if utils.GetLanguageName("eng") != "English" {
+		t.Errorf("Expected English, got %s", utils.GetLanguageName("eng"))
 	}
-	if GetLanguageName("unknown") != "" {
-		t.Errorf("Expected empty string, got %s", GetLanguageName("unknown"))
+	if utils.GetLanguageName("unknown") != "" {
+		t.Errorf("Expected empty string, got %s", utils.GetLanguageName("unknown"))
 	}
 }
 
@@ -181,7 +182,7 @@ func TestFilterDeleted(t *testing.T) {
 	f2 := filepath.Join(tmpDir, "missing.txt")
 
 	paths := []string{f1, f2}
-	got := FilterDeleted(paths)
+	got := utils.FilterDeleted(paths)
 
 	if len(got) != 1 || filepath.ToSlash(got[0]) != filepath.ToSlash(f1) {
 		t.Errorf("Expected [%s], got %v", f1, got)
@@ -201,9 +202,9 @@ func TestGetFileStats(t *testing.T) {
 	}
 	f.Close()
 
-	stats, err := GetFileStats(f.Name())
+	stats, err := utils.GetFileStats(f.Name())
 	if err != nil {
-		t.Fatalf("GetFileStats failed: %v", err)
+		t.Fatalf("utils.GetFileStats failed: %v", err)
 	}
 
 	if stats.Size != int64(len(content)) {
@@ -232,9 +233,9 @@ func TestDetectMimeType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			mime := DetectMimeType(tt.path)
+			mime := utils.DetectMimeType(tt.path)
 			if mime != tt.expected {
-				t.Errorf("DetectMimeType(%s) = %s, want %s", tt.path, mime, tt.expected)
+				t.Errorf("utils.DetectMimeType(%s) = %s, want %s", tt.path, mime, tt.expected)
 			}
 		})
 	}
@@ -247,9 +248,9 @@ func TestCommonPath(t *testing.T) {
 		"/home/user/music/a1.mp3",
 	}
 	expected := filepath.FromSlash("/home/user")
-	got := CommonPath(paths)
+	got := utils.CommonPath(paths)
 	if got != expected {
-		t.Errorf("CommonPath expected %q, got %q", expected, got)
+		t.Errorf("utils.CommonPath expected %q, got %q", expected, got)
 	}
 }
 
@@ -260,9 +261,9 @@ func TestCommonPathFull(t *testing.T) {
 		"/home/user/vids/action_movie_part3.mp4",
 	}
 	expected := filepath.FromSlash("/home/user/vids")
-	got := CommonPathFull(paths)
+	got := utils.CommonPathFull(paths)
 	if got != expected {
-		t.Errorf("CommonPathFull expected %q, got %q", expected, got)
+		t.Errorf("utils.CommonPathFull expected %q, got %q", expected, got)
 	}
 }
 
@@ -274,7 +275,7 @@ func TestGetMountPoint(t *testing.T) {
 			continue
 		}
 
-		mp, err := GetMountPoint(p)
+		mp, err := utils.GetMountPoint(p)
 		if err != nil {
 			t.Errorf("failed to get mount point for %s: %v", p, err)
 			continue
@@ -290,7 +291,7 @@ func TestFolderSize(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "f1.txt"), make([]byte, 1000), 0o644)
 	os.WriteFile(filepath.Join(tempDir, "f2.txt"), make([]byte, 2000), 0o644)
 
-	size := FolderSize(tempDir)
+	size := utils.FolderSize(tempDir)
 	if size < 3000 {
 		t.Errorf("expected size at least 3000, got %d", size)
 	}
@@ -303,8 +304,8 @@ func TestMoveFile(t *testing.T) {
 	content := "move test"
 	os.WriteFile(src, []byte(content), 0o644)
 
-	if err := MoveFile(src, dst); err != nil {
-		t.Fatalf("MoveFile failed: %v", err)
+	if err := utils.MoveFile(src, dst); err != nil {
+		t.Fatalf("utils.MoveFile failed: %v", err)
 	}
 
 	if _, err := os.Stat(src); !os.IsNotExist(err) {

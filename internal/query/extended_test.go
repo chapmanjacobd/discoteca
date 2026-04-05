@@ -1,4 +1,4 @@
-package query
+package query_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -30,18 +31,18 @@ func TestFileCountsFiltering(t *testing.T) {
 	dbs := []string{dbPath}
 
 	// Filter for directories with > 1 file
-	got, err := MediaQuery(ctx, dbs, models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: ">1"}})
+	got, err := query.MediaQuery(ctx, dbs, models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: ">1"}})
 	if err != nil {
-		t.Fatalf("MediaQuery failed: %v", err)
+		t.Fatalf("query.MediaQuery failed: %v", err)
 	}
 	if len(got) != 2 {
 		t.Errorf("Expected 2 results, got %d", len(got))
 	}
 
 	// Filter for directories with 1 file (Specials)
-	got, err = MediaQuery(ctx, dbs, models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: "1"}})
+	got, err = query.MediaQuery(ctx, dbs, models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: "1"}})
 	if err != nil {
-		t.Fatalf("MediaQuery failed: %v", err)
+		t.Fatalf("query.MediaQuery failed: %v", err)
 	}
 	if len(got) != 1 {
 		t.Errorf("Expected 1 result, got %d", len(got))
@@ -75,18 +76,18 @@ func TestFileCountsMediaQueryCount(t *testing.T) {
 		AggregateFlags: models.AggregateFlags{FileCounts: "3"},
 		QueryFlags:     models.QueryFlags{Limit: 1},
 	}
-	count, err := MediaQueryCount(ctx, dbs, flags)
+	count, err := query.MediaQueryCount(ctx, dbs, flags)
 	if err != nil {
-		t.Fatalf("MediaQueryCount failed: %v", err)
+		t.Fatalf("query.MediaQueryCount failed: %v", err)
 	}
 	if count != 3 {
 		t.Errorf("Expected count 3, got %d", count)
 	}
 
-	// Verify MediaQuery actually respects the limit
-	results, err := MediaQuery(ctx, dbs, flags)
+	// Verify query.MediaQuery actually respects the limit
+	results, err := query.MediaQuery(ctx, dbs, flags)
 	if err != nil {
-		t.Fatalf("MediaQuery failed: %v", err)
+		t.Fatalf("query.MediaQuery failed: %v", err)
 	}
 	if len(results) != 1 {
 		t.Errorf("Expected 1 result due to limit, got %d", len(results))
@@ -113,13 +114,13 @@ func TestFetchSiblings(t *testing.T) {
 	}
 
 	// Fetch all siblings in the same directory
-	got, err := FetchSiblings(
+	got, err := query.FetchSiblings(
 		context.Background(),
 		media,
 		models.GlobalFlags{FilterFlags: models.FilterFlags{FetchSiblings: "all"}},
 	)
 	if err != nil {
-		t.Fatalf("FetchSiblings failed: %v", err)
+		t.Fatalf("query.FetchSiblings failed: %v", err)
 	}
 
 	if len(got) != 2 {

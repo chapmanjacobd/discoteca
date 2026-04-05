@@ -1,9 +1,11 @@
-package utils
+package utils_test
 
 import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -19,9 +21,9 @@ func TestFormatDuration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := FormatDuration(tt.input)
+		result := utils.FormatDuration(tt.input)
 		if result != tt.expected {
-			t.Errorf("FormatDuration(%d) = %q, want %q", tt.input, result, tt.expected)
+			t.Errorf("utils.FormatDuration(%d) = %q, want %q", tt.input, result, tt.expected)
 		}
 	}
 }
@@ -41,9 +43,9 @@ func TestFormatDurationShort(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := FormatDurationShort(tt.input)
+		result := utils.FormatDurationShort(tt.input)
 		if result != tt.expected {
-			t.Errorf("FormatDurationShort(%d) = %q, want %q", tt.input, result, tt.expected)
+			t.Errorf("utils.FormatDurationShort(%d) = %q, want %q", tt.input, result, tt.expected)
 		}
 	}
 }
@@ -61,9 +63,9 @@ func TestFormatSize(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := FormatSize(tt.input)
+		result := utils.FormatSize(tt.input)
 		if result != tt.expected {
-			t.Errorf("FormatSize(%d) = %q, want %q", tt.input, result, tt.expected)
+			t.Errorf("utils.FormatSize(%d) = %q, want %q", tt.input, result, tt.expected)
 		}
 	}
 }
@@ -86,10 +88,10 @@ func TestFormatPlaybackDuration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := FormatPlaybackDuration(tt.duration, tt.segmentStart, tt.segmentEnd)
+		result := utils.FormatPlaybackDuration(tt.duration, tt.segmentStart, tt.segmentEnd)
 		if result != tt.expected {
 			t.Errorf(
-				"FormatPlaybackDuration(%d, %d, %d) = %q, want %q",
+				"utils.FormatPlaybackDuration(%d, %d, %d) = %q, want %q",
 				tt.duration,
 				tt.segmentStart,
 				tt.segmentEnd,
@@ -103,64 +105,64 @@ func TestFormatPlaybackDuration(t *testing.T) {
 func TestFormatTime(t *testing.T) {
 	ts := time.Now().Unix()
 	expected := time.Unix(ts, 0).Format("2006-01-02 15:04")
-	got := FormatTime(ts)
+	got := utils.FormatTime(ts)
 	if got != expected {
-		t.Errorf("FormatTime incorrect, got %s, want %s", got, expected)
+		t.Errorf("utils.FormatTime incorrect, got %s, want %s", got, expected)
 	}
-	if FormatTime(0) != "-" {
-		t.Error("FormatTime(0) should be -")
+	if utils.FormatTime(0) != "-" {
+		t.Error("utils.FormatTime(0) should be -")
 	}
 }
 
 func TestRelativeDatetime(t *testing.T) {
 	now := time.Now()
-	if RelativeDatetime(0) != "-" {
-		t.Error("RelativeDatetime(0) should be -")
+	if utils.RelativeDatetime(0) != "-" {
+		t.Error("utils.RelativeDatetime(0) should be -")
 	}
 
 	// Test today
-	got := RelativeDatetime(now.Unix())
+	got := utils.RelativeDatetime(now.Unix())
 	if !strings.HasPrefix(got, "today") {
-		t.Errorf("RelativeDatetime today failed, got %s", got)
+		t.Errorf("utils.RelativeDatetime today failed, got %s", got)
 	}
 
 	// Test yesterday
 	yesterday := now.AddDate(0, 0, -1).Unix()
-	got = RelativeDatetime(yesterday)
+	got = utils.RelativeDatetime(yesterday)
 	if !strings.HasPrefix(got, "yesterday") {
-		t.Errorf("RelativeDatetime yesterday failed, got %s", got)
+		t.Errorf("utils.RelativeDatetime yesterday failed, got %s", got)
 	}
 
 	// Test 5 days ago (use a slightly larger offset to ensure it doesn't round down to 4)
 	fiveDaysAgo := now.Add(-5*24*time.Hour - 1*time.Minute).Unix()
-	got = RelativeDatetime(fiveDaysAgo)
+	got = utils.RelativeDatetime(fiveDaysAgo)
 	if !strings.Contains(got, "5 days ago") {
-		t.Errorf("RelativeDatetime 5 days ago failed, got %s", got)
+		t.Errorf("utils.RelativeDatetime 5 days ago failed, got %s", got)
 	}
 
 	// Test tomorrow
 	tomorrow := now.AddDate(0, 0, 1).Unix()
-	got = RelativeDatetime(tomorrow)
+	got = utils.RelativeDatetime(tomorrow)
 	if !strings.HasPrefix(got, "tomorrow") {
-		t.Errorf("RelativeDatetime tomorrow failed, got %s", got)
+		t.Errorf("utils.RelativeDatetime tomorrow failed, got %s", got)
 	}
 
 	// Test in 5 days
 	inFiveDays := now.Add(5*24*time.Hour + 1*time.Minute).Unix()
-	got = RelativeDatetime(inFiveDays)
+	got = utils.RelativeDatetime(inFiveDays)
 	if !strings.Contains(got, "in 5 days") {
-		t.Errorf("RelativeDatetime in 5 days failed, got %s", got)
+		t.Errorf("utils.RelativeDatetime in 5 days failed, got %s", got)
 	}
 }
 
 func TestSecondsToHHMMSS(t *testing.T) {
-	if got := SecondsToHHMMSS(3661); got != "1:01:01" {
-		t.Errorf("SecondsToHHMMSS(3661) = %q, want 1:01:01", got)
+	if got := utils.SecondsToHHMMSS(3661); got != "1:01:01" {
+		t.Errorf("utils.SecondsToHHMMSS(3661) = %q, want 1:01:01", got)
 	}
-	if got := SecondsToHHMMSS(-3661); got != "-1:01:01" {
-		t.Errorf("SecondsToHHMMSS(-3661) = %q, want -1:01:01", got)
+	if got := utils.SecondsToHHMMSS(-3661); got != "-1:01:01" {
+		t.Errorf("utils.SecondsToHHMMSS(-3661) = %q, want -1:01:01", got)
 	}
-	if got := SecondsToHHMMSS(61); got != "1:01" {
-		t.Errorf("SecondsToHHMMSS(61) = %q, want 1:01", got)
+	if got := utils.SecondsToHHMMSS(61); got != "1:01" {
+		t.Errorf("utils.SecondsToHHMMSS(61) = %q, want 1:01", got)
 	}
 }

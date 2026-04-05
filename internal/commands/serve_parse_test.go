@@ -1,27 +1,29 @@
-package commands
+package commands_test
 
 import (
 	"net/http"
 	"net/url"
 	"slices"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 )
 
 func TestServeCmd_ParseFlags(t *testing.T) {
-	cmd := &ServeCmd{}
+	cmd := &commands.ServeCmd{}
 
 	tests := []struct {
 		name     string
 		query    url.Values
-		validate func(*testing.T, *ServeCmd, *http.Request)
+		validate func(*testing.T, *commands.ServeCmd, *http.Request)
 	}{
 		{
 			name: "Search",
 			query: url.Values{
 				"search": {"word1 word2"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if len(flags.Search) != 2 || flags.Search[0] != "word1" || flags.Search[1] != "word2" {
 					t.Errorf("Unexpected search flags: %v", flags.Search)
 				}
@@ -32,8 +34,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 			query: url.Values{
 				"rating": {"0"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				found := slices.Contains(flags.Where, "(score IS NULL OR score = 0)")
 				if !found {
 					t.Errorf("Expected rating 0 where clause, got: %v", flags.Where)
@@ -45,8 +47,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 			query: url.Values{
 				"rating": {"5"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				found := slices.Contains(flags.Where, "score = 5")
 				if !found {
 					t.Errorf("Expected rating 5 where clause, got: %v", flags.Where)
@@ -58,8 +60,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 			query: url.Values{
 				"sort": {"random"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if !flags.Random {
 					t.Error("Expected Random to be true")
 				}
@@ -70,8 +72,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 			query: url.Values{
 				"category": {"comedy", "music"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if len(flags.Category) != 2 || flags.Category[0] != "comedy" || flags.Category[1] != "music" {
 					t.Errorf("Unexpected category flags: %v", flags.Category)
 				}
@@ -82,8 +84,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 			query: url.Values{
 				"rating": {"5", "4"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				found := slices.Contains(flags.Where, "(score = 5 OR score = 4)")
 				if !found {
 					t.Errorf("Expected multi-rating where clause, got: %v", flags.Where)
@@ -97,8 +99,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 				"duration": {"10-60", "300"},
 				"episodes": {"1", "5-10"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if len(flags.Size) != 2 || flags.Size[0] != "+100" || flags.Size[1] != "-200" {
 					t.Errorf("Unexpected size bins: %v", flags.Size)
 				}
@@ -117,8 +119,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 				"duration": {"p20-30"},
 				"episodes": {"p1-1"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if len(flags.Size) == 0 || flags.Size[0] != "p10-50" {
 					t.Errorf("Unexpected size percentile: %v", flags.Size)
 				}
@@ -140,8 +142,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 				"min_score":    {"3"},
 				"max_score":    {"5"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if len(flags.Size) != 2 || flags.Size[0] != ">100MB" || flags.Size[1] != "<500MB" {
 					t.Errorf("Unexpected size flags: %v", flags.Size)
 				}
@@ -176,8 +178,8 @@ func TestServeCmd_ParseFlags(t *testing.T) {
 				"completed":  {"true"},
 				"trash":      {"true"},
 			},
-			validate: func(t *testing.T, c *ServeCmd, r *http.Request) {
-				flags := c.parseFlags(r)
+			validate: func(t *testing.T, c *commands.ServeCmd, r *http.Request) {
+				flags := c.ParseFlags(r)
 				if !flags.VideoOnly || !flags.AudioOnly || !flags.ImageOnly || !flags.TextOnly {
 					t.Error("Expected media_type filters to be true")
 				}

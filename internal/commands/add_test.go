@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -17,7 +18,7 @@ func TestAddCmd_Run(t *testing.T) {
 	f1 := fixture.CreateDummyFile("video1.mp4")
 	f2 := fixture.CreateDummyFile("audio1.mp3")
 
-	cmd := &AddCmd{
+	cmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1, f2},
 	}
 	if err := cmd.AfterApply(); err != nil {
@@ -25,7 +26,7 @@ func TestAddCmd_Run(t *testing.T) {
 	}
 
 	if err := cmd.Run(context.Background()); err != nil {
-		t.Fatalf("AddCmd failed: %v", err)
+		t.Fatalf("commands.AddCmd failed: %v", err)
 	}
 
 	// Verify items added
@@ -48,19 +49,19 @@ func TestAddCmd_Skip(t *testing.T) {
 
 	f1 := fixture.CreateDummyFile("video1.mp4")
 
-	cmd := &AddCmd{
+	cmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	_ = cmd.AfterApply()
 	_ = cmd.Run(context.Background())
 
 	// Second run, should skip
-	cmd2 := &AddCmd{
+	cmd2 := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	_ = cmd2.AfterApply()
 	if err := cmd2.Run(context.Background()); err != nil {
-		t.Fatalf("AddCmd second run failed: %v", err)
+		t.Fatalf("commands.AddCmd second run failed: %v", err)
 	}
 	// We check if it skipped by checking if the output says 1/1 processed from skip
 	// But it's hard to capture stdout here.
@@ -69,12 +70,12 @@ func TestAddCmd_Skip(t *testing.T) {
 	defer dbConn.Close()
 	_, _ = dbConn.Exec("UPDATE media SET time_deleted = unixepoch() WHERE path = ?", f1)
 
-	cmd3 := &AddCmd{
+	cmd3 := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	_ = cmd3.AfterApply()
 	if err := cmd3.Run(context.Background()); err != nil {
-		t.Fatalf("AddCmd third run failed: %v", err)
+		t.Fatalf("commands.AddCmd third run failed: %v", err)
 	}
 
 	var timeDeleted int64
@@ -103,7 +104,7 @@ func TestAddCmd_AllFiles(t *testing.T) {
 	os.Symlink(mediaFile, symlinkFile)
 
 	// Run 'add' on the directory
-	cmd := &AddCmd{
+	cmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, tempDir},
 	}
 	if err := cmd.AfterApply(); err != nil {
@@ -111,7 +112,7 @@ func TestAddCmd_AllFiles(t *testing.T) {
 	}
 
 	if err := cmd.Run(context.Background()); err != nil {
-		t.Fatalf("AddCmd failed: %v", err)
+		t.Fatalf("commands.AddCmd failed: %v", err)
 	}
 
 	// Verify items added
@@ -154,7 +155,7 @@ func TestAddCmd_FilterVideo(t *testing.T) {
 	os.WriteFile(mediaFile, []byte("fake video"), 0o644)
 	os.WriteFile(nonMediaFile, []byte("fake doc"), 0o644)
 
-	cmd := &AddCmd{
+	cmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, tempDir},
 	}
 	cmd.VideoOnly = true // Only video

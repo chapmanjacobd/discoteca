@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
@@ -55,7 +56,7 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -68,7 +69,7 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
-		cmd.handleSubtitles(w, req)
+		cmd.HandleSubtitles(w, req)
 
 		// Should return 404 immediately (optimization: DB check before ffmpeg)
 		if w.Code != http.StatusNotFound {
@@ -90,7 +91,7 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
-		cmd.handleSubtitles(w, req)
+		cmd.HandleSubtitles(w, req)
 
 		body := w.Body.String()
 
@@ -141,7 +142,7 @@ func TestHandleSubtitles_WithEmbeddedSubtitles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -154,7 +155,7 @@ func TestHandleSubtitles_WithEmbeddedSubtitles(t *testing.T) {
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
-		cmd.handleSubtitles(w, req)
+		cmd.HandleSubtitles(w, req)
 
 		// For a dummy file without real subtitle tracks, ffmpeg will fail
 		// The key test is that it ATTEMPTS the conversion (doesn't return early)
@@ -266,7 +267,7 @@ Test subtitle line
 		t.Fatal(err)
 	}
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -277,7 +278,7 @@ Test subtitle line
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
-		cmd.handleSubtitles(w, req)
+		cmd.HandleSubtitles(w, req)
 
 		// For .srt files, ffmpeg will be called to convert to VTT
 		// Since our file is valid, it should succeed or at least attempt conversion
@@ -322,7 +323,7 @@ func TestHandleSubtitles_NoFFmpegCallForZeroCount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -332,7 +333,7 @@ func TestHandleSubtitles_NoFFmpegCallForZeroCount(t *testing.T) {
 	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 
-	cmd.handleSubtitles(w, req)
+	cmd.HandleSubtitles(w, req)
 
 	// Verify it returned 404 without calling ffmpeg
 	if w.Code != http.StatusNotFound {

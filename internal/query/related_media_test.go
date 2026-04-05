@@ -1,4 +1,4 @@
-package query
+package query_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 )
 
 func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
@@ -124,7 +125,7 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 	}
 
 	// Expand related media
-	err = ExpandRelatedMedia(ctx, sqlDB, &media, flags)
+	err = query.ExpandRelatedMedia(ctx, sqlDB, &media, flags)
 	if err != nil {
 		t.Fatalf("ExpandRelatedMedia failed: %v", err)
 	}
@@ -273,7 +274,7 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 	}
 
 	// Expand related media
-	err = ExpandRelatedMedia(ctx, sqlDB, &media, flags)
+	err = query.ExpandRelatedMedia(ctx, sqlDB, &media, flags)
 	if err != nil {
 		t.Fatalf("ExpandRelatedMedia failed: %v", err)
 	}
@@ -394,7 +395,7 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 	}
 
 	// Expand related media (should use media item's words)
-	err = ExpandRelatedMedia(ctx, sqlDB, &media, flags)
+	err = query.ExpandRelatedMedia(ctx, sqlDB, &media, flags)
 	if err != nil {
 		t.Fatalf("ExpandRelatedMedia failed: %v", err)
 	}

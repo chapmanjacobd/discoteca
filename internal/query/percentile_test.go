@@ -1,4 +1,4 @@
-package query
+package query_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -41,9 +42,9 @@ func TestResolvePercentileFlags(t *testing.T) {
 		flags := models.GlobalFlags{
 			FilterFlags: models.FilterFlags{Size: []string{"p10-50"}},
 		}
-		resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
+		resolved, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("ResolvePercentileFlags failed: %v", err)
+			t.Fatalf("query.ResolvePercentileFlags failed: %v", err)
 		}
 
 		// 10th percentile of 1000, 2000, ..., 100000 is approx 10000
@@ -66,7 +67,7 @@ func TestResolvePercentileFlags(t *testing.T) {
 			t.Errorf("Expected min/max range in resolved flags, got %v", resolved.Size)
 		}
 
-		results, _ := MediaQuery(ctx, dbs, flags)
+		results, _ := query.MediaQuery(ctx, dbs, flags)
 		if len(results) == 0 {
 			t.Error("Expected results for percentile query")
 		}
@@ -81,9 +82,9 @@ func TestResolvePercentileFlags(t *testing.T) {
 		flags := models.GlobalFlags{
 			FilterFlags: models.FilterFlags{Duration: []string{"p20-30"}},
 		}
-		resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
+		resolved, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("ResolvePercentileFlags failed: %v", err)
+			t.Fatalf("query.ResolvePercentileFlags failed: %v", err)
 		}
 
 		foundMin := false
@@ -102,9 +103,9 @@ func TestResolvePercentileFlags(t *testing.T) {
 		flags := models.GlobalFlags{
 			AggregateFlags: models.AggregateFlags{FileCounts: "p0-50"},
 		}
-		resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
+		resolved, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("ResolvePercentileFlags failed: %v", err)
+			t.Fatalf("query.ResolvePercentileFlags failed: %v", err)
 		}
 
 		// All directories have count 10, so 0-50th percentile is still 10
@@ -112,7 +113,7 @@ func TestResolvePercentileFlags(t *testing.T) {
 			t.Errorf("Expected count 10 in resolved FileCounts, got %s", resolved.FileCounts)
 		}
 
-		results, _ := MediaQuery(ctx, dbs, flags)
+		results, _ := query.MediaQuery(ctx, dbs, flags)
 		if len(results) != 100 {
 			t.Errorf("Expected 100 results (all match count 10), got %d", len(results))
 		}
@@ -122,10 +123,10 @@ func TestResolvePercentileFlags(t *testing.T) {
 		flags := models.GlobalFlags{
 			AggregateFlags: models.AggregateFlags{FileCounts: "1"},
 		}
-		// ResolvePercentileFlags should not change absolute values
-		resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
+		// query.ResolvePercentileFlags should not change absolute values
+		resolved, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("ResolvePercentileFlags failed: %v", err)
+			t.Fatalf("query.ResolvePercentileFlags failed: %v", err)
 		}
 
 		if resolved.FileCounts != "1" {
@@ -141,9 +142,9 @@ func TestResolvePercentileFlags(t *testing.T) {
 		}
 
 		// Resolved Size (p0-100) should now be resolved to the filtered set (dir0)
-		resolved, err := ResolvePercentileFlags(ctx, dbs, flags)
+		resolved, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("ResolvePercentileFlags failed: %v", err)
+			t.Fatalf("query.ResolvePercentileFlags failed: %v", err)
 		}
 
 		// Verify it resolved to something (absolute values start with + or -)
@@ -162,7 +163,7 @@ func TestResolvePercentileFlags(t *testing.T) {
 		// p10 of dir0 should be 1000.
 		// p50 of dir0 should be 5000.
 		flags.FilterFlags.Size = []string{"p10-50"}
-		resolved, _ = ResolvePercentileFlags(ctx, dbs, flags)
+		resolved, _ = query.ResolvePercentileFlags(ctx, dbs, flags)
 
 		foundP10 := false
 		foundP50 := false
@@ -181,7 +182,7 @@ func TestResolvePercentileFlags(t *testing.T) {
 
 		// Now change category to dir9 (sizes 91000 to 100000)
 		flags.MediaFilterFlags.Category = []string{"dir9"}
-		resolved, _ = ResolvePercentileFlags(ctx, dbs, flags)
+		resolved, _ = query.ResolvePercentileFlags(ctx, dbs, flags)
 
 		foundP10Dir9 := false
 		for _, s := range resolved.Size {

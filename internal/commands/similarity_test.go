@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
@@ -27,21 +28,21 @@ func TestSimilarityCmds(t *testing.T) {
 	sqlDB.Exec("INSERT INTO media (path, size, duration) VALUES (?, ?, ?)", f3, 5000, 500)
 	sqlDB.Close()
 
-	t.Run("SimilarFilesCmd", func(t *testing.T) {
-		cmd := &SimilarFilesCmd{
+	t.Run("commands.SimilarFilesCmd", func(t *testing.T) {
+		cmd := &commands.SimilarFilesCmd{
 			Databases: []string{dbPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SimilarFilesCmd failed: %v", err)
+			t.Fatalf("commands.SimilarFilesCmd failed: %v", err)
 		}
 	})
 
-	t.Run("SimilarFoldersCmd", func(t *testing.T) {
-		cmd := &SimilarFoldersCmd{
+	t.Run("commands.SimilarFoldersCmd", func(t *testing.T) {
+		cmd := &commands.SimilarFoldersCmd{
 			Databases: []string{dbPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SimilarFoldersCmd failed: %v", err)
+			t.Fatalf("commands.SimilarFoldersCmd failed: %v", err)
 		}
 	})
 }

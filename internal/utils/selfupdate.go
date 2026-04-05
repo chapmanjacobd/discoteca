@@ -28,7 +28,7 @@ func MaybeUpdate(ctx context.Context) bool {
 		return false
 	}
 
-	return doUpdate(ctx, url)
+	return DoUpdate(ctx, url)
 }
 
 // AutoUpdate will periodically check for an update and install it.
@@ -105,14 +105,14 @@ func whichFilename() string {
 	}
 }
 
-func doUpdate(ctx context.Context, url string) bool {
+func DoUpdate(ctx context.Context, url string) bool {
 	curp, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(Stderr,
 			"couldn't get os.Executable:", err)
 		return false
 	}
-	if doUpdateAt(ctx, curp, url) {
+	if DoUpdateAt(ctx, curp, url) {
 		fmt.Fprintln(Stderr,
 			"new version downloaded, exiting to get restarted")
 		return true
@@ -155,7 +155,7 @@ func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	return nil
 }
 
-func doUpdateAt(ctx context.Context, curp, url string) bool {
+func DoUpdateAt(ctx context.Context, curp, url string) bool {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 

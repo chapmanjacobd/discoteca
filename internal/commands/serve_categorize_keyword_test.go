@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 )
 
 func TestHandleCategorizeKeyword(t *testing.T) {
@@ -32,7 +34,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 
 	db.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 		ReadOnly:  false,
 	}
@@ -42,7 +44,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/keyword", body)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeKeyword(w, req)
+		cmd.HandleCategorizeKeyword(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -72,7 +74,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/keyword", body)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeKeyword(w, req)
+		cmd.HandleCategorizeKeyword(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected status 400, got %d", w.Code)
@@ -95,7 +97,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/categorize/keyword", body)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeKeyword(w, req)
+		cmd.HandleCategorizeKeyword(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -128,7 +130,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/keyword", body)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeKeyword(w, req)
+		cmd.HandleCategorizeKeyword(w, req)
 
 		if w.Code != http.StatusForbidden {
 			t.Errorf("Expected status 403 in read-only mode, got %d", w.Code)

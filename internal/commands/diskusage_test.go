@@ -1,9 +1,10 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -13,19 +14,19 @@ func TestDiskUsageCmd_Run(t *testing.T) {
 
 	fixture.CreateDummyFile("dir1/media1.mp4")
 
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, fixture.TempDir},
 	}
 	addCmd.AfterApply()
 	addCmd.Run(context.Background())
 
 	t.Run("DefaultDU", func(t *testing.T) {
-		cmd := &DiskUsageCmd{
+		cmd := &commands.DiskUsageCmd{
 			Args: []string{fixture.DBPath},
 		}
 		cmd.AfterApply()
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("DiskUsageCmd failed: %v", err)
+			t.Fatalf("commands.DiskUsageCmd failed: %v", err)
 		}
 	})
 }

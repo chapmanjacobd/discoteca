@@ -62,7 +62,7 @@ func UpdateHistoryWithTime(
 	}
 	defer sqlDB.Close()
 
-	tx, err := sqlDB.Begin()
+	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -113,19 +113,20 @@ func DeleteHistoryByPaths(ctx context.Context, dbPath string, paths []string) er
 	}
 	defer sqlDB.Close()
 
-	tx, err := sqlDB.Begin()
+	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
 	for _, path := range paths {
-		if _, err := tx.Exec("DELETE FROM history WHERE media_path = ?", path); err != nil {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM history WHERE media_path = ?", path); err != nil {
 			return err
 		}
 		// Also reset playhead/play_count in media table?
 		// Python remove logic does that too.
-		if _, err := tx.Exec(
+		if _, err := tx.ExecContext(
+			ctx,
 			"UPDATE media SET playhead=0, play_count=0, time_last_played=0, time_first_played=0 WHERE path = ?",
 			path,
 		); err != nil {

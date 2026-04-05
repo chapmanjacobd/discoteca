@@ -43,11 +43,11 @@ func (c *SearchCmd) Run(ctx context.Context) error {
 		if len(c.Databases) > 0 {
 			if sqlDB, err := db.Connect(ctx, c.Databases[0]); err == nil {
 				var name string
-				err := sqlDB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='media_fts'").
+				err := sqlDB.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='media_fts'").
 					Scan(&name)
 				if err == nil {
 					// Verify FTS5 actually works by running a simple query
-					_, testErr := sqlDB.Query("SELECT 1 FROM media_fts LIMIT 1")
+					_, testErr := sqlDB.QueryContext(ctx, "SELECT 1 FROM media_fts LIMIT 1")
 					if testErr == nil {
 						flags.FTS = true
 					}

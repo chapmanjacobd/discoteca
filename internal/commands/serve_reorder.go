@@ -20,7 +20,7 @@ type playlistItem struct {
 	TimeAdded   int64
 }
 
-func (c *ServeCmd) handlePlaylistReorder(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandlePlaylistReorder(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return

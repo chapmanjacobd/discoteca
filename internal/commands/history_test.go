@@ -1,9 +1,10 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
@@ -13,39 +14,39 @@ func TestHistoryCmd_Run(t *testing.T) {
 	defer fixture.Cleanup()
 
 	f1 := fixture.CreateDummyFile("media1.mp4")
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
 	if err := addCmd.Run(context.Background()); err != nil {
-		t.Fatalf("AddCmd failed: %v", err)
+		t.Fatalf("commands.AddCmd failed: %v", err)
 	}
 
 	// Add history
-	addHist := &HistoryAddCmd{
+	addHist := &commands.HistoryAddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addHist.AfterApply()
 	addHist.Run(context.Background())
 
 	t.Run("DefaultHistory", func(t *testing.T) {
-		cmd := &HistoryCmd{
+		cmd := &commands.HistoryCmd{
 			Databases: []string{fixture.DBPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("HistoryCmd failed: %v", err)
+			t.Fatalf("commands.HistoryCmd failed: %v", err)
 		}
 	})
 
 	t.Run("DeleteHistory", func(t *testing.T) {
-		cmd := &HistoryCmd{
+		cmd := &commands.HistoryCmd{
 			PostActionFlags: models.PostActionFlags{
 				DeleteRows: true,
 			},
 			Databases: []string{fixture.DBPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("HistoryCmd failed: %v", err)
+			t.Fatalf("commands.HistoryCmd failed: %v", err)
 		}
 	})
 }
@@ -56,7 +57,7 @@ func TestHistoryAddCmd_Run(t *testing.T) {
 
 	f1 := fixture.CreateDummyFile("media1.mp4")
 
-	cmd := &HistoryAddCmd{
+	cmd := &commands.HistoryAddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	if err := cmd.AfterApply(); err != nil {
@@ -64,6 +65,6 @@ func TestHistoryAddCmd_Run(t *testing.T) {
 	}
 
 	if err := cmd.Run(context.Background()); err != nil {
-		t.Fatalf("HistoryAddCmd failed: %v", err)
+		t.Fatalf("commands.HistoryAddCmd failed: %v", err)
 	}
 }

@@ -1,8 +1,10 @@
-package utils
+package utils_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestCompareBlockStrings(t *testing.T) {
@@ -18,8 +20,8 @@ func TestCompareBlockStrings(t *testing.T) {
 		{"missing", "abcdef", false},
 	}
 	for _, tt := range tests {
-		if got := CompareBlockStrings(tt.pattern, tt.value); got != tt.expected {
-			t.Errorf("CompareBlockStrings(%q, %q) = %v, want %v", tt.pattern, tt.value, got, tt.expected)
+		if got := utils.CompareBlockStrings(tt.pattern, tt.value); got != tt.expected {
+			t.Errorf("utils.CompareBlockStrings(%q, %q) = %v, want %v", tt.pattern, tt.value, got, tt.expected)
 		}
 	}
 }
@@ -36,8 +38,8 @@ func TestMatchesAny(t *testing.T) {
 		{"/home/user/movie.mp4", []string{"%missing%"}, false},
 	}
 	for _, tt := range tests {
-		if got := MatchesAny(tt.path, tt.patterns); got != tt.expected {
-			t.Errorf("MatchesAny(%q, %v) = %v, want %v", tt.path, tt.patterns, got, tt.expected)
+		if got := utils.MatchesAny(tt.path, tt.patterns); got != tt.expected {
+			t.Errorf("utils.MatchesAny(%q, %v) = %v, want %v", tt.path, tt.patterns, got, tt.expected)
 		}
 	}
 }
@@ -59,9 +61,9 @@ func TestNaturalLess(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := NaturalLess(tt.s1, tt.s2)
+		result := utils.NaturalLess(tt.s1, tt.s2)
 		if result != tt.expected {
-			t.Errorf("NaturalLess(%q, %q) = %v, want %v", tt.s1, tt.s2, result, tt.expected)
+			t.Errorf("utils.NaturalLess(%q, %q) = %v, want %v", tt.s1, tt.s2, result, tt.expected)
 		}
 	}
 }
@@ -69,16 +71,16 @@ func TestNaturalLess(t *testing.T) {
 func TestExtractNumbers(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected []chunk
+		expected []utils.Chunk
 	}{
-		{"abc123def", []chunk{{"abc", 0, false}, {"", 123, true}, {"def", 0, false}}},
-		{"123", []chunk{{"", 123, true}}},
-		{"abc", []chunk{{"abc", 0, false}}},
+		{"abc123def", []utils.Chunk{{"abc", 0, false}, {"", 123, true}, {"def", 0, false}}},
+		{"123", []utils.Chunk{{"", 123, true}}},
+		{"abc", []utils.Chunk{{"abc", 0, false}}},
 	}
 	for _, tt := range tests {
-		got := extractNumbers(tt.input)
+		got := utils.ExtractNumbers(tt.input)
 		if !reflect.DeepEqual(got, tt.expected) {
-			t.Errorf("extractNumbers(%q) = %v, want %v", tt.input, got, tt.expected)
+			t.Errorf("utils.ExtractNumbers(%q) = %v, want %v", tt.input, got, tt.expected)
 		}
 	}
 }
@@ -94,8 +96,8 @@ func TestCleanString(t *testing.T) {
 		{"Hello & World!", "Hello World"},
 	}
 	for _, tt := range tests {
-		if got := CleanString(tt.input); got != tt.expected {
-			t.Errorf("CleanString(%q) = %q, want %q", tt.input, got, tt.expected)
+		if got := utils.CleanString(tt.input); got != tt.expected {
+			t.Errorf("utils.CleanString(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }
@@ -111,8 +113,8 @@ func TestShorten(t *testing.T) {
 		{"こんにちは", 6, "こん…"},
 	}
 	for _, tt := range tests {
-		if got := Shorten(tt.input, tt.width); got != tt.expected {
-			t.Errorf("Shorten(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.expected)
+		if got := utils.Shorten(tt.input, tt.width); got != tt.expected {
+			t.Errorf("utils.Shorten(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.expected)
 		}
 	}
 }
@@ -127,8 +129,8 @@ func TestShortenMiddle(t *testing.T) {
 		{"こんにちは世界", 8, "こ...界"},
 	}
 	for _, tt := range tests {
-		if got := ShortenMiddle(tt.input, tt.width); got != tt.expected {
-			t.Errorf("ShortenMiddle(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.expected)
+		if got := utils.ShortenMiddle(tt.input, tt.width); got != tt.expected {
+			t.Errorf("utils.ShortenMiddle(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.expected)
 		}
 	}
 }
@@ -144,94 +146,94 @@ func TestStripEnclosingQuotes(t *testing.T) {
 		{`"'hello'"`, "hello"},
 	}
 	for _, tt := range tests {
-		if got := StripEnclosingQuotes(tt.input); got != tt.expected {
-			t.Errorf("StripEnclosingQuotes(%q) = %q, want %q", tt.input, got, tt.expected)
+		if got := utils.StripEnclosingQuotes(tt.input); got != tt.expected {
+			t.Errorf("utils.StripEnclosingQuotes(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }
 
 func TestCombine(t *testing.T) {
-	if got := Combine("a", "b"); got != "a;b" {
-		t.Errorf("Combine(a, b) = %q, want a;b", got)
+	if got := utils.Combine("a", "b"); got != "a;b" {
+		t.Errorf("utils.Combine(a, b) = %q, want a;b", got)
 	}
-	if got := Combine("a", []string{"b", "c"}); got != "a;b;c" {
-		t.Errorf("Combine(a, [b, c]) = %q, want a;b;c", got)
+	if got := utils.Combine("a", []string{"b", "c"}); got != "a;b;c" {
+		t.Errorf("utils.Combine(a, [b, c]) = %q, want a;b;c", got)
 	}
-	if got := Combine("a,b", "c;d"); got != "a;b;c;d" {
-		t.Errorf("Combine(a,b, c;d) = %q, want a;b;c;d", got)
+	if got := utils.Combine("a,b", "c;d"); got != "a;b;c;d" {
+		t.Errorf("utils.Combine(a,b, c;d) = %q, want a;b;c;d", got)
 	}
 }
 
 func TestFromTimestampSeconds(t *testing.T) {
-	if got := FromTimestampSeconds(":30"); got != 30 {
-		t.Errorf("FromTimestampSeconds(:30) = %v, want 30", got)
+	if got := utils.FromTimestampSeconds(":30"); got != 30 {
+		t.Errorf("utils.FromTimestampSeconds(:30) = %v, want 30", got)
 	}
-	if got := FromTimestampSeconds("1:30"); got != 90 {
-		t.Errorf("FromTimestampSeconds(1:30) = %v, want 90", got)
+	if got := utils.FromTimestampSeconds("1:30"); got != 90 {
+		t.Errorf("utils.FromTimestampSeconds(1:30) = %v, want 90", got)
 	}
 }
 
 func TestPartialStartswith(t *testing.T) {
 	list := []string{"daily", "weekly", "monthly"}
-	if got, _ := PartialStartswith("da", list); got != "daily" {
-		t.Errorf("PartialStartswith(da) = %q, want daily", got)
+	if got, _ := utils.PartialStartswith("da", list); got != "daily" {
+		t.Errorf("utils.PartialStartswith(da) = %q, want daily", got)
 	}
 }
 
 func TestGlobMatchAny(t *testing.T) {
-	if !GlobMatchAny("test", []string{"*test*"}) {
-		t.Error("GlobMatchAny failed")
+	if !utils.GlobMatchAny("test", []string{"*test*"}) {
+		t.Error("utils.GlobMatchAny failed")
 	}
 }
 
 func TestGlobMatchAll(t *testing.T) {
-	if !GlobMatchAll("test", []string{"*test*", "t*"}) {
-		t.Error("GlobMatchAll failed")
+	if !utils.GlobMatchAll("test", []string{"*test*", "t*"}) {
+		t.Error("utils.GlobMatchAll failed")
 	}
 }
 
 func TestDurationShort(t *testing.T) {
-	if got := DurationShort(60); got != "1 minute" {
-		t.Errorf("DurationShort(60) = %q, want 1 minute", got)
+	if got := utils.DurationShort(60); got != "1 minute" {
+		t.Errorf("utils.DurationShort(60) = %q, want 1 minute", got)
 	}
 }
 
 func TestExtractWords(t *testing.T) {
 	input := "UniqueTerm, AnotherTerm! 123"
 	expected := []string{"uniqueterm", "anotherterm", "123"}
-	got := ExtractWords(input)
+	got := utils.ExtractWords(input)
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("ExtractWords() = %v, want %v", got, expected)
+		t.Errorf("utils.ExtractWords() = %v, want %v", got, expected)
 	}
 }
 
 func TestSafeJSONLoads(t *testing.T) {
 	input := `{"a": 1}`
-	got := SafeJSONLoads(input)
+	got := utils.SafeJSONLoads(input)
 	expected := map[string]any{"a": float64(1)}
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("SafeJSONLoads() = %v, want %v", got, expected)
+		t.Errorf("utils.SafeJSONLoads() = %v, want %v", got, expected)
 	}
 }
 
 func TestLoadString(t *testing.T) {
 	input := `{'a': 1}`
-	got := LoadString(input)
+	got := utils.LoadString(input)
 	expected := map[string]any{"a": float64(1)}
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("LoadString() = %v, want %v", got, expected)
+		t.Errorf("utils.LoadString() = %v, want %v", got, expected)
 	}
 
-	if got := LoadString("just string"); got != "just string" {
-		t.Errorf("LoadString() = %v, want just string", got)
+	if got := utils.LoadString("just string"); got != "just string" {
+		t.Errorf("utils.LoadString() = %v, want just string", got)
 	}
 }
 
 func TestPathToSentence(t *testing.T) {
 	input := "/home/user/movie_title.mp4"
 	expected := "movie title mp4"
-	if got := PathToSentence(input); got != expected {
-		t.Errorf("PathToSentence(%q) = %q, want %q", input, got, expected)
+	if got := utils.PathToSentence(input); got != expected {
+		t.Errorf("utils.PathToSentence(%q) = %q, want %q", input, got, expected)
 	}
 }
 
@@ -246,120 +248,120 @@ func TestIsGenericTitle(t *testing.T) {
 		{"Untitled Chapter", true},
 		{"123", true},
 		{"00:01:02", true},
-		{"Real Title", false},
+		{"Real utils.Title", false},
 	}
 	for _, tt := range tests {
-		if got := IsGenericTitle(tt.input); got != tt.expected {
-			t.Errorf("IsGenericTitle(%q) = %v, want %v", tt.input, got, tt.expected)
+		if got := utils.IsGenericTitle(tt.input); got != tt.expected {
+			t.Errorf("utils.IsGenericTitle(%q) = %v, want %v", tt.input, got, tt.expected)
 		}
 	}
 }
 
 func TestIsDigit(t *testing.T) {
-	if !IsDigit("123") {
-		t.Error("IsDigit(123) should be true")
+	if !utils.IsDigit("123") {
+		t.Error("utils.IsDigit(123) should be true")
 	}
-	if IsDigit("12a") {
-		t.Error("IsDigit(12a) should be false")
+	if utils.IsDigit("12a") {
+		t.Error("utils.IsDigit(12a) should be false")
 	}
-	if IsDigit("") {
-		t.Error("IsDigit('') should be false")
+	if utils.IsDigit("") {
+		t.Error("utils.IsDigit('') should be false")
 	}
 }
 
 func TestIsTimecodeLike(t *testing.T) {
-	if !IsTimecodeLike("00:01:02") {
-		t.Error("IsTimecodeLike(00:01:02) should be true")
+	if !utils.IsTimecodeLike("00:01:02") {
+		t.Error("utils.IsTimecodeLike(00:01:02) should be true")
 	}
-	if !IsTimecodeLike("123") {
-		t.Error("IsTimecodeLike(123) should be true")
+	if !utils.IsTimecodeLike("123") {
+		t.Error("utils.IsTimecodeLike(123) should be true")
 	}
-	if IsTimecodeLike("abc") {
-		t.Error("IsTimecodeLike(abc) should be false")
+	if utils.IsTimecodeLike("abc") {
+		t.Error("utils.IsTimecodeLike(abc) should be false")
 	}
 }
 
 func TestRemoveConsecutiveWhitespace(t *testing.T) {
 	input := "hello   world \t  again"
 	expected := "hello world again"
-	if got := RemoveConsecutiveWhitespace(input); got != expected {
-		t.Errorf("RemoveConsecutiveWhitespace(%q) = %q, want %q", input, got, expected)
+	if got := utils.RemoveConsecutiveWhitespace(input); got != expected {
+		t.Errorf("utils.RemoveConsecutiveWhitespace(%q) = %q, want %q", input, got, expected)
 	}
 }
 
 func TestRemoveConsecutives(t *testing.T) {
-	if got := RemoveConsecutive("aaa", "a"); got != "a" {
-		t.Errorf("RemoveConsecutive(aaa) = %q, want a", got)
+	if got := utils.RemoveConsecutive("aaa", "a"); got != "a" {
+		t.Errorf("utils.RemoveConsecutive(aaa) = %q, want a", got)
 	}
-	if got := RemoveConsecutives("aaabbb", []string{"a", "b"}); got != "ab" {
-		t.Errorf("RemoveConsecutives(aaabbb) = %q, want ab", got)
+	if got := utils.RemoveConsecutives("aaabbb", []string{"a", "b"}); got != "ab" {
+		t.Errorf("utils.RemoveConsecutives(aaabbb) = %q, want ab", got)
 	}
 }
 
 func TestRemovePrefixesSuffixes(t *testing.T) {
-	if got := RemovePrefixes("prepretest", []string{"pre"}); got != "test" {
-		t.Errorf("RemovePrefixes(prepretest) = %q, want test", got)
+	if got := utils.RemovePrefixes("prepretest", []string{"pre"}); got != "test" {
+		t.Errorf("utils.RemovePrefixes(prepretest) = %q, want test", got)
 	}
-	if got := RemoveSuffixes("testsuf", []string{"suf"}); got != "test" {
-		t.Errorf("RemoveSuffixes(testsuf) = %q, want test", got)
+	if got := utils.RemoveSuffixes("testsuf", []string{"suf"}); got != "test" {
+		t.Errorf("utils.RemoveSuffixes(testsuf) = %q, want test", got)
 	}
 }
 
 func TestUnParagraph(t *testing.T) {
 	input := "“Hello” world …"
 	expected := "'Hello' world ..."
-	if got := UnParagraph(input); got != expected {
-		t.Errorf("UnParagraph(%q) = %q, want %q", input, got, expected)
+	if got := utils.UnParagraph(input); got != expected {
+		t.Errorf("utils.UnParagraph(%q) = %q, want %q", input, got, expected)
 	}
 }
 
 func TestTitle(t *testing.T) {
 	input := "hello world"
 	expected := "Hello World"
-	if got := Title(input); got != expected {
-		t.Errorf("Title(%q) = %q, want %q", input, got, expected)
+	if got := utils.Title(input); got != expected {
+		t.Errorf("utils.Title(%q) = %q, want %q", input, got, expected)
 	}
-	if got := Title(""); got != "" {
-		t.Errorf("Title('') = %q, want ''", got)
+	if got := utils.Title(""); got != "" {
+		t.Errorf("utils.Title('') = %q, want ''", got)
 	}
 }
 
 func TestSplitAndTrim(t *testing.T) {
 	input := " a , b , c "
 	expected := []string{"a", "b", "c"}
-	got := SplitAndTrim(input, ",")
+	got := utils.SplitAndTrim(input, ",")
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("SplitAndTrim() = %v, want %v", got, expected)
+		t.Errorf("utils.SplitAndTrim() = %v, want %v", got, expected)
 	}
 }
 
 func TestRemoveExcessiveLinebreaks(t *testing.T) {
 	input := "a\n\n\n\nb"
 	expected := "a\n\nb"
-	if got := RemoveExcessiveLinebreaks(input); got != expected {
-		t.Errorf("RemoveExcessiveLinebreaks() = %q, want %q", got, expected)
+	if got := utils.RemoveExcessiveLinebreaks(input); got != expected {
+		t.Errorf("utils.RemoveExcessiveLinebreaks() = %q, want %q", got, expected)
 	}
 }
 
 func TestLastChars(t *testing.T) {
-	if got := LastChars("a.b.c"); got != "c" {
-		t.Errorf("LastChars(a.b.c) = %q, want c", got)
+	if got := utils.LastChars("a.b.c"); got != "c" {
+		t.Errorf("utils.LastChars(a.b.c) = %q, want c", got)
 	}
 }
 
 func TestFtsQuote(t *testing.T) {
 	input := []string{"hello", "world AND universe"}
 	expected := []string{"\"hello\"", "world AND universe"}
-	got := FtsQuote(input)
+	got := utils.FtsQuote(input)
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("FtsQuote() = %v, want %v", got, expected)
+		t.Errorf("utils.FtsQuote() = %v, want %v", got, expected)
 	}
 }
 
 func TestEscapeXML(t *testing.T) {
 	input := "< & > \" '"
 	expected := "&lt; &amp; &gt; &quot; &apos;"
-	if got := EscapeXML(input); got != expected {
-		t.Errorf("EscapeXML() = %q, want %q", got, expected)
+	if got := utils.EscapeXML(input); got != expected {
+		t.Errorf("utils.EscapeXML() = %q, want %q", got, expected)
 	}
 }

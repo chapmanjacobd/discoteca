@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
@@ -21,7 +22,7 @@ func TestRawNotFound(t *testing.T) {
 	db.InitDB(context.Background(), sqlDB)
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()

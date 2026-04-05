@@ -1,10 +1,12 @@
 //go:build !windows
 
-package utils
+package utils_test
 
 import (
 	"os"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestIsFileOpen(t *testing.T) {
@@ -16,7 +18,7 @@ func TestIsFileOpen(t *testing.T) {
 
 	// Test closed file
 	f.Close()
-	if IsFileOpen(f.Name()) {
+	if utils.IsFileOpen(f.Name()) {
 		t.Errorf("Expected file %s to be closed", f.Name())
 	}
 
@@ -27,7 +29,7 @@ func TestIsFileOpen(t *testing.T) {
 	}
 	defer f2.Close()
 
-	if !IsFileOpen(f.Name()) {
+	if !utils.IsFileOpen(f.Name()) {
 		t.Errorf("Expected file %s to be open", f.Name())
 	}
 }

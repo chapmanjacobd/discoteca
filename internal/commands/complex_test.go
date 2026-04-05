@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -44,7 +45,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 
 	t.Run("CombineFilters", func(t *testing.T) {
 		// Filter: Size > 50MB, Duration < 30min, Extension .mp4
-		cmd := &PrintCmd{
+		cmd := &commands.PrintCmd{
 			FilterFlags: models.FilterFlags{
 				Size:     []string{">50MB"},
 				Duration: []string{"<30min"},
@@ -69,7 +70,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 		os.Stdout = oldStdout
 
 		if err != nil {
-			t.Fatalf("PrintCmd failed: %v", err)
+			t.Fatalf("commands.PrintCmd failed: %v", err)
 		}
 
 		var results []models.MediaWithDB
@@ -84,7 +85,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 
 	t.Run("AggregationAndSorting", func(t *testing.T) {
 		// Aggregate by directory (BigDirs), sort by size reverse
-		cmd := &PrintCmd{
+		cmd := &commands.PrintCmd{
 			AggregateFlags: models.AggregateFlags{
 				BigDirs: true,
 			},
@@ -108,7 +109,7 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 		os.Stdout = oldStdout
 
 		if err != nil {
-			t.Fatalf("PrintCmd failed: %v", err)
+			t.Fatalf("commands.PrintCmd failed: %v", err)
 		}
 
 		var folders []models.FolderStats
@@ -131,7 +132,7 @@ func TestClusterSort(t *testing.T) {
 `
 
 	t.Run("BasicClustering", func(t *testing.T) {
-		cmd := &ClusterSortCmd{
+		cmd := &commands.ClusterSortCmd{
 			SimilarityFlags: models.SimilarityFlags{
 				PrintGroups: true,
 			},
@@ -156,7 +157,7 @@ func TestClusterSort(t *testing.T) {
 		os.Stdout = oldStdout
 
 		if err != nil {
-			t.Fatalf("ClusterSortCmd failed: %v", err)
+			t.Fatalf("commands.ClusterSortCmd failed: %v", err)
 		}
 
 		var groups []models.FolderStats
@@ -183,7 +184,7 @@ func TestStatsWithFrequency(t *testing.T) {
 		filepath.FromSlash("/path2"), 200, 120, now-86400) // yesterday
 	sqlDB.Close()
 
-	cmd := &StatsCmd{
+	cmd := &commands.StatsCmd{
 		Facet:     "watched",
 		Databases: []string{dbPath},
 		DisplayFlags: models.DisplayFlags{
@@ -201,7 +202,7 @@ func TestStatsWithFrequency(t *testing.T) {
 	os.Stdout = oldStdout
 
 	if err != nil {
-		t.Fatalf("StatsCmd failed: %v", err)
+		t.Fatalf("commands.StatsCmd failed: %v", err)
 	}
 
 	var stats []any

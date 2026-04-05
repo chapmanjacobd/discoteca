@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
@@ -34,7 +35,7 @@ func TestHandleCategories(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -88,7 +89,7 @@ func TestHandleGenres(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -142,7 +143,7 @@ func TestHandleRatings(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()

@@ -30,8 +30,7 @@ func Setup(t *testing.T) *TestFixture {
 }
 
 func (f *TestFixture) Cleanup() {
-	// t.TempDir() automatically cleans up, but we keep this for backward compatibility
-	// if some tests still call it.
+	os.RemoveAll(f.TempDir)
 }
 
 func (f *TestFixture) CreateDummyFile(name string) string {

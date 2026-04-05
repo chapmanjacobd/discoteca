@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"database/sql"
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 )
 
 func TestHandleCategorizeApply(t *testing.T) {
@@ -109,7 +111,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 
 	db.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 		ReadOnly:  false,
 	}
@@ -118,7 +120,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/apply", nil)
 		w := httptest.NewRecorder()
 
-		cmd.handleCategorizeApply(w, req)
+		cmd.HandleCategorizeApply(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -254,14 +256,14 @@ func TestHandleCategorizeApply(t *testing.T) {
 		}
 		db.Close()
 
-		emptyCmd := &ServeCmd{
+		emptyCmd := &commands.ServeCmd{
 			Databases: []string{emptyDB.Name()},
 		}
 
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/apply", nil)
 		w := httptest.NewRecorder()
 
-		emptyCmd.handleCategorizeApply(w, req)
+		emptyCmd.HandleCategorizeApply(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())

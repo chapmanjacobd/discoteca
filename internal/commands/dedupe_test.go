@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -26,7 +27,7 @@ func TestDedupeCmd_Run(t *testing.T) {
 	sqlDB.Close()
 
 	t.Run("TitleDedupe", func(t *testing.T) {
-		cmd := &DedupeCmd{
+		cmd := &commands.DedupeCmd{
 			Databases: []string{dbPath},
 			CoreFlags: models.CoreFlags{NoConfirm: true},
 			DedupeFlags: models.DedupeFlags{
@@ -34,12 +35,12 @@ func TestDedupeCmd_Run(t *testing.T) {
 			},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("DedupeCmd failed: %v", err)
+			t.Fatalf("commands.DedupeCmd failed: %v", err)
 		}
 	})
 
 	t.Run("DurationDedupe", func(t *testing.T) {
-		cmd := &DedupeCmd{
+		cmd := &commands.DedupeCmd{
 			Databases: []string{dbPath},
 			CoreFlags: models.CoreFlags{NoConfirm: true},
 			DedupeFlags: models.DedupeFlags{
@@ -47,7 +48,7 @@ func TestDedupeCmd_Run(t *testing.T) {
 			},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("DedupeCmd failed: %v", err)
+			t.Fatalf("commands.DedupeCmd failed: %v", err)
 		}
 	})
 }

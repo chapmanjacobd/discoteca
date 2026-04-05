@@ -1,6 +1,9 @@
 //go:build windows
 
-package utils
+package utils_test
+
+import "github.com/chapmanjacobd/discoteca/internal/utils"
+
 
 import (
 	"os"
@@ -17,12 +20,12 @@ func TestIsFileOpen(t *testing.T) {
 
 	// Test closed file
 	f.Close()
-	if IsFileOpen(f.Name()) {
+	if utils.IsFileOpen(f.Name()) {
 		t.Errorf("Expected file %s to be closed", f.Name())
 	}
 
 	// Test open file
-	// On Windows, open with no sharing to ensure IsFileOpen detects it
+	// On Windows, open with no sharing to ensure utils.IsFileOpen detects it
 	ptr, _ := syscall.UTF16PtrFromString(f.Name())
 	handle, err := syscall.CreateFile(
 		ptr,
@@ -38,7 +41,7 @@ func TestIsFileOpen(t *testing.T) {
 	}
 	defer syscall.CloseHandle(handle)
 
-	if !IsFileOpen(f.Name()) {
+	if !utils.IsFileOpen(f.Name()) {
 		t.Errorf("Expected file %s to be open", f.Name())
 	}
 }

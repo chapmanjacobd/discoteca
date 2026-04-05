@@ -1,36 +1,38 @@
-package utils
+package utils_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestCleanPath(t *testing.T) {
 	tests := []struct {
 		input    string
-		opts     CleanPathOptions
+		opts     utils.CleanPathOptions
 		expected string
 	}{
-		{"example.txt", CleanPathOptions{}, "example.txt"},
-		{"/folder/file.txt", CleanPathOptions{}, "/folder/file.txt"},
-		{"/ -folder- / -file-.txt", CleanPathOptions{}, "/folder/file.txt"},
-		{"/MyFolder/File.txt", CleanPathOptions{LowercaseFolders: true}, "/myfolder/File.txt"},
-		{"/my folder/File.txt", CleanPathOptions{CaseInsensitive: true}, "/My Folder/File.txt"},
-		{"/my folder/file.txt", CleanPathOptions{DotSpace: true}, "/my.folder/file.txt"},
-		{"3_seconds_ago.../Mike.webm", CleanPathOptions{}, "3_seconds_ago/Mike.webm"},
-		{"test/''/t", CleanPathOptions{}, "test/_/t"},
+		{"example.txt", utils.CleanPathOptions{}, "example.txt"},
+		{"/folder/file.txt", utils.CleanPathOptions{}, "/folder/file.txt"},
+		{"/ -folder- / -file-.txt", utils.CleanPathOptions{}, "/folder/file.txt"},
+		{"/MyFolder/File.txt", utils.CleanPathOptions{LowercaseFolders: true}, "/myfolder/File.txt"},
+		{"/my folder/File.txt", utils.CleanPathOptions{CaseInsensitive: true}, "/My Folder/File.txt"},
+		{"/my folder/file.txt", utils.CleanPathOptions{DotSpace: true}, "/my.folder/file.txt"},
+		{"3_seconds_ago.../Mike.webm", utils.CleanPathOptions{}, "3_seconds_ago/Mike.webm"},
+		{"test/''/t", utils.CleanPathOptions{}, "test/_/t"},
 	}
 
 	for _, tt := range tests {
-		got := CleanPath(tt.input, tt.opts)
+		got := utils.CleanPath(tt.input, tt.opts)
 		// Normalize both to forward slashes for comparison
 		gotNorm := strings.ReplaceAll(got, "\\", "/")
 		expectedNorm := strings.ReplaceAll(tt.expected, "\\", "/")
 		if gotNorm != expectedNorm {
 			t.Errorf(
-				"CleanPath(%q) = %q (normalized: %q), want %q (normalized: %q)",
+				"utils.CleanPath(%q) = %q (normalized: %q), want %q (normalized: %q)",
 				tt.input,
 				got,
 				gotNorm,
@@ -56,13 +58,13 @@ func TestTrimPathSegments(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := TrimPathSegments(tt.path, tt.desiredLength)
+		got := utils.TrimPathSegments(tt.path, tt.desiredLength)
 		// Normalize both to forward slashes for comparison
 		gotNorm := strings.ReplaceAll(got, "\\", "/")
 		expectedNorm := strings.ReplaceAll(tt.expected, "\\", "/")
 		if gotNorm != expectedNorm {
 			t.Errorf(
-				"TrimPathSegments(%q, %d) = %q (normalized: %q), want %q (normalized: %q)",
+				"utils.TrimPathSegments(%q, %d) = %q (normalized: %q), want %q (normalized: %q)",
 				tt.path,
 				tt.desiredLength,
 				got,
@@ -75,11 +77,11 @@ func TestTrimPathSegments(t *testing.T) {
 }
 
 func TestRelativize(t *testing.T) {
-	got := Relativize("/home/user/file")
+	got := utils.Relativize("/home/user/file")
 	gotNorm := strings.ReplaceAll(got, "\\", "/")
 	expectedNorm := "home/user/file"
 	if gotNorm != expectedNorm {
-		t.Errorf("Relativize(/home/user/file) = %q (normalized: %q), want %q", got, gotNorm, expectedNorm)
+		t.Errorf("utils.Relativize(/home/user/file) = %q (normalized: %q), want %q", got, gotNorm, expectedNorm)
 	}
 }
 
@@ -95,9 +97,9 @@ func TestSafeJoin(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := SafeJoin(base, tt.userPath)
+		got := utils.SafeJoin(base, tt.userPath)
 		if got != tt.expected {
-			t.Errorf("SafeJoin(%q, %q) = %q, want %q", base, tt.userPath, got, tt.expected)
+			t.Errorf("utils.SafeJoin(%q, %q) = %q, want %q", base, tt.userPath, got, tt.expected)
 		}
 	}
 }
@@ -115,10 +117,10 @@ func TestPathTupleFromURL(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		gotParent, gotFilename := PathTupleFromURL(tt.url)
+		gotParent, gotFilename := utils.PathTupleFromURL(tt.url)
 		if gotParent != tt.expectedParent || gotFilename != tt.expectedFilename {
 			t.Errorf(
-				"PathTupleFromURL(%q) = (%q, %q), want (%q, %q)",
+				"utils.PathTupleFromURL(%q) = (%q, %q), want (%q, %q)",
 				tt.url,
 				gotParent,
 				gotFilename,
@@ -130,42 +132,42 @@ func TestPathTupleFromURL(t *testing.T) {
 }
 
 func TestRandomString(t *testing.T) {
-	s := RandomString(10)
+	s := utils.RandomString(10)
 	if len(s) != 10 {
-		t.Errorf("RandomString(10) len = %d, want 10", len(s))
+		t.Errorf("utils.RandomString(10) len = %d, want 10", len(s))
 	}
 }
 
 func TestRandomFilename(t *testing.T) {
 	input := "test.txt"
-	got := RandomFilename(input)
+	got := utils.RandomFilename(input)
 	if filepath.Ext(got) != ".txt" {
-		t.Errorf("RandomFilename extension mismatch: %s", got)
+		t.Errorf("utils.RandomFilename extension mismatch: %s", got)
 	}
 }
 
 func TestStripMountSyntax(t *testing.T) {
-	if got := StripMountSyntax(filepath.FromSlash("/home/user")); got != filepath.FromSlash("home/user") {
-		t.Errorf("StripMountSyntax failed: %s", got)
+	if got := utils.StripMountSyntax(filepath.FromSlash("/home/user")); got != filepath.FromSlash("home/user") {
+		t.Errorf("utils.StripMountSyntax failed: %s", got)
 	}
 }
 
 func TestFolderFunctions(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	if !IsEmptyFolder(tmpDir) {
-		t.Error("IsEmptyFolder should be true for empty dir")
+	if !utils.IsEmptyFolder(tmpDir) {
+		t.Error("utils.IsEmptyFolder should be true for empty dir")
 	}
 
 	f, _ := os.Create(filepath.Join(tmpDir, "file.txt"))
 	f.WriteString("hello")
 	f.Close()
 
-	if IsEmptyFolder(tmpDir) {
-		t.Error("IsEmptyFolder should be false for non-empty dir")
+	if utils.IsEmptyFolder(tmpDir) {
+		t.Error("utils.IsEmptyFolder should be false for non-empty dir")
 	}
 
-	if got := FolderSize(tmpDir); got != 5 {
-		t.Errorf("FolderSize = %d, want 5", got)
+	if got := utils.FolderSize(tmpDir); got != 5 {
+		t.Errorf("utils.FolderSize = %d, want 5", got)
 	}
 }

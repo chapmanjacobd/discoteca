@@ -1,4 +1,4 @@
-package history
+package history_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/history"
 )
 
 func setupTestDB(t *testing.T) (*sql.DB, string) {
@@ -60,7 +62,7 @@ func TestTracker_UpdatePlayback(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tracker := NewTracker(sqlDB)
+	tracker := history.NewTracker(sqlDB)
 	if err := tracker.UpdatePlayback(context.Background(), path, 100); err != nil {
 		t.Fatalf("UpdatePlayback failed: %v", err)
 	}
@@ -96,7 +98,7 @@ func TestTracker_UpdatePlayback(t *testing.T) {
 
 func TestUpdateHistorySimple(t *testing.T) {
 	sqlDB, dbPath := setupTestDB(t)
-	sqlDB.Close() // UpdateHistorySimple opens its own connection
+	sqlDB.Close() // history.UpdateHistorySimple opens its own connection
 	defer os.Remove(dbPath)
 
 	// Re-open to insert test data
@@ -108,8 +110,8 @@ func TestUpdateHistorySimple(t *testing.T) {
 	dbConn.Exec("INSERT INTO media (path) VALUES (?)", path)
 	dbConn.Close()
 
-	if err := UpdateHistorySimple(context.Background(), dbPath, []string{path}, 50, true); err != nil {
-		t.Fatalf("UpdateHistorySimple failed: %v", err)
+	if err := history.UpdateHistorySimple(context.Background(), dbPath, []string{path}, 50, true); err != nil {
+		t.Fatalf("history.UpdateHistorySimple failed: %v", err)
 	}
 
 	// Verify
@@ -137,7 +139,7 @@ func TestTracker_MarkDeleted(t *testing.T) {
 	path := "deleted.mp4"
 	sqlDB.Exec("INSERT INTO media (path) VALUES (?)", path)
 
-	tracker := NewTracker(sqlDB)
+	tracker := history.NewTracker(sqlDB)
 	if err := tracker.MarkDeleted(context.Background(), path); err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +168,14 @@ func TestUpdateHistoryWithTime(t *testing.T) {
 	dbConn.Close()
 
 	customTime := int64(1000000000)
-	if err := UpdateHistoryWithTime(context.Background(), dbPath, []string{path}, 10, customTime, false); err != nil {
+	if err := history.UpdateHistoryWithTime(
+		context.Background(),
+		dbPath,
+		[]string{path},
+		10,
+		customTime,
+		false,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -191,14 +200,14 @@ func TestDeleteHistoryByPaths(t *testing.T) {
 	sqlDB.Exec("INSERT INTO media (path, play_count) VALUES (?, 5)", path)
 	sqlDB.Exec("INSERT INTO history (media_path, playhead) VALUES (?, 100)", path)
 
-	if err := DeleteHistoryByPaths(context.Background(), dbPath, []string{path}); err != nil {
+	if err := history.DeleteHistoryByPaths(context.Background(), dbPath, []string{path}); err != nil {
 		t.Fatal(err)
 	}
 
 	var count int
 	sqlDB.QueryRow("SELECT COUNT(*) FROM history WHERE media_path = ?", path).Scan(&count)
 	if count != 0 {
-		t.Error("History record should be deleted")
+		t.Error("history.History record should be deleted")
 	}
 
 	var playCount int

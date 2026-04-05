@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bufio"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -59,54 +60,54 @@ func TestPlaybackControlCmds(t *testing.T) {
 		MpvSocket: socketPath,
 	}
 
-	t.Run("NowCmd", func(t *testing.T) {
-		cmd := &NowCmd{
-			MpvControlBase: MpvControlBase{ControlFlags: baseFlags},
+	t.Run("commands.NowCmd", func(t *testing.T) {
+		cmd := &commands.NowCmd{
+			MpvControlBase: commands.MpvControlBase{ControlFlags: baseFlags},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Errorf("NowCmd failed: %v", err)
+			t.Errorf("commands.NowCmd failed: %v", err)
 		}
 	})
 
-	t.Run("PauseCmd", func(t *testing.T) {
-		cmd := &PauseCmd{
-			MpvControlBase: MpvControlBase{ControlFlags: baseFlags},
+	t.Run("commands.PauseCmd", func(t *testing.T) {
+		cmd := &commands.PauseCmd{
+			MpvControlBase: commands.MpvControlBase{ControlFlags: baseFlags},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Errorf("PauseCmd failed: %v", err)
+			t.Errorf("commands.PauseCmd failed: %v", err)
 		}
 	})
 
-	t.Run("NextCmd", func(t *testing.T) {
-		cmd := &NextCmd{
-			MpvControlBase: MpvControlBase{ControlFlags: baseFlags},
+	t.Run("commands.NextCmd", func(t *testing.T) {
+		cmd := &commands.NextCmd{
+			MpvControlBase: commands.MpvControlBase{ControlFlags: baseFlags},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Errorf("NextCmd failed: %v", err)
+			t.Errorf("commands.NextCmd failed: %v", err)
 		}
 	})
 
-	t.Run("StopCmd", func(t *testing.T) {
-		cmd := &StopCmd{
-			MpvControlBase: MpvControlBase{ControlFlags: baseFlags},
+	t.Run("commands.StopCmd", func(t *testing.T) {
+		cmd := &commands.StopCmd{
+			MpvControlBase: commands.MpvControlBase{ControlFlags: baseFlags},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Errorf("StopCmd failed: %v", err)
+			t.Errorf("commands.StopCmd failed: %v", err)
 		}
 	})
 
-	t.Run("SeekCmd", func(t *testing.T) {
-		cmd := &SeekCmd{
-			MpvControlBase: MpvControlBase{ControlFlags: baseFlags},
+	t.Run("commands.SeekCmd", func(t *testing.T) {
+		cmd := &commands.SeekCmd{
+			MpvControlBase: commands.MpvControlBase{ControlFlags: baseFlags},
 			Time:           "+10",
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Errorf("SeekCmd failed: %v", err)
+			t.Errorf("commands.SeekCmd failed: %v", err)
 		}
 
 		cmd.Time = "00:01:00"
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Errorf("SeekCmd failed: %v", err)
+			t.Errorf("commands.SeekCmd failed: %v", err)
 		}
 	})
 }

@@ -1,4 +1,4 @@
-package utils
+package utils_test
 
 import (
 	"bytes"
@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestPlainHandler(t *testing.T) {
 	var buf bytes.Buffer
-	handler := &PlainHandler{
+	handler := &utils.PlainHandler{
 		Level: slog.LevelInfo,
 		Out:   &buf,
 	}

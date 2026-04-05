@@ -1,4 +1,4 @@
-package db
+package db_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 func TestConnect(t *testing.T) {
@@ -19,25 +21,25 @@ func TestConnect(t *testing.T) {
 	f.Close()
 	defer os.Remove(dbPath)
 
-	db, err := Connect(context.Background(), dbPath)
+	sqlDB, err := db.Connect(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("Connect failed: %v", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
-	if err := db.Ping(); err != nil {
+	if err := sqlDB.Ping(); err != nil {
 		t.Fatalf("Ping failed: %v", err)
 	}
 }
 
 func TestIsCorruptionError(t *testing.T) {
-	if IsCorruptionError(nil) {
+	if db.IsCorruptionError(nil) {
 		t.Error("nil should not be corruption error")
 	}
-	if !IsCorruptionError(errors.New("database disk image is malformed")) {
+	if !db.IsCorruptionError(errors.New("database disk image is malformed")) {
 		t.Error("Expected corruption error")
 	}
-	if IsCorruptionError(errors.New("other error")) {
+	if db.IsCorruptionError(errors.New("other error")) {
 		t.Error("other error should not be corruption error")
 	}
 }
@@ -50,7 +52,7 @@ func TestIsHealthy(t *testing.T) {
 	f.Close()
 	defer os.Remove(unhealthyPath)
 
-	if isHealthy(context.Background(), unhealthyPath) {
+	if db.IsHealthy(context.Background(), unhealthyPath) {
 		t.Error("Garbage file should not be healthy DB")
 	}
 
@@ -60,15 +62,15 @@ func TestIsHealthy(t *testing.T) {
 	f2.Close()
 	defer os.Remove(healthyPath)
 
-	db, _ := sql.Open("sqlite3", healthyPath)
-	db.Exec("CREATE TABLE t(id INT)")
-	db.Close()
+	sqlDB, _ := sql.Open("sqlite3", healthyPath)
+	sqlDB.Exec("CREATE TABLE t(id INT)")
+	sqlDB.Close()
 
-	if !isHealthy(context.Background(), healthyPath) {
+	if !db.IsHealthy(context.Background(), healthyPath) {
 		t.Error("Valid DB should be healthy")
 	}
 
-	if isHealthy(context.Background(), "/non/existent/path") {
+	if db.IsHealthy(context.Background(), "/non/existent/path") {
 		t.Error("Non-existent path should not be healthy")
 	}
 }

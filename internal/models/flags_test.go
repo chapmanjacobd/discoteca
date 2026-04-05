@@ -1,20 +1,22 @@
-package models
+package models_test
 
 import (
 	"log/slog"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestCoreFlags_AfterApply(t *testing.T) {
 	tests := []struct {
 		name       string
-		flags      CoreFlags
+		flags      models.CoreFlags
 		wantDryRun bool
 		wantYes    bool
 	}{
 		{
 			"Simulate and NoConfirm",
-			CoreFlags{Simulate: true, NoConfirm: true},
+			models.CoreFlags{Simulate: true, NoConfirm: true},
 			true,
 			true,
 		},
@@ -40,13 +42,13 @@ func TestCoreFlags_AfterApply(t *testing.T) {
 func TestMediaFilterFlags_AfterApply(t *testing.T) {
 	tests := []struct {
 		name     string
-		flags    MediaFilterFlags
+		flags    models.MediaFilterFlags
 		wantExt0 string
 		wantExt1 string
 	}{
 		{
 			"Ext normalization",
-			MediaFilterFlags{Ext: []string{"mp4", ".mkv"}},
+			models.MediaFilterFlags{Ext: []string{"mp4", ".mkv"}},
 			".mp4",
 			".mkv",
 		},
@@ -72,12 +74,12 @@ func TestMediaFilterFlags_AfterApply(t *testing.T) {
 func TestMergeFlags_AfterApply(t *testing.T) {
 	tests := []struct {
 		name            string
-		flags           MergeFlags
+		flags           models.MergeFlags
 		wantOnlyNewRows bool
 	}{
 		{
 			"Ignore flag",
-			MergeFlags{Ignore: true},
+			models.MergeFlags{Ignore: true},
 			true,
 		},
 	}
@@ -108,10 +110,10 @@ func TestSetupLogging(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("verbosity", func(t *testing.T) {
-			SetupLogging(tt.verbosity)
-			// Just verify that Log is set (we can't easily test the level without access to the handler)
-			if Log == nil {
-				t.Errorf("Log is nil after SetupLogging")
+			models.SetupLogging(tt.verbosity)
+			// Just verify that models.Log is set (we can't easily test the level without access to the handler)
+			if models.Log == nil {
+				t.Errorf("models.Log is nil after models.SetupLogging")
 			}
 		})
 	}

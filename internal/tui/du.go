@@ -101,13 +101,13 @@ func buildDUTree(media []models.MediaWithDB) *duTreeNode {
 }
 
 // getNodesAtDepth returns nodes at the specified depth from the tree
-func getNodesAtDepth(node *duTreeNode, targetDepth, currentDepth int, pathPrefix string) []duItem {
-	var results []duItem
+func getNodesAtDepth(node *duTreeNode, targetDepth, currentDepth int, pathPrefix string) []DUItem {
+	var results []DUItem
 
 	if currentDepth == targetDepth {
 		// Return children of this node
 		for _, child := range node.Children {
-			results = append(results, duItem{
+			results = append(results, DUItem{
 				stats: models.FolderStats{
 					Path:          child.Path,
 					Count:         child.Count,
@@ -142,26 +142,26 @@ func getNodesAtDepth(node *duTreeNode, targetDepth, currentDepth int, pathPrefix
 	return results
 }
 
-type duItem struct {
+type DUItem struct {
 	stats models.FolderStats
 	isDir bool
 }
 
-func (i duItem) Title() string {
+func (i DUItem) Title() string {
 	if i.isDir {
 		return "📁 " + filepath.Base(i.stats.Path)
 	}
 	return "📄 " + filepath.Base(i.stats.Path)
 }
 
-func (i duItem) Description() string {
+func (i DUItem) Description() string {
 	return fmt.Sprintf("%s • %d files • %s",
 		utils.FormatSize(i.stats.TotalSize),
 		i.stats.Count,
 		utils.FormatDuration(int(i.stats.TotalDuration)))
 }
 
-func (i duItem) FilterValue() string {
+func (i DUItem) FilterValue() string {
 	return i.stats.Path
 }
 
@@ -210,13 +210,13 @@ func (m *DUModel) updateList() {
 	// Sort using the standard sort function
 	stats := make([]models.FolderStats, len(items))
 	for i, item := range items {
-		stats[i] = item.(duItem).stats
+		stats[i] = item.(DUItem).stats
 	}
 	query.SortFolders(stats, m.flags.SortBy, m.flags.Reverse)
 
 	// Rebuild items with sorted stats
 	for i, s := range stats {
-		items[i] = duItem{stats: s, isDir: true}
+		items[i] = DUItem{stats: s, isDir: true}
 		if s.TotalSize > maxSize {
 			maxSize = s.TotalSize
 		}
@@ -245,7 +245,7 @@ func (d duDelegate) Height() int                             { return 2 }
 func (d duDelegate) Spacing() int                            { return 1 }
 func (d duDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d duDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(duItem)
+	i, ok := listItem.(DUItem)
 	if !ok {
 		return
 	}
@@ -291,7 +291,7 @@ func (m DUModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "enter", "right":
-			i, ok := m.list.SelectedItem().(duItem)
+			i, ok := m.list.SelectedItem().(DUItem)
 			if ok && i.isDir {
 				m.history = append(m.history, m.currentPath)
 				m.currentPath = i.stats.Path

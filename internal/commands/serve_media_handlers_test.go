@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
@@ -29,7 +30,7 @@ func TestHandleRate(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 		ReadOnly:  false,
 	}
@@ -103,7 +104,7 @@ func TestHandleDelete(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 		ReadOnly:  false,
 	}
@@ -192,7 +193,7 @@ func TestHandleProgress(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 		ReadOnly:  false,
 	}

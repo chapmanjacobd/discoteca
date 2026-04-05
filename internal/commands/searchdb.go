@@ -63,7 +63,7 @@ func (c *SearchDBCmd) Run(ctx context.Context) error {
 }
 
 func (c *SearchDBCmd) getTableName(sqlDB *sql.DB) (string, error) {
-	rows, err := sqlDB.Query("SELECT name FROM sqlite_master WHERE type='table'")
+	rows, err := sqlDB.QueryContext(context.Background(), "SELECT name FROM sqlite_master WHERE type='table'")
 	if err != nil {
 		return "", err
 	}
@@ -102,7 +102,7 @@ func (c *SearchDBCmd) getTableName(sqlDB *sql.DB) (string, error) {
 }
 
 func (c *SearchDBCmd) getSearchableColumns(sqlDB *sql.DB, table string) ([]string, error) {
-	rows, err := sqlDB.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	rows, err := sqlDB.QueryContext(context.Background(), fmt.Sprintf("PRAGMA table_info(%s)", table))
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (c *SearchDBCmd) deleteRows(sqlDB *sql.DB, table string, where []string, ar
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
 
-	res, err := sqlDB.Exec(query, args...)
+	res, err := sqlDB.ExecContext(context.Background(), query, args...)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (c *SearchDBCmd) markDeletedRows(sqlDB *sql.DB, table string, where []strin
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
 
-	res, err := sqlDB.Exec(query, actualArgs...)
+	res, err := sqlDB.ExecContext(context.Background(), query, actualArgs...)
 	if err != nil {
 		return err
 	}

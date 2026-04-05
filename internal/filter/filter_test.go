@@ -1,9 +1,10 @@
-package filter
+package filter_test
 
 import (
 	"regexp"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/filter"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -14,12 +15,12 @@ func TestApply_SizeFilter(t *testing.T) {
 		{Path: "/test/large.mp4", Size: new(int64(10000))},
 	}
 
-	criteria := Criteria{
+	criteria := filter.Criteria{
 		MinSize: 2000,
 		MaxSize: 8000,
 	}
 
-	result := Apply(media, criteria)
+	result := filter.Apply(media, criteria)
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 result, got %d", len(result))
@@ -37,12 +38,12 @@ func TestApply_DurationFilter(t *testing.T) {
 		{Path: "/test/info.txt", Duration: nil},
 	}
 
-	criteria := Criteria{
+	criteria := filter.Criteria{
 		MinDuration: 600,
 		MaxDuration: 3600,
 	}
 
-	result := Apply(media, criteria)
+	result := filter.Apply(media, criteria)
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 result, got %d", len(result))
@@ -59,11 +60,11 @@ func TestApply_PathContains(t *testing.T) {
 		{Path: "/tv/2024/1080p/show.mp4"},
 	}
 
-	criteria := Criteria{
+	criteria := filter.Criteria{
 		PathContains: []string{"2024", "1080p"},
 	}
 
-	result := Apply(media, criteria)
+	result := filter.Apply(media, criteria)
 
 	if len(result) != 2 {
 		t.Fatalf("Expected 2 results, got %d", len(result))
@@ -77,11 +78,11 @@ func TestApply_Regex(t *testing.T) {
 		{Path: "/tv/Show.S02E01.mp4"},
 	}
 
-	criteria := Criteria{
+	criteria := filter.Criteria{
 		Regex: regexp.MustCompile(`S01E\d+`),
 	}
 
-	result := Apply(media, criteria)
+	result := filter.Apply(media, criteria)
 
 	if len(result) != 2 {
 		t.Fatalf("Expected 2 results, got %d", len(result))
@@ -95,12 +96,12 @@ func TestApply_IncludeExclude(t *testing.T) {
 		{Path: "/test/show.mkv"},
 	}
 
-	criteria := Criteria{
+	criteria := filter.Criteria{
 		Include: []string{".mp4"},
 		Exclude: []string{"sample"},
 	}
 
-	result := Apply(media, criteria)
+	result := filter.Apply(media, criteria)
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 result, got %d", len(result))
@@ -116,8 +117,8 @@ func TestApply_EmptyCriteria(t *testing.T) {
 		{Path: "/test/file2.mp4"},
 	}
 
-	criteria := Criteria{}
-	result := Apply(media, criteria)
+	criteria := filter.Criteria{}
+	result := filter.Apply(media, criteria)
 
 	if len(result) != len(media) {
 		t.Fatalf("Expected %d results, got %d", len(media), len(result))
@@ -130,8 +131,8 @@ func TestApply_Exists(t *testing.T) {
 		{Path: "/non/existent/file"},
 	}
 
-	criteria := Criteria{Exists: true}
-	result := Apply(media, criteria)
+	criteria := filter.Criteria{Exists: true}
+	result := filter.Apply(media, criteria)
 
 	if len(result) != 1 {
 		t.Errorf("Expected 1 result, got %d", len(result))

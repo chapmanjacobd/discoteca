@@ -1,8 +1,10 @@
-package utils
+package utils_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestParseDate(t *testing.T) {
@@ -15,12 +17,12 @@ func TestParseDate(t *testing.T) {
 		{"invalid", 0},
 	}
 	for _, tt := range tests {
-		got := ParseDate(tt.input)
+		got := utils.ParseDate(tt.input)
 		if tt.expected > 0 && got <= 0 {
-			t.Errorf("ParseDate(%q) expected positive timestamp, got %v", tt.input, got)
+			t.Errorf("utils.ParseDate(%q) expected positive timestamp, got %v", tt.input, got)
 		}
 		if tt.expected == 0 && got != 0 {
-			t.Errorf("ParseDate(%q) expected 0, got %v", tt.input, got)
+			t.Errorf("utils.ParseDate(%q) expected 0, got %v", tt.input, got)
 		}
 	}
 }
@@ -33,9 +35,9 @@ func TestSuperParser(t *testing.T) {
 		"2024/05/20 15:04:05",
 	}
 	for _, tt := range tests {
-		got := SuperParser(tt)
+		got := utils.SuperParser(tt)
 		if got == nil {
-			t.Errorf("SuperParser(%q) expected valid time, got nil", tt)
+			t.Errorf("utils.SuperParser(%q) expected valid time, got nil", tt)
 		}
 	}
 }
@@ -46,14 +48,14 @@ func TestSpecificDate(t *testing.T) {
 	d2 := "2019-05-20" // earlier and specific
 	d3 := "2025-01-01" // future (assuming now > 2025)
 
-	got := SpecificDate(d1, d2, d3)
+	got := utils.SpecificDate(d1, d2, d3)
 	if got == nil {
-		t.Fatal("SpecificDate returned nil")
+		t.Fatal("utils.SpecificDate returned nil")
 	}
 
-	t2 := *SuperParser(d2)
+	t2 := *utils.SuperParser(d2)
 	if got.Unix() != t2.Unix() {
-		t.Errorf("SpecificDate expected %v, got %v", t2, *got)
+		t.Errorf("utils.SpecificDate expected %v, got %v", t2, *got)
 	}
 }
 
@@ -62,13 +64,13 @@ func TestTubeDate(t *testing.T) {
 		"upload_date": "20240520",
 		"title":       "test",
 	}
-	got := TubeDate(v)
+	got := utils.TubeDate(v)
 	if got == nil {
-		t.Fatal("TubeDate returned nil")
+		t.Fatal("utils.TubeDate returned nil")
 	}
 
 	if _, ok := v["upload_date"]; ok {
-		t.Error("TubeDate should have removed upload_date from map")
+		t.Error("utils.TubeDate should have removed upload_date from map")
 	}
 }
 
@@ -86,10 +88,10 @@ func TestParseDateOrRelative(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := ParseDateOrRelative(tt.input)
+		got := utils.ParseDateOrRelative(tt.input)
 		if tt.margin == 0 {
 			if got != tt.expected {
-				t.Errorf("ParseDateOrRelative(%q) = %v, want %v", tt.input, got, tt.expected)
+				t.Errorf("utils.ParseDateOrRelative(%q) = %v, want %v", tt.input, got, tt.expected)
 			}
 		} else {
 			diff := got - tt.expected
@@ -97,7 +99,7 @@ func TestParseDateOrRelative(t *testing.T) {
 				diff = -diff
 			}
 			if diff > tt.margin {
-				t.Errorf("ParseDateOrRelative(%q) = %v, want near %v (diff %v)", tt.input, got, tt.expected, diff)
+				t.Errorf("utils.ParseDateOrRelative(%q) = %v, want near %v (diff %v)", tt.input, got, tt.expected, diff)
 			}
 		}
 	}
@@ -105,40 +107,40 @@ func TestParseDateOrRelative(t *testing.T) {
 
 func TestIsTZAware(t *testing.T) {
 	utc := time.Now().UTC()
-	if IsTZAware(utc) {
+	if utils.IsTZAware(utc) {
 		t.Error("UTC should not be TZAware")
 	}
 
 	loc := time.FixedZone("TEST", 3600)
 	testTime := time.Date(2020, 1, 1, 0, 0, 0, 0, loc)
-	if !IsTZAware(testTime) {
+	if !utils.IsTZAware(testTime) {
 		t.Error("FixedZone should be TZAware")
 	}
 }
 
 func TestTubeDateExtra(t *testing.T) {
 	v1 := map[string]any{"timestamp": int64(40000000)}
-	got1 := TubeDate(v1)
+	got1 := utils.TubeDate(v1)
 	if got1 == nil || *got1 != 40000000 {
-		t.Errorf("TubeDate int64 failed: %v", got1)
+		t.Errorf("utils.TubeDate int64 failed: %v", got1)
 	}
 
 	v2 := map[string]any{"timestamp": int(40000000)}
-	got2 := TubeDate(v2)
+	got2 := utils.TubeDate(v2)
 	if got2 == nil || *got2 != 40000000 {
-		t.Errorf("TubeDate int failed: %v", got2)
+		t.Errorf("utils.TubeDate int failed: %v", got2)
 	}
 
 	now := time.Now()
 	v3 := map[string]any{"timestamp": now}
-	got3 := TubeDate(v3)
+	got3 := utils.TubeDate(v3)
 	if got3 == nil || *got3 != now.Unix() {
-		t.Errorf("TubeDate time.Time failed: %v", got3)
+		t.Errorf("utils.TubeDate time.Time failed: %v", got3)
 	}
 
 	v4 := map[string]any{"timestamp": nil}
-	if got4 := TubeDate(v4); got4 != nil {
-		t.Errorf("TubeDate nil failed: %v", got4)
+	if got4 := utils.TubeDate(v4); got4 != nil {
+		t.Errorf("utils.TubeDate nil failed: %v", got4)
 	}
 }
 
@@ -146,12 +148,12 @@ func TestSpecificDateExtra(t *testing.T) {
 	// Pick most specific date
 	d1 := "2020-01-01" // Jan 1st is less specific than d2
 	d2 := "2020-05-20" // more specific (has month/day != 1)
-	got := SpecificDate(d1, d2)
-	if got == nil || got.Unix() != SuperParser(d2).Unix() {
-		t.Errorf("SpecificDate failed to pick more specific date: %v", got)
+	got := utils.SpecificDate(d1, d2)
+	if got == nil || got.Unix() != utils.SuperParser(d2).Unix() {
+		t.Errorf("utils.SpecificDate failed to pick more specific date: %v", got)
 	}
 
-	if got := SpecificDate(""); got != nil {
-		t.Errorf("SpecificDate empty failed: %v", got)
+	if got := utils.SpecificDate(""); got != nil {
+		t.Errorf("utils.SpecificDate empty failed: %v", got)
 	}
 }

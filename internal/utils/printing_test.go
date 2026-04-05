@@ -1,23 +1,26 @@
-package utils
+package utils_test
 
 import (
 	"bytes"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestPrintOverwrite(t *testing.T) {
-	origStdout := Stdout
-	defer func() { Stdout = origStdout }()
+	origStdout := utils.Stdout
+	defer func() { utils.Stdout = origStdout }()
 
 	var buf bytes.Buffer
-	Stdout = &buf
+	utils.Stdout = &buf
 
-	PrintOverwrite("test message")
+	utils.PrintOverwrite("test message")
+
 	got := buf.String()
 	if !strings.Contains(got, "test message") {
-		t.Errorf("PrintOverwrite failed, got: %q", got)
+		t.Errorf("utils.PrintOverwrite failed, got: %q", got)
 	}
 }
 
@@ -45,9 +48,9 @@ func TestColNaturalDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ColNaturalDate(tt.data, tt.col)
+			got := utils.ColNaturalDate(tt.data, tt.col)
 			if !tt.checkFunc(got) {
-				t.Errorf("ColNaturalDate check failed")
+				t.Errorf("utils.ColNaturalDate check failed")
 			}
 		})
 	}
@@ -73,7 +76,7 @@ func TestColFilesize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ColFilesize(tt.data, tt.col)
+			got := utils.ColFilesize(tt.data, tt.col)
 			if got[0]["size"] != tt.expected {
 				t.Errorf("Expected %s, got %v", tt.expected, got[0]["size"])
 			}
@@ -104,7 +107,7 @@ func TestColDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ColDuration(tt.data, tt.col)
+			got := utils.ColDuration(tt.data, tt.col)
 			if got[0]["dur"] != tt.expected {
 				t.Errorf("Expected %s, got %v", tt.expected, got[0]["dur"])
 			}

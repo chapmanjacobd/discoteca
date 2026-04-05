@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -25,10 +26,10 @@ path/to/video3.mp4
 		tmpFile.WriteString(input)
 		tmpFile.Close()
 
-		cmd := &ClusterSortCmd{
+		cmd := &commands.ClusterSortCmd{
 			InputPath: tmpFile.Name(),
 		}
-		// Since ClusterSortCmd writes directly to os.Stdout in some cases,
+		// Since commands.ClusterSortCmd writes directly to os.Stdout in some cases,
 		// and we can't easily override it without changing the struct to take a writer,
 		// let's just make sure it runs without error for now.
 		// Actually, it uses a writer if OutputPath is set.
@@ -43,7 +44,7 @@ path/to/video3.mp4
 		cmd.OutputPath = outputFile.Name()
 
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("ClusterSortCmd failed: %v", err)
+			t.Fatalf("commands.ClusterSortCmd failed: %v", err)
 		}
 
 		content, _ := os.ReadFile(outputFile.Name())
@@ -58,7 +59,7 @@ path/to/video3.mp4
 		tmpFile.WriteString(input)
 		tmpFile.Close()
 
-		cmd := &ClusterSortCmd{
+		cmd := &commands.ClusterSortCmd{
 			InputPath: tmpFile.Name(),
 			SimilarityFlags: models.SimilarityFlags{
 				PrintGroups: true,
@@ -66,7 +67,7 @@ path/to/video3.mp4
 		}
 		// This will write to os.Stdout
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("ClusterSortCmd failed: %v", err)
+			t.Fatalf("commands.ClusterSortCmd failed: %v", err)
 		}
 	})
 }

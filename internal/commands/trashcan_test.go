@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
@@ -27,7 +28,7 @@ func TestDeletedMedia(t *testing.T) {
 	sqlDB.Close()
 
 	t.Run("ListDeleted", func(t *testing.T) {
-		cmd := &HistoryCmd{
+		cmd := &commands.HistoryCmd{
 			Databases:    []string{dbPath},
 			DeletedFlags: models.DeletedFlags{OnlyDeleted: true},
 		}
@@ -52,7 +53,7 @@ func TestDeletedMedia(t *testing.T) {
 	})
 }
 
-func queryMedia(c *HistoryCmd) ([]db.Media, error) {
+func queryMedia(c *commands.HistoryCmd) ([]db.Media, error) {
 	// Simplified query for testing
 	sqlDB, _ := sql.Open("sqlite3", c.Databases[0])
 	defer sqlDB.Close()

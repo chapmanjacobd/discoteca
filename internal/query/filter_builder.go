@@ -21,12 +21,12 @@ import (
 // FilterBuilder constructs SQL queries and in-memory filters from flags
 // This is the single source of truth for all filter logic
 type FilterBuilder struct {
-	flags models.GlobalFlags
+	Flags models.GlobalFlags
 }
 
 // NewFilterBuilder creates a new FilterBuilder from global flags
 func NewFilterBuilder(flags models.GlobalFlags) *FilterBuilder {
-	return &FilterBuilder{flags: flags}
+	return &FilterBuilder{Flags: flags}
 }
 
 // BuildWhereClauses builds WHERE clauses and arguments for SQL queries
@@ -39,28 +39,28 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	// === PHASE 1: Highly selective indexed equality filters (fastest ~277μs) ===
 
 	// Deleted status (indexed column)
-	if fb.flags.OnlyDeleted {
+	if fb.Flags.OnlyDeleted {
 		whereClauses = append(whereClauses, fmt.Sprintf("COALESCE(%s, 0) > 0", fb.col("time_deleted")))
-	} else if fb.flags.HideDeleted {
+	} else if fb.Flags.HideDeleted {
 		whereClauses = append(whereClauses, fmt.Sprintf("COALESCE(%s, 0) = 0", fb.col("time_deleted")))
 	}
 
 	// Content type filters (indexed column - should come before expensive searches)
 	var typeClauses []string
-	if fb.flags.VideoOnly {
+	if fb.Flags.VideoOnly {
 		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'video'", fb.col("media_type")))
 	}
-	if fb.flags.AudioOnly {
+	if fb.Flags.AudioOnly {
 		typeClauses = append(
 			typeClauses,
 			fmt.Sprintf("%s = 'audio'", fb.col("media_type")),
 			fmt.Sprintf("%s = 'audiobook'", fb.col("media_type")),
 		)
 	}
-	if fb.flags.ImageOnly {
+	if fb.Flags.ImageOnly {
 		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'image'", fb.col("media_type")))
 	}
-	if fb.flags.TextOnly {
+	if fb.Flags.TextOnly {
 		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'text'", fb.col("media_type")))
 	}
 	if len(typeClauses) > 0 {
@@ -68,15 +68,15 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Genre filter (equality match)
-	if fb.flags.Genre != "" {
+	if fb.Flags.Genre != "" {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = ?", fb.col("genre")))
-		args = append(args, fb.flags.Genre)
+		args = append(args, fb.Flags.Genre)
 	}
 
 	// Language filter (equality match)
-	if len(fb.flags.Language) > 0 {
+	if len(fb.Flags.Language) > 0 {
 		var langClauses []string
-		for _, lang := range fb.flags.Language {
+		for _, lang := range fb.Flags.Language {
 			langClauses = append(langClauses, fmt.Sprintf("%s = ?", fb.col("language")))
 			args = append(args, lang)
 		}
@@ -86,9 +86,9 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Exact path filters (IN clause - very selective)
-	if len(fb.flags.Paths) > 0 {
+	if len(fb.Flags.Paths) > 0 {
 		var inPaths []string
-		for _, p := range fb.flags.Paths {
+		for _, p := range fb.Flags.Paths {
 			if strings.Contains(p, "%") {
 				whereClauses = append(whereClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
 				args = append(args, p)
@@ -110,7 +110,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Size filters (indexed column)
-	for _, s := range fb.flags.Size {
+	for _, s := range fb.Flags.Size {
 		if r, err := utils.ParseRange(s, utils.HumanToBytes); err == nil {
 			if r.Value != nil {
 				whereClauses = append(whereClauses, fmt.Sprintf("%s = ?", fb.col("size")))
@@ -128,7 +128,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Duration filters (indexed column)
-	for _, s := range fb.flags.Duration {
+	for _, s := range fb.Flags.Duration {
 		if r, err := utils.ParseRange(s, utils.HumanToSeconds); err == nil {
 			if r.Value != nil {
 				whereClauses = append(whereClauses, fmt.Sprintf("%s = ?", fb.col("duration")))
@@ -146,81 +146,81 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Play count filters (indexed column)
-	if fb.flags.PlayCountMin > 0 {
+	if fb.Flags.PlayCountMin > 0 {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s >= ?", fb.col("play_count")))
-		args = append(args, fb.flags.PlayCountMin)
+		args = append(args, fb.Flags.PlayCountMin)
 	}
-	if fb.flags.PlayCountMax > 0 {
+	if fb.Flags.PlayCountMax > 0 {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s <= ?", fb.col("play_count")))
-		args = append(args, fb.flags.PlayCountMax)
+		args = append(args, fb.Flags.PlayCountMax)
 	}
 
 	// === PHASE 2: Time-based filters (indexed columns) ===
 
-	if fb.flags.DeletedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.DeletedAfter); ts > 0 {
+	if fb.Flags.DeletedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.DeletedAfter); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_deleted")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.DeletedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.DeletedBefore); ts > 0 {
+	if fb.Flags.DeletedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.DeletedBefore); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_deleted")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.CreatedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.CreatedAfter); ts > 0 {
+	if fb.Flags.CreatedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.CreatedAfter); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_created")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.CreatedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.CreatedBefore); ts > 0 {
+	if fb.Flags.CreatedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.CreatedBefore); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_created")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.ModifiedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.ModifiedAfter); ts > 0 {
+	if fb.Flags.ModifiedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.ModifiedAfter); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_modified")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.ModifiedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.ModifiedBefore); ts > 0 {
+	if fb.Flags.ModifiedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.ModifiedBefore); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_modified")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.DownloadedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.DownloadedAfter); ts > 0 {
+	if fb.Flags.DownloadedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.DownloadedAfter); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_downloaded")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.DownloadedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.DownloadedBefore); ts > 0 {
+	if fb.Flags.DownloadedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.DownloadedBefore); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_downloaded")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.PlayedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.PlayedAfter); ts > 0 {
+	if fb.Flags.PlayedAfter != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.PlayedAfter); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_last_played")))
 			args = append(args, ts)
 		}
 	}
-	if fb.flags.PlayedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.flags.PlayedBefore); ts > 0 {
+	if fb.Flags.PlayedBefore != "" {
+		if ts := utils.ParseDateOrRelative(fb.Flags.PlayedBefore); ts > 0 {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_last_played")))
 			args = append(args, ts)
 		}
 	}
 
 	// Watched/unwatched status (indexed via time_last_played)
-	if fb.flags.Watched != nil {
-		if *fb.flags.Watched {
+	if fb.Flags.Watched != nil {
+		if *fb.Flags.Watched {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s > 0", fb.col("time_last_played")))
 		} else {
 			whereClauses = append(whereClauses, fmt.Sprintf("COALESCE(%s, 0) = 0", fb.col("time_last_played")))
@@ -228,33 +228,33 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Playhead/playback status
-	if fb.flags.Unfinished || fb.flags.InProgress {
+	if fb.Flags.Unfinished || fb.Flags.InProgress {
 		whereClauses = append(whereClauses, fmt.Sprintf("COALESCE(%s, 0) > 0", fb.col("playhead")))
 	}
-	if fb.flags.Partial != "" {
-		if strings.Contains(fb.flags.Partial, "s") {
+	if fb.Flags.Partial != "" {
+		if strings.Contains(fb.Flags.Partial, "s") {
 			whereClauses = append(whereClauses, fmt.Sprintf("COALESCE(%s, 0) = 0", fb.col("time_first_played")))
 		} else {
 			whereClauses = append(whereClauses, fmt.Sprintf("%s > 0", fb.col("time_first_played")))
 		}
 	}
-	if fb.flags.Completed {
+	if fb.Flags.Completed {
 		whereClauses = append(whereClauses, fmt.Sprintf("COALESCE(%s, 0) > 0", fb.col("play_count")))
 	}
 
 	// === PHASE 3: LIKE prefix searches (can use index ~500μs) ===
 
-	if fb.flags.OnlineMediaOnly {
+	if fb.Flags.OnlineMediaOnly {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s LIKE 'http%%'", fb.col("path")))
 	}
-	if fb.flags.LocalMediaOnly {
+	if fb.Flags.LocalMediaOnly {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s NOT LIKE 'http%%'", fb.col("path")))
 	}
 
 	// Extension filters (EndsWith pattern - surprisingly fast ~660μs per benchmark)
-	if len(fb.flags.Ext) > 0 {
+	if len(fb.Flags.Ext) > 0 {
 		var extClauses []string
-		for _, ext := range fb.flags.Ext {
+		for _, ext := range fb.Flags.Ext {
 			extClauses = append(extClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
 			args = append(args, "%"+ext)
 		}
@@ -264,9 +264,9 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	// === PHASE 4: Expensive substring searches (full table scan ~1ms+) ===
 
 	// Category filter (LIKE with wildcards - expensive)
-	if len(fb.flags.Category) > 0 {
+	if len(fb.Flags.Category) > 0 {
 		var catClauses []string
-		for _, cat := range fb.flags.Category {
+		for _, cat := range fb.Flags.Category {
 			if cat == "Uncategorized" {
 				catClauses = append(
 					catClauses,
@@ -283,11 +283,11 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Search terms (FTS or LIKE - most expensive operation)
-	allInclude := append([]string{}, fb.flags.Search...)
-	allInclude = append(allInclude, fb.flags.Include...)
+	allInclude := append([]string{}, fb.Flags.Search...)
+	allInclude = append(allInclude, fb.Flags.Include...)
 
 	// Path contains filters
-	pathContains := append([]string{}, fb.flags.PathContains...)
+	pathContains := append([]string{}, fb.Flags.PathContains...)
 
 	var filteredInclude []string
 	for _, term := range allInclude {
@@ -303,13 +303,13 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 
 	if len(allInclude) > 0 {
 		joinOp := " AND "
-		if fb.flags.FlexibleSearch {
+		if fb.Flags.FlexibleSearch {
 			joinOp = " OR "
 		}
 
 		// Determine search mode: --no-fts > --fts > auto-detect
-		useFTS := fb.flags.FTS
-		noFTS := fb.flags.NoFTS
+		useFTS := fb.Flags.FTS
+		noFTS := fb.Flags.NoFTS
 
 		// Auto-detect if not explicitly set
 		if !useFTS && !noFTS {
@@ -322,7 +322,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			useFTS = false
 		}
 
-		if useFTS && !fb.flags.Exact {
+		if useFTS && !fb.Flags.Exact {
 			// Hybrid FTS + LIKE search for phrase support with detail=none
 			// Note: FTS with detail=none doesn't support exact matching, so we use LIKE for --exact
 			// Combine all terms into a single query string for parsing
@@ -357,7 +357,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 			// Regular LIKE search (also used for --exact mode since FTS detail=none doesn't support exact)
 			var searchParts []string
 			for _, term := range allInclude {
-				if fb.flags.Exact {
+				if fb.Flags.Exact {
 					// For exact match, use raw path column with word boundary matching
 					// Match basename containing the exact term followed by separator or extension
 					// This ensures "exact" matches "exact.mp4" but not "exact_match.mp4"
@@ -390,7 +390,7 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Exclude patterns (expensive NOT LIKE)
-	for _, exc := range fb.flags.Exclude {
+	for _, exc := range fb.Flags.Exclude {
 		whereClauses = append(
 			whereClauses,
 			fmt.Sprintf("%s NOT LIKE ? AND %s NOT LIKE ?", fb.col("path"), fb.col("title")),
@@ -400,9 +400,9 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Regex filter (requires regex extension or post-filter)
-	if fb.flags.Regex != "" {
+	if fb.Flags.Regex != "" {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s REGEXP ?", fb.col("path")))
-		args = append(args, fb.flags.Regex)
+		args = append(args, fb.Flags.Regex)
 	}
 
 	// Path contains filters (substring search - expensive)
@@ -413,11 +413,11 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 
 	// === PHASE 5: Other filters ===
 
-	if fb.flags.Portrait {
+	if fb.Flags.Portrait {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s < %s", fb.col("width"), fb.col("height")))
 	}
 
-	if fb.flags.WithCaptions {
+	if fb.Flags.WithCaptions {
 		whereClauses = append(
 			whereClauses,
 			fmt.Sprintf("%s IN (SELECT DISTINCT media_path FROM captions)", fb.col("path")),
@@ -425,10 +425,10 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 	}
 
 	// Custom WHERE clauses
-	whereClauses = append(whereClauses, fb.flags.Where...)
+	whereClauses = append(whereClauses, fb.Flags.Where...)
 
-	if fb.flags.DurationFromSize != "" {
-		if r, err := utils.ParseRange(fb.flags.DurationFromSize, utils.HumanToBytes); err == nil {
+	if fb.Flags.DurationFromSize != "" {
+		if r, err := utils.ParseRange(fb.Flags.DurationFromSize, utils.HumanToBytes); err == nil {
 			var subWhere []string
 			var subArgs []any
 			if r.Value != nil {
@@ -466,18 +466,18 @@ func (fb *FilterBuilder) BuildWhereClauses() ([]string, []any) {
 // BuildQuery constructs a complete SQL query with the given columns
 func (fb *FilterBuilder) BuildQuery(columns string) (string, []any) {
 	// If raw query provided, use it
-	if fb.flags.Query != "" {
+	if fb.Flags.Query != "" {
 		if columns == "COUNT(*)" {
-			return "SELECT COUNT(*) FROM (" + fb.flags.Query + ")", nil
+			return "SELECT COUNT(*) FROM (" + fb.Flags.Query + ")", nil
 		}
-		return fb.flags.Query, nil
+		return fb.Flags.Query, nil
 	}
 
 	whereClauses, args := fb.BuildWhereClauses()
 
 	// Base table
 	table := "media"
-	useFTSJoin := fb.flags.FTS && fb.hasSearchTerms()
+	useFTSJoin := fb.Flags.FTS && fb.hasSearchTerms()
 
 	if useFTSJoin {
 		table = fmt.Sprintf("media JOIN %s ON media.rowid = %s.rowid", fb.getFTSTable(), fb.getFTSTable())
@@ -497,22 +497,22 @@ func (fb *FilterBuilder) BuildQuery(columns string) (string, []any) {
 	}
 
 	// Order by
-	if !fb.flags.Random && !fb.flags.NatSort && fb.flags.SortBy != "" {
-		sortExpr := fb.OverrideSort(fb.flags.SortBy)
+	if !fb.Flags.Random && !fb.Flags.NatSort && fb.Flags.SortBy != "" {
+		sortExpr := fb.OverrideSort(fb.Flags.SortBy)
 		order := "ASC"
-		if fb.flags.Reverse {
+		if fb.Flags.Reverse {
 			order = "DESC"
 		}
 		query += fmt.Sprintf(" ORDER BY %s %s", sortExpr, order)
-	} else if fb.flags.Random {
+	} else if fb.Flags.Random {
 		// Optimization for large databases: select rowids randomly first
-		if !fb.flags.All && !fb.flags.FTS && !fb.hasSearchTerms() && fb.flags.Limit > 0 {
+		if !fb.Flags.All && !fb.Flags.FTS && !fb.hasSearchTerms() && fb.Flags.Limit > 0 {
 			whereNotDeleted := "WHERE COALESCE(time_deleted, 0) = 0"
-			if fb.flags.OnlyDeleted {
+			if fb.Flags.OnlyDeleted {
 				whereNotDeleted = "WHERE COALESCE(time_deleted, 0) > 0"
 			}
 			// We use a larger pool for random selection then limit it in the outer query
-			randomLimit := fb.flags.Limit * 16
+			randomLimit := fb.Flags.Limit * 16
 
 			randomSubquery := fmt.Sprintf(
 				"rowid IN (SELECT rowid FROM media %s ORDER BY RANDOM() LIMIT %d)",
@@ -529,11 +529,11 @@ func (fb *FilterBuilder) BuildQuery(columns string) (string, []any) {
 	}
 
 	// Limit and offset
-	if !fb.flags.All && fb.flags.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", fb.flags.Limit)
+	if !fb.Flags.All && fb.Flags.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", fb.Flags.Limit)
 	}
-	if fb.flags.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", fb.flags.Offset)
+	if fb.Flags.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", fb.Flags.Offset)
 	}
 
 	return query, args
@@ -618,8 +618,8 @@ func (fb *FilterBuilder) BuildCount() (string, []any) {
 
 // hasSearchTerms checks if there are any search/include terms
 func (fb *FilterBuilder) hasSearchTerms() bool {
-	allInclude := append([]string{}, fb.flags.Search...)
-	allInclude = append(allInclude, fb.flags.Include...)
+	allInclude := append([]string{}, fb.Flags.Search...)
+	allInclude = append(allInclude, fb.Flags.Include...)
 	for _, term := range allInclude {
 		if strings.HasPrefix(term, "./") || strings.HasPrefix(term, "/") {
 			continue
@@ -631,15 +631,15 @@ func (fb *FilterBuilder) hasSearchTerms() bool {
 
 // getFTSTable returns the FTS table name
 func (fb *FilterBuilder) getFTSTable() string {
-	if fb.flags.FTSTable != "" {
-		return fb.flags.FTSTable
+	if fb.Flags.FTSTable != "" {
+		return fb.Flags.FTSTable
 	}
 	return "media_fts"
 }
 
 // usesFTSJoin returns true if the query will join media with FTS table
 func (fb *FilterBuilder) usesFTSJoin() bool {
-	return fb.flags.FTS && fb.hasSearchTerms()
+	return fb.Flags.FTS && fb.hasSearchTerms()
 }
 
 // col qualifies a column name with media. prefix if using FTS join
@@ -654,13 +654,13 @@ func (fb *FilterBuilder) col(name string) string {
 func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 	// Pre-compile regex if needed
 	var regex *regexp.Regexp
-	if fb.flags.Regex != "" {
-		regex = regexp.MustCompile(fb.flags.Regex)
+	if fb.Flags.Regex != "" {
+		regex = regexp.MustCompile(fb.Flags.Regex)
 	}
 
 	// Pre-parse size ranges
 	var sizeRanges []utils.Range
-	for _, s := range fb.flags.Size {
+	for _, s := range fb.Flags.Size {
 		if r, err := utils.ParseRange(s, utils.HumanToBytes); err == nil {
 			sizeRanges = append(sizeRanges, r)
 		}
@@ -668,7 +668,7 @@ func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 
 	// Pre-parse duration ranges
 	var durationRanges []utils.Range
-	for _, s := range fb.flags.Duration {
+	for _, s := range fb.Flags.Duration {
 		if r, err := utils.ParseRange(s, utils.HumanToSeconds); err == nil {
 			durationRanges = append(durationRanges, r)
 		}
@@ -676,20 +676,20 @@ func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 
 	return func(m models.MediaWithDB) bool {
 		// Check existence
-		if fb.flags.Exists && !utils.FileExists(m.Path) {
+		if fb.Flags.Exists && !utils.FileExists(m.Path) {
 			return false
 		}
 
 		// Include/exclude patterns
-		if len(fb.flags.Include) > 0 && !utils.MatchesAny(m.Path, fb.flags.Include) {
+		if len(fb.Flags.Include) > 0 && !utils.MatchesAny(m.Path, fb.Flags.Include) {
 			return false
 		}
-		if len(fb.flags.Exclude) > 0 && utils.MatchesAny(m.Path, fb.flags.Exclude) {
+		if len(fb.Flags.Exclude) > 0 && utils.MatchesAny(m.Path, fb.Flags.Exclude) {
 			return false
 		}
 
 		// Path contains
-		for _, contain := range fb.flags.PathContains {
+		for _, contain := range fb.Flags.PathContains {
 			if !strings.Contains(m.Path, contain) {
 				return false
 			}
@@ -710,10 +710,10 @@ func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 		}
 
 		// Extension filters
-		if len(fb.flags.Ext) > 0 {
+		if len(fb.Flags.Ext) > 0 {
 			matched := false
 			fileExt := strings.ToLower(filepath.Ext(m.Path))
-			for _, ext := range fb.flags.Ext {
+			for _, ext := range fb.Flags.Ext {
 				if fileExt == strings.ToLower(ext) {
 					matched = true
 					break
@@ -747,36 +747,36 @@ func (fb *FilterBuilder) FilterMedia(media []models.MediaWithDB) []models.MediaW
 
 // SortBuilder handles both SQL and in-memory sorting
 type SortBuilder struct {
-	flags models.GlobalFlags
+	Flags models.GlobalFlags
 }
 
 func NewSortBuilder(flags models.GlobalFlags) *SortBuilder {
-	return &SortBuilder{flags: flags}
+	return &SortBuilder{Flags: flags}
 }
 
 func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
-	if sb.flags.Random {
+	if sb.Flags.Random {
 		rand.Shuffle(len(media), func(i, j int) {
 			media[i], media[j] = media[j], media[i]
 		})
 		return
 	}
 
-	if sb.flags.NoPlayInOrder {
+	if sb.Flags.NoPlayInOrder {
 		sb.SortBasic(media)
 		return
 	}
 
 	// If the user explicitly requested a specific sort field (and it's not the default "path" or "default"),
 	// respect it and use basic sorting - this takes precedence over PlayInOrder
-	if sb.flags.SortBy != "" && sb.flags.SortBy != "path" && sb.flags.SortBy != "default" {
+	if sb.Flags.SortBy != "" && sb.Flags.SortBy != "path" && sb.Flags.SortBy != "default" {
 		sb.SortBasic(media)
 		return
 	}
 
 	// If the user explicitly requested "default", use xklb sorting (with optional reverse)
-	if sb.flags.SortBy == "default" {
-		if sb.flags.Reverse {
+	if sb.Flags.SortBy == "default" {
+		if sb.Flags.Reverse {
 			sb.SortAdvanced(media, "reverse_xklb")
 		} else {
 			sb.SortAdvanced(media, "xklb")
@@ -785,25 +785,25 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 	}
 
 	// If PlayInOrder is explicitly set (and SortBy is default), use it
-	if sb.flags.PlayInOrder != "" {
-		if sb.flags.Reverse {
+	if sb.Flags.PlayInOrder != "" {
+		if sb.Flags.Reverse {
 			// Prepend "reverse_" to the PlayInOrder config
-			sb.SortAdvanced(media, "reverse_"+sb.flags.PlayInOrder)
+			sb.SortAdvanced(media, "reverse_"+sb.Flags.PlayInOrder)
 		} else {
-			sb.SortAdvanced(media, sb.flags.PlayInOrder)
+			sb.SortAdvanced(media, sb.Flags.PlayInOrder)
 		}
 		return
 	}
 
 	// If SortBy is "path" (the default) with Reverse or NatSort flags, use basic sorting
-	if sb.flags.Reverse || sb.flags.NatSort {
+	if sb.Flags.Reverse || sb.Flags.NatSort {
 		sb.SortBasic(media)
 		return
 	}
 
 	// Fall back to xklb default sorting when SortBy is "path" (the default)
 	// This provides xklb-style sorting as the default behavior
-	if sb.flags.SortBy == "path" || sb.flags.SortBy == "" {
+	if sb.Flags.SortBy == "path" || sb.Flags.SortBy == "" {
 		sb.SortAdvanced(media, "xklb")
 		return
 	}
@@ -812,9 +812,9 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 }
 
 func (sb *SortBuilder) SortBasic(media []models.MediaWithDB) {
-	sortBy := sb.flags.SortBy
-	reverse := sb.flags.Reverse
-	natSort := sb.flags.NatSort
+	sortBy := sb.Flags.SortBy
+	reverse := sb.Flags.Reverse
+	natSort := sb.Flags.NatSort
 
 	// Special handling for sparse fields where we want 0/nulls at the bottom always
 	if sortBy == "play_count" || sortBy == "time_last_played" || sortBy == "progress" {
@@ -1938,7 +1938,7 @@ func (qe *QueryExecutor) executeMultiDB(
 
 // MediaQuery executes a query against multiple databases concurrently
 func (qe *QueryExecutor) MediaQuery(ctx context.Context, dbs []string) ([]models.MediaWithDB, error) {
-	flags := qe.filterBuilder.flags
+	flags := qe.filterBuilder.Flags
 	origLimit := flags.Limit
 	origOffset := flags.Offset
 	isEpisodic := flags.FileCounts != ""
@@ -2044,7 +2044,7 @@ func (qe *QueryExecutor) MediaQuery(ctx context.Context, dbs []string) ([]models
 
 // MediaQueryCount executes a count query against multiple databases concurrently
 func (qe *QueryExecutor) MediaQueryCount(ctx context.Context, dbs []string) (int64, error) {
-	flags := qe.filterBuilder.flags
+	flags := qe.filterBuilder.Flags
 
 	if flags.FileCounts != "" {
 		tempFlags := flags

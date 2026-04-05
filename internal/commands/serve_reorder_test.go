@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
@@ -38,7 +39,7 @@ func TestServeReorder_Playlist(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -98,7 +99,7 @@ func TestServeReorder_Security(t *testing.T) {
 	db.InitDB(context.Background(), sqlDB)
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()
@@ -132,7 +133,7 @@ func TestServeReorder_Security(t *testing.T) {
 		db2.Exec(`INSERT INTO playlists (path, title) VALUES (?, 'Other Playlist')`, filepath.FromSlash("/plist2"))
 		db2.Close()
 
-		cmd2 := &ServeCmd{
+		cmd2 := &commands.ServeCmd{
 			Databases: []string{dbPath, dbPath2},
 		}
 		defer cmd2.Close()

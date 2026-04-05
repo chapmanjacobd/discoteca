@@ -1,9 +1,10 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -13,14 +14,14 @@ func TestMediaCheckCmd_Run(t *testing.T) {
 
 	f1 := fixture.CreateDummyFile("video1.mp4")
 
-	addCmd := &AddCmd{
+	addCmd := &commands.AddCmd{
 		Args: []string{fixture.DBPath, f1},
 	}
 	addCmd.AfterApply()
 	addCmd.Run(context.Background())
 
 	t.Run("QuickScan", func(t *testing.T) {
-		cmd := &MediaCheckCmd{
+		cmd := &commands.MediaCheckCmd{
 			Databases: []string{fixture.DBPath},
 		}
 		// This will likely fail because ffmpeg is not there or file is invalid
@@ -29,7 +30,7 @@ func TestMediaCheckCmd_Run(t *testing.T) {
 	})
 
 	t.Run("FullScan", func(t *testing.T) {
-		cmd := &MediaCheckCmd{
+		cmd := &commands.MediaCheckCmd{
 			Databases: []string{fixture.DBPath},
 			FullScan:  true,
 		}

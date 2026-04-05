@@ -1,4 +1,4 @@
-package query
+package query_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -41,9 +42,9 @@ func TestMultiDBPagination(t *testing.T) {
 			SortFlags:  models.SortFlags{SortBy: "path"},
 		}
 
-		results, err := MediaQuery(ctx, dbs, flags)
+		results, err := query.MediaQuery(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		if len(results) != 3 {
@@ -59,9 +60,9 @@ func TestMultiDBPagination(t *testing.T) {
 			SortFlags:  models.SortFlags{SortBy: "path"},
 		}
 
-		results, err := MediaQuery(ctx, dbs, flags)
+		results, err := query.MediaQuery(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		if len(results) != 3 {
@@ -83,9 +84,9 @@ func TestMultiDBPagination(t *testing.T) {
 			SortFlags: models.SortFlags{SortBy: "path"},
 		}
 
-		results, err := MediaQuery(ctx, dbs, flags)
+		results, err := query.MediaQuery(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		// Each DB has 5 items
@@ -101,9 +102,9 @@ func TestMultiDBPagination(t *testing.T) {
 			SortFlags:  models.SortFlags{SortBy: "path"},
 		}
 
-		results, err := MediaQuery(ctx, dbs, flags)
+		results, err := query.MediaQuery(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		// Each DB has 5 items
@@ -119,9 +120,9 @@ func TestMultiDBPagination(t *testing.T) {
 			SortFlags:  models.SortFlags{SortBy: "path"},
 		}
 
-		results, err := MediaQuery(ctx, dbs, flags)
+		results, err := query.MediaQuery(ctx, dbs, flags)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		if len(results) != 0 {
@@ -137,9 +138,9 @@ func TestMultiDBPagination(t *testing.T) {
 			SortFlags:  models.SortFlags{SortBy: "path"},
 		}
 
-		results, err := MediaQuery(ctx, singleDB, flags)
+		results, err := query.MediaQuery(ctx, singleDB, flags)
 		if err != nil {
-			t.Fatalf("MediaQuery failed: %v", err)
+			t.Fatalf("query.MediaQuery failed: %v", err)
 		}
 
 		if len(results) != 3 {

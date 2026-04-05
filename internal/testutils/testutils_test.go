@@ -1,15 +1,17 @@
-package testutils
+package testutils_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
 func TestSetupCleanup(t *testing.T) {
 	var tempDir string
 	{
-		f := Setup(t)
+		f := testutils.Setup(t)
 		tempDir = f.TempDir
 
 		if _, err := os.Stat(tempDir); os.IsNotExist(err) {
@@ -29,7 +31,7 @@ func TestSetupCleanup(t *testing.T) {
 }
 
 func TestCreateDummyFile(t *testing.T) {
-	f := Setup(t)
+	f := testutils.Setup(t)
 	defer f.Cleanup()
 
 	path := f.CreateDummyFile("dummy.txt")
@@ -47,7 +49,7 @@ func TestCreateDummyFile(t *testing.T) {
 }
 
 func TestCreateFileTree(t *testing.T) {
-	f := Setup(t)
+	f := testutils.Setup(t)
 	defer f.Cleanup()
 
 	tree := map[string]any{
@@ -82,7 +84,7 @@ func TestCreateFileTree(t *testing.T) {
 }
 
 func TestGetDB(t *testing.T) {
-	f := Setup(t)
+	f := testutils.Setup(t)
 	defer f.Cleanup()
 
 	db := f.GetDB()

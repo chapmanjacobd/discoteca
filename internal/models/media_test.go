@@ -1,4 +1,4 @@
-package models
+package models_test
 
 import (
 	"database/sql"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestFromDB(t *testing.T) {
@@ -18,7 +19,7 @@ func TestFromDB(t *testing.T) {
 		Duration: sql.NullInt64{Valid: false},
 	}
 
-	media := FromDB(dbMedia)
+	media := models.FromDB(dbMedia)
 
 	if media.Path != filepath.FromSlash("/test/movie.mp4") {
 		t.Errorf("Expected path %s, got %s", filepath.FromSlash("/test/movie.mp4"), media.Path)
@@ -38,7 +39,7 @@ func TestFromDB(t *testing.T) {
 
 	// Test nullFloat64Ptr
 	dbMedia.Fps = sql.NullFloat64{Float64: 24.0, Valid: true}
-	media = FromDB(dbMedia)
+	media = models.FromDB(dbMedia)
 	if media.Fps == nil || *media.Fps != 24.0 {
 		t.Errorf("Expected Fps 24.0, got %v", media.Fps)
 	}
@@ -53,7 +54,7 @@ func TestPlaylistFromDB(t *testing.T) {
 	}
 	dbPath := filepath.FromSlash("/path/to/db")
 
-	p := PlaylistFromDB(dbPlaylist, dbPath)
+	p := models.PlaylistFromDB(dbPlaylist, dbPath)
 
 	if p.ID != 1 {
 		t.Errorf("Expected ID 1, got %d", p.ID)
@@ -73,7 +74,7 @@ func TestPlaylistFromDB(t *testing.T) {
 }
 
 func TestMedia_Parent(t *testing.T) {
-	m := Media{Path: filepath.FromSlash("/dir/sub/file.mp4")}
+	m := models.Media{Path: filepath.FromSlash("/dir/sub/file.mp4")}
 	if got := m.Parent(); got != filepath.FromSlash("/dir/sub") {
 		t.Errorf("Parent() = %v, want %v", got, filepath.FromSlash("/dir/sub"))
 	}
@@ -91,9 +92,9 @@ func TestMedia_Stem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			m := &Media{Path: tt.path}
+			m := &models.Media{Path: tt.path}
 			if got := m.Stem(); got != tt.want {
-				t.Errorf("Media.Stem() = %v, want %v", got, tt.want)
+				t.Errorf("models.Media.Stem() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -121,14 +122,14 @@ func TestMedia_ParentAtDepth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s_depth_%d", tt.path, tt.depth), func(t *testing.T) {
-			m := &Media{Path: tt.path}
+			m := &models.Media{Path: tt.path}
 			got := m.ParentAtDepth(tt.depth)
 			// Normalize separators for cross-platform comparison
 			gotNorm := strings.ReplaceAll(got, "\\", "/")
 			wantNorm := strings.ReplaceAll(tt.want, "\\", "/")
 			if gotNorm != wantNorm {
 				t.Errorf(
-					"Media.ParentAtDepth(%v) = %v (normalized: %q), want %v (normalized: %q)",
+					"models.Media.ParentAtDepth(%v) = %v (normalized: %q), want %v (normalized: %q)",
 					tt.depth,
 					got,
 					gotNorm,
@@ -146,7 +147,7 @@ func TestFromDBWithDB(t *testing.T) {
 	}
 	dbPath := filepath.FromSlash("/path/to/db")
 
-	mWithDB := FromDBWithDB(dbMedia, dbPath)
+	mWithDB := models.FromDBWithDB(dbMedia, dbPath)
 
 	if mWithDB.Path != filepath.FromSlash("/test/movie.mp4") {
 		t.Errorf("Expected path %s, got %s", filepath.FromSlash("/test/movie.mp4"), mWithDB.Path)
@@ -161,14 +162,14 @@ func TestToDBUpsert(t *testing.T) {
 	duration := int64(120)
 	fps := 23.976
 
-	m := Media{
+	m := models.Media{
 		Path:     filepath.FromSlash("/test/movie.mp4"),
 		Title:    &title,
 		Duration: &duration,
 		Fps:      &fps,
 	}
 
-	params := ToDBUpsert(m)
+	params := models.ToDBUpsert(m)
 
 	if params.Path != m.Path {
 		t.Errorf("Expected path %s, got %s", m.Path, params.Path)
@@ -184,8 +185,8 @@ func TestToDBUpsert(t *testing.T) {
 	}
 
 	// Test nil values
-	m2 := Media{Path: filepath.FromSlash("/test/m2.mp4")}
-	params2 := ToDBUpsert(m2)
+	m2 := models.Media{Path: filepath.FromSlash("/test/m2.mp4")}
+	params2 := models.ToDBUpsert(m2)
 	if params2.Title.Valid {
 		t.Errorf("Expected title invalid for nil input")
 	}
@@ -193,26 +194,26 @@ func TestToDBUpsert(t *testing.T) {
 
 func TestToNullHelpers(t *testing.T) {
 	s := "test"
-	if ns := ToNullString(&s); !ns.Valid || ns.String != s {
-		t.Errorf("ToNullString failed")
+	if ns := models.ToNullString(&s); !ns.Valid || ns.String != s {
+		t.Errorf("models.ToNullString failed")
 	}
-	if ns := ToNullString(nil); ns.Valid {
-		t.Errorf("ToNullString(nil) should be invalid")
+	if ns := models.ToNullString(nil); ns.Valid {
+		t.Errorf("models.ToNullString(nil) should be invalid")
 	}
 
 	i := int64(123)
-	if ni := ToNullInt64(&i); !ni.Valid || ni.Int64 != i {
-		t.Errorf("ToNullInt64 failed")
+	if ni := models.ToNullInt64(&i); !ni.Valid || ni.Int64 != i {
+		t.Errorf("models.ToNullInt64 failed")
 	}
-	if ni := ToNullInt64(nil); ni.Valid {
-		t.Errorf("ToNullInt64(nil) should be invalid")
+	if ni := models.ToNullInt64(nil); ni.Valid {
+		t.Errorf("models.ToNullInt64(nil) should be invalid")
 	}
 
 	f := 1.23
-	if nf := ToNullFloat64(&f); !nf.Valid || nf.Float64 != f {
-		t.Errorf("ToNullFloat64 failed")
+	if nf := models.ToNullFloat64(&f); !nf.Valid || nf.Float64 != f {
+		t.Errorf("models.ToNullFloat64 failed")
 	}
-	if nf := ToNullFloat64(nil); nf.Valid {
-		t.Errorf("ToNullFloat64(nil) should be invalid")
+	if nf := models.ToNullFloat64(nil); nf.Valid {
+		t.Errorf("models.ToNullFloat64(nil) should be invalid")
 	}
 }

@@ -1,9 +1,11 @@
-package metadata
+package metadata_test
 
 import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/metadata"
 )
 
 func TestDecodeQuickScan_MockFFmpeg(t *testing.T) {
@@ -22,7 +24,7 @@ exit 0
 	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
 
 	scans := []float64{10.0, 20.0, 30.0, 40.0}
-	corruption := DecodeQuickScan(context.Background(), "dummy.mp4", scans, 1.0)
+	corruption := metadata.DecodeQuickScan(context.Background(), "dummy.mp4", scans, 1.0)
 
 	// One scan (20.0) should fail out of four
 	if corruption != 0.25 {
@@ -51,9 +53,9 @@ func TestDecodeFullScan_MockFFProbe(t *testing.T) {
 	// actualDuration = 3000 * 1 / 30 = 100.0
 	// metadataDuration = 100.0
 	// corruption = 0.0
-	corruption, err := DecodeFullScan(context.Background(), "dummy.mp4")
+	corruption, err := metadata.DecodeFullScan(context.Background(), "dummy.mp4")
 	if err != nil {
-		t.Fatalf("DecodeFullScan failed: %v", err)
+		t.Fatalf("metadata.DecodeFullScan failed: %v", err)
 	}
 	if corruption != 0.0 {
 		t.Errorf("Expected corruption 0.0, got %f", corruption)

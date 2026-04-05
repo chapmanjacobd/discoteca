@@ -1,4 +1,4 @@
-package db
+package db_test
 
 import (
 	"context"
@@ -8,19 +8,21 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
-func setupDB(t *testing.T) (*sql.DB, *Queries) {
-	db, err := sql.Open("sqlite3", ":memory:")
+func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
+	sqlDB, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	schema := GetSchema()
+	schema := db.GetSchema()
 
 	// Check for STRICT support
 	var version string
-	if err := db.QueryRow("SELECT sqlite_version()").Scan(&version); err != nil {
+	if err := sqlDB.QueryRow("SELECT sqlite_version()").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
 	var v1, v2, v3 int
@@ -37,13 +39,13 @@ func setupDB(t *testing.T) (*sql.DB, *Queries) {
 
 	// Simple FTS5 check
 	var hasFTS5 bool
-	err = db.QueryRow("SELECT 1 FROM pragma_compile_options WHERE compile_options = 'ENABLE_FTS5'").Scan(&hasFTS5)
+	err = sqlDB.QueryRow("SELECT 1 FROM pragma_compile_options WHERE compile_options = 'ENABLE_FTS5'").Scan(&hasFTS5)
 	if err != nil {
 		// maybe it's just not in the list, try creating a virtual table
-		_, err = db.Exec("CREATE VIRTUAL TABLE fts_test USING fts5(t)")
+		_, err = sqlDB.Exec("CREATE VIRTUAL TABLE fts_test USING fts5(t)")
 		if err == nil {
 			hasFTS5 = true
-			db.Exec("DROP TABLE fts_test")
+			sqlDB.Exec("DROP TABLE fts_test")
 		}
 	}
 
@@ -73,20 +75,20 @@ func setupDB(t *testing.T) (*sql.DB, *Queries) {
 		schema = filteredSchema.String()
 	}
 
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := sqlDB.Exec(schema); err != nil {
 		t.Fatalf("Failed to execute schema: %v", err)
 	}
 
-	return db, New(db)
+	return sqlDB, db.New(sqlDB)
 }
 
 func TestQueries(t *testing.T) {
-	db, q := setupDB(t)
-	defer db.Close()
+	sqlDB, q := setupDB(t)
+	defer sqlDB.Close()
 	ctx := context.Background()
 
 	t.Run("UpsertAndGet", func(t *testing.T) {
-		err := q.UpsertMedia(ctx, UpsertMediaParams{
+		err := q.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:  "test.mp4",
 			Title: sql.NullString{String: "Test Title", Valid: true},
 			Size:  sql.NullInt64{Int64: 1000, Valid: true},
@@ -105,7 +107,7 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("CategoryStats", func(t *testing.T) {
-		err := q.UpdateMediaCategories(ctx, UpdateMediaCategoriesParams{
+		err := q.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
 			Path:       "test.mp4",
 			Categories: sql.NullString{String: ";comedy;", Valid: true},
 		})
@@ -131,13 +133,13 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("MediaFiltering", func(t *testing.T) {
-		q.UpsertMedia(ctx, UpsertMediaParams{
+		q.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:      "video.mp4",
 			MediaType: sql.NullString{String: "video", Valid: true},
 			Duration:  sql.NullInt64{Int64: 100, Valid: true},
 			Size:      sql.NullInt64{Int64: 5000, Valid: true},
 		})
-		q.UpsertMedia(ctx, UpsertMediaParams{
+		q.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:      "audio.mp3",
 			MediaType: sql.NullString{String: "audio", Valid: true},
 			Duration:  sql.NullInt64{Int64: 200, Valid: true},
@@ -145,7 +147,7 @@ func TestQueries(t *testing.T) {
 		})
 
 		// GetMediaByType
-		res, _ := q.GetMediaByType(ctx, GetMediaByTypeParams{
+		res, _ := q.GetMediaByType(ctx, db.GetMediaByTypeParams{
 			VideoOnly: true,
 			AudioOnly: false,
 			ImageOnly: false,
@@ -156,7 +158,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		// GetMediaBySize
-		res, _ = q.GetMediaBySize(ctx, GetMediaBySizeParams{
+		res, _ = q.GetMediaBySize(ctx, db.GetMediaBySizeParams{
 			MinSize: 3000,
 			MaxSize: 6000,
 			Limit:   10,
@@ -166,7 +168,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		// GetMediaByDuration
-		res, _ = q.GetMediaByDuration(ctx, GetMediaByDurationParams{
+		res, _ = q.GetMediaByDuration(ctx, db.GetMediaByDurationParams{
 			MinDuration: 150,
 			MaxDuration: 250,
 			Limit:       10,
@@ -178,19 +180,19 @@ func TestQueries(t *testing.T) {
 
 	t.Run("HistoryAndStats", func(t *testing.T) {
 		path := "history.mp4"
-		q.UpsertMedia(ctx, UpsertMediaParams{
+		q.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:     path,
 			Duration: sql.NullInt64{Int64: 1000, Valid: true},
 		})
 
-		q.UpdatePlayHistory(ctx, UpdatePlayHistoryParams{
+		q.UpdatePlayHistory(ctx, db.UpdatePlayHistoryParams{
 			Path:            path,
 			Playhead:        sql.NullInt64{Int64: 500, Valid: true},
 			TimeLastPlayed:  sql.NullInt64{Int64: 12345678, Valid: true},
 			TimeFirstPlayed: sql.NullInt64{Int64: 12345678, Valid: true},
 		})
 
-		q.InsertHistory(ctx, InsertHistoryParams{
+		q.InsertHistory(ctx, db.InsertHistoryParams{
 			MediaPath: path,
 			Playhead:  sql.NullInt64{Int64: 500, Valid: true},
 		})
@@ -212,7 +214,7 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("Playlists", func(t *testing.T) {
-		id, err := q.InsertPlaylist(ctx, InsertPlaylistParams{
+		id, err := q.InsertPlaylist(ctx, db.InsertPlaylistParams{
 			Path:         sql.NullString{String: "http://example.com/playlist", Valid: true},
 			ExtractorKey: sql.NullString{String: "youtube", Valid: true},
 		})
@@ -230,8 +232,8 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("UpdateOperations", func(t *testing.T) {
-		q.UpsertMedia(ctx, UpsertMediaParams{Path: "old.mp4"})
-		q.UpdatePath(ctx, UpdatePathParams{NewPath: "new.mp4", OldPath: "old.mp4"})
+		q.UpsertMedia(ctx, db.UpsertMediaParams{Path: "old.mp4"})
+		q.UpdatePath(ctx, db.UpdatePathParams{NewPath: "new.mp4", OldPath: "old.mp4"})
 		_, err := q.GetMediaByPathExact(ctx, "old.mp4")
 		if err == nil {
 			t.Error("old.mp4 should not exist")
@@ -241,7 +243,7 @@ func TestQueries(t *testing.T) {
 			t.Error("new.mp4 should exist")
 		}
 
-		q.MarkDeleted(ctx, MarkDeletedParams{Path: "new.mp4", TimeDeleted: sql.NullInt64{Int64: 1, Valid: true}})
+		q.MarkDeleted(ctx, db.MarkDeletedParams{Path: "new.mp4", TimeDeleted: sql.NullInt64{Int64: 1, Valid: true}})
 		m, _ := q.GetMediaByPathExact(ctx, "new.mp4")
 		if m.TimeDeleted.Int64 == 0 {
 			t.Error("Expected time_deleted to be set")
@@ -251,19 +253,19 @@ func TestQueries(t *testing.T) {
 	t.Run("FTSAndCaptions", func(t *testing.T) {
 		// Check if FTS tables exist before running
 		var exists int
-		db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='media_fts'").Scan(&exists)
+		sqlDB.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='media_fts'").Scan(&exists)
 		if exists == 0 {
 			t.Skip("FTS5 not available")
 		}
 
 		path := "fts_video.mp4"
-		q.UpsertMedia(ctx, UpsertMediaParams{
+		q.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:  path,
 			Title: sql.NullString{String: "Unique Title for FTS", Valid: true},
 		})
 
 		// SearchMediaFTS - use 3-char terms for detail=none compatibility
-		res, err := q.SearchMediaFTS(ctx, SearchMediaFTSParams{
+		res, err := q.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
 			Query: "Uni", // First 3 chars of "Unique"
 			Limit: 10,
 		})
@@ -274,7 +276,7 @@ func TestQueries(t *testing.T) {
 			t.Error("SearchMediaFTS returned no results")
 		}
 		// Apply in-memory ranking
-		RankSearchResults(res, "Unique")
+		db.RankSearchResults(res, "Unique")
 		if res[0].Rank == 0 {
 			t.Logf("Warning: Search rank is 0")
 		} else {
@@ -282,7 +284,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		// Captions
-		err = q.InsertCaption(ctx, InsertCaptionParams{
+		err = q.InsertCaption(ctx, db.InsertCaptionParams{
 			MediaPath: path,
 			Time:      sql.NullFloat64{Float64: 10.5, Valid: true},
 			Text:      sql.NullString{String: "Hello from captions", Valid: true},
@@ -291,7 +293,7 @@ func TestQueries(t *testing.T) {
 			t.Fatalf("InsertCaption failed: %v", err)
 		}
 
-		resCaptions, err := q.SearchCaptions(ctx, SearchCaptionsParams{
+		resCaptions, err := q.SearchCaptions(ctx, db.SearchCaptionsParams{
 			Query:     "Hel", // First 3 chars of "Hello"
 			VideoOnly: false,
 			AudioOnly: false,
@@ -308,7 +310,7 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("MiscQueries", func(t *testing.T) {
-		q.UpsertMedia(ctx, UpsertMediaParams{
+		q.UpsertMedia(ctx, db.UpsertMediaParams{
 			Path:      "random.mp4",
 			MediaType: sql.NullString{String: "video", Valid: true},
 			Score:     sql.NullFloat64{Float64: 5.0, Valid: true},
@@ -345,19 +347,22 @@ func TestQueries(t *testing.T) {
 		}
 
 		// GetMediaByPath
-		res, _ = q.GetMediaByPath(ctx, GetMediaByPathParams{PathPattern: "%random%", Limit: 10})
+		res, _ = q.GetMediaByPath(ctx, db.GetMediaByPathParams{PathPattern: "%random%", Limit: 10})
 		if len(res) == 0 {
 			t.Error("GetMediaByPath failed")
 		}
 
 		// GetMediaByPlayCount
-		res, _ = q.GetMediaByPlayCount(ctx, GetMediaByPlayCountParams{MinPlayCount: 0, MaxPlayCount: 10, Limit: 10})
+		res, _ = q.GetMediaByPlayCount(ctx, db.GetMediaByPlayCountParams{MinPlayCount: 0, MaxPlayCount: 10, Limit: 10})
 		if len(res) == 0 {
 			t.Error("GetMediaByPlayCount failed")
 		}
 
 		// GetSiblingMedia
-		res, _ = q.GetSiblingMedia(ctx, GetSiblingMediaParams{PathPattern: "%", PathExclude: "non-existent", Limit: 10})
+		res, _ = q.GetSiblingMedia(
+			ctx,
+			db.GetSiblingMediaParams{PathPattern: "%", PathExclude: "non-existent", Limit: 10},
+		)
 		if len(res) == 0 {
 			t.Error("GetSiblingMedia failed")
 		}
@@ -371,7 +376,7 @@ func TestQueries(t *testing.T) {
 		// GetWatchedMedia
 		q.UpdatePlayHistory(
 			ctx,
-			UpdatePlayHistoryParams{Path: "random.mp4", TimeLastPlayed: sql.NullInt64{Int64: 1, Valid: true}},
+			db.UpdatePlayHistoryParams{Path: "random.mp4", TimeLastPlayed: sql.NullInt64{Int64: 1, Valid: true}},
 		)
 		res, _ = q.GetWatchedMedia(ctx, 10)
 		if len(res) == 0 {
@@ -380,9 +385,9 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("WithTx", func(t *testing.T) {
-		tx, _ := db.Begin()
+		tx, _ := sqlDB.Begin()
 		qtx := q.WithTx(tx)
-		err := qtx.UpsertMedia(ctx, UpsertMediaParams{Path: "tx.mp4"})
+		err := qtx.UpsertMedia(ctx, db.UpsertMediaParams{Path: "tx.mp4"})
 		if err != nil {
 			t.Errorf("WithTx failed: %v", err)
 		}
@@ -396,7 +401,7 @@ func TestQueries(t *testing.T) {
 
 	t.Run("StrictEnforcement", func(t *testing.T) {
 		var version string
-		db.QueryRow("SELECT sqlite_version()").Scan(&version)
+		sqlDB.QueryRow("SELECT sqlite_version()").Scan(&version)
 		var v1, v2, v3 int
 		fmt.Sscanf(version, "%d.%d.%d", &v1, &v2, &v3)
 		if v1 < 3 || (v1 == 3 && v2 < 37) {
@@ -404,7 +409,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		// Try to insert a string into an INTEGER column (duration)
-		_, err := db.Exec("INSERT INTO media (path, duration) VALUES ('strict-test.mp4', 'not-an-int')")
+		_, err := sqlDB.Exec("INSERT INTO media (path, duration) VALUES ('strict-test.mp4', 'not-an-int')")
 		if err == nil {
 			t.Error("Expected error when inserting string into INTEGER column in STRICT table, but got none")
 		} else {

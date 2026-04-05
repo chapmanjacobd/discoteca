@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func TestServeCmd_HandleLs(t *testing.T) {
 		t.Fatalf("DB is empty after manual insert")
 	}
 
-	cmd := setupTestServeCmd(fixture.DBPath)
+	cmd := SetupTestServeCmd(fixture.DBPath)
 	mux := cmd.Mux()
 
 	t.Run("Absolute Path - Root", func(t *testing.T) {

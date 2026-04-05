@@ -136,7 +136,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 
 			// Extract text from comic archives (CBZ/CBR) using OCR if requested
 			if utils.ComicExtensionMap[ext] && opts.OCR {
-				captions, err := extractImageTextFromComicArchive(path, opts.OCREngine)
+				captions, err := ExtractImageTextFromComicArchive(path, opts.OCREngine)
 				if err != nil {
 					models.Log.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
 				} else {
@@ -168,7 +168,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 
 	// Extract speech from audio/video files if requested
 	if opts.SpeechRecognition && (mediaType == "audio" || mediaType == "video") {
-		captions, err := extractSpeechToText(path, opts.SpeechRecEngine)
+		captions, err := ExtractSpeechToText(path, opts.SpeechRecEngine)
 		if err != nil {
 			models.Log.Warn("Speech recognition failed", "path", path, "error", err)
 		} else {
@@ -317,7 +317,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 					if params.Width.Int64 == 0 {
 						params.Width = utils.ToNullInt64(int64(s.Width))
 						params.Height = utils.ToNullInt64(int64(s.Height))
-						params.Fps = utils.ToNullFloat64(parseFPS(s.AvgFrameRate))
+						params.Fps = utils.ToNullFloat64(ParseFPS(s.AvgFrameRate))
 					}
 				case "audio":
 					aCount++
@@ -432,7 +432,7 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 	return result, nil
 }
 
-func parseFPS(s string) float64 {
+func ParseFPS(s string) float64 {
 	parts := strings.Split(s, "/")
 	if len(parts) != 2 {
 		return 0
@@ -628,7 +628,7 @@ func cleanCaptionText(s string) string {
 // Returns captions with detected text (time=0 for images).
 func extractImageText(path, engine string) ([]db.InsertCaptionParams, error) {
 	// Convert image to PNG if it's in a format that OCR engines might struggle with
-	convertedPath, err := convertImageForOCR(path)
+	convertedPath, err := ConvertImageForOCR(path)
 	if err != nil {
 		models.Log.Warn("Image conversion failed, using original", "path", path, "error", err)
 		convertedPath = path
@@ -647,11 +647,11 @@ func extractImageText(path, engine string) ([]db.InsertCaptionParams, error) {
 	}
 }
 
-// convertImageForOCR converts images to PNG format for better OCR compatibility.
+// ConvertImageForOCR converts images to PNG format for better OCR compatibility.
 // Tesseract and PaddleOCR work best with PNG/TIFF. This function converts
 // problematic formats (webp, bmp, gif, tiff) to PNG using ffmpeg or ImageMagick.
 // Returns the path to the converted image, or the original path if no conversion needed.
-func convertImageForOCR(path string) (string, error) {
+func ConvertImageForOCR(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
 	// Formats that OCR engines handle well natively
@@ -686,7 +686,7 @@ func convertImageForOCR(path string) (string, error) {
 			tmpPath,
 		}
 
-		cmd := exec.Command(ffmpegBin, args...)
+		cmd := exec.CommandContext(context.Background(), ffmpegBin, args...)
 		if err := cmd.Run(); err == nil {
 			return tmpPath, nil
 		}
@@ -704,7 +704,7 @@ func convertImageForOCR(path string) (string, error) {
 		defer tmpFile.Close()
 
 		args := []string{path, tmpPath}
-		cmd := exec.Command(convertBin, args...)
+		cmd := exec.CommandContext(context.Background(), convertBin, args...)
 		if err := cmd.Run(); err == nil {
 			return tmpPath, nil
 		}
@@ -725,7 +725,7 @@ func extractImageTextTesseract(path string) ([]db.InsertCaptionParams, error) {
 
 	// Run tesseract with stdout output
 	// Using --psm 3 (fully automatic page segmentation) for general images
-	cmd := exec.Command(tesseractBin, path, "stdout", "--psm", "3")
+	cmd := exec.CommandContext(context.Background(), tesseractBin, path, "stdout", "--psm", "3")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -768,7 +768,8 @@ func extractImageTextPaddleOCR(path string) ([]db.InsertCaptionParams, error) {
 
 	// Run paddleocr with image
 	// --type ocr for OCR only, --lang for language (default en)
-	cmd := exec.Command(
+	cmd := exec.CommandContext(
+		context.Background(),
 		pythonBin,
 		"-m",
 		"paddleocr",
@@ -810,8 +811,8 @@ func extractImageTextPaddleOCR(path string) ([]db.InsertCaptionParams, error) {
 	return captions, nil
 }
 
-// extractSpeechToText extracts speech-to-text from audio/video files
-func extractSpeechToText(path, engine string) ([]db.InsertCaptionParams, error) {
+// ExtractSpeechToText extracts speech-to-text from audio/video files
+func ExtractSpeechToText(path, engine string) ([]db.InsertCaptionParams, error) {
 	switch engine {
 	case "whisper":
 		return extractSpeechToTextWhisper(path)
@@ -886,7 +887,7 @@ for caption in captions:
     print(caption)
 `
 
-	cmd := exec.Command(pythonBin, "-c", voskScript, modelDir, path)
+	cmd := exec.CommandContext(context.Background(), pythonBin, "-c", voskScript, modelDir, path)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -932,7 +933,8 @@ func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
 
 	// Run whisper with txt output
 	// --model tiny for speed, use base/small/medium/large for better accuracy
-	cmd := exec.Command(
+	cmd := exec.CommandContext(
+		context.Background(),
 		whisperBin,
 		path,
 		"--model",
@@ -979,9 +981,9 @@ func extractSpeechToTextWhisper(path string) ([]db.InsertCaptionParams, error) {
 	return captions, nil
 }
 
-// extractImageTextFromComicArchive extracts text from images in CBZ/CBR archives using OCR.
+// ExtractImageTextFromComicArchive extracts text from images in CBZ/CBR archives using OCR.
 // Returns captions with page numbers as timestamps (page 1 = 0s, page 2 = 1s, etc.)
-func extractImageTextFromComicArchive(path, ocrEngine string) ([]db.InsertCaptionParams, error) {
+func ExtractImageTextFromComicArchive(path, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
 	if !utils.ComicExtensionMap[ext] {
@@ -1121,9 +1123,9 @@ func extractImageTextFromCBR(path, ocrEngine string) ([]db.InsertCaptionParams, 
 	// Extract all files - prefer unrar, fallback to unar
 	var cmd *exec.Cmd
 	if !unrarErr {
-		cmd = exec.Command(unrarBin, "e", "-y", path, tmpDir)
+		cmd = exec.CommandContext(context.Background(), unrarBin, "e", "-y", path, tmpDir)
 	} else {
-		cmd = exec.Command(unarBin, "-o", tmpDir, path)
+		cmd = exec.CommandContext(context.Background(), unarBin, "-o", tmpDir, path)
 	}
 	if err := cmd.Run(); err != nil {
 		return nil, err

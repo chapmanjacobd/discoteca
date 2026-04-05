@@ -1,4 +1,4 @@
-package db
+package db_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 // TestInMemoryRankingEffectiveness demonstrates that in-memory Go ranking
@@ -141,15 +143,15 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		}
 		defer rows.Close()
 
-		// Convert to SearchMediaFTSResult
-		var results []SearchMediaFTSResult
+		// Convert to db.SearchMediaFTSResult
+		var results []db.SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
 			if err := rows.Scan(&path, &title, &desc); err != nil {
 				t.Fatalf("Scan failed: %v", err)
 			}
-			results = append(results, SearchMediaFTSResult{
-				Media: Media{
+			results = append(results, db.SearchMediaFTSResult{
+				Media: db.Media{
 					Path:        path,
 					Title:       sql.NullString{String: title, Valid: true},
 					Description: sql.NullString{String: desc, Valid: true},
@@ -165,7 +167,7 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		}
 
 		// Apply in-memory ranking
-		RankSearchResults(results, "python")
+		db.RankSearchResults(results, "python")
 
 		// Verify ranking order
 		t.Logf("\n%-6s %-8s %-30s %s\n", "Rank", "Score", "Path", "Title")
@@ -227,14 +229,14 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		}
 		defer rows.Close()
 
-		var results []SearchMediaFTSResult
+		var results []db.SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
 			if err := rows.Scan(&path, &title, &desc); err != nil {
 				t.Fatalf("Scan failed: %v", err)
 			}
-			results = append(results, SearchMediaFTSResult{
-				Media: Media{
+			results = append(results, db.SearchMediaFTSResult{
+				Media: db.Media{
 					Path:        path,
 					Title:       sql.NullString{String: title, Valid: true},
 					Description: sql.NullString{String: desc, Valid: true},
@@ -245,10 +247,10 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 			t.Fatalf("Rows error: %v", err)
 		}
 
-		RankSearchResults(results, "python")
+		db.RankSearchResults(results, "python")
 
 		// Find specific test cases
-		var titleOnly, pathOnly, descOnly *SearchMediaFTSResult
+		var titleOnly, pathOnly, descOnly *db.SearchMediaFTSResult
 		for i := range results {
 			if results[i].Media.Path == "/doc4.mp4" {
 				titleOnly = &results[i]
@@ -300,14 +302,14 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 		}
 		defer rows.Close()
 
-		var results []SearchMediaFTSResult
+		var results []db.SearchMediaFTSResult
 		for rows.Next() {
 			var path, title, desc string
 			if err := rows.Scan(&path, &title, &desc); err != nil {
 				t.Fatalf("Scan failed: %v", err)
 			}
-			results = append(results, SearchMediaFTSResult{
-				Media: Media{
+			results = append(results, db.SearchMediaFTSResult{
+				Media: db.Media{
 					Path:        path,
 					Title:       sql.NullString{String: title, Valid: true},
 					Description: sql.NullString{String: desc, Valid: true},
@@ -318,10 +320,10 @@ func TestInMemoryRankingEffectiveness(t *testing.T) {
 			t.Fatalf("Rows error: %v", err)
 		}
 
-		RankSearchResults(results, "python")
+		db.RankSearchResults(results, "python")
 
 		// Find the pyrotechnics document (false positive)
-		var falsePositive *SearchMediaFTSResult
+		var falsePositive *db.SearchMediaFTSResult
 		for i := range results {
 			if results[i].Media.Path == "/doc11.mp4" {
 				falsePositive = &results[i]
@@ -394,9 +396,9 @@ func TestRankingEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results := []SearchMediaFTSResult{
+			results := []db.SearchMediaFTSResult{
 				{
-					Media: Media{
+					Media: db.Media{
 						Title:       sql.NullString{String: tt.title, Valid: true},
 						Path:        tt.path,
 						Description: sql.NullString{String: tt.desc, Valid: true},
@@ -404,10 +406,10 @@ func TestRankingEdgeCases(t *testing.T) {
 				},
 			}
 
-			RankSearchResults(results, tt.query)
+			db.RankSearchResults(results, tt.query)
 
 			if results[0].Rank != tt.wantRank {
-				t.Errorf("RankSearchResults() rank = %.1f, want %.1f", results[0].Rank, tt.wantRank)
+				t.Errorf("db.RankSearchResults() rank = %.1f, want %.1f", results[0].Rank, tt.wantRank)
 			}
 		})
 	}
@@ -473,14 +475,14 @@ func TestRankingReorderAmount(t *testing.T) {
 	}
 	defer rows.Close()
 
-	var dbOrder []SearchMediaFTSResult
+	var dbOrder []db.SearchMediaFTSResult
 	for rows.Next() {
 		var path, title, desc string
 		if err := rows.Scan(&path, &title, &desc); err != nil {
 			t.Fatalf("Scan failed: %v", err)
 		}
-		dbOrder = append(dbOrder, SearchMediaFTSResult{
-			Media: Media{
+		dbOrder = append(dbOrder, db.SearchMediaFTSResult{
+			Media: db.Media{
 				Path:        path,
 				Title:       sql.NullString{String: title, Valid: true},
 				Description: sql.NullString{String: desc, Valid: true},
@@ -501,7 +503,7 @@ func TestRankingReorderAmount(t *testing.T) {
 	}
 
 	// Apply in-memory ranking
-	RankSearchResults(dbOrder, "python")
+	db.RankSearchResults(dbOrder, "python")
 
 	t.Logf("\nRanked order (by relevance):")
 	for i, r := range dbOrder {
@@ -510,7 +512,7 @@ func TestRankingReorderAmount(t *testing.T) {
 
 	// Track original positions before sorting
 	type trackedResult struct {
-		result  SearchMediaFTSResult
+		result  db.SearchMediaFTSResult
 		origPos int
 	}
 
@@ -530,8 +532,8 @@ func TestRankingReorderAmount(t *testing.T) {
 			t.Fatalf("Scan failed: %v", err)
 		}
 		results = append(results, trackedResult{
-			result: SearchMediaFTSResult{
-				Media: Media{
+			result: db.SearchMediaFTSResult{
+				Media: db.Media{
 					Path:        path,
 					Title:       sql.NullString{String: title, Valid: true},
 					Description: sql.NullString{String: desc, Valid: true},
@@ -546,12 +548,12 @@ func TestRankingReorderAmount(t *testing.T) {
 	}
 
 	// Extract just the results for ranking
-	plainResults := make([]SearchMediaFTSResult, len(results))
+	plainResults := make([]db.SearchMediaFTSResult, len(results))
 	for i, tr := range results {
 		plainResults[i] = tr.result
 	}
 
-	RankSearchResults(plainResults, "python")
+	db.RankSearchResults(plainResults, "python")
 
 	// Count flips: how many items moved from their original position
 	maxDisplacement := 0

@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,7 +18,7 @@ func IsFileOpen(path string) bool {
 			absPath = path
 		}
 		// On macOS, use lsof -t to check if any process has the file open
-		cmd := exec.Command("lsof", "-t", absPath)
+		cmd := exec.CommandContext(context.Background(), "lsof", "-t", absPath)
 		if err := cmd.Run(); err == nil {
 			return true
 		}

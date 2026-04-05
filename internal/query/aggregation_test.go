@@ -1,10 +1,11 @@
-package query
+package query_test
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
 )
 
@@ -16,7 +17,7 @@ func TestAggregateExtensions(t *testing.T) {
 		{Media: models.Media{Path: "test4"}},
 	}
 
-	got := AggregateExtensions(media)
+	got := query.AggregateExtensions(media)
 	if len(got) != 3 {
 		t.Errorf("Expected 3 groups, got %d", len(got))
 	}
@@ -45,7 +46,7 @@ func TestAggregateSizeBuckets(t *testing.T) {
 		{Media: models.Media{Path: "5kb", Size: &size5KB}},
 	}
 
-	got := AggregateSizeBuckets(media)
+	got := query.AggregateSizeBuckets(media)
 	if len(got) != 3 {
 		t.Errorf("Expected 3 size buckets, got %d", len(got))
 	}
@@ -59,13 +60,16 @@ func TestAggregateByDepth(t *testing.T) {
 	}
 
 	// Depth 3: /home/user/vids and /home/user/music
-	got := AggregateByDepth(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 3}})
+	got := query.AggregateByDepth(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 3}})
 	if len(got) != 2 {
 		t.Errorf("Expected 2 groups at depth 3, got %d", len(got))
 	}
 
 	// Parents mode
-	got = AggregateByDepth(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Parents: true, MinDepth: 1}})
+	got = query.AggregateByDepth(
+		media,
+		models.GlobalFlags{AggregateFlags: models.AggregateFlags{Parents: true, MinDepth: 1}},
+	)
 	// Should have: /home, /home/user, /home/user/vids, /home/user/vids/v1.mp4, /home/user/vids/v2.mp4, /home/user/music, /home/user/music/a1.mp3
 	if len(got) != 7 {
 		t.Errorf("Expected 7 groups in parents mode, got %d", len(got))
@@ -121,7 +125,7 @@ func TestAggregateByDepthExtended(t *testing.T) {
 		{Media: models.Media{Path: filepath.FromSlash("/dir2/f3.mp4"), Size: &size300}},
 	}
 
-	got := AggregateByDepth(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1}})
+	got := query.AggregateByDepth(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1}})
 	if len(got) != 2 {
 		t.Errorf("Expected 2 groups, got %d", len(got))
 	}
@@ -149,13 +153,16 @@ func TestAggregateMediaAllModes(t *testing.T) {
 	}
 
 	// Extensions
-	got := AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{GroupByExtensions: true}})
+	got := query.AggregateMedia(
+		media,
+		models.GlobalFlags{AggregateFlags: models.AggregateFlags{GroupByExtensions: true}},
+	)
 	if len(got) != 1 || got[0].Path != ".mp4" {
 		t.Errorf("Extensions mode failed: %v", got)
 	}
 
 	// Size
-	got = AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{GroupBySize: true}})
+	got = query.AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{GroupBySize: true}})
 	if len(got) != 1 {
 		t.Errorf("Size mode failed: %v", got)
 	}
@@ -170,13 +177,19 @@ func TestAggregatePostFilteringExtra(t *testing.T) {
 	}
 
 	// Filter by FileCounts > 1
-	got := AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1, FileCounts: ">1"}})
+	got := query.AggregateMedia(
+		media,
+		models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1, FileCounts: ">1"}},
+	)
 	if len(got) != 1 || filepath.ToSlash(got[0].Path) != filepath.ToSlash(filepath.FromSlash("/dir1")) {
 		t.Errorf("FileCounts filtering failed: %v", got)
 	}
 
 	// Filter by FoldersOnly
-	got = AggregateMedia(media, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1, FoldersOnly: true}})
+	got = query.AggregateMedia(
+		media,
+		models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 1, FoldersOnly: true}},
+	)
 	if len(got) != 2 {
 		t.Errorf("FoldersOnly failed: %v", got)
 	}
@@ -187,7 +200,7 @@ func TestAggregatePostFilteringExtra(t *testing.T) {
 			{Media: models.Media{Path: "C:\\videos\\funny\\dog.mp4", Size: &size100}},
 		}
 		// Aggregate at depth 2 (C:\videos\funny)
-		agg := AggregateMedia(winMedia, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 2}})
+		agg := query.AggregateMedia(winMedia, models.GlobalFlags{AggregateFlags: models.AggregateFlags{Depth: 2}})
 		if len(agg) != 1 {
 			t.Errorf("Expected 1 aggregated folder, got %d", len(agg))
 		}

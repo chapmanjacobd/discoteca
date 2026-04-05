@@ -1,9 +1,11 @@
-package fs
+package fs_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/chapmanjacobd/discoteca/internal/fs"
 )
 
 func TestFindMedia(t *testing.T) {
@@ -28,9 +30,9 @@ func TestFindMedia(t *testing.T) {
 		}
 	}
 
-	found, err := FindMedia(tempDir, nil)
+	found, err := fs.FindMedia(tempDir, nil)
 	if err != nil {
-		t.Fatalf("FindMedia failed: %v", err)
+		t.Fatalf("fs.FindMedia failed: %v", err)
 	}
 
 	expectedCount := 5 // mp4, mp3, txt, mkv, jpg

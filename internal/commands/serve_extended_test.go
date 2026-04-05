@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
@@ -25,7 +26,7 @@ func TestServeExtended_Filters(t *testing.T) {
 	sqlDB.Exec(`INSERT INTO media (path, media_type, size, time_deleted) VALUES ('/a1.mp3', 'audio', 200, 0)`)
 	sqlDB.Close()
 
-	cmd := &ServeCmd{
+	cmd := &commands.ServeCmd{
 		Databases: []string{dbPath},
 	}
 	defer cmd.Close()

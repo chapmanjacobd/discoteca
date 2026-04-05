@@ -70,7 +70,7 @@ func TestDUItem(t *testing.T) {
 		TotalSize:     5000,
 		TotalDuration: 120,
 	}
-	item := duItem{stats: stats, isDir: true}
+	item := DUItem{stats: stats, isDir: true}
 	if item.Title() != "📁 path" {
 		t.Errorf("Unexpected title: %s", item.Title())
 	}

@@ -21,7 +21,7 @@ import (
 )
 
 // handleHealth returns OK if the server is running
-func (c *ServeCmd) handleHealth(w http.ResponseWriter, _ *http.Request) {
+func (c *ServeCmd) HandleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
@@ -29,7 +29,7 @@ func (c *ServeCmd) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // HandleQuery handles media searching and filtering.
 // GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
 func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
-	flags := c.parseFlags(r)
+	flags := c.ParseFlags(r)
 	q := r.URL.Query()
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -363,7 +363,7 @@ func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
 // handlePlay triggers local playback of a media file via mpv.
 // POST /api/play
 // Body: {"path": "..."}
-func (c *ServeCmd) handlePlay(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandlePlay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
@@ -384,7 +384,7 @@ func (c *ServeCmd) handlePlay(w http.ResponseWriter, r *http.Request) {
 
 	// Trigger local playback
 	models.Log.Info("Playing", "path", req.Path)
-	cmd := exec.Command("mpv", req.Path)
+	cmd := exec.CommandContext(r.Context(), "mpv", req.Path)
 	// We run it in background and don't wait for it
 	if err := cmd.Start(); err != nil {
 		models.Log.Error("Failed to start mpv", "error", err)
@@ -421,7 +421,7 @@ func (c *ServeCmd) markDeletedInAllDBs(ctx context.Context, path string, deleted
 // handleDelete marks a file as deleted or restores it in all databases.
 // POST /api/delete
 // Body: {"path": "...", "restore": bool}
-func (c *ServeCmd) handleDelete(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		sendError(w, http.StatusForbidden, "Read-only mode")
 		return
@@ -444,7 +444,7 @@ func (c *ServeCmd) handleDelete(w http.ResponseWriter, r *http.Request) {
 // handleProgress updates the playback progress for a media file.
 // POST /api/progress
 // Body: {"path": "...", "playhead": int64, "completed": bool}
-func (c *ServeCmd) handleProgress(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleProgress(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		sendError(w, http.StatusForbidden, "Read-only mode")
 		return
@@ -493,7 +493,7 @@ func (c *ServeCmd) handleProgress(w http.ResponseWriter, r *http.Request) {
 // handleMarkUnplayed resets play count and progress for a media file.
 // POST /api/mark-unplayed
 // Body: {"path": "..."}
-func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		sendError(w, http.StatusForbidden, "Read-only mode")
 		return
@@ -535,7 +535,7 @@ func (c *ServeCmd) handleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 // handleMarkPlayed increments play count and resets progress for a media file.
 // POST /api/mark-played
 // Body: {"path": "..."}
-func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		sendError(w, http.StatusForbidden, "Read-only mode")
 		return
@@ -579,7 +579,7 @@ func (c *ServeCmd) handleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 // handleRate updates the rating for a media file.
 // POST /api/rate
 // Body: {"path": "...", "score": float64}
-func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleRate(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		sendError(w, http.StatusForbidden, "Read-only mode")
 		return
@@ -618,7 +618,7 @@ func (c *ServeCmd) handleRate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (c *ServeCmd) handleEvents(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -652,7 +652,7 @@ func (c *ServeCmd) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
+func (c *ServeCmd) HandleLs(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		path = "/"
@@ -891,8 +891,8 @@ func (c *ServeCmd) handleLs(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
-func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
-	flags := c.parseFlags(r)
+func (c *ServeCmd) HandleDU(w http.ResponseWriter, r *http.Request) {
+	flags := c.ParseFlags(r)
 	path := r.URL.Query().Get("path")
 	includeCounts := r.URL.Query().Get("include_counts") == "true"
 
@@ -1101,8 +1101,8 @@ func (c *ServeCmd) handleDU(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func (c *ServeCmd) handleEpisodes(w http.ResponseWriter, r *http.Request) {
-	flags := c.parseFlags(r)
+func (c *ServeCmd) HandleEpisodes(w http.ResponseWriter, r *http.Request) {
+	flags := c.ParseFlags(r)
 	if flags.Limit <= 0 {
 		flags.All = true
 		flags.Limit = 1000000

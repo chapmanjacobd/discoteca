@@ -43,7 +43,7 @@ func Repair(ctx context.Context, dbPath string) error {
 	waitDuration := time.Since(start)
 
 	// 3. Check if it's actually corrupt
-	if isHealthy(ctx, dbPath) {
+	if IsHealthy(ctx, dbPath) {
 		if waitDuration > 1*time.Millisecond {
 			Log.Info("Database was repaired by another goroutine", "path", dbPath, "wait_time", waitDuration.String())
 		}
@@ -155,7 +155,7 @@ func Repair(ctx context.Context, dbPath string) error {
 			db.Close()
 		}
 
-		if isHealthy(ctx, dbPath) {
+		if IsHealthy(ctx, dbPath) {
 			Log.Info("Database repair and polish successful")
 			os.RemoveAll(backupDir)
 			return nil

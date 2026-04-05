@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -13,12 +14,12 @@ func TestRegexSortCmd_Run(t *testing.T) {
 
 	t.Run("DefaultSort", func(t *testing.T) {
 		var out strings.Builder
-		cmd := &RegexSortCmd{
+		cmd := &commands.RegexSortCmd{
 			Reader: strings.NewReader(input),
 			Writer: &out,
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("RegexSortCmd failed: %v", err)
+			t.Fatalf("commands.RegexSortCmd failed: %v", err)
 		}
 		output := out.String()
 		if !strings.Contains(output, "broccoli") {
@@ -28,7 +29,7 @@ func TestRegexSortCmd_Run(t *testing.T) {
 
 	t.Run("LineSortDup", func(t *testing.T) {
 		var out strings.Builder
-		cmd := &RegexSortCmd{
+		cmd := &commands.RegexSortCmd{
 			TextFlags: models.TextFlags{
 				LineSorts: []string{"dup", "natural"},
 			},
@@ -36,7 +37,7 @@ func TestRegexSortCmd_Run(t *testing.T) {
 			Writer: &out,
 		}
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("RegexSortCmd failed: %v", err)
+			t.Fatalf("commands.RegexSortCmd failed: %v", err)
 		}
 		output := out.String()
 		if !strings.Contains(output, "red apple") {

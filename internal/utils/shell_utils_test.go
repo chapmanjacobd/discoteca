@@ -1,4 +1,4 @@
-package utils
+package utils_test
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func TestShellQuote(t *testing.T) {
@@ -36,12 +37,12 @@ func TestResolveAbsolutePath(t *testing.T) {
 	os.WriteFile(f, []byte("test"), 0o644)
 
 	abs, _ := filepath.Abs(f)
-	if got := ResolveAbsolutePath(f); got != abs {
-		t.Errorf("ResolveAbsolutePath(%q) = %q, want %q", f, got, abs)
+	if got := utils.ResolveAbsolutePath(f); got != abs {
+		t.Errorf("utils.ResolveAbsolutePath(%q) = %q, want %q", f, got, abs)
 	}
 
-	if got := ResolveAbsolutePath("nonexistent"); got != "nonexistent" {
-		t.Errorf("ResolveAbsolutePath(nonexistent) = %q, want nonexistent", got)
+	if got := utils.ResolveAbsolutePath("nonexistent"); got != "nonexistent" {
+		t.Errorf("utils.ResolveAbsolutePath(nonexistent) = %q, want nonexistent", got)
 	}
 }
 
@@ -54,14 +55,14 @@ func TestFlattenWrapperFolder(t *testing.T) {
 	file := filepath.Join(wrapper, "file.txt")
 	os.WriteFile(file, []byte("data"), 0o644)
 
-	if err := FlattenWrapperFolder(tmpDir); err != nil {
-		t.Fatalf("FlattenWrapperFolder failed: %v", err)
+	if err := utils.FlattenWrapperFolder(tmpDir); err != nil {
+		t.Fatalf("utils.FlattenWrapperFolder failed: %v", err)
 	}
 
-	if !FileExists(filepath.Join(tmpDir, "file.txt")) {
+	if !utils.FileExists(filepath.Join(tmpDir, "file.txt")) {
 		t.Error("file.txt should be in the root folder")
 	}
-	if FileExists(wrapper) {
+	if utils.FileExists(wrapper) {
 		t.Error("wrapper folder should be deleted")
 	}
 }
@@ -75,12 +76,12 @@ func TestFlattenWrapperFolderConflict(t *testing.T) {
 	file := filepath.Join(wrapper, "wrapper")
 	os.WriteFile(file, []byte("conflict data"), 0o644)
 
-	if err := FlattenWrapperFolder(tmpDir); err != nil {
-		t.Fatalf("FlattenWrapperFolder failed: %v", err)
+	if err := utils.FlattenWrapperFolder(tmpDir); err != nil {
+		t.Fatalf("utils.FlattenWrapperFolder failed: %v", err)
 	}
 
 	dstFile := filepath.Join(tmpDir, "wrapper")
-	if !FileExists(dstFile) {
+	if !utils.FileExists(dstFile) {
 		t.Error("conflict file should be in the root folder")
 	}
 

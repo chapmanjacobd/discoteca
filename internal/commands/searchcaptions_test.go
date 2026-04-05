@@ -1,10 +1,11 @@
-package commands
+package commands_test
 
 import (
 	"context"
 	"database/sql"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
@@ -61,30 +62,30 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 	sqlDB.Close()
 
 	t.Run("BasicSearch", func(t *testing.T) {
-		cmd := &SearchCaptionsCmd{
+		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
 		}
 
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchCaptionsCmd failed: %v", err)
+			t.Fatalf("commands.SearchCaptionsCmd failed: %v", err)
 		}
 	})
 
 	t.Run("OverlapMerging", func(t *testing.T) {
-		cmd := &SearchCaptionsCmd{
+		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world", "overlapping"},
 			Overlap:  10,
 		}
 
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchCaptionsCmd failed: %v", err)
+			t.Fatalf("commands.SearchCaptionsCmd failed: %v", err)
 		}
 	})
 
 	t.Run("VideoOnlyFilter", func(t *testing.T) {
-		cmd := &SearchCaptionsCmd{
+		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
 			MediaFilterFlags: models.MediaFilterFlags{
@@ -93,12 +94,12 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 		}
 
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchCaptionsCmd with VideoOnly failed: %v", err)
+			t.Fatalf("commands.SearchCaptionsCmd with VideoOnly failed: %v", err)
 		}
 	})
 
 	t.Run("AudioOnlyFilter", func(t *testing.T) {
-		cmd := &SearchCaptionsCmd{
+		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
 			MediaFilterFlags: models.MediaFilterFlags{
@@ -107,12 +108,12 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 		}
 
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchCaptionsCmd with AudioOnly failed: %v", err)
+			t.Fatalf("commands.SearchCaptionsCmd with AudioOnly failed: %v", err)
 		}
 	})
 
 	t.Run("ImageOnlyFilter", func(t *testing.T) {
-		cmd := &SearchCaptionsCmd{
+		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
 			MediaFilterFlags: models.MediaFilterFlags{
@@ -121,7 +122,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 		}
 
 		if err := cmd.Run(context.Background()); err != nil {
-			t.Fatalf("SearchCaptionsCmd with ImageOnly failed: %v", err)
+			t.Fatalf("commands.SearchCaptionsCmd with ImageOnly failed: %v", err)
 		}
 	})
 }

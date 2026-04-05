@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/commands"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -24,7 +25,7 @@ func TestFilesInfoCmd_Run(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	cmd := &FilesInfoCmd{
+	cmd := &commands.FilesInfoCmd{
 		DisplayFlags: models.DisplayFlags{JSON: true},
 		Args:         []string{f.Name()},
 	}
@@ -32,7 +33,7 @@ func TestFilesInfoCmd_Run(t *testing.T) {
 		t.Fatalf("AfterApply failed: %v", err)
 	}
 	if err := cmd.Run(context.Background()); err != nil {
-		t.Fatalf("FilesInfoCmd failed: %v", err)
+		t.Fatalf("commands.FilesInfoCmd failed: %v", err)
 	}
 
 	w.Close()

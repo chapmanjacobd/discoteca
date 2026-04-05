@@ -1,9 +1,10 @@
-package sort
+package sort_test
 
 import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/sort"
 )
 
 func TestApply_BySize(t *testing.T) {
@@ -23,7 +24,7 @@ func TestApply_BySize(t *testing.T) {
 				{Path: "/a", Size: new(int64(1000))},
 				{Path: "/b", Size: new(int64(2000))},
 			}
-			Apply(media, BySize, tt.reverse, false)
+			sort.Apply(media, sort.BySize, tt.reverse, false)
 
 			for i, m := range media {
 				if *m.Size != tt.expected[i] {
@@ -42,7 +43,7 @@ func TestApply_NaturalSort(t *testing.T) {
 		{Path: "/show/episode20.mp4"},
 	}
 
-	Apply(media, ByPath, false, true)
+	sort.Apply(media, sort.ByPath, false, true)
 
 	expected := []string{
 		"/show/episode1.mp4",
@@ -68,56 +69,56 @@ func TestApply_ByOtherFields(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		method    Method
+		method    sort.Method
 		reverse   bool
 		natural   bool
 		checkFunc func([]models.Media) bool
 	}{
 		{
-			"ByTitle",
-			ByTitle,
+			"sort.ByTitle",
+			sort.ByTitle,
 			false,
 			false,
 			func(m []models.Media) bool { return *m[0].Title == "A" },
 		},
 		{
-			"ByDuration",
-			ByDuration,
+			"sort.ByDuration",
+			sort.ByDuration,
 			false,
 			false,
 			func(m []models.Media) bool { return *m[0].Duration == 100 },
 		},
 		{
-			"ByTimeCreated",
-			ByTimeCreated,
+			"sort.ByTimeCreated",
+			sort.ByTimeCreated,
 			false,
 			false,
 			func(m []models.Media) bool { return *m[0].TimeCreated == 100 },
 		},
 		{
-			"ByTimeModified",
-			ByTimeModified,
+			"sort.ByTimeModified",
+			sort.ByTimeModified,
 			false,
 			false,
 			func(m []models.Media) bool { return *m[0].TimeModified == 100 },
 		},
 		{
-			"ByTimePlayed",
-			ByTimePlayed,
+			"sort.ByTimePlayed",
+			sort.ByTimePlayed,
 			false,
 			false,
 			func(m []models.Media) bool { return *m[0].TimeLastPlayed == 100 },
 		},
 		{
-			"ByPlayCount",
-			ByPlayCount,
+			"sort.ByPlayCount",
+			sort.ByPlayCount,
 			false,
 			false,
 			func(m []models.Media) bool { return *m[0].PlayCount == 100 },
 		},
 		{
-			"ByPath invalid fallback",
-			Method("invalid"),
+			"sort.ByPath invalid fallback",
+			sort.Method("invalid"),
 			false,
 			false,
 			func(m []models.Media) bool { return m[0].Path == "1" },
@@ -146,7 +147,7 @@ func TestApply_ByOtherFields(t *testing.T) {
 					PlayCount:      &time100,
 				},
 			}
-			Apply(media, tt.method, tt.reverse, tt.natural)
+			sort.Apply(media, tt.method, tt.reverse, tt.natural)
 			if !tt.checkFunc(media) {
 				t.Errorf("%s check failed", tt.name)
 			}
