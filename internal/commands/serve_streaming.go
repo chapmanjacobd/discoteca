@@ -351,11 +351,11 @@ func (c *ServeCmd) generatePDFThumbnail(ctx context.Context, path string) ([]byt
 
 	// Try to extract readable text (skip PDF headers)
 	lines := strings.Split(text, "\n")
-	firstLine := ""
+	_ = lines // Available but not currently used
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if len(line) > 3 && !strings.HasPrefix(line, "%") && !strings.HasPrefix(line, "/") {
-			firstLine = line
+			_ = line // Found but not used
 			break
 		}
 	}
@@ -454,7 +454,7 @@ func (c *ServeCmd) generateEpubThumbnail(path string) ([]byte, string, error) {
 		}
 	}
 
-	title := ""
+	_ = opfFile // Available but not currently used
 	if opfFile != nil {
 		rc, err := opfFile.Open()
 		if err == nil {
@@ -466,7 +466,7 @@ func (c *ServeCmd) generateEpubThumbnail(path string) ([]byte, string, error) {
 				start := strings.Index(contentStr[idx:], ">")
 				end := strings.Index(contentStr[idx:], "</dc:title>")
 				if start != -1 && end != -1 && end > start {
-					title = strings.TrimSpace(contentStr[idx+start+1 : idx+end])
+					_ = strings.TrimSpace(contentStr[idx+start+1 : idx+end]) // Title extracted but not used
 				}
 			}
 		}

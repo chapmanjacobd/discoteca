@@ -33,4 +33,3 @@ func GetSchemaFTS() string {
 	}
 	return string(data)
 }
-
