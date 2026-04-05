@@ -418,30 +418,33 @@ func (l *slogLogger) With(args ...any) Logger {
 	return &slogLogger{l.Logger.With(args...)}
 }
 
+// BuildQueryOptions contains all flags needed to build GlobalFlags
+type BuildQueryOptions struct {
+	Core        CoreFlags
+	Query       QueryFlags
+	PathFilter  PathFilterFlags
+	Filter      FilterFlags
+	MediaFilter MediaFilterFlags
+	TimeFilter  TimeFilterFlags
+	Deleted     DeletedFlags
+	Sort        SortFlags
+	Display     DisplayFlags
+	FTS         FTSFlags
+}
+
 // BuildQueryGlobalFlags constructs GlobalFlags for query-based commands
 // This reduces boilerplate in command Run() methods
-func BuildQueryGlobalFlags(
-	core CoreFlags,
-	query QueryFlags,
-	pathFilter PathFilterFlags,
-	filter FilterFlags,
-	mediaFilter MediaFilterFlags,
-	timeFilter TimeFilterFlags,
-	deleted DeletedFlags,
-	sort SortFlags,
-	display DisplayFlags,
-	fts FTSFlags,
-) GlobalFlags {
+func BuildQueryGlobalFlags(opts BuildQueryOptions) GlobalFlags {
 	return GlobalFlags{
-		CoreFlags:        core,
-		QueryFlags:       query,
-		PathFilterFlags:  pathFilter,
-		FilterFlags:      filter,
-		MediaFilterFlags: mediaFilter,
-		TimeFilterFlags:  timeFilter,
-		DeletedFlags:     deleted,
-		SortFlags:        sort,
-		DisplayFlags:     display,
-		FTSFlags:         fts,
+		CoreFlags:        opts.Core,
+		QueryFlags:       opts.Query,
+		PathFilterFlags:  opts.PathFilter,
+		FilterFlags:      opts.Filter,
+		MediaFilterFlags: opts.MediaFilter,
+		TimeFilterFlags:  opts.TimeFilter,
+		DeletedFlags:     opts.Deleted,
+		SortFlags:        opts.Sort,
+		DisplayFlags:     opts.Display,
+		FTSFlags:         opts.FTS,
 	}
 }

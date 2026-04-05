@@ -354,56 +354,59 @@ func AggregateMediaWithMode(media []models.MediaWithDB, flags models.GlobalFlags
 		stats = AggregateByDepth(media, flags, fastMode)
 	}
 
-	// Post-aggregation filtering (unchanged)
-	if flags.FoldersOnly || flags.FilesOnly || flags.FolderSizes != nil || flags.FileCounts != "" ||
-		flags.FolderCounts != "" {
+	return applyFolderStatsFilters(stats, flags)
+}
 
-		var filtered []models.FolderStats
-		for _, f := range stats {
-			keep := true
-			if flags.FoldersOnly && f.Count == 0 {
-				keep = false
-			} else if flags.FilesOnly && f.Count > 0 {
-				keep = false
-			}
+func applyFolderStatsFilters(stats []models.FolderStats, flags models.GlobalFlags) []models.FolderStats {
+	if !flags.FoldersOnly && !flags.FilesOnly && flags.FolderSizes == nil && flags.FileCounts == "" &&
+		flags.FolderCounts == "" {
 
-			if keep && len(flags.FolderSizes) > 0 {
-				for _, fs := range flags.FolderSizes {
-					if r, err := utils.ParseRange(fs, utils.HumanToBytes); err == nil {
-						if !r.Matches(f.TotalSize) {
-							keep = false
-							break
-						}
-					}
-				}
-			}
-			if keep && flags.FileCounts != "" {
-				if r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
-					return strconv.ParseInt(s, 10, 64)
-				}); err == nil {
-					// In Python, file_counts applies to 'exists' or 'count'
-					if !r.Matches(int64(utils.Max(f.ExistsCount, f.Count))) {
-						keep = false
-					}
-				}
-			}
-			if keep && flags.FolderCounts != "" {
-				if r, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
-					return strconv.ParseInt(s, 10, 64)
-				}); err == nil {
-					if !r.Matches(int64(f.FolderCount)) {
-						keep = false
-					}
-				}
-			}
-			if keep {
-				filtered = append(filtered, f)
-			}
-		}
-		stats = filtered
+		return stats
 	}
 
-	return stats
+	var filtered []models.FolderStats
+	for _, f := range stats {
+		keep := true
+		if flags.FoldersOnly && f.Count == 0 {
+			keep = false
+		} else if flags.FilesOnly && f.Count > 0 {
+			keep = false
+		}
+
+		if keep && len(flags.FolderSizes) > 0 {
+			for _, fs := range flags.FolderSizes {
+				if r, err := utils.ParseRange(fs, utils.HumanToBytes); err == nil {
+					if !r.Matches(f.TotalSize) {
+						keep = false
+						break
+					}
+				}
+			}
+		}
+		if keep && flags.FileCounts != "" {
+			if r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
+				return strconv.ParseInt(s, 10, 64)
+			}); err == nil {
+				// In Python, file_counts applies to 'exists' or 'count'
+				if !r.Matches(int64(utils.Max(f.ExistsCount, f.Count))) {
+					keep = false
+				}
+			}
+		}
+		if keep && flags.FolderCounts != "" {
+			if r, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
+				return strconv.ParseInt(s, 10, 64)
+			}); err == nil {
+				if !r.Matches(int64(f.FolderCount)) {
+					keep = false
+				}
+			}
+		}
+		if keep {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
 }
 
 func AggregateExtensions(media []models.MediaWithDB, fastMode ...bool) []models.FolderStats {
@@ -487,62 +490,66 @@ func AggregateByDepth(media []models.MediaWithDB, flags models.GlobalFlags, fast
 	groups := make(map[string]*models.FolderStats)
 
 	for _, m := range media {
-		path := filepath.Clean(m.Path)
-		// Use pathutil for proper cross-platform path handling
-		parts, isAbs := pathutil.Split(path)
-
-		// 1. Add the file itself if it matches depth
-		if flags.Depth > 0 && len(parts) == flags.Depth {
-			if _, ok := groups[path]; !ok {
-				groups[path] = &models.FolderStats{Path: path}
-			}
-			updateStats(groups[path], m, false)
-		}
-
-		// 2. Add folders
-		if flags.Parents {
-			// MinDepth refers to the number of path components, so MinDepth=1 means start from first component
-			start := max(flags.MinDepth-1, 0)
-			for d := start; d < len(parts); d++ {
-				if flags.MaxDepth > 0 && d+1 > flags.MaxDepth {
-					break
-				}
-				parent := pathutil.Join(parts[:d+1], isAbs)
-				if _, ok := groups[parent]; !ok {
-					groups[parent] = &models.FolderStats{Path: parent}
-				}
-				updateStats(groups[parent], m, true)
-			}
-		} else if flags.BigDirs {
-			// BigDirs: group by immediate parent directory
-			parent := m.Parent()
-			if _, ok := groups[parent]; !ok {
-				groups[parent] = &models.FolderStats{Path: parent}
-			}
-			updateStats(groups[parent], m, true)
-		} else if flags.Depth > 0 && len(parts) > flags.Depth {
-			// Group at depth (e.g., depth=1 -> "/media" or "media", depth=2 -> "/media/video")
-			var parent string
-			if flags.Depth < len(parts) {
-				parent = pathutil.Join(parts[:flags.Depth], isAbs)
-			} else {
-				parent = pathutil.Join(parts, isAbs)
-			}
-			if _, ok := groups[parent]; !ok {
-				groups[parent] = &models.FolderStats{Path: parent}
-			}
-			updateStats(groups[parent], m, true)
-		} else {
-			// Default to immediate parent (when Depth=0 or file is at/below target depth)
-			parent := m.Parent()
-			if _, ok := groups[parent]; !ok {
-				groups[parent] = &models.FolderStats{Path: parent}
-			}
-			updateStats(groups[parent], m, true)
-		}
+		groupMediaByDepth(groups, m, flags)
 	}
 
 	return finalizeStatsWithOptions(groups, !fast, !fast)
+}
+
+func groupMediaByDepth(groups map[string]*models.FolderStats, m models.MediaWithDB, flags models.GlobalFlags) {
+	path := filepath.Clean(m.Path)
+	// Use pathutil for proper cross-platform path handling
+	parts, isAbs := pathutil.Split(path)
+
+	// 1. Add the file itself if it matches depth
+	if flags.Depth > 0 && len(parts) == flags.Depth {
+		if _, ok := groups[path]; !ok {
+			groups[path] = &models.FolderStats{Path: path}
+		}
+		updateStats(groups[path], m, false)
+	}
+
+	// 2. Add folders
+	if flags.Parents {
+		// MinDepth refers to the number of path components, so MinDepth=1 means start from first component
+		start := max(flags.MinDepth-1, 0)
+		for d := start; d < len(parts); d++ {
+			if flags.MaxDepth > 0 && d+1 > flags.MaxDepth {
+				break
+			}
+			parent := pathutil.Join(parts[:d+1], isAbs)
+			if _, ok := groups[parent]; !ok {
+				groups[parent] = &models.FolderStats{Path: parent}
+			}
+			updateStats(groups[parent], m, true)
+		}
+	} else if flags.BigDirs {
+		// BigDirs: group by immediate parent directory
+		parent := m.Parent()
+		if _, ok := groups[parent]; !ok {
+			groups[parent] = &models.FolderStats{Path: parent}
+		}
+		updateStats(groups[parent], m, true)
+	} else if flags.Depth > 0 && len(parts) > flags.Depth {
+		// Group at depth (e.g., depth=1 -> "/media" or "media", depth=2 -> "/media/video")
+		var parent string
+		if flags.Depth < len(parts) {
+			parent = pathutil.Join(parts[:flags.Depth], isAbs)
+		} else {
+			parent = pathutil.Join(parts, isAbs)
+		}
+		if _, ok := groups[parent]; !ok {
+			groups[parent] = &models.FolderStats{Path: parent}
+		}
+		updateStats(groups[parent], m, true)
+	} else {
+		// Default to immediate parent (when Depth=0 or file is at/below target depth)
+		parent := m.Parent()
+		if _, ok := groups[parent]; !ok {
+			groups[parent] = &models.FolderStats{Path: parent}
+		}
+		updateStats(groups[parent], m, true)
+	}
 }
 
 func updateStats(f *models.FolderStats, m models.MediaWithDB, isFolder bool) {
@@ -578,6 +585,11 @@ func finalizeStatsWithOptions(
 ) []models.FolderStats {
 	shouldStoreFiles := len(storeFiles) > 0 && storeFiles[0]
 
+	countSubdirectories(groups)
+	return calculateFinalStats(groups, calculateMedians, shouldStoreFiles)
+}
+
+func countSubdirectories(groups map[string]*models.FolderStats) {
 	// Identify parents to count subdirectories
 	for path := range groups {
 		parts, isAbs := pathutil.Split(path)
@@ -599,7 +611,13 @@ func finalizeStatsWithOptions(
 			}
 		}
 	}
+}
 
+func calculateFinalStats(
+	groups map[string]*models.FolderStats,
+	calculateMedians bool,
+	shouldStoreFiles bool,
+) []models.FolderStats {
 	result := make([]models.FolderStats, 0, len(groups))
 	for _, f := range groups {
 		if f.ExistsCount > 0 {
@@ -986,6 +1004,37 @@ func aggregateDUWithParentFilter(
 	flags models.GlobalFlags,
 	matchingParents map[string]struct{},
 ) ([]DUQueryResult, error) {
+	query, args := buildDUWithParentFilterQuery(ctx, pathPrefix, targetDepth, flags, matchingParents)
+
+	rows, err := sqlDB.QueryContext(ctx, query, args...)
+	if err != nil {
+		models.Log.Error("DU aggregation with parent filter failed", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []DUQueryResult
+	for rows.Next() {
+		var r DUQueryResult
+		if err := rows.Scan(&r.Path, &r.Count, &r.TotalSize, &r.TotalDuration); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+
+	// Apply post-aggregation filters (FolderCounts, FolderSizes)
+	results = applyPostAggregationFilters(results, flags)
+
+	return results, rows.Err()
+}
+
+func buildDUWithParentFilterQuery(
+	ctx context.Context,
+	pathPrefix string,
+	targetDepth int,
+	flags models.GlobalFlags,
+	matchingParents map[string]struct{},
+) (string, []any) {
 	var query string
 	var args []any
 
@@ -1111,27 +1160,7 @@ func aggregateDUWithParentFilter(
 	}
 
 	query += " GROUP BY agg_path ORDER BY total_size DESC"
-
-	rows, err := sqlDB.QueryContext(ctx, query, args...)
-	if err != nil {
-		models.Log.Error("DU aggregation with parent filter failed", "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []DUQueryResult
-	for rows.Next() {
-		var r DUQueryResult
-		if err := rows.Scan(&r.Path, &r.Count, &r.TotalSize, &r.TotalDuration); err != nil {
-			return nil, err
-		}
-		results = append(results, r)
-	}
-
-	// Apply post-aggregation filters (FolderCounts, FolderSizes)
-	results = applyPostAggregationFilters(results, flags)
-
-	return results, rows.Err()
+	return query, args
 }
 
 // applyPostAggregationFilters applies filters that require aggregated data (FolderCounts, FolderSizes)

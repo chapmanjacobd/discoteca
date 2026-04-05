@@ -27,18 +27,43 @@ type HistoryCmd struct {
 }
 
 func (c *HistoryCmd) Run(ctx context.Context) error {
-	flags := models.BuildQueryGlobalFlags(
-		c.CoreFlags,
-		models.QueryFlags{},
-		c.PathFilterFlags,
-		c.FilterFlags,
-		c.MediaFilterFlags,
-		c.TimeFilterFlags,
-		c.DeletedFlags,
-		c.SortFlags,
-		c.DisplayFlags,
-		models.FTSFlags{},
-	)
+	flags := c.buildFlags()
+
+	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
+		HideRedundantFirstPlayed(media)
+
+		if flags.JSON {
+			return utils.PrintJSON(media)
+		}
+
+		c.printHeader(flags)
+
+		if flags.DeleteRows {
+			return c.handleDeleteRows(ctx, media)
+		}
+
+		if flags.Partial != "" {
+			query.SortHistory(media, flags.Partial, flags.Reverse)
+		} else {
+			query.SortMedia(media, flags)
+		}
+		return PrintMedia(flags.DisplayFlags, flags.Columns, media)
+	})
+}
+
+func (c *HistoryCmd) buildFlags() models.GlobalFlags {
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        c.CoreFlags,
+		Query:       models.QueryFlags{},
+		PathFilter:  c.PathFilterFlags,
+		Filter:      c.FilterFlags,
+		MediaFilter: c.MediaFilterFlags,
+		TimeFilter:  c.TimeFilterFlags,
+		Deleted:     c.DeletedFlags,
+		Sort:        c.SortFlags,
+		Display:     c.DisplayFlags,
+		FTS:         models.FTSFlags{},
+	})
 	flags.PostActionFlags = c.PostActionFlags
 	// Set default sort for history
 	if flags.SortBy == "path" || flags.SortBy == "" {
@@ -51,47 +76,35 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 		watched := true
 		flags.Watched = &watched
 	}
+	return flags
+}
 
-	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
-		HideRedundantFirstPlayed(media)
+func (c *HistoryCmd) printHeader(flags models.GlobalFlags) {
+	if flags.Completed {
+		fmt.Println("Completed:")
+	} else if flags.InProgress {
+		fmt.Println("In progress:")
+	} else {
+		fmt.Println("History:")
+	}
+}
 
-		if flags.JSON {
-			return utils.PrintJSON(media)
-		}
-
-		if flags.Completed {
-			fmt.Println("Completed:")
-		} else if flags.InProgress {
-			fmt.Println("In progress:")
-		} else {
-			fmt.Println("History:")
-		}
-
-		if flags.DeleteRows {
-			for _, dbPath := range c.Databases {
-				var paths []string
-				for _, m := range media {
-					if m.DB == dbPath {
-						paths = append(paths, m.Path)
-					}
-				}
-				if len(paths) > 0 {
-					if err := history.DeleteHistoryByPaths(ctx, dbPath, paths); err != nil {
-						return err
-					}
-				}
+func (c *HistoryCmd) handleDeleteRows(ctx context.Context, media []models.MediaWithDB) error {
+	for _, dbPath := range c.Databases {
+		var paths []string
+		for _, m := range media {
+			if m.DB == dbPath {
+				paths = append(paths, m.Path)
 			}
-			fmt.Printf("Deleted history for %d items\n", len(media))
-			return nil
 		}
-
-		if flags.Partial != "" {
-			query.SortHistory(media, flags.Partial, flags.Reverse)
-		} else {
-			query.SortMedia(media, flags)
+		if len(paths) > 0 {
+			if err := history.DeleteHistoryByPaths(ctx, dbPath, paths); err != nil {
+				return err
+			}
 		}
-		return PrintMedia(flags.DisplayFlags, flags.Columns, media)
-	})
+	}
+	fmt.Printf("Deleted history for %d items\n", len(media))
+	return nil
 }
 
 type HistoryAddCmd struct {

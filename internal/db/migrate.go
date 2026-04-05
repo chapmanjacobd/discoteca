@@ -509,10 +509,24 @@ func migrateColumns(ctx context.Context, db *sql.DB) error {
 }
 
 func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
-	// 1. Check if we need cleanup (do dead columns exist?) OR if we need to migrate to STRICT
+	hasDead, err := needsCleanup(ctx, db, hasStrict)
+	if err != nil || !hasDead {
+		return err
+	}
+
+	// 2. Consolidate metadata into description before dropping columns
+	if err := consolidateMetadata(ctx, db); err != nil {
+		return err
+	}
+
+	// 3. Recreate table (SQLite standard way to drop multiple columns and/or add STRICT)
+	return recreateMediaTable(ctx, db, hasStrict)
+}
+
+func needsCleanup(ctx context.Context, db *sql.DB, hasStrict bool) (bool, error) {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info(media)")
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer rows.Close()
 
@@ -531,36 +545,35 @@ func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
 		var notnull, pk int
 		var dfltValue any
 		if scanErr := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); scanErr != nil {
-			return scanErr
+			return false, scanErr
 		}
 		if deadColumns[strings.ToLower(name)] {
 			hasDeadColumns = true
 			break
 		}
 	}
-	if err2 := rows.Err(); err2 != nil {
-		return err2
+	if err := rows.Err(); err != nil {
+		return false, err
 	}
 
 	strict := isTableStrict(ctx, db, "media")
 	needsStrictMigration := hasStrict && !strict
 
-	if !hasDeadColumns && !needsStrictMigration {
-		return nil
-	}
+	return hasDeadColumns || needsStrictMigration, nil
+}
 
-	// 2. Consolidate metadata into description before dropping columns
-	if hasDeadColumns {
-		_, _ = db.ExecContext(ctx, `UPDATE media SET description =
-            COALESCE(description, '') ||
-            CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
-            CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
-            CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
-            CASE WHEN "key" IS NOT NULL AND "key" != '' THEN '\nKey: ' || "key" ELSE '' END
-            WHERE decade IS NOT NULL OR mood IS NOT NULL OR bpm IS NOT NULL OR "key" IS NOT NULL`)
-	}
+func consolidateMetadata(ctx context.Context, db *sql.DB) error {
+	_, err := db.ExecContext(ctx, `UPDATE media SET description =
+		COALESCE(description, '') ||
+		CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
+		CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
+		CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
+		CASE WHEN "key" IS NOT NULL AND "key" != '' THEN '\nKey: ' || "key" ELSE '' END
+		WHERE decade IS NOT NULL OR mood IS NOT NULL OR bpm IS NOT NULL OR "key" IS NOT NULL`)
+	return err
+}
 
-	// 3. Recreate table (SQLite standard way to drop multiple columns and/or add STRICT)
+func recreateMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -609,28 +622,23 @@ func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
             description TEXT,
             language TEXT,
             time_downloaded INTEGER,
-            score REAL
+            score REAL,
+            fasthash TEXT,
+            sha256 TEXT,
+            is_deduped INTEGER DEFAULT 0
         ) %s`, colsDef, strictSQL),
-		fmt.Sprintf(`INSERT INTO media_dg_tmp (
-            %s title, duration, size, time_created, time_modified,
-            time_deleted, time_first_played, time_last_played, play_count, playhead,
-            media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs,
-            video_count, audio_count, subtitle_count, album, artist, genre,
-            categories, description, language, time_downloaded, score
-        ) SELECT
-            %s title, duration, size, time_created, time_modified,
-            time_deleted, time_first_played, time_last_played, play_count, playhead,
-            media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs,
-            video_count, audio_count, subtitle_count, album, artist, genre,
-            categories, description, language, time_downloaded, score
-        FROM media`, colsNames, colsNames),
-		`DROP TABLE media`,
-		`ALTER TABLE media_dg_tmp RENAME TO media`,
+		fmt.Sprintf(
+			"INSERT INTO media_dg_tmp (%s title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped) SELECT %s title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped FROM media",
+			colsNames,
+			colsNames,
+		),
+		"DROP TABLE media",
+		"ALTER TABLE media_dg_tmp RENAME TO media",
 	}
 
-	for _, sql := range sqls {
-		if _, err := tx.ExecContext(ctx, sql); err != nil {
-			return fmt.Errorf("failed cleanup step: %w", err)
+	for _, s := range sqls {
+		if _, err := tx.ExecContext(ctx, s); err != nil {
+			return err
 		}
 	}
 

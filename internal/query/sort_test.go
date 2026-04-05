@@ -1,23 +1,24 @@
-package query
+package query_test
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 )
 
 func TestParseSortConfig(t *testing.T) {
 	tests := []struct {
 		name       string
 		config     string
-		wantFields []SortField
+		wantFields []query.SortField
 		wantAlg    string
 	}{
 		{
 			name:   "simple field",
 			config: "path",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: false},
 			},
 			wantAlg: "natural",
@@ -25,7 +26,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "reversed field with minus",
 			config: "-path",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: true},
 			},
 			wantAlg: "natural",
@@ -33,7 +34,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "reversed field with prefix",
 			config: "reverse_path",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: true},
 			},
 			wantAlg: "natural",
@@ -41,7 +42,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "field with desc suffix",
 			config: "path desc",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: true},
 			},
 			wantAlg: "natural",
@@ -49,7 +50,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "field with asc suffix",
 			config: "path asc",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: false},
 			},
 			wantAlg: "natural",
@@ -57,7 +58,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "multi-field comma separated",
 			config: "video_count desc,audio_count desc,path asc",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "video_count", Reverse: true},
 				{Field: "audio_count", Reverse: true},
 				{Field: "path", Reverse: false},
@@ -67,7 +68,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "algorithm prefix",
 			config: "natural_path",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: false},
 			},
 			wantAlg: "natural",
@@ -75,7 +76,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "python algorithm",
 			config: "python_title",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "title", Reverse: false},
 			},
 			wantAlg: "python",
@@ -83,7 +84,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "complex multi-field with algorithms",
 			config: "natural_path,title desc,-play_count",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "path", Reverse: false},
 				{Field: "title", Reverse: true},
 				{Field: "play_count", Reverse: true},
@@ -93,7 +94,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "empty config",
 			config: "",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "ps", Reverse: false},
 			},
 			wantAlg: "natural",
@@ -101,7 +102,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "algorithm only",
 			config: "natural",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "ps", Reverse: false},
 			},
 			wantAlg: "natural",
@@ -109,7 +110,7 @@ func TestParseSortConfig(t *testing.T) {
 		{
 			name:   "xklb keyword",
 			config: "xklb",
-			wantFields: []SortField{
+			wantFields: []query.SortField{
 				{Field: "video_count", Reverse: true},
 				{Field: "audio_count", Reverse: true},
 				{Field: "path_is_remote", Reverse: false},
@@ -129,19 +130,19 @@ func TestParseSortConfig(t *testing.T) {
 			// Special handling for xklb keyword which gets expanded
 			if tt.config == "xklb" {
 				// Just verify it returns non-empty fields
-				fields, alg := parseSortConfig(tt.config)
+				fields, alg := query.ParseSortConfig(tt.config)
 				if len(fields) == 0 {
-					t.Errorf("parseSortConfig(%q) returned empty fields", tt.config)
+					t.Errorf("ParseSortConfig(%q) returned empty fields", tt.config)
 				}
 				if alg != "natural" {
-					t.Errorf("parseSortConfig(%q) alg = %q, want %q", tt.config, alg, tt.wantAlg)
+					t.Errorf("ParseSortConfig(%q) alg = %q, want %q", tt.config, alg, tt.wantAlg)
 				}
 				return
 			}
 
-			fields, alg := parseSortConfig(tt.config)
+			fields, alg := query.ParseSortConfig(tt.config)
 			if len(fields) != len(tt.wantFields) {
-				t.Errorf("parseSortConfig(%q) returned %d fields, want %d", tt.config, len(fields), len(tt.wantFields))
+				t.Errorf("ParseSortConfig(%q) returned %d fields, want %d", tt.config, len(fields), len(tt.wantFields))
 			}
 			for i, f := range fields {
 				if i >= len(tt.wantFields) {
@@ -149,7 +150,7 @@ func TestParseSortConfig(t *testing.T) {
 				}
 				if f.Field != tt.wantFields[i].Field {
 					t.Errorf(
-						"parseSortConfig(%q) field[%d] = %q, want %q",
+						"ParseSortConfig(%q) field[%d] = %q, want %q",
 						tt.config,
 						i,
 						f.Field,
@@ -158,7 +159,7 @@ func TestParseSortConfig(t *testing.T) {
 				}
 				if f.Reverse != tt.wantFields[i].Reverse {
 					t.Errorf(
-						"parseSortConfig(%q) field[%d].Reverse = %v, want %v",
+						"ParseSortConfig(%q) field[%d].Reverse = %v, want %v",
 						tt.config,
 						i,
 						f.Reverse,
@@ -167,7 +168,7 @@ func TestParseSortConfig(t *testing.T) {
 				}
 			}
 			if alg != tt.wantAlg {
-				t.Errorf("parseSortConfig(%q) alg = %q, want %q", tt.config, alg, tt.wantAlg)
+				t.Errorf("ParseSortConfig(%q) alg = %q, want %q", tt.config, alg, tt.wantAlg)
 			}
 		})
 	}
@@ -193,8 +194,8 @@ func TestIsNumericField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
-			if got := isNumericField(tt.field); got != tt.want {
-				t.Errorf("isNumericField(%q) = %v, want %v", tt.field, got, tt.want)
+			if got := query.IsNumericField(tt.field); got != tt.want {
+				t.Errorf("IsNumericField(%q) = %v, want %v", tt.field, got, tt.want)
 			}
 		})
 	}
@@ -235,8 +236,8 @@ func TestGetSortValueFloat64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
-			if got := getSortValueFloat64(m, tt.field); got != tt.want {
-				t.Errorf("getSortValueFloat64(%q) = %v, want %v", tt.field, got, tt.want)
+			if got := query.GetSortValueFloat64(m, tt.field); got != tt.want {
+				t.Errorf("GetSortValueFloat64(%q) = %v, want %v", tt.field, got, tt.want)
 			}
 		})
 	}
@@ -269,8 +270,8 @@ func TestGetSortValueString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
-			if got := getSortValueString(m, tt.field); got != tt.want {
-				t.Errorf("getSortValueString(%q) = %q, want %q", tt.field, got, tt.want)
+			if got := query.GetSortValueString(m, tt.field); got != tt.want {
+				t.Errorf("GetSortValueString(%q) = %q, want %q", tt.field, got, tt.want)
 			}
 		})
 	}
@@ -302,26 +303,26 @@ func TestCompareSortFields(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		sortFields []SortField
+		sortFields []query.SortField
 		want       int // negative if m1 should come before m2, positive if m2 should come before m1
 	}{
 		{
 			name: "video_count desc - m1 should come first",
-			sortFields: []SortField{
+			sortFields: []query.SortField{
 				{Field: "video_count", Reverse: true},
 			},
 			want: -1, // m1 has more videos (2 vs 1), with desc, m1 should come first (negative means m1 < m2 in sort order)
 		},
 		{
 			name: "video_count asc - m2 should come first",
-			sortFields: []SortField{
+			sortFields: []query.SortField{
 				{Field: "video_count", Reverse: false},
 			},
 			want: 1, // m1 has more videos (2 vs 1), with asc, m2 should come first (positive means m2 < m1 in sort order)
 		},
 		{
 			name: "multi-field - video_count different, first field decides",
-			sortFields: []SortField{
+			sortFields: []query.SortField{
 				{Field: "video_count", Reverse: false},
 				{Field: "audio_count", Reverse: false},
 			},
@@ -329,7 +330,7 @@ func TestCompareSortFields(t *testing.T) {
 		},
 		{
 			name: "path asc - alphabetical",
-			sortFields: []SortField{
+			sortFields: []query.SortField{
 				{Field: "path", Reverse: false},
 			},
 			want: -1, // /path/a.mp4 < /path/b.mp4, so m1 comes first
@@ -338,9 +339,9 @@ func TestCompareSortFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := compareSortFields(media, 0, 1, tt.sortFields, "natural")
+			got := query.CompareSortFields(media, 0, 1, tt.sortFields, "natural")
 			if got != tt.want {
-				t.Errorf("compareSortFields() = %v, want %v", got, tt.want)
+				t.Errorf("CompareSortFields() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -400,7 +401,7 @@ func TestSortAdvanced(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sb := NewSortBuilder(models.GlobalFlags{})
+			sb := query.NewSortBuilder(models.GlobalFlags{})
 			sb.SortAdvanced(tt.media, tt.config)
 
 			for i, want := range tt.wantPath {
@@ -416,29 +417,29 @@ func TestSortAdvanced(t *testing.T) {
 }
 
 func TestXklbDefaultSort(t *testing.T) {
-	fields := xklbDefaultSort()
+	fields := query.XklbDefaultSort()
 	if len(fields) == 0 {
-		t.Error("xklbDefaultSort() returned empty fields")
+		t.Error("XklbDefaultSort() returned empty fields")
 	}
 
 	// Check first field is video_count desc
 	if len(fields) > 0 {
 		if fields[0].Field != "video_count" || !fields[0].Reverse {
-			t.Errorf("xklbDefaultSort() first field = %+v, want video_count desc", fields[0])
+			t.Errorf("XklbDefaultSort() first field = %+v, want video_count desc", fields[0])
 		}
 	}
 }
 
 func TestDuDefaultSort(t *testing.T) {
-	fields := duDefaultSort()
+	fields := query.DuDefaultSort()
 	if len(fields) == 0 {
-		t.Error("duDefaultSort() returned empty fields")
+		t.Error("DuDefaultSort() returned empty fields")
 	}
 
 	// Check first field is size_per_count desc
 	if len(fields) > 0 {
 		if fields[0].Field != "size_per_count" || !fields[0].Reverse {
-			t.Errorf("duDefaultSort() first field = %+v, want size_per_count desc", fields[0])
+			t.Errorf("DuDefaultSort() first field = %+v, want size_per_count desc", fields[0])
 		}
 	}
 }
@@ -463,7 +464,7 @@ func TestReverseXklbSort(t *testing.T) {
 
 	// With reverse_xklb, audio-only (video_count=0) should come before videos
 	media := []models.MediaWithDB{m2, m1}
-	sb := NewSortBuilder(models.GlobalFlags{})
+	sb := query.NewSortBuilder(models.GlobalFlags{})
 	sb.SortAdvanced(media, "reverse_xklb")
 
 	// m1 (audio-only) should come first
@@ -525,10 +526,10 @@ func TestParseSortConfigWithGroups(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			groups := parseSortConfigWithGroups(tt.config)
+			groups := query.ParseSortConfigWithGroups(tt.config)
 			if len(groups) != tt.wantGroups {
 				t.Errorf(
-					"parseSortConfigWithGroups(%q) returned %d groups, want %d",
+					"ParseSortConfigWithGroups(%q) returned %d groups, want %d",
 					tt.config,
 					len(groups),
 					tt.wantGroups,
@@ -537,7 +538,7 @@ func TestParseSortConfigWithGroups(t *testing.T) {
 			if tt.wantWeighted >= 0 {
 				if groups[tt.wantWeighted].Alg != "weighted" {
 					t.Errorf(
-						"parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'weighted'",
+						"ParseSortConfigWithGroups(%q) group[%d] alg = %q, want 'weighted'",
 						tt.config,
 						tt.wantWeighted,
 						groups[tt.wantWeighted].Alg,
@@ -547,7 +548,7 @@ func TestParseSortConfigWithGroups(t *testing.T) {
 			if tt.wantNatural >= 0 {
 				if groups[tt.wantNatural].Alg != "natural" {
 					t.Errorf(
-						"parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'natural'",
+						"ParseSortConfigWithGroups(%q) group[%d] alg = %q, want 'natural'",
 						tt.config,
 						tt.wantNatural,
 						groups[tt.wantNatural].Alg,
@@ -557,7 +558,7 @@ func TestParseSortConfigWithGroups(t *testing.T) {
 			if tt.wantRelated >= 0 {
 				if groups[tt.wantRelated].Alg != "related" {
 					t.Errorf(
-						"parseSortConfigWithGroups(%q) group[%d] alg = %q, want 'related'",
+						"ParseSortConfigWithGroups(%q) group[%d] alg = %q, want 'related'",
 						tt.config,
 						tt.wantRelated,
 						groups[tt.wantRelated].Alg,
@@ -601,14 +602,14 @@ func TestWeightedRerank(t *testing.T) {
 	}
 
 	// Apply weighted rerank with play_count as primary (higher weight) and size as secondary
-	applyWeightedRerank(media, []SortField{
+	query.ApplyWeightedRerank(media, []query.SortField{
 		{Field: "play_count", Reverse: true}, // Most played first
 		{Field: "size", Reverse: true},       // Largest first
 	})
 
 	// Highest play count should come first
 	if media[0].Path != "/path/high.mp4" {
-		t.Errorf("applyWeightedRerank() position 0 = %q, want /path/high.mp4 (most played)", media[0].Path)
+		t.Errorf("ApplyWeightedRerank() position 0 = %q, want /path/high.mp4 (most played)", media[0].Path)
 	}
 }
 
@@ -620,15 +621,15 @@ func TestNaturalOrderGroup(t *testing.T) {
 	}
 
 	// Apply natural sort - should order numerically (1, 2, 10) not lexicographically (1, 10, 2)
-	applyNaturalSort(media, []SortField{{Field: "path", Reverse: false}})
+	query.ApplyNaturalSort(media, []query.SortField{{Field: "path", Reverse: false}})
 
 	if media[0].Path != "/path/episode1.mp4" {
-		t.Errorf("applyNaturalSort() position 0 = %q, want /path/episode1.mp4", media[0].Path)
+		t.Errorf("ApplyNaturalSort() position 0 = %q, want /path/episode1.mp4", media[0].Path)
 	}
 	if media[1].Path != "/path/episode2.mp4" {
-		t.Errorf("applyNaturalSort() position 1 = %q, want /path/episode2.mp4", media[1].Path)
+		t.Errorf("ApplyNaturalSort() position 1 = %q, want /path/episode2.mp4", media[1].Path)
 	}
 	if media[2].Path != "/path/episode10.mp4" {
-		t.Errorf("applyNaturalSort() position 2 = %q, want /path/episode10.mp4", media[2].Path)
+		t.Errorf("ApplyNaturalSort() position 2 = %q, want /path/episode10.mp4", media[2].Path)
 	}
 }

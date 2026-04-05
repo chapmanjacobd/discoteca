@@ -49,67 +49,90 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 		}
 
 		for _, m := range media {
-			var corruption float64
-			duration := 0.0
-			if m.Duration != nil {
-				duration = float64(*m.Duration)
-			}
+			c.checkSingleMedia(ctx, m, gap, deleteThreshold, fullScanThreshold, flags.Simulate)
+		}
+		return nil
+	})
+}
 
-			if c.FullScan {
+func (c *MediaCheckCmd) checkSingleMedia(
+	ctx context.Context,
+	m models.MediaWithDB,
+	gap, deleteThreshold, fullScanThreshold float64,
+	simulate bool,
+) {
+	var corruption float64
+	duration := 0.0
+	if m.Duration != nil {
+		duration = float64(*m.Duration)
+	}
+
+	if c.FullScan {
+		var err error
+		corruption, err = metadata.DecodeFullScan(ctx, m.Path)
+		if err != nil {
+			models.Log.Error("Full scan failed", "path", m.Path, "error", err)
+			corruption = 0.5
+		}
+	} else {
+		if duration == 0 {
+			corruption = 0.5
+		} else {
+			scans := utils.CalculateSegments(duration, c.ChunkSize, gap)
+			corruption = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
+
+			if fullScanThreshold > 0 && corruption >= fullScanThreshold {
+				models.Log.Info(
+					"Corruption threshold reached, performing full scan",
+					"path",
+					m.Path,
+					"corruption",
+					corruption,
+				)
 				var err error
 				corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 				if err != nil {
 					models.Log.Error("Full scan failed", "path", m.Path, "error", err)
-					corruption = 0.5
-				}
-			} else {
-				if duration == 0 {
-					corruption = 0.5
-				} else {
-					scans := utils.CalculateSegments(duration, c.ChunkSize, gap)
-					corruption = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
-
-					if fullScanThreshold > 0 && corruption >= fullScanThreshold {
-						models.Log.Info(
-							"Corruption threshold reached, performing full scan",
-							"path",
-							m.Path,
-							"corruption",
-							corruption,
-						)
-						var err error
-						corruption, err = metadata.DecodeFullScan(ctx, m.Path)
-						if err != nil {
-							models.Log.Error("Full scan failed", "path", m.Path, "error", err)
-						}
-					}
-				}
-			}
-
-			fmt.Printf("%.2f%%\t%s\n", corruption*100, m.Path)
-
-			if deleteThreshold > 0 && corruption >= deleteThreshold {
-				models.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
-				if !flags.Simulate {
-					if err := os.Remove(m.Path); err != nil {
-						models.Log.Error("Failed to delete corrupt file", "path", m.Path, "error", err)
-					} else {
-						// Mark as deleted in DB
-						sqlDB, err := db.Connect(ctx, m.DB)
-						if err == nil {
-							defer sqlDB.Close()
-							queries := db.New(sqlDB)
-							if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
-								Path:        m.Path,
-								TimeDeleted: utils.ToNullInt64(time.Now().Unix()),
-							}); err != nil {
-								models.Log.Warn("Failed to mark deleted in DB", "path", m.Path, "error", err)
-							}
-						}
-					}
 				}
 			}
 		}
-		return nil
-	})
+	}
+
+	fmt.Printf("%.2f%%\t%s\n", corruption*100, m.Path)
+
+	if deleteThreshold > 0 && corruption >= deleteThreshold {
+		c.handleCorruptFile(ctx, m, corruption, simulate)
+	}
+}
+
+func (c *MediaCheckCmd) handleCorruptFile(
+	ctx context.Context,
+	m models.MediaWithDB,
+	corruption float64,
+	simulate bool,
+) {
+	models.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
+	if simulate {
+		return
+	}
+
+	if err := os.Remove(m.Path); err != nil {
+		models.Log.Error("Failed to delete corrupt file", "path", m.Path, "error", err)
+		return
+	}
+
+	// Mark as deleted in DB
+	sqlDB, err := db.Connect(ctx, m.DB)
+	if err != nil {
+		return
+	}
+	defer sqlDB.Close()
+
+	queries := db.New(sqlDB)
+	if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
+		Path:        m.Path,
+		TimeDeleted: utils.ToNullInt64(time.Now().Unix()),
+	}); err != nil {
+		models.Log.Warn("Failed to mark deleted in DB", "path", m.Path, "error", err)
+	}
 }

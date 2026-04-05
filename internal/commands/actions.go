@@ -223,84 +223,90 @@ func CopyMediaItem(destDir string, m models.MediaWithDB) error {
 
 func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.MediaWithDB, audioOnly bool) error {
 	for _, m := range media {
-		if !utils.FileExists(m.Path) {
-			continue
-		}
-
-		models.Log.Info("Casting", "path", m.Path)
-		if err := os.WriteFile(utils.GetCattNowPlayingFile(), []byte(m.Path), 0o644); err != nil {
-			models.Log.Warn("Failed to write now-playing file", "error", err)
-		}
-
-		args := []string{"catt"}
-		if flags.CastDevice != "" {
-			args = append(args, "-d", flags.CastDevice)
-		}
-		args = append(args, "cast")
-		if audioOnly || flags.NoSubtitles {
-			args = append(args, "--no-subs")
-		}
-		if flags.Start != "" {
-			// Convert start time to seconds if needed
-			seconds := flags.Start
-			if strings.Contains(flags.Start, ":") {
-				seconds = strconv.FormatInt(int64(utils.FromTimestampSeconds(flags.Start)), 10)
-			}
-			args = append(args, "--seek-to", seconds)
-		}
-		args = append(args, m.Path)
-		startTime := time.Now()
-
-		if flags.CastWithLocal {
-			// Start catt in background
-			cattCmd := exec.CommandContext(ctx, args[0], args[1:]...)
-			if err := cattCmd.Start(); err != nil {
-				models.Log.Error("Failed to start catt", "error", err)
-				continue
-			}
-
-			// Wait a bit for sync (lazy sync as in Python version)
-			time.Sleep(974 * time.Millisecond)
-
-			// Start local mpv
-			localArgs := []string{"mpv"}
-			if audioOnly {
-				localArgs = append(localArgs, "--video=no")
-			}
-			localArgs = append(localArgs, m.Path)
-			localCmd := exec.CommandContext(ctx, localArgs[0], localArgs[1:]...)
-			localCmd.Stdout = os.Stdout
-			localCmd.Stderr = os.Stderr
-			localCmd.Stdin = os.Stdin
-			_ = localCmd.Run()
-
-			// Wait for catt to finish if it hasn't
-			_ = cattCmd.Wait()
-		} else {
-			cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			if err := cmd.Run(); err != nil {
-				models.Log.Error("catt failed", "error", err)
-			}
-		}
-
-		if flags.TrackHistory {
-			mediaDuration := 0
-			if m.Duration != nil {
-				mediaDuration = int(*m.Duration)
-			}
-			existingPlayhead := 0
-			if m.Playhead != nil {
-				existingPlayhead = int(*m.Playhead)
-			}
-			playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
-			if err := history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false); err != nil {
-				models.Log.Warn("Failed to update history", "error", err)
-			}
+		if err := castSingleMedia(ctx, flags, m, audioOnly); err != nil {
+			models.Log.Error("Failed to cast media", "path", m.Path, "error", err)
 		}
 	}
 	os.Remove(utils.GetCattNowPlayingFile())
+	return nil
+}
+
+func castSingleMedia(ctx context.Context, flags models.GlobalFlags, m models.MediaWithDB, audioOnly bool) error {
+	if !utils.FileExists(m.Path) {
+		return nil
+	}
+
+	models.Log.Info("Casting", "path", m.Path)
+	if err := os.WriteFile(utils.GetCattNowPlayingFile(), []byte(m.Path), 0o644); err != nil {
+		models.Log.Warn("Failed to write now-playing file", "error", err)
+	}
+
+	args := []string{"catt"}
+	if flags.CastDevice != "" {
+		args = append(args, "-d", flags.CastDevice)
+	}
+	args = append(args, "cast")
+	if audioOnly || flags.NoSubtitles {
+		args = append(args, "--no-subs")
+	}
+	if flags.Start != "" {
+		// Convert start time to seconds if needed
+		seconds := flags.Start
+		if strings.Contains(flags.Start, ":") {
+			seconds = strconv.FormatInt(int64(utils.FromTimestampSeconds(flags.Start)), 10)
+		}
+		args = append(args, "--seek-to", seconds)
+	}
+	args = append(args, m.Path)
+	startTime := time.Now()
+
+	if flags.CastWithLocal {
+		// Start catt in background
+		cattCmd := exec.CommandContext(ctx, args[0], args[1:]...)
+		if err := cattCmd.Start(); err != nil {
+			return err
+		}
+
+		// Wait a bit for sync (lazy sync as in Python version)
+		time.Sleep(974 * time.Millisecond)
+
+		// Start local mpv
+		localArgs := []string{"mpv"}
+		if audioOnly {
+			localArgs = append(localArgs, "--video=no")
+		}
+		localArgs = append(localArgs, m.Path)
+		localCmd := exec.CommandContext(ctx, localArgs[0], localArgs[1:]...)
+		localCmd.Stdout = os.Stdout
+		localCmd.Stderr = os.Stderr
+		localCmd.Stdin = os.Stdin
+		_ = localCmd.Run()
+
+		// Wait for catt to finish if it hasn't
+		_ = cattCmd.Wait()
+	} else {
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			models.Log.Error("catt failed", "error", err)
+		}
+	}
+
+	if flags.TrackHistory {
+		mediaDuration := 0
+		if m.Duration != nil {
+			mediaDuration = int(*m.Duration)
+		}
+		existingPlayhead := 0
+		if m.Playhead != nil {
+			existingPlayhead = int(*m.Playhead)
+		}
+		playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
+		if err := history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false); err != nil {
+			models.Log.Warn("Failed to update history", "error", err)
+		}
+	}
 	return nil
 }

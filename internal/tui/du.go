@@ -41,63 +41,67 @@ func buildDUTree(media []models.MediaWithDB) *duTreeNode {
 	}
 
 	for _, m := range media {
-		path := m.Path
-		parts := strings.FieldsFunc(path, func(r rune) bool {
-			return r == '/' || r == '\\'
-		})
-		isAbs := len(path) > 0 && (path[0] == '/' || path[0] == '\\')
-
-		// Update root stats
-		if m.Size != nil {
-			root.TotalSize += *m.Size
-		}
-		if m.Duration != nil {
-			root.TotalDuration += *m.Duration
-		}
-		root.Count++
-
-		// Build tree path
-		current := root
-		var currentPath string
-
-		for i, part := range parts {
-			// Build path up to this component
-			if isAbs {
-				if i == 0 {
-					currentPath = "/" + part
-				} else {
-					currentPath = currentPath + "/" + part
-				}
-			} else {
-				if i == 0 {
-					currentPath = part
-				} else {
-					currentPath = currentPath + "/" + part
-				}
-			}
-
-			if _, ok := current.Children[part]; !ok {
-				current.Children[part] = &duTreeNode{
-					Path:     currentPath,
-					Name:     part,
-					Children: make(map[string]*duTreeNode),
-					IsDir:    true,
-				}
-			}
-			current = current.Children[part]
-
-			// Add file stats to this node
-			if m.Size != nil {
-				current.TotalSize += *m.Size
-			}
-			if m.Duration != nil {
-				current.TotalDuration += *m.Duration
-			}
-			current.Count++
-		}
+		addMediaToTree(root, m)
 	}
 
 	return root
+}
+
+func addMediaToTree(root *duTreeNode, m models.MediaWithDB) {
+	path := m.Path
+	parts := strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+	isAbs := len(path) > 0 && (path[0] == '/' || path[0] == '\\')
+
+	// Update root stats
+	if m.Size != nil {
+		root.TotalSize += *m.Size
+	}
+	if m.Duration != nil {
+		root.TotalDuration += *m.Duration
+	}
+	root.Count++
+
+	// Build tree path
+	current := root
+	var currentPath string
+
+	for i, part := range parts {
+		// Build path up to this component
+		if isAbs {
+			if i == 0 {
+				currentPath = "/" + part
+			} else {
+				currentPath = currentPath + "/" + part
+			}
+		} else {
+			if i == 0 {
+				currentPath = part
+			} else {
+				currentPath = currentPath + "/" + part
+			}
+		}
+
+		if _, ok := current.Children[part]; !ok {
+			current.Children[part] = &duTreeNode{
+				Path:     currentPath,
+				Name:     part,
+				Children: make(map[string]*duTreeNode),
+				IsDir:    true,
+			}
+		}
+		current = current.Children[part]
+
+		// Add file stats to this node
+		if m.Size != nil {
+			current.TotalSize += *m.Size
+		}
+		if m.Duration != nil {
+			current.TotalDuration += *m.Duration
+		}
+		current.Count++
+	}
 }
 
 // getNodesAtDepth returns nodes at the specified depth from the tree

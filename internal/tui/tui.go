@@ -154,7 +154,24 @@ type Model struct {
 }
 
 func NewModel(media []models.MediaWithDB, databases []string, flags models.GlobalFlags, customCats []string) *Model {
-	// Prepare media list
+	ml := createMediaList(media)
+	ti := createSearchInput()
+	sb := createSidebar(media, customCats)
+
+	m := &Model{
+		sidebar:     sb,
+		mediaList:   ml,
+		searchInput: ti,
+		allMedia:    media,
+		databases:   databases,
+		flags:       flags,
+		activePane:  PaneMediaList,
+	}
+
+	return m
+}
+
+func createMediaList(media []models.MediaWithDB) list.Model {
 	items := make([]list.Item, len(media))
 	for i, m := range media {
 		items[i] = item{media: m}
@@ -165,15 +182,20 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 	ml.SetShowStatusBar(true)
 	ml.SetFilteringEnabled(false) // We use our own live search
 	ml.Styles.Title = StyleTitle
+	return ml
+}
 
+func createSearchInput() textinput.Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
 	ti.Prompt = "🔍 "
 	ti.CharLimit = 156
 	ti.Width = 30
+	return ti
+}
 
-	// Prepare sidebar items
-	sidebarItems := []list.Item{
+func getDefaultSidebarItems() []list.Item {
+	return []list.Item{
 		sidebarItem{title: "🏠 All Media", filter: func(_ models.MediaWithDB) bool { return true }},
 		sidebarItem{
 			title:  "🕒 History",
@@ -212,13 +234,9 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 			filter: func(m models.MediaWithDB) bool { return m.TimeDeleted != nil && *m.TimeDeleted > 0 },
 		},
 	}
+}
 
-	isCustom := make(map[string]bool)
-	for _, c := range customCats {
-		isCustom[c] = true
-	}
-
-	// Extract Categories
+func getSortedCategories(media []models.MediaWithDB, customCats []string) []string {
 	categories := make(map[string]bool)
 	for _, m := range media {
 		if m.Categories != nil && *m.Categories != "" {
@@ -230,7 +248,6 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 			}
 		}
 	}
-	// Add custom categories that might have 0 count
 	for _, c := range customCats {
 		categories[c] = true
 	}
@@ -239,17 +256,10 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 		sortedCats = append(sortedCats, c)
 	}
 	sort.Strings(sortedCats)
-	for _, c := range sortedCats {
-		cat := c // capture
-		sidebarItems = append(sidebarItems, sidebarItem{
-			title: "🏷️ " + cat,
-			filter: func(m models.MediaWithDB) bool {
-				return m.Categories != nil && strings.Contains(*m.Categories, ";"+cat+";")
-			},
-		})
-	}
+	return sortedCats
+}
 
-	// Extract Genres
+func getSortedGenres(media []models.MediaWithDB) []string {
 	genres := make(map[string]bool)
 	for _, m := range media {
 		if m.Genre != nil && *m.Genre != "" {
@@ -261,6 +271,26 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 		sortedGenres = append(sortedGenres, g)
 	}
 	sort.Strings(sortedGenres)
+	return sortedGenres
+}
+
+func createSidebar(media []models.MediaWithDB, customCats []string) list.Model {
+	sidebarItems := getDefaultSidebarItems()
+
+	// Add Categories
+	sortedCats := getSortedCategories(media, customCats)
+	for _, c := range sortedCats {
+		cat := c // capture
+		sidebarItems = append(sidebarItems, sidebarItem{
+			title: "🏷️ " + cat,
+			filter: func(m models.MediaWithDB) bool {
+				return m.Categories != nil && strings.Contains(*m.Categories, ";"+cat+";")
+			},
+		})
+	}
+
+	// Add Genres
+	sortedGenres := getSortedGenres(media)
 	for _, g := range sortedGenres {
 		genre := g // capture
 		sidebarItems = append(sidebarItems, sidebarItem{
@@ -278,18 +308,7 @@ func NewModel(media []models.MediaWithDB, databases []string, flags models.Globa
 	sb.SetShowPagination(false)
 	sb.SetShowHelp(false)
 	sb.Styles.Title = StyleTitle
-
-	m := &Model{
-		sidebar:     sb,
-		mediaList:   ml,
-		searchInput: ti,
-		allMedia:    media,
-		databases:   databases,
-		flags:       flags,
-		activePane:  PaneMediaList,
-	}
-
-	return m
+	return sb
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -315,108 +334,18 @@ func (m *Model) performSearch(queryStr string) tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case searchMsg:
-		m.allMedia = msg
-		items := make([]list.Item, len(msg))
-		for i, med := range msg {
-			items[i] = item{media: med}
-		}
-		m.mediaList.SetItems(items)
-		return m, nil
-
+		return m.handleSearchMsg(msg)
 	case tea.KeyMsg:
-		if m.showDetails || m.showHelp {
-			if msg.String() == "d" || msg.String() == "esc" || msg.String() == "q" || msg.String() == "?" {
-				m.showDetails = false
-				m.showHelp = false
-				return m, nil
-			}
-			return m, nil
-		}
-
-		if m.activePane == PaneSearch {
-			switch msg.String() {
-			case "enter", "esc":
-				m.activePane = PaneMediaList
-				m.searchInput.Blur()
-				return m, nil
-			}
-
-			var tiCmd tea.Cmd
-			m.searchInput, tiCmd = m.searchInput.Update(msg)
-			return m, tea.Batch(tiCmd, m.performSearch(m.searchInput.Value()))
-		}
-
-		// Global keys
-		switch msg.String() {
-		case "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
-		case "q":
-			m.quitting = true
-			return m, tea.Quit
-		case "?":
-			m.showHelp = true
-			return m, nil
-		case "/":
-			m.activePane = PaneSearch
-			return m, m.searchInput.Focus()
-		case "tab":
-			switch m.activePane {
-			case PaneSidebar:
-				m.activePane = PaneMediaList
-			case PaneMediaList:
-				m.activePane = PaneSearch
-				return m, m.searchInput.Focus()
-			case PaneSearch:
-				m.activePane = PaneSidebar
-				m.searchInput.Blur()
-			}
-			return m, nil
-		case "left":
-			if m.activePane == PaneMediaList && !m.mediaList.SettingFilter() {
-				m.activePane = PaneSidebar
-				return m, nil
-			}
-		case "right":
-			if m.activePane == PaneSidebar {
-				m.activePane = PaneMediaList
-				return m, nil
-			}
-		case "d":
-			if !m.mediaList.SettingFilter() {
-				m.showDetails = true
-				return m, nil
-			}
-		case "enter":
-			switch m.activePane {
-			case PaneMediaList:
-				i, ok := m.mediaList.SelectedItem().(item)
-				if ok {
-					m.choice = &i.media
-					return m, tea.Quit
-				}
-			case PaneSidebar:
-				m.updateMediaList()
-				m.activePane = PaneMediaList
-				return m, nil
-			case PaneSearch:
-				// Enter in search pane exits search and returns to media list
-				m.activePane = PaneMediaList
-				m.searchInput.Blur()
-				return m, nil
-			}
-		}
-
+		return m.handleKeyMsg(msg)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.recalculateSizes()
 	}
 
+	var cmd tea.Cmd
 	if m.activePane == PaneSidebar {
 		m.sidebar, cmd = m.sidebar.Update(msg)
 		m.updateMediaList()
@@ -425,6 +354,109 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, cmd
+}
+
+func (m *Model) handleSearchMsg(msg searchMsg) (tea.Model, tea.Cmd) {
+	m.allMedia = msg
+	items := make([]list.Item, len(msg))
+	for i, med := range msg {
+		items[i] = item{media: med}
+	}
+	m.mediaList.SetItems(items)
+	return m, nil
+}
+
+func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.showDetails || m.showHelp {
+		if msg.String() == "d" || msg.String() == "esc" || msg.String() == "q" || msg.String() == "?" {
+			m.showDetails = false
+			m.showHelp = false
+			return m, nil
+		}
+		return m, nil
+	}
+
+	if m.activePane == PaneSearch {
+		switch msg.String() {
+		case "enter", "esc":
+			m.activePane = PaneMediaList
+			m.searchInput.Blur()
+			return m, nil
+		}
+
+		var tiCmd tea.Cmd
+		m.searchInput, tiCmd = m.searchInput.Update(msg)
+		return m, tea.Batch(tiCmd, m.performSearch(m.searchInput.Value()))
+	}
+
+	// Global keys
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.quitting = true
+		return m, tea.Quit
+	case "?":
+		m.showHelp = true
+		return m, nil
+	case "/":
+		m.activePane = PaneSearch
+		return m, m.searchInput.Focus()
+	case "tab":
+		m.handleTabKey()
+		return m, nil
+	case "left":
+		if m.activePane == PaneMediaList && !m.mediaList.SettingFilter() {
+			m.activePane = PaneSidebar
+			return m, nil
+		}
+	case "right":
+		if m.activePane == PaneSidebar {
+			m.activePane = PaneMediaList
+			return m, nil
+		}
+	case "d":
+		if !m.mediaList.SettingFilter() {
+			m.showDetails = true
+			return m, nil
+		}
+	case "enter":
+		return m.handleEnterKey()
+	}
+
+	return m, nil
+}
+
+func (m *Model) handleTabKey() {
+	switch m.activePane {
+	case PaneSidebar:
+		m.activePane = PaneMediaList
+	case PaneMediaList:
+		m.activePane = PaneSearch
+		m.searchInput.Focus()
+	case PaneSearch:
+		m.activePane = PaneSidebar
+		m.searchInput.Blur()
+	}
+}
+
+func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
+	switch m.activePane {
+	case PaneMediaList:
+		i, ok := m.mediaList.SelectedItem().(item)
+		if ok {
+			m.choice = &i.media
+			return m, tea.Quit
+		}
+	case PaneSidebar:
+		m.updateMediaList()
+		m.activePane = PaneMediaList
+		return m, nil
+	case PaneSearch:
+		// Enter in search pane exits search and returns to media list
+		m.activePane = PaneMediaList
+		m.searchInput.Blur()
+		return m, nil
+	}
+	return m, nil
 }
 
 func (m *Model) updateMediaList() {

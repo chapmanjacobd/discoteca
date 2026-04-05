@@ -216,64 +216,60 @@ func HumanToSeconds(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-func ParseRange(s string, humanToX func(string) (int64, error)) (Range, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return Range{}, nil
-	}
-
-	if strings.Contains(s, ",") {
-		parts := strings.Split(s, ",")
-		var merged Range
-		for _, p := range parts {
-			r, err := ParseRange(p, humanToX)
-			if err != nil {
-				return Range{}, err
-			}
-			if r.Min != nil {
-				merged.Min = r.Min
-			}
-			if r.Max != nil {
-				merged.Max = r.Max
-			}
-			if r.Value != nil {
-				merged.Value = r.Value
-			}
-		}
-		return merged, nil
-	}
-
-	if strings.Contains(s, "-") && !strings.HasPrefix(s, "-") {
-		parts := strings.Split(s, "-")
-		if len(parts) == 2 {
-			minVal, err := humanToX(parts[0])
-			if err != nil {
-				return Range{}, err
-			}
-			maxVal, err := humanToX(parts[1])
-			if err != nil {
-				return Range{}, err
-			}
-			return Range{Min: &minVal, Max: &maxVal}, nil
-		}
-	}
-
-	if strings.Contains(s, "%") {
-		parts := strings.Split(s, "%")
-		base, err := humanToX(parts[0])
+func parseCommaSeparatedRange(s string, humanToX func(string) (int64, error)) (Range, error) {
+	parts := strings.Split(s, ",")
+	var merged Range
+	for _, p := range parts {
+		r, err := ParseRange(p, humanToX)
 		if err != nil {
 			return Range{}, err
 		}
-		percent, err := strconv.ParseFloat(parts[1], 64)
+		if r.Min != nil {
+			merged.Min = r.Min
+		}
+		if r.Max != nil {
+			merged.Max = r.Max
+		}
+		if r.Value != nil {
+			merged.Value = r.Value
+		}
+	}
+	return merged, nil
+}
+
+func parseHyphenRange(s string, humanToX func(string) (int64, error)) (Range, error) {
+	parts := strings.Split(s, "-")
+	if len(parts) == 2 {
+		minVal, err := humanToX(parts[0])
 		if err != nil {
 			return Range{}, err
 		}
-		tolerance := int64(float64(base) * (percent / 100.0))
-		minVal := base - tolerance
-		maxVal := base + tolerance
+		maxVal, err := humanToX(parts[1])
+		if err != nil {
+			return Range{}, err
+		}
 		return Range{Min: &minVal, Max: &maxVal}, nil
 	}
+	return Range{}, fmt.Errorf("invalid hyphen range: %s", s)
+}
 
+func parsePercentRange(s string, humanToX func(string) (int64, error)) (Range, error) {
+	parts := strings.Split(s, "%")
+	base, err := humanToX(parts[0])
+	if err != nil {
+		return Range{}, err
+	}
+	percent, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return Range{}, err
+	}
+	tolerance := int64(float64(base) * (percent / 100.0))
+	minVal := base - tolerance
+	maxVal := base + tolerance
+	return Range{Min: &minVal, Max: &maxVal}, nil
+}
+
+func parsePrefixedRange(s string, humanToX func(string) (int64, error)) (Range, error) {
 	if strings.HasPrefix(s, ">") {
 		minVal, err := humanToX(s[1:])
 		if err != nil {
@@ -303,6 +299,32 @@ func ParseRange(s string, humanToX func(string) (int64, error)) (Range, error) {
 			return Range{}, err
 		}
 		return Range{Max: &maxVal}, nil
+	}
+	return Range{}, fmt.Errorf("invalid prefixed range: %s", s)
+}
+
+func ParseRange(s string, humanToX func(string) (int64, error)) (Range, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return Range{}, nil
+	}
+
+	if strings.Contains(s, ",") {
+		return parseCommaSeparatedRange(s, humanToX)
+	}
+
+	if strings.Contains(s, "-") && !strings.HasPrefix(s, "-") {
+		return parseHyphenRange(s, humanToX)
+	}
+
+	if strings.Contains(s, "%") {
+		return parsePercentRange(s, humanToX)
+	}
+
+	if strings.HasPrefix(s, ">") || strings.HasPrefix(s, "<") || strings.HasPrefix(s, "+") ||
+		strings.HasPrefix(s, "-") {
+
+		return parsePrefixedRange(s, humanToX)
 	}
 
 	val, err := humanToX(s)

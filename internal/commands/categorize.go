@@ -113,67 +113,12 @@ func (c *CategorizeCmd) applyCategories(
 ) error {
 	categorizedCount := 0
 	for _, m := range media {
-		foundCategories := []string{}
-		var pathAndTitle string
-		if c.FullPath {
-			pathAndTitle = m.Path
-		} else {
-			pathAndTitle = filepath.Base(m.Path)
+		newCategories, err := c.categorizeSingleMedia(ctx, m, compiled)
+		if err != nil {
+			models.Log.Error("Failed to categorize media", "path", m.Path, "error", err)
+			continue
 		}
-
-		if m.Title != nil {
-			pathAndTitle += " " + *m.Title
-		}
-
-		for cat, res := range compiled {
-			for _, re := range res {
-				if re.MatchString(pathAndTitle) {
-					foundCategories = append(foundCategories, cat)
-					break
-				}
-			}
-		}
-
-		if len(foundCategories) > 0 {
-			merged := make(map[string]bool)
-			if m.Categories != nil && *m.Categories != "" {
-				existing := strings.SplitSeq(strings.Trim(*m.Categories, ";"), ";")
-				for e := range existing {
-					if e != "" {
-						merged[strings.TrimSpace(e)] = true
-					}
-				}
-			}
-			for _, f := range foundCategories {
-				merged[f] = true
-			}
-			combined := make([]string, 0, len(merged))
-			for k := range merged {
-				combined = append(combined, k)
-			}
-			sort.Strings(combined)
-			newCategories := ";" + strings.Join(combined, ";") + ";"
-
-			if !c.Simulate {
-				sqlDB, queries, err := db.ConnectWithInit(ctx, m.DB)
-				if err != nil {
-					models.Log.Error("Failed to connect to database", "db", m.DB, "error", err)
-					continue
-				}
-				err = queries.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
-					Categories: utils.ToNullString(newCategories),
-					Path:       m.Path,
-				})
-				sqlDB.Close()
-				if err != nil {
-					models.Log.Error("Failed to update categories", "path", m.Path, "error", err)
-					continue
-				}
-			}
-
-			if c.Verbose > 0 {
-				fmt.Printf("Categorized: %s -> %s\n", m.Path, newCategories)
-			}
+		if newCategories != "" {
 			categorizedCount++
 		}
 	}
@@ -182,7 +127,86 @@ func (c *CategorizeCmd) applyCategories(
 	return nil
 }
 
+func (c *CategorizeCmd) categorizeSingleMedia(
+	ctx context.Context,
+	m models.MediaWithDB,
+	compiled map[string][]*regexp.Regexp,
+) (string, error) {
+	foundCategories := []string{}
+	var pathAndTitle string
+	if c.FullPath {
+		pathAndTitle = m.Path
+	} else {
+		pathAndTitle = filepath.Base(m.Path)
+	}
+
+	if m.Title != nil {
+		pathAndTitle += " " + *m.Title
+	}
+
+	for cat, res := range compiled {
+		for _, re := range res {
+			if re.MatchString(pathAndTitle) {
+				foundCategories = append(foundCategories, cat)
+				break
+			}
+		}
+	}
+
+	if len(foundCategories) == 0 {
+		return "", nil
+	}
+
+	merged := make(map[string]bool)
+	if m.Categories != nil && *m.Categories != "" {
+		existing := strings.SplitSeq(strings.Trim(*m.Categories, ";"), ";")
+		for e := range existing {
+			if e != "" {
+				merged[strings.TrimSpace(e)] = true
+			}
+		}
+	}
+	for _, f := range foundCategories {
+		merged[f] = true
+	}
+	combined := make([]string, 0, len(merged))
+	for k := range merged {
+		combined = append(combined, k)
+	}
+	sort.Strings(combined)
+	newCategories := ";" + strings.Join(combined, ";") + ";"
+
+	if !c.Simulate {
+		sqlDB, queries, err := db.ConnectWithInit(ctx, m.DB)
+		if err != nil {
+			return "", err
+		}
+		defer sqlDB.Close()
+
+		if err := queries.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
+			Categories: utils.ToNullString(newCategories),
+			Path:       m.Path,
+		}); err != nil {
+			return "", err
+		}
+	}
+
+	if c.Verbose > 0 {
+		fmt.Printf("Categorized: %s -> %s\n", m.Path, newCategories)
+	}
+	return newCategories, nil
+}
+
 func (c *CategorizeCmd) mineCategories(media []models.MediaWithDB, compiled map[string][]*regexp.Regexp) error {
+	wordCounts, unmatchedCount := c.collectUnmatchedWords(media, compiled)
+	c.printMinedKeywords(wordCounts, unmatchedCount)
+	return nil
+}
+
+func (c *CategorizeCmd) collectUnmatchedWords(
+	media []models.MediaWithDB,
+	compiled map[string][]*regexp.Regexp,
+) (map[string]int, int) {
 	wordCounts := make(map[string]int)
 	unmatchedCount := 0
 
@@ -226,7 +250,10 @@ func (c *CategorizeCmd) mineCategories(media []models.MediaWithDB, compiled map[
 			}
 		}
 	}
+	return wordCounts, unmatchedCount
+}
 
+func (c *CategorizeCmd) printMinedKeywords(wordCounts map[string]int, unmatchedCount int) {
 	type wordFreq struct {
 		word  string
 		count int
@@ -247,6 +274,4 @@ func (c *CategorizeCmd) mineCategories(media []models.MediaWithDB, compiled map[
 	for i := range limit {
 		fmt.Printf("%s: %d\n", freqs[i].word, freqs[i].count)
 	}
-
-	return nil
 }

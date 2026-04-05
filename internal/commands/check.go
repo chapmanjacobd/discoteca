@@ -46,111 +46,120 @@ func (c *CheckCmd) AfterApply() error {
 	return nil
 }
 
-func (c *CheckCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
-	c.CheckPaths = utils.ExpandStdin(c.CheckPaths)
+func (c *CheckCmd) buildPresenceSet() (map[string]bool, []string, error) {
+	if len(c.CheckPaths) == 0 {
+		return nil, nil, nil
+	}
 
-	// If paths provided, build a presence set
-	var presenceSet map[string]bool
+	presenceSet := make(map[string]bool)
 	var absCheckPaths []string
-	if len(c.CheckPaths) > 0 {
-		presenceSet = make(map[string]bool)
-		for _, root := range c.CheckPaths {
-			absRoot, err := filepath.Abs(root)
-			if err != nil {
-				return err
+	for _, root := range c.CheckPaths {
+		absRoot, err := filepath.Abs(root)
+		if err != nil {
+			return nil, nil, err
+		}
+		absCheckPaths = append(absCheckPaths, absRoot)
+		models.Log.Info("Scanning filesystem for presence set", "path", absRoot)
+		err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, err error) error {
+			if err == nil && !d.IsDir() {
+				absPath, _ := filepath.Abs(path)
+				presenceSet[absPath] = true
 			}
-			absCheckPaths = append(absCheckPaths, absRoot)
-			models.Log.Info("Scanning filesystem for presence set", "path", absRoot)
-			err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, err error) error {
-				if err == nil && !d.IsDir() {
-					absPath, _ := filepath.Abs(path)
-					// Use path as-is
-					presenceSet[absPath] = true
+			return nil
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return presenceSet, absCheckPaths, nil
+}
+
+func (c *CheckCmd) checkMedia(m db.Media, presenceSet map[string]bool, absCheckPaths []string) bool {
+	if presenceSet != nil {
+		// Only check files that are within the scanned roots
+		inScannedRoot := false
+		for _, root := range absCheckPaths {
+			if strings.HasPrefix(m.Path, root) {
+				inScannedRoot = true
+				break
+			}
+		}
+
+		if inScannedRoot {
+			return !presenceSet[m.Path]
+		}
+		// Outside scanned roots, don't consider it missing (we don't know)
+		return false
+	}
+
+	// No presence set, fallback to individual Stats
+	return !utils.FileExists(m.Path)
+}
+
+func (c *CheckCmd) checkDatabase(
+	ctx context.Context,
+	dbPath string,
+	presenceSet map[string]bool,
+	absCheckPaths []string,
+) error {
+	sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	allMedia, err := queries.GetMedia(ctx, 1000000)
+	if err != nil {
+		return err
+	}
+
+	models.Log.Info("Checking files", "count", len(allMedia), "database", dbPath)
+
+	missingCount := 0
+	now := time.Now().Unix()
+
+	for _, m := range allMedia {
+		if c.checkMedia(m, presenceSet, absCheckPaths) {
+			missingCount++
+			if !c.DryRun {
+				models.Log.Debug("Marking missing file as deleted", "path", m.Path)
+				if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
+					TimeDeleted: sql.NullInt64{Int64: now, Valid: true},
+					Path:        m.Path,
+				}); err != nil {
+					models.Log.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
 				}
-				return nil
-			})
-			if err != nil {
-				return err
+			} else {
+				fmt.Printf("[Dry-run] Missing: %s\n", m.Path)
 			}
 		}
 	}
 
+	if c.DryRun {
+		models.Log.Info("Check complete (dry-run)", "missing", missingCount)
+	} else {
+		models.Log.Info("Check complete", "marked_deleted", missingCount)
+		if missingCount > 0 {
+			models.Log.Info("Refreshing folder_stats and FTS after marking files deleted...")
+			_ = db.RefreshFolderStats(ctx, sqlDB)
+			_ = db.RebuildFTS(ctx, sqlDB, dbPath)
+		}
+	}
+	return nil
+}
+
+func (c *CheckCmd) Run(ctx context.Context) error {
+	models.SetupLogging(c.Verbose)
+	c.CheckPaths = utils.ExpandStdin(c.CheckPaths)
+
+	presenceSet, absCheckPaths, err := c.buildPresenceSet()
+	if err != nil {
+		return err
+	}
+
 	for _, dbPath := range c.Databases {
-		sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
-		if err != nil {
+		if err := c.checkDatabase(ctx, dbPath, presenceSet, absCheckPaths); err != nil {
 			return err
-		}
-		defer sqlDB.Close()
-
-		allMedia, err := queries.GetMedia(ctx, 1000000)
-		if err != nil {
-			return err
-		}
-
-		models.Log.Info("Checking files", "count", len(allMedia), "database", dbPath)
-
-		missingCount := 0
-		now := time.Now().Unix()
-
-		for _, m := range allMedia {
-			isMissing := false
-
-			if presenceSet != nil {
-				// Only check files that are within the scanned roots
-				inScannedRoot := false
-				for _, root := range absCheckPaths {
-					if strings.HasPrefix(m.Path, root) {
-						inScannedRoot = true
-						break
-					}
-				}
-
-				if inScannedRoot {
-					if !presenceSet[m.Path] {
-						isMissing = true
-					}
-				} else {
-					// Outside scanned roots, skip or use Stat?
-					// For safety, if user provided roots, we only check files in those roots.
-					continue
-				}
-			} else if !utils.FileExists(m.Path) {
-				// No presence set, fallback to individual Stats
-				isMissing = true
-			}
-
-			if isMissing {
-				missingCount++
-				if !c.DryRun {
-					models.Log.Debug("Marking missing file as deleted", "path", m.Path)
-					if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
-						TimeDeleted: sql.NullInt64{Int64: now, Valid: true},
-						Path:        m.Path,
-					}); err != nil {
-						models.Log.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
-					}
-				} else {
-					fmt.Printf("[Dry-run] Missing: %s\n", m.Path)
-				}
-			}
-		}
-
-		if c.DryRun {
-			models.Log.Info("Check complete (dry-run)", "missing", missingCount)
-		} else {
-			models.Log.Info("Check complete", "marked_deleted", missingCount)
-
-			// Refresh folder_stats and FTS if files were marked as deleted
-			if missingCount > 0 {
-				models.Log.Info("Refreshing folder_stats and FTS after marking files deleted...")
-				if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
-					models.Log.Error("Failed to refresh folder_stats", "error", err)
-				}
-				if err := db.RebuildFTS(ctx, sqlDB, dbPath); err != nil {
-					models.Log.Error("Failed to rebuild FTS", "error", err)
-				}
-			}
 		}
 	}
 	return nil

@@ -28,169 +28,135 @@ var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
 
 // QuickWordCount extracts text and counts words for duration estimation.
 // Optimized for speed over accuracy - suitable for ingest-time processing.
-// Returns word count and error.
-// For files with very low word counts (<300), falls back to size-based estimation
-// to avoid false positives from sparse or image-heavy files.
 func QuickWordCount(ctx context.Context, path string, size int64) (int, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
+	var count int
+	var err error
+
 	switch ext {
 	case ".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".text":
-		// Plain text: stream and count spaces
-		f, err := os.Open(path)
-		if err != nil {
-			return 0, err
-		}
-		defer f.Close()
-
-		count := 0
-		buf := make([]byte, 32*1024)
-		for {
-			n, err := f.Read(buf)
-			if n > 0 {
-				count += bytes.Count(
-					buf[:n],
-					[]byte{' '},
-				) + bytes.Count(
-					buf[:n],
-					[]byte{'\n'},
-				) + bytes.Count(
-					buf[:n],
-					[]byte{'\t'},
-				)
-			}
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return 0, err
-			}
-		}
-		count++ // Add 1 for the last word
-
-		// For very short files, use size-based estimate if it's higher
-		if count < 300 {
-			estimated := EstimateWordCountFromSize(path, size)
-			if estimated > count {
-				return estimated, nil
-			}
-		}
-		return count, nil
-
+		count, err = countWordsFromPlainText(path)
 	case ".html", ".htm":
-		// HTML: strip tags and count - still needs care for large files
-		// For now, let's limit the read size for HTML to 10MB to avoid OOM
-		maxSize := int64(10 * 1024 * 1024)
-		readSize := min(size, maxSize)
-
-		f, err := os.Open(path)
-		if err != nil {
-			return 0, err
-		}
-		defer f.Close()
-
-		content := make([]byte, readSize)
-		_, err = io.ReadFull(f, content)
-		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-			return 0, err
-		}
-
-		// Quick HTML tag removal
-		text := htmlTagRe.ReplaceAll(content, []byte{' '})
-		count := CountWordsFast(text)
-		// For short HTML files, use size-based estimate
-		if count < 300 {
-			estimated := EstimateWordCountFromSize(path, size)
-			if estimated > count {
-				return estimated, nil
-			}
-		}
-		return count, nil
-
+		count, err = countWordsFromHTML(path, size)
 	case ".epub", ".mobi", ".azw3", ".docx", ".odt":
-		// ZIP-based formats: extract HTML content without full conversion
-		r, err := zip.OpenReader(path)
+		count, err = countWordsFromEbooks(path)
+	case ".pdf":
+		count = countWordsFromPDF(ctx, path, size)
+	default:
+		count = countWordsFromDefault(path, size)
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	// For very short files, use size-based estimate if it's higher
+	if count < 300 {
+		estimated := EstimateWordCountFromSize(path, size)
+		if estimated > count {
+			return estimated, nil
+		}
+	}
+	return count, nil
+}
+
+func countWordsFromPlainText(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	count := 0
+	buf := make([]byte, 32*1024)
+	for {
+		n, err := f.Read(buf)
+		if n > 0 {
+			count += bytes.Count(buf[:n], []byte{' '}) +
+				bytes.Count(buf[:n], []byte{'\n'}) +
+				bytes.Count(buf[:n], []byte{'\t'})
+		}
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
 			return 0, err
 		}
-		defer r.Close()
+	}
+	return count + 1, nil // Add 1 for the last word
+}
 
-		wordCount := 0
-		for _, f := range r.File {
-			name := strings.ToLower(f.Name)
-			// Skip metadata, covers, and non-content files
-			if strings.Contains(name, "cover") ||
-				strings.Contains(name, "titlepage") ||
-				strings.Contains(name, "metadata") ||
-				strings.Contains(name, "nav.") {
+func countWordsFromHTML(path string, size int64) (int, error) {
+	maxSize := int64(10 * 1024 * 1024)
+	readSize := min(size, maxSize)
 
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	content := make([]byte, readSize)
+	_, err = io.ReadFull(f, content)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return 0, err
+	}
+
+	text := htmlTagRe.ReplaceAll(content, []byte{' '})
+	return CountWordsFast(text), nil
+}
+
+func countWordsFromEbooks(path string) (int, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return 0, err
+	}
+	defer r.Close()
+
+	wordCount := 0
+	for _, f := range r.File {
+		name := strings.ToLower(f.Name)
+		if strings.Contains(name, "cover") || strings.Contains(name, "titlepage") ||
+			strings.Contains(name, "metadata") || strings.Contains(name, "nav.") {
+
+			continue
+		}
+
+		if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".xhtml") ||
+			strings.HasSuffix(name, ".htm") || strings.HasSuffix(name, ".xml") {
+
+			rc, err := f.Open()
+			if err != nil {
 				continue
 			}
-
-			if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".xhtml") ||
-				strings.HasSuffix(name, ".htm") || strings.HasSuffix(name, ".xml") {
-
-				rc, err := f.Open()
-				if err != nil {
-					continue
-				}
-				// Use readAllLimited to avoid memory exhaustion from huge files inside zip
-				content, err := readAllLimited(rc)
-				rc.Close()
-				if err != nil {
-					continue
-				}
-				// Strip HTML tags
-				text := htmlTagRe.ReplaceAll(content, []byte{' '})
-				wordCount += CountWordsFast(text)
+			content, err := readAllLimited(rc)
+			rc.Close()
+			if err != nil {
+				continue
 			}
+			text := htmlTagRe.ReplaceAll(content, []byte{' '})
+			wordCount += CountWordsFast(text)
 		}
-
-		// For ebooks with low extracted word count, use size-based estimate
-		// This handles image-heavy ebooks or those with DRM/complex formatting
-		if wordCount < 300 {
-			estimated := EstimateWordCountFromSize(path, size)
-			if estimated > wordCount {
-				return estimated, nil
-			}
-		}
-		return wordCount, nil
-
-	case ".pdf":
-		// Use pdftotext if available (much faster than calibre)
-		cmd := exec.CommandContext(ctx, "pdftotext", "-raw", "-eol", "unix", path, "-")
-		output, err := cmd.Output()
-		if err == nil && len(output) > 0 {
-			count := CountWordsFast(output)
-			// For PDFs with low text extraction, use size-based estimate
-			// This handles image-heavy or scanned PDFs
-			if count < 300 {
-				estimated := EstimateWordCountFromSize(path, size)
-				if estimated > count {
-					return estimated, nil
-				}
-			}
-			return count, nil
-		}
-		// Fallback: use size-based estimation for PDFs
-		return EstimateWordCountFromSize(path, size), nil
-
-	default:
-		// Try reading as plain text
-		content, err := os.ReadFile(path)
-		if err == nil {
-			count := CountWordsFast(content)
-			if count < 300 {
-				estimated := EstimateWordCountFromSize(path, size)
-				if estimated > count {
-					return estimated, nil
-				}
-			}
-			return count, nil
-		}
-		// Final fallback: pure size-based estimation
-		return EstimateWordCountFromSize(path, size), nil
 	}
+	return wordCount, nil
+}
+
+func countWordsFromPDF(ctx context.Context, path string, size int64) int {
+	cmd := exec.CommandContext(ctx, "pdftotext", "-raw", "-eol", "unix", path, "-")
+	output, err := cmd.Output()
+	if err == nil && len(output) > 0 {
+		return CountWordsFast(output)
+	}
+	return EstimateWordCountFromSize(path, size)
+}
+
+func countWordsFromDefault(path string, size int64) int {
+	content, err := os.ReadFile(path)
+	if err == nil {
+		return CountWordsFast(content)
+	}
+	return EstimateWordCountFromSize(path, size)
 }
 
 // EstimateReadingDuration calculates reading duration in seconds from word count.
@@ -258,6 +224,21 @@ func readAllLimited(r io.Reader) ([]byte, error) {
 	return io.ReadAll(lr)
 }
 
+// readFileLimited reads from a file up to a certain size.
+func readFileLimited(path string, readSize int64) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	content := make([]byte, readSize)
+	n, err := io.ReadFull(f, content)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return "", err
+	}
+	return string(content[:n]), nil
+}
+
 // ExtractText extracts plain text from a given file path.
 func ExtractText(ctx context.Context, path string) (string, error) {
 	stat, err := os.Stat(path)
@@ -268,268 +249,211 @@ func ExtractText(ctx context.Context, path string) (string, error) {
 	const maxTextSize = int64(10 * 1024 * 1024)
 	readSize := min(stat.Size(), maxTextSize)
 
-	readFileLimited := func(path string) (string, error) {
-		f, err := os.Open(path)
-		if err != nil {
-			return "", err
-		}
-		defer f.Close()
-		content := make([]byte, readSize)
-		n, err := io.ReadFull(f, content)
-		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-			return "", err
-		}
-		return string(content[:n]), nil
-	}
-
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	// ===== Plain text formats - read directly =====
-	case ".txt", ".md", ".markdown", ".rst", ".asciidoc", ".adoc", ".tex", ".latex":
-		// Markdown, reStructuredText, AsciiDoc, LaTeX
-		return readFileLimited(path)
-
-	case ".log", ".ini", ".conf", ".cfg", ".env", ".properties":
-		// Config and log files
-		return readFileLimited(path)
-
-	case ".csv", ".tsv":
-		// CSV/TSV - read directly (structured but searchable as text)
-		return readFileLimited(path)
-
-	case ".json", ".jsonl", ".jsonld":
-		// JSON - read directly (searchable as text)
-		return readFileLimited(path)
+	case ".txt", ".md", ".markdown", ".rst", ".asciidoc", ".adoc", ".tex", ".latex",
+		".log", ".ini", ".conf", ".cfg", ".env", ".properties",
+		".csv", ".tsv", ".json", ".jsonl", ".jsonld", ".yaml", ".yml", ".toml":
+		return readFileLimited(path, readSize)
 
 	case ".xml", ".svg", ".xhtml", ".xsl", ".xsd", ".plist":
-		// XML family - read and optionally strip tags for cleaner search
-		content, err := readFileLimited(path)
+		content, err := readFileLimited(path, readSize)
 		if err != nil {
 			return "", err
 		}
-		// For SVG and XHTML, strip tags; for others keep as-is
 		if ext == ".svg" || ext == ".xhtml" {
 			return stripHTMLTags(content), nil
 		}
 		return content, nil
 
-	case ".yaml", ".yml", ".toml":
-		// YAML and TOML config files
-		return readFileLimited(path)
-
 	case ".srt", ".vtt", ".ass", ".ssa", ".sub":
-		// Subtitle formats - strip timing markers for cleaner search
-		content, err := readFileLimited(path)
+		content, err := readFileLimited(path, readSize)
 		if err != nil {
 			return "", err
 		}
 		return stripSubtitleTimings(content), nil
 
-	// ===== Source code formats =====
-	case ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs":
-		// JavaScript/TypeScript family
-		return readFileLimited(path)
-
-	case ".go", ".rs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx":
-		// C family and Rust
-		return readFileLimited(path)
-
-	case ".java", ".kt", ".kts", ".scala", ".sc":
-		// JVM languages
-		return readFileLimited(path)
-
-	case ".rb", ".php", ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd":
-		// Scripting languages
-		return readFileLimited(path)
-
-	case ".sql", ".graphql", ".gql":
-		// Query languages
-		return readFileLimited(path)
-
-	case ".swift", ".m", ".mm":
-		// Apple languages
-		return readFileLimited(path)
-
 	// ===== HTML - strip tags =====
 	case ".html", ".htm", ".mhtml", ".mht":
-		// HTML - read and strip tags
-		content, err := readFileLimited(path)
+		content, err := readFileLimited(path, readSize)
 		if err != nil {
 			return "", err
 		}
 		return stripHTMLTags(content), nil
 
-	// ===== RTF - use unrtf if available =====
-	case ".rtf":
-		// Try unrtf first for clean text extraction
-		if text, err := extractTextFromRTF(ctx, path); err == nil {
-			return text, nil
-		}
-		// Fallback: read raw (will include RTF control codes)
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		return string(content), nil
-
-	// ===== PDF - use pdftotext =====
-	case ".pdf":
-		// Try pdftotext first (fast, lightweight)
-		if text, err := extractTextFromPDF(ctx, path); err == nil {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== PostScript - use ps2ascii/pstotext =====
-	case ".ps", ".eps":
-		// Try ps2ascii (comes with ghostscript)
-		if text, err := extractTextFromPS(ctx, path); err == nil {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== EPUB formats - native zip extraction =====
-	case ".epub", ".epub3":
-		// Extract text from EPUB using native zip (fast, no dependencies)
-		if text, err := extractTextFromEPUB(path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== OpenDocument formats - native zip =====
-	case ".odt", ".ods", ".odp", ".odg", ".odf", ".odm", ".ott", ".ots", ".otp":
-		// OpenDocument Text, Spreadsheet, Presentation, Graphics, Formula, Master, Templates
-		if text, err := extractTextFromOpenDocument(path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== Microsoft Office formats - native zip =====
-	case ".docx", ".docm", ".dotx", ".dotm":
-		// Word documents and templates
-		if text, err := extractTextFromDOCX(path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	case ".xlsx", ".xlsm", ".xltx", ".xltm", ".xlsb":
-		// Excel spreadsheets and templates - extract cell values
-		if text, err := extractTextFromXLSX(path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	case ".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm":
-		// PowerPoint presentations and templates
-		if text, err := extractTextFromPPTX(path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== iWork formats (Apple) - native zip =====
-	case ".pages", ".numbers", ".key":
-		// Apple Pages, Numbers, Keynote
-		if text, err := extractTextFromIWork(path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== Old Office formats - use external tools =====
-	case ".doc":
-		// Old Word format - try catdoc
-		if text, err := extractTextFromDOC(ctx, path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	case ".xls":
-		// Old Excel format - try xls2csv or catdoc
-		if text, err := extractTextFromXLS(ctx, path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	case ".ppt":
-		// Old PowerPoint - try catdoc
-		if text, err := extractTextFromPPT(ctx, path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
-
-	// ===== Archive formats - list contents =====
-	case ".zip", ".jar", ".apk", ".aar", ".ipa":
-		// ZIP-based archives - list file names
-		return listArchiveContents(path)
-
-	case ".tar":
-		// TAR archive - list file names
-		return listTarContents(ctx, path)
-
-	case ".tar.gz", ".tgz":
-		// Gzipped TAR - list file names
-		return listTarContents(ctx, path)
-
-	case ".tar.bz2", ".tbz2":
-		// Bzip2 TAR - list file names
-		return listTarContents(ctx, path)
-
-	case ".tar.xz", ".txz":
-		// XZ TAR - list file names
-		return listTarContents(ctx, path)
-
-	case ".tar.zst", ".tzst", ".zst", ".zstd":
-		// Zstd TAR - list file names (requires zstd or tar with zstd support)
-		return listTarContents(ctx, path)
-
-	case ".7z":
-		// 7-Zip archive - list file names (requires 7z)
-		return list7zContents(ctx, path)
-
-	case ".rar":
-		// RAR archive - list file names (requires unrar)
-		return listRarContents(ctx, path)
-
-	// ===== Torrent metadata =====
-	case ".torrent":
-		// Torrent file - extract metadata (bencoded data)
-		return extractTorrentMetadata(path)
-
 	// ===== Man pages =====
 	case ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", ".man":
-		// Unix manual pages - read and strip formatting
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return "", err
 		}
 		return stripManPageFormatting(string(content)), nil
 
-	// ===== CHM (Microsoft Compiled HTML) =====
-	case ".chm":
-		// CHM files - try extract_chm or list contents
-		if text, err := extractCHMContents(ctx, path); err == nil && text != "" {
-			return text, nil
-		}
-		// Fallback to calibre
-		return extractTextWithCalibre(ctx, path)
+	// ===== Torrent metadata =====
+	case ".torrent":
+		return extractTorrentMetadata(path)
 
-	// ===== Other ebook formats - calibre only =====
-	case ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr":
-		// These require calibre or specialized tools
+	// ===== Source code formats =====
+	case ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs",
+		".go", ".rs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx",
+		".java", ".kt", ".kts", ".scala", ".sc",
+		".rb", ".php", ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd",
+		".sql", ".graphql", ".gql", ".swift", ".m", ".mm":
+		return extractTextFromCode(path, readSize)
+
+	// ===== Document formats =====
+	case ".rtf", ".pdf", ".ps", ".eps", ".epub", ".epub3",
+		".odt", ".ods", ".odp", ".odg", ".odf", ".odm", ".ott", ".ots", ".otp",
+		".docx", ".docm", ".dotx", ".dotm", ".xlsx", ".xlsm", ".xltx", ".xltm", ".xlsb",
+		".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm",
+		".pages", ".numbers", ".key", ".doc", ".xls", ".ppt", ".chm",
+		".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr":
+		return extractTextFromDocuments(ctx, path)
+
+	// ===== Archive formats =====
+	case ".zip", ".jar", ".apk", ".aar", ".ipa",
+		".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar.zst", ".tzst", ".zst", ".zstd",
+		".7z", ".rar":
+		return extractTextFromArchives(ctx, path)
 	}
 
 	// Fallback: try calibre for all remaining ebook formats
 	return extractTextWithCalibre(ctx, path)
+}
+
+func extractTextFromDocuments(ctx context.Context, path string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	if text, ok := extractTextFromBasicDocs(ctx, path, ext); ok {
+		return text, nil
+	}
+	if text, ok := extractTextFromEbooksAndODF(ctx, path, ext); ok {
+		return text, nil
+	}
+	if text, ok := extractTextFromOfficeDocs(ctx, path, ext); ok {
+		return text, nil
+	}
+
+	switch ext {
+	case ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr":
+		return extractTextWithCalibre(ctx, path)
+	}
+	return "", errors.New("not a document format")
+}
+
+func extractTextFromBasicDocs(ctx context.Context, path, ext string) (string, bool) {
+	switch ext {
+	case ".rtf":
+		if text, err := extractTextFromRTF(ctx, path); err == nil {
+			return text, true
+		}
+		if content, err := os.ReadFile(path); err == nil {
+			return string(content), true
+		}
+	case ".pdf":
+		if text, err := extractTextFromPDF(ctx, path); err == nil {
+			return text, true
+		}
+		if text, err := extractTextWithCalibre(ctx, path); err == nil {
+			return text, true
+		}
+	case ".ps", ".eps":
+		if text, err := extractTextFromPS(ctx, path); err == nil {
+			return text, true
+		}
+		if text, err := extractTextWithCalibre(ctx, path); err == nil {
+			return text, true
+		}
+	default:
+		return "", false
+	}
+	return "", true
+}
+
+func extractTextFromEbooksAndODF(ctx context.Context, path, ext string) (string, bool) {
+	switch ext {
+	case ".epub", ".epub3":
+		if text, err := extractTextFromEPUB(path); err == nil && text != "" {
+			return text, true
+		}
+		if text, err := extractTextWithCalibre(ctx, path); err == nil {
+			return text, true
+		}
+	case ".odt", ".ods", ".odp", ".odg", ".odf", ".odm", ".ott", ".ots", ".otp":
+		if text, err := extractTextFromOpenDocument(path); err == nil && text != "" {
+			return text, true
+		}
+		if text, err := extractTextWithCalibre(ctx, path); err == nil {
+			return text, true
+		}
+	default:
+		return "", false
+	}
+	return "", true
+}
+
+func extractTextFromOfficeDocs(ctx context.Context, path, ext string) (string, bool) {
+	var err error
+	var text string
+	switch ext {
+	case ".docx", ".docm", ".dotx", ".dotm":
+		text, err = extractTextFromDOCX(path)
+	case ".xlsx", ".xlsm", ".xltx", ".xltm", ".xlsb":
+		text, err = extractTextFromXLSX(path)
+	case ".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm":
+		text, err = extractTextFromPPTX(path)
+	case ".pages", ".numbers", ".key":
+		text, err = extractTextFromIWork(path)
+	case ".doc":
+		text, err = extractTextFromDOC(ctx, path)
+	case ".xls":
+		text, err = extractTextFromXLS(ctx, path)
+	case ".ppt":
+		text, err = extractTextFromPPT(ctx, path)
+	case ".chm":
+		text, err = extractCHMContents(ctx, path)
+	default:
+		return "", false
+	}
+
+	if err == nil && text != "" {
+		return text, true
+	}
+	if text, err := extractTextWithCalibre(ctx, path); err == nil {
+		return text, true
+	}
+	return "", true
+}
+
+func extractTextFromCode(path string, readSize int64) (string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs",
+		".go", ".rs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx",
+		".java", ".kt", ".kts", ".scala", ".sc",
+		".rb", ".php", ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd",
+		".sql", ".graphql", ".gql", ".swift", ".m", ".mm":
+		return readFileLimited(path, readSize)
+	}
+	return "", errors.New("not a source code format")
+}
+
+func extractTextFromArchives(ctx context.Context, path string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".zip", ".jar", ".apk", ".aar", ".ipa":
+		return listArchiveContents(path)
+
+	case ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar.zst", ".tzst", ".zst", ".zstd":
+		return listTarContents(ctx, path)
+
+	case ".7z":
+		return list7zContents(ctx, path)
+
+	case ".rar":
+		return listRarContents(ctx, path)
+	}
+	return "", errors.New("not an archive format")
 }
 
 // extractTextFromPDF extracts text from PDF using pdftotext
@@ -882,7 +806,7 @@ func extractTextFromDOC(ctx context.Context, path string) (string, error) {
 
 	// Try docx2txt as alternative (some versions support .doc)
 	docx2txtBin := "docx2txt"
-	if _, err := exec.LookPath(docx2txtBin); err == nil {
+	if _, err := exec.LookPath(docx2txtBin); err != nil {
 		cmd := exec.CommandContext(ctx, docx2txtBin, path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -897,7 +821,7 @@ func extractTextFromDOC(ctx context.Context, path string) (string, error) {
 func extractTextFromXLS(ctx context.Context, path string) (string, error) {
 	// Try xls2csv first
 	xls2csvBin := "xls2csv"
-	if _, err := exec.LookPath(xls2csvBin); err == nil {
+	if _, err := exec.LookPath(xls2csvBin); err != nil {
 		cmd := exec.CommandContext(ctx, xls2csvBin, path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -907,7 +831,7 @@ func extractTextFromXLS(ctx context.Context, path string) (string, error) {
 
 	// Try catdoc (also handles XLS)
 	catdocBin := "catdoc"
-	if _, err := exec.LookPath(catdocBin); err == nil {
+	if _, err := exec.LookPath(catdocBin); err != nil {
 		cmd := exec.CommandContext(ctx, catdocBin, path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -922,7 +846,7 @@ func extractTextFromXLS(ctx context.Context, path string) (string, error) {
 func extractTextFromPPT(ctx context.Context, path string) (string, error) {
 	// Try catdoc (supports PPT)
 	catdocBin := "catdoc"
-	if _, err := exec.LookPath(catdocBin); err == nil {
+	if _, err := exec.LookPath(catdocBin); err != nil {
 		cmd := exec.CommandContext(ctx, catdocBin, path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -955,7 +879,7 @@ func listArchiveContents(path string) (string, error) {
 func listTarContents(ctx context.Context, path string) (string, error) {
 	// Try tar command first
 	tarBin := "tar"
-	if _, err := exec.LookPath(tarBin); err == nil {
+	if _, err := exec.LookPath(tarBin); err != nil {
 		cmd := exec.CommandContext(ctx, tarBin, "-tf", path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -967,7 +891,7 @@ func listTarContents(ctx context.Context, path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext == ".zst" || ext == ".tzst" || strings.HasSuffix(strings.ToLower(path), ".tar.zst") {
 		zstdBin := "zstd"
-		if _, err := exec.LookPath(zstdBin); err == nil {
+		if _, err := exec.LookPath(zstdBin); err != nil {
 			// zstd -d -c file | tar -tf -
 			cmd := exec.CommandContext(
 				ctx,
@@ -1036,7 +960,7 @@ func listTarContents(ctx context.Context, path string) (string, error) {
 func list7zContents(ctx context.Context, path string) (string, error) {
 	// Try 7z first
 	sevenzBin := "7z"
-	if _, err := exec.LookPath(sevenzBin); err == nil {
+	if _, err := exec.LookPath(sevenzBin); err != nil {
 		cmd := exec.CommandContext(ctx, sevenzBin, "l", "-ba", path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -1046,7 +970,7 @@ func list7zContents(ctx context.Context, path string) (string, error) {
 
 	// Try unar (The Unarchiver) as alternative
 	unarBin := "unar"
-	if _, err := exec.LookPath(unarBin); err == nil {
+	if _, err := exec.LookPath(unarBin); err != nil {
 		cmd := exec.CommandContext(ctx, unarBin, "-t", path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -1099,7 +1023,7 @@ func parseUnarOutput(output string) string {
 func listRarContents(ctx context.Context, path string) (string, error) {
 	// Try unrar first
 	unrarBin := "unrar"
-	if _, err := exec.LookPath(unrarBin); err == nil {
+	if _, err := exec.LookPath(unrarBin); err != nil {
 		cmd := exec.CommandContext(ctx, unrarBin, "l", "-c-", path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -1119,7 +1043,7 @@ func listRarContents(ctx context.Context, path string) (string, error) {
 
 	// Try 7z as alternative
 	sevenzBin := "7z"
-	if _, err := exec.LookPath(sevenzBin); err == nil {
+	if _, err := exec.LookPath(sevenzBin); err != nil {
 		cmd := exec.CommandContext(ctx, sevenzBin, "l", "-ba", path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -1129,7 +1053,7 @@ func listRarContents(ctx context.Context, path string) (string, error) {
 
 	// Try unar (The Unarchiver) as alternative
 	unarBin := "unar"
-	if _, err := exec.LookPath(unarBin); err == nil {
+	if _, err := exec.LookPath(unarBin); err != nil {
 		cmd := exec.CommandContext(ctx, unarBin, "-t", path)
 		output, err := cmd.Output()
 		if err == nil {
@@ -1633,83 +1557,13 @@ func GetHTMLFiles(dir string) ([]string, error) {
 // Skips cover/metadata pages and finds the actual book content
 func FindMainContentFile(oebDir string) string {
 	// First, try to parse content.opf to find the actual content files
-	opfPath := filepath.Join(oebDir, "content.opf")
-	if content, err := os.ReadFile(opfPath); err == nil {
-		// Parse OPF to find content files (skip cover)
-		contentStr := string(content)
-		// Look for itemref elements that reference content files
-		// Skip items with idref containing "cover" or "title"
-		lines := strings.Split(contentStr, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			lowerLine := strings.ToLower(line)
-			if strings.Contains(line, "<itemref") &&
-				!strings.Contains(lowerLine, "cover") &&
-				!strings.Contains(lowerLine, "title") &&
-				!strings.Contains(lowerLine, "nav") {
-				// Extract idref value
-				idrefMatch := strings.Index(line, `idref="`)
-				if idrefMatch >= 0 {
-					idrefStart := idrefMatch + 7
-					idrefEnd := strings.Index(line[idrefStart:], `"`)
-					if idrefEnd > 0 {
-						idref := line[idrefStart : idrefStart+idrefEnd]
-						// Find corresponding item with this id
-						for _, itemLine := range lines {
-							if strings.Contains(itemLine, `id="`+idref+`"`) && strings.Contains(itemLine, `href="`) {
-								hrefStart := strings.Index(itemLine, `href="`) + 6
-								hrefEnd := strings.Index(itemLine[hrefStart:], `"`)
-								if hrefEnd > 0 {
-									href := itemLine[hrefStart : hrefStart+hrefEnd]
-									contentFile := filepath.Join(oebDir, href)
-									if _, err := os.Stat(contentFile); err == nil {
-										return contentFile
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+	if contentFile := findMainContentFromOPF(oebDir); contentFile != "" {
+		return contentFile
 	}
 
 	// Fallback: Find HTML files, preferring those that aren't cover/metadata
-	var firstContentHTML string
-	_ = filepath.Walk(oebDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path))
-			if ext == ".html" || ext == ".xhtml" || ext == ".htm" {
-				base := strings.ToLower(filepath.Base(path))
-				// Skip cover, titlepage, and metadata files
-				if strings.Contains(base, "cover") ||
-					strings.Contains(base, "titlepage") ||
-					strings.Contains(base, "title_page") ||
-					strings.Contains(base, "nav.xhtml") {
-
-					return nil
-				}
-				if firstContentHTML == "" {
-					firstContentHTML = path
-				}
-				// Prefer files with chapter/content in the name
-				if strings.Contains(base, "chapter") || strings.Contains(base, "content") ||
-					strings.Contains(base, "ch0") ||
-					strings.Contains(base, "split_") {
-
-					firstContentHTML = path
-					return filepath.SkipAll
-				}
-			}
-		}
-		return nil
-	})
-
-	if firstContentHTML != "" {
-		return firstContentHTML
+	if contentFile := findMainContentFromWalking(oebDir); contentFile != "" {
+		return contentFile
 	}
 
 	// Last resort: return index.html
@@ -1719,4 +1573,101 @@ func FindMainContentFile(oebDir string) string {
 	}
 
 	return ""
+}
+
+func findMainContentFromOPF(oebDir string) string {
+	opfPath := filepath.Join(oebDir, "content.opf")
+	content, err := os.ReadFile(opfPath)
+	if err != nil {
+		return ""
+	}
+
+	contentStr := string(content)
+	lines := strings.Split(contentStr, "\n")
+
+	// 1. Find the first itemref that isn't a cover/title/nav
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		lowerLine := strings.ToLower(line)
+		if !strings.Contains(lowerLine, "<itemref") ||
+			strings.Contains(lowerLine, "cover") ||
+			strings.Contains(lowerLine, "title") ||
+			strings.Contains(lowerLine, "nav") {
+
+			continue
+		}
+
+		// Extract idref value
+		idref := extractAttr(line, "idref")
+		if idref == "" {
+			continue
+		}
+
+		// 2. Find corresponding item with this id
+		for _, itemLine := range lines {
+			if strings.Contains(itemLine, `id="`+idref+`"`) {
+				href := extractAttr(itemLine, "href")
+				if href != "" {
+					contentFile := filepath.Join(oebDir, href)
+					if _, err := os.Stat(contentFile); err == nil {
+						return contentFile
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func extractAttr(line, attr string) string {
+	search := attr + `="`
+	match := strings.Index(line, search)
+	if match < 0 {
+		return ""
+	}
+	start := match + len(search)
+	end := strings.Index(line[start:], `"`)
+	if end < 0 {
+		return ""
+	}
+	return line[start : start+end]
+}
+
+func findMainContentFromWalking(oebDir string) string {
+	var firstContentHTML string
+	_ = filepath.Walk(oebDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".html" && ext != ".xhtml" && ext != ".htm" {
+			return nil
+		}
+
+		base := strings.ToLower(filepath.Base(path))
+		// Skip cover, titlepage, and metadata files
+		if strings.Contains(base, "cover") ||
+			strings.Contains(base, "titlepage") ||
+			strings.Contains(base, "title_page") ||
+			strings.Contains(base, "nav.xhtml") {
+
+			return nil
+		}
+
+		if firstContentHTML == "" {
+			firstContentHTML = path
+		}
+
+		// Prefer files with chapter/content in the name
+		if strings.Contains(base, "chapter") || strings.Contains(base, "content") ||
+			strings.Contains(base, "ch0") ||
+			strings.Contains(base, "split_") {
+
+			firstContentHTML = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return firstContentHTML
 }

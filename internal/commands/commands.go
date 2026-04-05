@@ -36,11 +36,10 @@ func ParseDatabaseAndScanPaths(
 
 	for _, arg := range args {
 		if strings.HasSuffix(arg, ".db") {
-			if utils.IsSQLite(arg) {
-				databases = append(databases, arg)
-			} else {
+			if !utils.IsSQLite(arg) {
 				return nil, nil, fmt.Errorf("database file not found: %s", arg)
 			}
+			databases = append(databases, arg)
 		} else {
 			scanPaths = append(scanPaths, arg)
 		}

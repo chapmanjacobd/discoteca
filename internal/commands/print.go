@@ -36,18 +36,18 @@ func (c *PrintCmd) AfterApply() error {
 }
 
 func (c *PrintCmd) Run(ctx context.Context) error {
-	flags := models.BuildQueryGlobalFlags(
-		c.CoreFlags,
-		c.QueryFlags,
-		c.PathFilterFlags,
-		c.FilterFlags,
-		c.MediaFilterFlags,
-		c.TimeFilterFlags,
-		c.DeletedFlags,
-		c.SortFlags,
-		c.DisplayFlags,
-		c.FTSFlags,
-	)
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        c.CoreFlags,
+		Query:       c.QueryFlags,
+		PathFilter:  c.PathFilterFlags,
+		Filter:      c.FilterFlags,
+		MediaFilter: c.MediaFilterFlags,
+		TimeFilter:  c.TimeFilterFlags,
+		Deleted:     c.DeletedFlags,
+		Sort:        c.SortFlags,
+		Display:     c.DisplayFlags,
+		FTS:         c.FTSFlags,
+	})
 	flags.AggregateFlags = c.AggregateFlags
 	flags.TextFlags = c.TextFlags
 

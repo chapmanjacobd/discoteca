@@ -81,6 +81,55 @@ func Trash(ctx context.Context, flags models.GlobalFlags, path string) error {
 	return nil
 }
 
+func getVisibleEntries(entries []os.DirEntry) []os.DirEntry {
+	var visibleEntries []os.DirEntry
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), ".") {
+			visibleEntries = append(visibleEntries, e)
+		}
+	}
+	return visibleEntries
+}
+
+func moveSubEntries(outputDir, wrapperPath, wrapperName string, subEntries []os.DirEntry) (string, error) {
+	var conflictItem string
+	for _, se := range subEntries {
+		name := se.Name()
+		if name == wrapperName {
+			conflictItem = name
+			continue
+		}
+
+		src := filepath.Join(wrapperPath, name)
+		dst := filepath.Join(outputDir, name)
+		if err := os.Rename(src, dst); err != nil {
+			// Try fallback
+			if err := RenameMoveFile(models.GlobalFlags{}, src, dst); err != nil {
+				return "", err
+			}
+		}
+	}
+	return conflictItem, nil
+}
+
+func handleConflictAndCleanup(outputDir, wrapperPath, conflictItem string) error {
+	if conflictItem != "" {
+		src := filepath.Join(wrapperPath, conflictItem)
+		tempDst := filepath.Join(outputDir, conflictItem+".tmp")
+		if err := os.Rename(src, tempDst); err != nil {
+			if err := RenameMoveFile(models.GlobalFlags{}, src, tempDst); err != nil {
+				return err
+			}
+		}
+		if err := os.Remove(wrapperPath); err != nil {
+			return err
+		}
+		return os.Rename(tempDst, filepath.Join(outputDir, conflictItem))
+	}
+
+	return os.Remove(wrapperPath)
+}
+
 // FlattenWrapperFolder removes a single subfolder if it's the only entry in outputDir
 func FlattenWrapperFolder(outputDir string) error {
 	entries, err := os.ReadDir(outputDir)
@@ -88,13 +137,7 @@ func FlattenWrapperFolder(outputDir string) error {
 		return err
 	}
 
-	// Filter out hidden files
-	var visibleEntries []os.DirEntry
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".") {
-			visibleEntries = append(visibleEntries, e)
-		}
-	}
+	visibleEntries := getVisibleEntries(entries)
 
 	if len(visibleEntries) == 1 && visibleEntries[0].IsDir() {
 		wrapperName := visibleEntries[0].Name()
@@ -106,39 +149,12 @@ func FlattenWrapperFolder(outputDir string) error {
 			return err
 		}
 
-		var conflictItem string
-		for _, se := range subEntries {
-			name := se.Name()
-			if name == wrapperName {
-				conflictItem = name
-				continue
-			}
-
-			src := filepath.Join(wrapperPath, name)
-			dst := filepath.Join(outputDir, name)
-			if err := os.Rename(src, dst); err != nil {
-				// Try fallback
-				if err := RenameMoveFile(models.GlobalFlags{}, src, dst); err != nil {
-					return err
-				}
-			}
+		conflictItem, err := moveSubEntries(outputDir, wrapperPath, wrapperName, subEntries)
+		if err != nil {
+			return err
 		}
 
-		if conflictItem != "" {
-			src := filepath.Join(wrapperPath, conflictItem)
-			tempDst := filepath.Join(outputDir, conflictItem+".tmp")
-			if err := os.Rename(src, tempDst); err != nil {
-				if err := RenameMoveFile(models.GlobalFlags{}, src, tempDst); err != nil {
-					return err
-				}
-			}
-			if err := os.Remove(wrapperPath); err != nil {
-				return err
-			}
-			return os.Rename(tempDst, filepath.Join(outputDir, conflictItem))
-		}
-
-		return os.Remove(wrapperPath)
+		return handleConflictAndCleanup(outputDir, wrapperPath, conflictItem)
 	}
 	return nil
 }
