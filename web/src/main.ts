@@ -5252,71 +5252,15 @@ document.addEventListener('DOMContentLoaded', () => {
     async function renderHTMLFolder(item, container, normalizedPath) {
         const baseUrl = `/api/epub/${normalizedPath}`;
         
-        try {
-            // Fetch index.html
-            const indexUrl = baseUrl + 'index.html';
-            const response = await fetch(indexUrl);
-            if (!response.ok) throw new Error('Failed to load index.html');
-            
-            const htmlContent = await response.text();
-            
-            // Create reader view
-            const reader = document.createElement('div');
-            reader.id = 'document-reader';
-            
-            const content = document.createElement('div');
-            content.className = 'reader-content';
-            
-            // Parse the HTML and extract body content
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(htmlContent, 'text/html');
-            
-            // Move body content into reader content
-            const bodyContent = doc.body.innerHTML;
-            content.innerHTML = bodyContent;
-            
-            // Process images to use correct base URL
-            content.querySelectorAll('img').forEach(img => {
-                const src = img.getAttribute('src');
-                if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-                    img.src = baseUrl + src.replace(/^\//, '');
-                }
-            });
-            
-            // Process links to prevent navigation away
-            content.querySelectorAll('a').forEach(a => {
-                const href = a.getAttribute('href');
-                if (href && !href.startsWith('http')) {
-                    a.onclick = (e) => {
-                        e.preventDefault();
-                        // Could implement internal navigation later
-                        console.log('Internal link:', href);
-                    };
-                }
-            });
-            
-            reader.appendChild(content);
-            container.appendChild(reader);
-            
-            // Apply document view settings
-            applyDocumentViewSettings();
-            
-            // Track and restore reading progress on the reader div
-            trackReaderProgress(reader, item.path);
-            applyReaderProgress(reader, item.path);
-        } catch (error) {
-            console.error('Failed to load HTML folder, falling back to iframe:', error);
-            // Fallback to iframe
-            const iframe = document.createElement('iframe');
-            iframe.src = baseUrl;
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.border = 'none';
-            container.appendChild(iframe);
-            
-            trackDocumentProgress(iframe, item.path);
-            applyDocumentProgress(iframe, item.path);
-        }
+        const iframe = document.createElement("iframe");
+        iframe.src = baseUrl;
+        iframe.style.width = "100%";
+        iframe.style.height = "100%";
+        iframe.style.border = "none";
+        container.appendChild(iframe);
+
+        trackDocumentProgress(iframe, item.path);
+        applyDocumentProgress(iframe, item.path);
     }
 
     async function openInDocumentViewer(item) {
@@ -5404,80 +5348,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (item.doc_transcode) {
-                // Use calibre conversion endpoint - fetch HTML and render in reader view
-                const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
+                const pathWithoutLeadingSlash = item.path.replace(/^\/+/, "");
                 const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
                 const htmlUrl = `/api/epub/${encodedPath}`;
 
-                try {
-                    const response = await fetch(htmlUrl);
-                    if (!response.ok) throw new Error('Failed to load document');
+                const iframe = document.createElement("iframe");
+                iframe.src = htmlUrl;
+                iframe.style.width = "100%";
+                iframe.style.height = "100%";
+                iframe.style.border = "none";
+                container.appendChild(iframe);
 
-                    // The API returns index.html, fetch it
-                    const baseUrl = htmlUrl.endsWith('/') ? htmlUrl : htmlUrl + '/';
-                    const indexUrl = baseUrl + 'index.html';
-                    const indexResponse = await fetch(indexUrl);
-                    if (!indexResponse.ok) throw new Error('Failed to load document index');
-
-                    const htmlContent = await indexResponse.text();
-
-                    // Create reader view
-                    const reader = document.createElement('div');
-                    reader.id = 'document-reader';
-
-                    const content = document.createElement('div');
-                    content.className = 'reader-content';
-
-                    // Parse the HTML and extract body content
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(htmlContent, 'text/html');
-
-                    // Move body content into reader content
-                    const bodyContent = doc.body.innerHTML;
-                    content.innerHTML = bodyContent;
-
-                    // Process images to use correct base URL
-                    content.querySelectorAll('img').forEach(img => {
-                        const src = img.getAttribute('src');
-                        if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-                            img.src = baseUrl + src.replace(/^\//, '');
-                        }
-                    });
-
-                    // Process links to prevent navigation away
-                    content.querySelectorAll('a').forEach(a => {
-                        const href = a.getAttribute('href');
-                        if (href && !href.startsWith('http')) {
-                            a.onclick = (e) => {
-                                e.preventDefault();
-                                // Could implement internal navigation later
-                                console.log('Internal link:', href);
-                            };
-                        }
-                    });
-
-                    reader.appendChild(content);
-                    container.appendChild(reader);
-
-                    // Apply document view settings
-                    applyDocumentViewSettings();
-
-                    // Track and restore reading progress on the reader div
-                    trackReaderProgress(reader, item.path);
-                    applyReaderProgress(reader, item.path);
-                } catch (error) {
-                    console.error('Failed to load converted document, falling back to iframe:', error);
-                    // Fallback to iframe
-                    const iframe = document.createElement('iframe');
-                    iframe.src = htmlUrl;
-                    iframe.style.width = '100%';
-                    iframe.style.height = '100%';
-                    iframe.style.border = 'none';
-                    container.appendChild(iframe);
-
-                    trackDocumentProgress(iframe, item.path);
-                    applyDocumentProgress(iframe, item.path);
-                }
+                trackDocumentProgress(iframe, item.path);
+                applyDocumentProgress(iframe, item.path);
             } else {
                 // Serve raw file directly (e.g. PDF or raw text/markdown)
                 const rawUrl = `/api/raw?path=${encodeURIComponent(item.path)}`;
