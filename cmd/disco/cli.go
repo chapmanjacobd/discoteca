@@ -30,7 +30,6 @@ type CLI struct {
 	Serve          commands.ServeCmd          `help:"Start Web UI server"                                 cmd:""`
 	Optimize       commands.OptimizeCmd       `help:"Optimize database (VACUUM, ANALYZE, FTS optimize)"   cmd:""`
 	Repair         commands.RepairCmd         `help:"Repair malformed database using sqlite3"             cmd:""`
-	Tui            commands.TuiCmd            `help:"Interactive TUI media picker"                        cmd:""`
 	Readme         commands.ReadmeCmd         `help:"Generate README.md content"                          cmd:""`
 	RegexSort      commands.RegexSortCmd      `help:"Sort by splitting lines and sorting words"           cmd:"" aliases:"rs"`
 	ClusterSort    commands.ClusterSortCmd    `help:"Group items by similarity"                           cmd:"" aliases:"cs"`

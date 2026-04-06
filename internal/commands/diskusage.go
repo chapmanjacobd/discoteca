@@ -2,17 +2,13 @@ package commands
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/tui"
 )
 
 type DiskUsageCmd struct {
@@ -100,17 +96,6 @@ func (c *DiskUsageCmd) Run(ctx context.Context) error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error walking %s: %v\n", root, err)
 		}
-	}
-
-	if c.TUI {
-		if len(allMedia) == 0 {
-			return errors.New("no media found")
-		}
-
-		m := tui.NewDUModel(allMedia, flags)
-		p := tea.NewProgram(m, tea.WithAltScreen())
-		_, err := p.Run()
-		return err
 	}
 
 	// Disk usage is essentially Print with aggregation by default if no depth specified

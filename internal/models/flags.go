@@ -112,7 +112,6 @@ type DisplayFlags struct {
 	JSON      bool     `help:"Output results as JSON"                                              short:"j" group:"Display"`
 	Summarize bool     `help:"Print aggregate statistics"                                                    group:"Display"`
 	Frequency string   `help:"Group statistics by time frequency (daily, weekly, monthly, yearly)" short:"f" group:"Display"`
-	TUI       bool     `help:"Interactive TUI mode"                                                          group:"Display"`
 }
 
 type AggregateFlags struct {
