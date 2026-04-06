@@ -1,3 +1,4 @@
+package metadata
 
 import (
 	"archive/zip"
@@ -1053,7 +1054,6 @@ func extractImageTextFromCBZ(ctx context.Context, path, ocrEngine string) ([]db.
 }
 
 // processComicPage extracts and OCRs a single comic page image
-//
 func processComicPage(
 	ctx context.Context,
 	r *zip.ReadCloser,

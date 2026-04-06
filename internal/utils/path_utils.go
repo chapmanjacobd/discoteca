@@ -182,8 +182,7 @@ func FolderSize(path string) (int64, error) {
 }
 
 // PathTupleFromURL returns (parentDir, filename) from a URL
-//
-func PathTupleFromURL(rawURL string) (string, string) {
+func PathTupleFromURL(rawURL string) (parentDir, filename string) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return "", filepath.Base(rawURL)
@@ -196,7 +195,7 @@ func PathTupleFromURL(rawURL string) (string, string) {
 		return host, ""
 	}
 
-	filename := filepath.Base(path)
+	filename = filepath.Base(path)
 	parent := SafeJoin(host, filepath.Dir(path))
 
 	return StripMountSyntax(parent), filename

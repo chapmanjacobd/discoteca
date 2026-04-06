@@ -23,6 +23,9 @@ func run() int {
 	cleanup := setupProfiling()
 	defer cleanup()
 
+	// Initialize version information
+	utils.InitVersionInfo()
+
 	utils.AutoUpdate()
 	cli := &CLI{}
 	parser, err := kong.New(cli,

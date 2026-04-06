@@ -35,7 +35,9 @@ func sendError(w http.ResponseWriter, status int, message string) {
 	sendJSON(w, status, models.ErrorResponse{Error: message})
 }
 
-func init() {
+// initMimeTypes registers custom MIME types for JavaScript files.
+// This should be called during application startup.
+func initMimeTypes() {
 	_ = mime.AddExtensionType(".js", "text/javascript")
 	_ = mime.AddExtensionType(".mjs", "text/javascript")
 	_ = mime.AddExtensionType(".ts", "text/javascript")
@@ -358,7 +360,14 @@ func (c *ServeCmd) Close() error {
 func (c *ServeCmd) Run(ctx context.Context) error {
 	defer c.Close()
 	models.SetupLogging(c.Verbose)
+	db.InitFtsConfig()
 	db.SetFtsEnabled(true)
+
+	// Initialize MIME types
+	initMimeTypes()
+
+	// Start ZIM manager background goroutine
+	StartZimManager()
 
 	for _, dbPath := range c.Databases {
 		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)

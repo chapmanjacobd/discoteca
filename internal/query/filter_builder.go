@@ -1593,7 +1593,6 @@ func ApplyWeightedRerank(media []models.MediaWithDB, fields []SortField) {
 
 // ExpandRelatedMedia expands the result set with media related to the first item
 // based on shared search terms (title, path words) using FTS rank
-//
 func ExpandRelatedMedia(
 	ctx context.Context,
 	sqlDB *sql.DB,

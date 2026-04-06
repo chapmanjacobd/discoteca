@@ -9,7 +9,6 @@ import (
 )
 
 // DispatchPlaybackCommand handles common logic for sending commands to mpv or Chromecast
-//
 func DispatchPlaybackCommand(
 	ctx context.Context,
 	c models.ControlFlags,

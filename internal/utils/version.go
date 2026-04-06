@@ -2,6 +2,7 @@ package utils
 
 import (
 	"runtime/debug"
+	"sync"
 )
 
 var (
@@ -16,23 +17,29 @@ var (
 
 	// Deps contains dependency information.
 	Deps []*debug.Module
+
+	versionInitOnce sync.Once
 )
 
-func init() {
-	bi, ok := debug.ReadBuildInfo()
-	if !ok {
-		return
-	}
-
-	for _, s := range bi.Settings {
-		if s.Key == "vcs.revision" {
-			Version = s.Value
+// InitVersionInfo initializes version information from build info.
+// This should be called early in the application lifecycle.
+func InitVersionInfo() {
+	versionInitOnce.Do(func() {
+		bi, ok := debug.ReadBuildInfo()
+		if !ok {
+			return
 		}
-		if s.Key == "vcs.time" {
-			When = s.Value
-		}
-		BuildSettings = append(BuildSettings, s)
-	}
 
-	Deps = bi.Deps
+		for _, s := range bi.Settings {
+			if s.Key == "vcs.revision" {
+				Version = s.Value
+			}
+			if s.Key == "vcs.time" {
+				When = s.Value
+			}
+			BuildSettings = append(BuildSettings, s)
+		}
+
+		Deps = bi.Deps
+	})
 }

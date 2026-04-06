@@ -58,7 +58,9 @@ var ZimManager = &KiwixManager{
 	UsedPorts: make(map[int]bool),
 }
 
-func init() {
+// StartZimManager starts the ZIM manager's background cleanup goroutine.
+// This should be called during application startup.
+func StartZimManager() {
 	go ZimManager.cleanupOldInstances()
 }
 
