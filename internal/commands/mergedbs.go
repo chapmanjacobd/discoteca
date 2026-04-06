@@ -100,10 +100,7 @@ func (c *MergeDBsCmd) getTables(ctx context.Context, conn *sql.DB) ([]string, er
 
 func (c *MergeDBsCmd) shouldProcessTable(table string) bool {
 	if len(c.OnlyTables) > 0 {
-		found := slices.Contains(c.OnlyTables, table)
-		if !found {
-			return false
-		}
+		return slices.Contains(c.OnlyTables, table)
 	}
 	return true
 }
@@ -115,62 +112,142 @@ func (c *MergeDBsCmd) mergeTable(ctx context.Context, srcConn, targetConn *sql.D
 	}
 
 	targetCols, err := c.getTableColumns(ctx, targetConn, table)
-	if err != nil {
-		// Table might not exist in target. If not OnlyTargetColumns, we might want to create it?
-		// Python sqlite-utils insert_all(alter=True) handles this.
-		// For now, let's assume it should exist or we only care about existing target columns if requested.
-		if c.OnlyTargetColumns {
-			return fmt.Errorf("table %s does not exist in target", table)
-		}
-		// Basic "CREATE TABLE IF NOT EXISTS" logic is missing here if we wanted parity with alter=True
+	if err != nil && c.OnlyTargetColumns {
+		return fmt.Errorf("table %s does not exist in target", table)
 	}
 
-	selectedCols := srcCols
-	if c.OnlyTargetColumns && len(targetCols) > 0 {
-		var filtered []string
-		targetSet := make(map[string]bool)
-		for _, col := range targetCols {
-			targetSet[col] = true
-		}
-		for _, col := range srcCols {
-			if targetSet[col] {
-				filtered = append(filtered, col)
-			}
-		}
-		selectedCols = filtered
-	}
-
-	// Filter SkipColumns
-	if len(c.SkipColumns) > 0 {
-		skipSet := make(map[string]bool)
-		for _, col := range c.SkipColumns {
-			skipSet[col] = true
-		}
-		var filtered []string
-		for _, col := range selectedCols {
-			if !skipSet[col] {
-				filtered = append(filtered, col)
-			}
-		}
-		selectedCols = filtered
-	}
-
+	selectedCols := c.selectColumns(srcCols, targetCols)
 	if len(selectedCols) == 0 {
 		models.Log.Warn("No columns selected for table", "table", table)
 		return nil
 	}
 
-	// Determine PKs for UPSERT
+	insertQuery := c.buildInsertQuery(targetConn, table, selectedCols)
+
+	return c.copyRows(ctx, srcConn, targetConn, table, selectedCols, insertQuery)
+}
+
+func (c *MergeDBsCmd) selectColumns(srcCols, targetCols []string) []string {
+	selected := srcCols
+
+	if c.OnlyTargetColumns && len(targetCols) > 0 {
+		selected = c.filterToTarget(srcCols, targetCols)
+	}
+
+	if len(c.SkipColumns) > 0 {
+		selected = c.filterSkipColumns(selected)
+	}
+
+	return selected
+}
+
+func (c *MergeDBsCmd) filterToTarget(srcCols, targetCols []string) []string {
+	targetSet := make(map[string]bool)
+	for _, col := range targetCols {
+		targetSet[col] = true
+	}
+
+	var filtered []string
+	for _, col := range srcCols {
+		if targetSet[col] {
+			filtered = append(filtered, col)
+		}
+	}
+	return filtered
+}
+
+func (c *MergeDBsCmd) filterSkipColumns(cols []string) []string {
+	skipSet := make(map[string]bool)
+	for _, col := range c.SkipColumns {
+		skipSet[col] = true
+	}
+
+	var filtered []string
+	for _, col := range cols {
+		if !skipSet[col] {
+			filtered = append(filtered, col)
+		}
+	}
+	return filtered
+}
+
+func (c *MergeDBsCmd) buildInsertQuery(targetConn *sql.DB, table string, selectedCols []string) string {
+	pks := c.resolvePrimaryKeys(targetConn, table)
+	baseQuery := c.buildBaseInsert(table, selectedCols)
+
+	if c.Upsert && len(pks) > 0 {
+		if upsertQuery := c.buildUpsertQuery(table, selectedCols, pks); upsertQuery != "" {
+			return upsertQuery
+		}
+	}
+
+	return baseQuery
+}
+
+func (c *MergeDBsCmd) resolvePrimaryKeys(targetConn *sql.DB, table string) []string {
 	pks := c.PrimaryKeys
 	if len(c.BusinessKeys) > 0 {
 		pks = c.BusinessKeys
 	}
-	// If no PKs provided, try to find from schema if we are doing UPSERT
-	if c.Upsert && len(pks) == 0 {
-		pks, _ = c.getPrimaryKeyColumns(ctx, targetConn, table)
+	if c.Upsert && len(pks) == 0 && targetConn != nil {
+		pks, _ = c.getPrimaryKeyColumns(context.Background(), targetConn, table)
+	}
+	return pks
+}
+
+func (c *MergeDBsCmd) buildBaseInsert(table string, selectedCols []string) string {
+	placeholders := strings.Repeat("?, ", len(selectedCols)-1) + "?"
+
+	if c.Ignore {
+		return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES (%s)",
+			table, strings.Join(selectedCols, ", "), placeholders)
 	}
 
-	// Build SELECT query
+	if !c.Upsert {
+		return fmt.Sprintf("INSERT OR REPLACE INTO %s (%s) VALUES (%s)",
+			table, strings.Join(selectedCols, ", "), placeholders)
+	}
+
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table, strings.Join(selectedCols, ", "), placeholders)
+}
+
+func (c *MergeDBsCmd) buildUpsertQuery(table string, selectedCols, pks []string) string {
+	colSet := make(map[string]bool)
+	for _, col := range selectedCols {
+		colSet[col] = true
+	}
+
+	for _, pk := range pks {
+		if !colSet[pk] {
+			return ""
+		}
+	}
+
+	updateParts := []string{}
+	for _, col := range selectedCols {
+		if !slices.Contains(pks, col) {
+			updateParts = append(updateParts, fmt.Sprintf("%s=excluded.%s", col, col))
+		}
+	}
+
+	if len(updateParts) == 0 {
+		return ""
+	}
+
+	placeholders := strings.Repeat("?, ", len(selectedCols)-1) + "?"
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
+		table, strings.Join(selectedCols, ", "), placeholders,
+		strings.Join(pks, ", "), strings.Join(updateParts, ", "))
+}
+
+func (c *MergeDBsCmd) copyRows(
+	ctx context.Context,
+	srcConn, targetConn *sql.DB,
+	table string,
+	selectedCols []string,
+	insertQuery string,
+) error {
 	whereClause := ""
 	if len(c.Where) > 0 {
 		whereClause = " WHERE " + strings.Join(c.Where, " AND ")
@@ -182,52 +259,6 @@ func (c *MergeDBsCmd) mergeTable(ctx context.Context, srcConn, targetConn *sql.D
 		return fmt.Errorf("failed to select from source: %w", err)
 	}
 	defer rows.Close()
-
-	// Build INSERT query
-	insertVerb := "INSERT"
-	if c.Ignore {
-		insertVerb = "INSERT OR IGNORE"
-	} else if !c.Upsert {
-		insertVerb = "INSERT OR REPLACE"
-	}
-
-	placeholders := make([]string, len(selectedCols))
-	for i := range placeholders {
-		placeholders[i] = "?"
-	}
-
-	insertQuery := fmt.Sprintf("%s INTO %s (%s) VALUES (%s)",
-		insertVerb, table, strings.Join(selectedCols, ", "), strings.Join(placeholders, ", "))
-
-	if c.Upsert && len(pks) > 0 {
-		// Verify all pks are in selectedCols
-		allIn := true
-		colSet := make(map[string]bool)
-		for _, col := range selectedCols {
-			colSet[col] = true
-		}
-		for _, pk := range pks {
-			if !colSet[pk] {
-				allIn = false
-				break
-			}
-		}
-
-		if allIn {
-			updateParts := []string{}
-			for _, col := range selectedCols {
-				isPk := slices.Contains(pks, col)
-				if !isPk {
-					updateParts = append(updateParts, fmt.Sprintf("%s=excluded.%s", col, col))
-				}
-			}
-			if len(updateParts) > 0 {
-				insertQuery = fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
-					table, strings.Join(selectedCols, ", "), strings.Join(placeholders, ", "),
-					strings.Join(pks, ", "), strings.Join(updateParts, ", "))
-			}
-		}
-	}
 
 	tx, err := targetConn.BeginTx(ctx, nil)
 	if err != nil {
@@ -241,23 +272,8 @@ func (c *MergeDBsCmd) mergeTable(ctx context.Context, srcConn, targetConn *sql.D
 	}
 	defer stmt.Close()
 
-	dest := make([]any, len(selectedCols))
-	destPtrs := make([]any, len(selectedCols))
-	for i := range dest {
-		destPtrs[i] = &dest[i]
-	}
-
-	count := 0
-	for rows.Next() {
-		if err := rows.Scan(destPtrs...); err != nil {
-			return err
-		}
-		if _, err := stmt.ExecContext(ctx, dest...); err != nil {
-			return fmt.Errorf("failed to exec insert: %w", err)
-		}
-		count++
-	}
-	if err := rows.Err(); err != nil {
+	count, err := c.executeInserts(ctx, rows, stmt, len(selectedCols))
+	if err != nil {
 		return err
 	}
 
@@ -267,6 +283,29 @@ func (c *MergeDBsCmd) mergeTable(ctx context.Context, srcConn, targetConn *sql.D
 
 	models.Log.Info("Merged rows", "table", table, "count", count)
 	return nil
+}
+
+func (c *MergeDBsCmd) executeInserts(ctx context.Context, rows *sql.Rows, stmt *sql.Stmt, colCount int) (int, error) {
+	dest := make([]any, colCount)
+	destPtrs := make([]any, len(dest))
+	for i := range dest {
+		destPtrs[i] = &dest[i]
+	}
+
+	count := 0
+	for rows.Next() {
+		if err := rows.Scan(destPtrs...); err != nil {
+			return 0, err
+		}
+		if _, err := stmt.ExecContext(ctx, dest...); err != nil {
+			return 0, fmt.Errorf("failed to exec insert: %w", err)
+		}
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (c *MergeDBsCmd) getTableColumns(ctx context.Context, conn *sql.DB, table string) ([]string, error) {

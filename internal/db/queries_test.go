@@ -20,7 +20,6 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 
 	schema := db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS()
 
-	// Check for STRICT support
 	var version string
 	if err2 := sqlDB.QueryRow("SELECT sqlite_version()").Scan(&version); err2 != nil {
 		t.Fatal(err2)
@@ -31,17 +30,14 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 
 	if !hasStrict {
 		schema = strings.ReplaceAll(schema, "STRICT", "")
-		// Also replace unixepoch() with strftime('%s', 'now') if using very old SQLite
 		if v1 < 3 || (v1 == 3 && v2 < 38) {
 			schema = strings.ReplaceAll(schema, "unixepoch()", "strftime('%s', 'now')")
 		}
 	}
 
-	// Simple FTS5 check
 	var hasFTS5 bool
 	err = sqlDB.QueryRow("SELECT 1 FROM pragma_compile_options WHERE compile_options = 'ENABLE_FTS5'").Scan(&hasFTS5)
 	if err != nil {
-		// maybe it's just not in the list, try creating a virtual table
 		_, err = sqlDB.Exec("CREATE VIRTUAL TABLE fts_test USING fts5(t)")
 		if err == nil {
 			hasFTS5 = true
@@ -50,7 +46,6 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 	}
 
 	if !hasFTS5 {
-		// Filter out FTS5 specific commands if not available
 		var filteredSchema strings.Builder
 		skipNextEnd := false
 		for line := range strings.SplitSeq(schema, ";") {
@@ -82,346 +77,348 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 	return sqlDB, db.New(sqlDB)
 }
 
+type queriesTestEnv struct {
+	sqlDB *sql.DB
+	q     *db.Queries
+}
+
 func TestQueries(t *testing.T) {
 	sqlDB, q := setupDB(t)
 	defer sqlDB.Close()
+
+	env := &queriesTestEnv{
+		sqlDB: sqlDB,
+		q:     q,
+	}
 	ctx := context.Background()
 
-	t.Run("UpsertAndGet", func(t *testing.T) {
-		err := q.UpsertMedia(ctx, db.UpsertMediaParams{
-			Path:  "test.mp4",
-			Title: sql.NullString{String: "Test Title", Valid: true},
-			Size:  sql.NullInt64{Int64: 1000, Valid: true},
-		})
-		if err != nil {
-			t.Errorf("UpsertMedia failed: %v", err)
-		}
+	t.Run("UpsertAndGet", func(t *testing.T) { env.testUpsertAndGet(ctx, t) })
+	t.Run("CategoryStats", func(t *testing.T) { env.testCategoryStats(ctx, t) })
+	t.Run("MediaFiltering", func(t *testing.T) { env.testMediaFiltering(ctx, t) })
+	t.Run("HistoryAndStats", func(t *testing.T) { env.testHistoryAndStats(ctx, t) })
+	t.Run("Playlists", func(t *testing.T) { env.testPlaylists(ctx, t) })
+	t.Run("UpdateOperations", func(t *testing.T) { env.testUpdateOperations(ctx, t) })
+	t.Run("FTSAndCaptions", func(t *testing.T) { env.testFTSAndCaptions(ctx, t) })
+	t.Run("MiscQueries", func(t *testing.T) { env.testMiscQueries(ctx, t) })
+	t.Run("WithTx", func(t *testing.T) { env.testWithTx(ctx, t) })
+	t.Run("StrictEnforcement", func(t *testing.T) { env.testStrictEnforcement(ctx, t) })
+}
 
-		m, err := q.GetMediaByPathExact(ctx, "test.mp4")
-		if err != nil {
-			t.Errorf("GetMediaByPathExact failed: %v", err)
+func (e *queriesTestEnv) testUpsertAndGet(ctx context.Context, t *testing.T) {
+	err := e.q.UpsertMedia(ctx, db.UpsertMediaParams{
+		Path:  "test.mp4",
+		Title: sql.NullString{String: "Test Title", Valid: true},
+		Size:  sql.NullInt64{Int64: 1000, Valid: true},
+	})
+	if err != nil {
+		t.Errorf("UpsertMedia failed: %v", err)
+	}
+
+	m, err := e.q.GetMediaByPathExact(ctx, "test.mp4")
+	if err != nil {
+		t.Errorf("GetMediaByPathExact failed: %v", err)
+	}
+	if m.Title.String != "Test Title" {
+		t.Errorf("Expected Test Title, got %s", m.Title.String)
+	}
+}
+
+func (e *queriesTestEnv) testCategoryStats(ctx context.Context, t *testing.T) {
+	err := e.q.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
+		Path:       "test.mp4",
+		Categories: sql.NullString{String: ";comedy;", Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := e.q.GetCategoryStats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, s := range stats {
+		if s.Category == "comedy" && s.Count == 1 {
+			found = true
+			break
 		}
-		if m.Title.String != "Test Title" {
-			t.Errorf("Expected Test Title, got %s", m.Title.String)
-		}
+	}
+	if !found {
+		t.Error("Comedy category stat not found")
+	}
+}
+
+func (e *queriesTestEnv) testMediaFiltering(ctx context.Context, t *testing.T) {
+	e.q.UpsertMedia(ctx, db.UpsertMediaParams{
+		Path:      "video.mp4",
+		MediaType: sql.NullString{String: "video", Valid: true},
+		Duration:  sql.NullInt64{Int64: 100, Valid: true},
+		Size:      sql.NullInt64{Int64: 5000, Valid: true},
+	})
+	e.q.UpsertMedia(ctx, db.UpsertMediaParams{
+		Path:      "audio.mp3",
+		MediaType: sql.NullString{String: "audio", Valid: true},
+		Duration:  sql.NullInt64{Int64: 200, Valid: true},
+		Size:      sql.NullInt64{Int64: 2000, Valid: true},
 	})
 
-	t.Run("CategoryStats", func(t *testing.T) {
-		err := q.UpdateMediaCategories(ctx, db.UpdateMediaCategoriesParams{
-			Path:       "test.mp4",
-			Categories: sql.NullString{String: ";comedy;", Valid: true},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+	res, _ := e.q.GetMediaByType(ctx, db.GetMediaByTypeParams{
+		VideoOnly: true,
+		AudioOnly: false,
+		ImageOnly: false,
+		Limit:     10,
+	})
+	if len(res) != 1 || res[0].Path != "video.mp4" {
+		t.Errorf("GetMediaByType video failed, got %v", res)
+	}
 
-		stats, err := q.GetCategoryStats(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+	res, _ = e.q.GetMediaBySize(ctx, db.GetMediaBySizeParams{
+		MinSize: 3000,
+		MaxSize: 6000,
+		Limit:   10,
+	})
+	if len(res) != 1 || res[0].Path != "video.mp4" {
+		t.Errorf("GetMediaBySize failed, got %v", res)
+	}
 
-		found := false
-		for _, s := range stats {
-			if s.Category == "comedy" && s.Count == 1 {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("Comedy category stat not found")
-		}
+	res, _ = e.q.GetMediaByDuration(ctx, db.GetMediaByDurationParams{
+		MinDuration: 150,
+		MaxDuration: 250,
+		Limit:       10,
+	})
+	if len(res) != 1 || res[0].Path != "audio.mp3" {
+		t.Errorf("GetMediaByDuration failed, got %v", res)
+	}
+}
+
+func (e *queriesTestEnv) testHistoryAndStats(ctx context.Context, t *testing.T) {
+	path := "history.mp4"
+	e.q.UpsertMedia(ctx, db.UpsertMediaParams{
+		Path:     path,
+		Duration: sql.NullInt64{Int64: 1000, Valid: true},
 	})
 
-	t.Run("MediaFiltering", func(t *testing.T) {
-		q.UpsertMedia(ctx, db.UpsertMediaParams{
-			Path:      "video.mp4",
-			MediaType: sql.NullString{String: "video", Valid: true},
-			Duration:  sql.NullInt64{Int64: 100, Valid: true},
-			Size:      sql.NullInt64{Int64: 5000, Valid: true},
-		})
-		q.UpsertMedia(ctx, db.UpsertMediaParams{
-			Path:      "audio.mp3",
-			MediaType: sql.NullString{String: "audio", Valid: true},
-			Duration:  sql.NullInt64{Int64: 200, Valid: true},
-			Size:      sql.NullInt64{Int64: 2000, Valid: true},
-		})
-
-		// GetMediaByType
-		res, _ := q.GetMediaByType(ctx, db.GetMediaByTypeParams{
-			VideoOnly: true,
-			AudioOnly: false,
-			ImageOnly: false,
-			Limit:     10,
-		})
-		if len(res) != 1 || res[0].Path != "video.mp4" {
-			t.Errorf("GetMediaByType video failed, got %v", res)
-		}
-
-		// GetMediaBySize
-		res, _ = q.GetMediaBySize(ctx, db.GetMediaBySizeParams{
-			MinSize: 3000,
-			MaxSize: 6000,
-			Limit:   10,
-		})
-		if len(res) != 1 || res[0].Path != "video.mp4" {
-			t.Errorf("GetMediaBySize failed, got %v", res)
-		}
-
-		// GetMediaByDuration
-		res, _ = q.GetMediaByDuration(ctx, db.GetMediaByDurationParams{
-			MinDuration: 150,
-			MaxDuration: 250,
-			Limit:       10,
-		})
-		if len(res) != 1 || res[0].Path != "audio.mp3" {
-			t.Errorf("GetMediaByDuration failed, got %v", res)
-		}
+	e.q.UpdatePlayHistory(ctx, db.UpdatePlayHistoryParams{
+		Path:            path,
+		Playhead:        sql.NullInt64{Int64: 500, Valid: true},
+		TimeLastPlayed:  sql.NullInt64{Int64: 12345678, Valid: true},
+		TimeFirstPlayed: sql.NullInt64{Int64: 12345678, Valid: true},
 	})
 
-	t.Run("HistoryAndStats", func(t *testing.T) {
-		path := "history.mp4"
-		q.UpsertMedia(ctx, db.UpsertMediaParams{
-			Path:     path,
-			Duration: sql.NullInt64{Int64: 1000, Valid: true},
-		})
-
-		q.UpdatePlayHistory(ctx, db.UpdatePlayHistoryParams{
-			Path:            path,
-			Playhead:        sql.NullInt64{Int64: 500, Valid: true},
-			TimeLastPlayed:  sql.NullInt64{Int64: 12345678, Valid: true},
-			TimeFirstPlayed: sql.NullInt64{Int64: 12345678, Valid: true},
-		})
-
-		q.InsertHistory(ctx, db.InsertHistoryParams{
-			MediaPath: path,
-			Playhead:  sql.NullInt64{Int64: 500, Valid: true},
-		})
-
-		count, _ := q.GetHistoryCount(ctx, path)
-		if count != 1 {
-			t.Errorf("Expected 1 history entry, got %d", count)
-		}
-
-		unfinished, _ := q.GetUnfinishedMedia(ctx, 10)
-		if len(unfinished) != 1 || unfinished[0].Path != path {
-			t.Errorf("Expected 1 unfinished media, got %v", unfinished)
-		}
-
-		stats, _ := q.GetStats(ctx)
-		if stats.WatchedCount != 1 {
-			t.Errorf("Expected 1 watched media in stats, got %d", stats.WatchedCount)
-		}
+	e.q.InsertHistory(ctx, db.InsertHistoryParams{
+		MediaPath: path,
+		Playhead:  sql.NullInt64{Int64: 500, Valid: true},
 	})
 
-	t.Run("Playlists", func(t *testing.T) {
-		id, err := q.InsertPlaylist(ctx, db.InsertPlaylistParams{
-			Path:         sql.NullString{String: "http://example.com/playlist", Valid: true},
-			ExtractorKey: sql.NullString{String: "youtube", Valid: true},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if id == 0 {
-			t.Error("Expected non-zero ID for playlist")
-		}
+	count, _ := e.q.GetHistoryCount(ctx, path)
+	if count != 1 {
+		t.Errorf("Expected 1 history entry, got %d", count)
+	}
 
-		playlists, _ := q.GetPlaylists(ctx)
-		if len(playlists) != 1 || playlists[0].Path.String != "http://example.com/playlist" {
-			t.Errorf("Expected 1 playlist, got %v", playlists)
-		}
+	unfinished, _ := e.q.GetUnfinishedMedia(ctx, 10)
+	if len(unfinished) != 1 || unfinished[0].Path != path {
+		t.Errorf("Expected 1 unfinished media, got %v", unfinished)
+	}
+
+	stats, _ := e.q.GetStats(ctx)
+	if stats.WatchedCount != 1 {
+		t.Errorf("Expected 1 watched media in stats, got %d", stats.WatchedCount)
+	}
+}
+
+func (e *queriesTestEnv) testPlaylists(ctx context.Context, t *testing.T) {
+	id, err := e.q.InsertPlaylist(ctx, db.InsertPlaylistParams{
+		Path:         sql.NullString{String: "http://example.com/playlist", Valid: true},
+		ExtractorKey: sql.NullString{String: "youtube", Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == 0 {
+		t.Error("Expected non-zero ID for playlist")
+	}
+
+	playlists, _ := e.q.GetPlaylists(ctx)
+	if len(playlists) != 1 || playlists[0].Path.String != "http://example.com/playlist" {
+		t.Errorf("Expected 1 playlist, got %v", playlists)
+	}
+}
+
+func (e *queriesTestEnv) testUpdateOperations(ctx context.Context, t *testing.T) {
+	e.q.UpsertMedia(ctx, db.UpsertMediaParams{Path: "old.mp4"})
+	e.q.UpdatePath(ctx, db.UpdatePathParams{NewPath: "new.mp4", OldPath: "old.mp4"})
+	_, err := e.q.GetMediaByPathExact(ctx, "old.mp4")
+	if err == nil {
+		t.Error("old.mp4 should not exist")
+	}
+	_, err = e.q.GetMediaByPathExact(ctx, "new.mp4")
+	if err != nil {
+		t.Error("new.mp4 should exist")
+	}
+
+	e.q.MarkDeleted(ctx, db.MarkDeletedParams{Path: "new.mp4", TimeDeleted: sql.NullInt64{Int64: 1, Valid: true}})
+	m, _ := e.q.GetMediaByPathExact(ctx, "new.mp4")
+	if m.TimeDeleted.Int64 == 0 {
+		t.Error("Expected time_deleted to be set")
+	}
+}
+
+func (e *queriesTestEnv) testFTSAndCaptions(ctx context.Context, t *testing.T) {
+	var exists int
+	e.sqlDB.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='media_fts'").Scan(&exists)
+	if exists == 0 {
+		t.Skip("FTS5 not available")
+	}
+
+	path := "fts_video.mp4"
+	e.q.UpsertMedia(ctx, db.UpsertMediaParams{
+		Path:  path,
+		Title: sql.NullString{String: "Unique Title for FTS", Valid: true},
 	})
 
-	t.Run("UpdateOperations", func(t *testing.T) {
-		q.UpsertMedia(ctx, db.UpsertMediaParams{Path: "old.mp4"})
-		q.UpdatePath(ctx, db.UpdatePathParams{NewPath: "new.mp4", OldPath: "old.mp4"})
-		_, err := q.GetMediaByPathExact(ctx, "old.mp4")
-		if err == nil {
-			t.Error("old.mp4 should not exist")
-		}
-		_, err = q.GetMediaByPathExact(ctx, "new.mp4")
-		if err != nil {
-			t.Error("new.mp4 should exist")
-		}
+	res, err := e.q.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
+		Query: "Uni",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Errorf("SearchMediaFTS failed: %v", err)
+	}
+	if len(res) == 0 {
+		t.Error("SearchMediaFTS returned no results")
+	}
+	db.RankSearchResults(res, "Unique")
+	if res[0].Rank == 0 {
+		t.Logf("Warning: Search rank is 0")
+	} else {
+		t.Logf("Search rank: %f", res[0].Rank)
+	}
 
-		q.MarkDeleted(ctx, db.MarkDeletedParams{Path: "new.mp4", TimeDeleted: sql.NullInt64{Int64: 1, Valid: true}})
-		m, _ := q.GetMediaByPathExact(ctx, "new.mp4")
-		if m.TimeDeleted.Int64 == 0 {
-			t.Error("Expected time_deleted to be set")
-		}
+	err = e.q.InsertCaption(ctx, db.InsertCaptionParams{
+		MediaPath: path,
+		Time:      sql.NullFloat64{Float64: 10.5, Valid: true},
+		Text:      sql.NullString{String: "Hello from captions", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("InsertCaption failed: %v", err)
+	}
+
+	resCaptions, err := e.q.SearchCaptions(ctx, db.SearchCaptionsParams{
+		Query:     "Hel",
+		VideoOnly: false,
+		AudioOnly: false,
+		ImageOnly: false,
+		TextOnly:  false,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Errorf("SearchCaptions failed: %v", err)
+	}
+	if len(resCaptions) == 0 {
+		t.Error("SearchCaptions returned no results")
+	}
+}
+
+func (e *queriesTestEnv) testMiscQueries(ctx context.Context, t *testing.T) {
+	e.q.UpsertMedia(ctx, db.UpsertMediaParams{
+		Path:      "random.mp4",
+		MediaType: sql.NullString{String: "video", Valid: true},
+		Score:     sql.NullFloat64{Float64: 5.0, Valid: true},
 	})
 
-	t.Run("FTSAndCaptions", func(t *testing.T) {
-		// Check if FTS tables exist before running
-		var exists int
-		sqlDB.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='media_fts'").Scan(&exists)
-		if exists == 0 {
-			t.Skip("FTS5 not available")
-		}
+	random, _ := e.q.GetRandomMedia(ctx, 1)
+	if len(random) == 0 {
+		t.Error("GetRandomMedia failed")
+	}
 
-		path := "fts_video.mp4"
-		q.UpsertMedia(ctx, db.UpsertMediaParams{
-			Path:  path,
-			Title: sql.NullString{String: "Unique Title for FTS", Valid: true},
-		})
+	ratings, _ := e.q.GetRatingStats(ctx)
+	if len(ratings) == 0 {
+		t.Error("GetRatingStats failed")
+	}
 
-		// SearchMediaFTS - use 3-char terms for detail=none compatibility
-		res, err := q.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
-			Query: "Uni", // First 3 chars of "Unique"
-			Limit: 10,
-		})
-		if err != nil {
-			t.Errorf("SearchMediaFTS failed: %v", err)
-		}
-		if len(res) == 0 {
-			t.Error("SearchMediaFTS returned no results")
-		}
-		// Apply in-memory ranking
-		db.RankSearchResults(res, "Unique")
-		if res[0].Rank == 0 {
-			t.Logf("Warning: Search rank is 0")
+	stats, _ := e.q.GetStatsByType(ctx)
+	if len(stats) == 0 {
+		t.Error("GetStatsByType failed")
+	}
+
+	meta, _ := e.q.GetAllMediaMetadata(ctx)
+	if len(meta) == 0 {
+		t.Error("GetAllMediaMetadata failed")
+	}
+
+	res, _ := e.q.GetMedia(ctx, 10)
+	if len(res) == 0 {
+		t.Error("GetMedia failed")
+	}
+
+	res, _ = e.q.GetMediaByPath(ctx, db.GetMediaByPathParams{PathPattern: "%random%", Limit: 10})
+	if len(res) == 0 {
+		t.Error("GetMediaByPath failed")
+	}
+
+	res, _ = e.q.GetMediaByPlayCount(ctx, db.GetMediaByPlayCountParams{MinPlayCount: 0, MaxPlayCount: 10, Limit: 10})
+	if len(res) == 0 {
+		t.Error("GetMediaByPlayCount failed")
+	}
+
+	res, _ = e.q.GetSiblingMedia(
+		ctx,
+		db.GetSiblingMediaParams{PathPattern: "%", PathExclude: "non-existent", Limit: 10},
+	)
+	if len(res) == 0 {
+		t.Error("GetSiblingMedia failed")
+	}
+
+	res, _ = e.q.GetUnwatchedMedia(ctx, 10)
+	if len(res) == 0 {
+		t.Error("GetUnwatchedMedia failed")
+	}
+
+	e.q.UpdatePlayHistory(
+		ctx,
+		db.UpdatePlayHistoryParams{Path: "random.mp4", TimeLastPlayed: sql.NullInt64{Int64: 1, Valid: true}},
+	)
+	res, _ = e.q.GetWatchedMedia(ctx, 10)
+	if len(res) == 0 {
+		t.Error("GetWatchedMedia failed")
+	}
+}
+
+func (e *queriesTestEnv) testWithTx(ctx context.Context, t *testing.T) {
+	tx, _ := e.sqlDB.Begin()
+	qtx := e.q.WithTx(tx)
+	err := qtx.UpsertMedia(ctx, db.UpsertMediaParams{Path: "tx.mp4"})
+	if err != nil {
+		t.Errorf("WithTx failed: %v", err)
+	}
+	tx.Commit()
+
+	_, err = e.q.GetMediaByPathExact(ctx, "tx.mp4")
+	if err != nil {
+		t.Error("tx.mp4 should exist after successful transaction")
+	}
+}
+
+func (e *queriesTestEnv) testStrictEnforcement(ctx context.Context, t *testing.T) {
+	var version string
+	e.sqlDB.QueryRow("SELECT sqlite_version()").Scan(&version)
+	var v1, v2, v3 int
+	fmt.Sscanf(version, "%d.%d.%d", &v1, &v2, &v3)
+	if v1 < 3 || (v1 == 3 && v2 < 37) {
+		t.Skip("STRICT not supported")
+	}
+
+	_, err := e.sqlDB.Exec("INSERT INTO media (path, duration) VALUES ('strict-test.mp4', 'not-an-int')")
+	if err == nil {
+		t.Error("Expected error when inserting string into INTEGER column in STRICT table, but got none")
+	} else {
+		msg := err.Error()
+		if strings.Contains(msg, "datatype mismatch") ||
+			strings.Contains(msg, "cannot store TEXT value in INTEGER column") {
+
+			t.Logf("Caught expected STRICT error: %v", msg)
 		} else {
-			t.Logf("Search rank: %f", res[0].Rank)
+			t.Errorf("Expected a datatype mismatch error from the STRICT table, but got a different error: %v", err)
 		}
-
-		// Captions
-		err = q.InsertCaption(ctx, db.InsertCaptionParams{
-			MediaPath: path,
-			Time:      sql.NullFloat64{Float64: 10.5, Valid: true},
-			Text:      sql.NullString{String: "Hello from captions", Valid: true},
-		})
-		if err != nil {
-			t.Fatalf("InsertCaption failed: %v", err)
-		}
-
-		resCaptions, err := q.SearchCaptions(ctx, db.SearchCaptionsParams{
-			Query:     "Hel", // First 3 chars of "Hello"
-			VideoOnly: false,
-			AudioOnly: false,
-			ImageOnly: false,
-			TextOnly:  false,
-			Limit:     10,
-		})
-		if err != nil {
-			t.Errorf("SearchCaptions failed: %v", err)
-		}
-		if len(resCaptions) == 0 {
-			t.Error("SearchCaptions returned no results")
-		}
-	})
-
-	t.Run("MiscQueries", func(t *testing.T) {
-		q.UpsertMedia(ctx, db.UpsertMediaParams{
-			Path:      "random.mp4",
-			MediaType: sql.NullString{String: "video", Valid: true},
-			Score:     sql.NullFloat64{Float64: 5.0, Valid: true},
-		})
-
-		// GetRandomMedia
-		random, _ := q.GetRandomMedia(ctx, 1)
-		if len(random) == 0 {
-			t.Error("GetRandomMedia failed")
-		}
-
-		// GetRatingStats
-		ratings, _ := q.GetRatingStats(ctx)
-		if len(ratings) == 0 {
-			t.Error("GetRatingStats failed")
-		}
-
-		// GetStatsByType
-		stats, _ := q.GetStatsByType(ctx)
-		if len(stats) == 0 {
-			t.Error("GetStatsByType failed")
-		}
-
-		// GetAllMediaMetadata
-		meta, _ := q.GetAllMediaMetadata(ctx)
-		if len(meta) == 0 {
-			t.Error("GetAllMediaMetadata failed")
-		}
-
-		// GetMedia
-		res, _ := q.GetMedia(ctx, 10)
-		if len(res) == 0 {
-			t.Error("GetMedia failed")
-		}
-
-		// GetMediaByPath
-		res, _ = q.GetMediaByPath(ctx, db.GetMediaByPathParams{PathPattern: "%random%", Limit: 10})
-		if len(res) == 0 {
-			t.Error("GetMediaByPath failed")
-		}
-
-		// GetMediaByPlayCount
-		res, _ = q.GetMediaByPlayCount(ctx, db.GetMediaByPlayCountParams{MinPlayCount: 0, MaxPlayCount: 10, Limit: 10})
-		if len(res) == 0 {
-			t.Error("GetMediaByPlayCount failed")
-		}
-
-		// GetSiblingMedia
-		res, _ = q.GetSiblingMedia(
-			ctx,
-			db.GetSiblingMediaParams{PathPattern: "%", PathExclude: "non-existent", Limit: 10},
-		)
-		if len(res) == 0 {
-			t.Error("GetSiblingMedia failed")
-		}
-
-		// GetUnwatchedMedia
-		res, _ = q.GetUnwatchedMedia(ctx, 10)
-		if len(res) == 0 {
-			t.Error("GetUnwatchedMedia failed")
-		}
-
-		// GetWatchedMedia
-		q.UpdatePlayHistory(
-			ctx,
-			db.UpdatePlayHistoryParams{Path: "random.mp4", TimeLastPlayed: sql.NullInt64{Int64: 1, Valid: true}},
-		)
-		res, _ = q.GetWatchedMedia(ctx, 10)
-		if len(res) == 0 {
-			t.Error("GetWatchedMedia failed")
-		}
-	})
-
-	t.Run("WithTx", func(t *testing.T) {
-		tx, _ := sqlDB.Begin()
-		qtx := q.WithTx(tx)
-		err := qtx.UpsertMedia(ctx, db.UpsertMediaParams{Path: "tx.mp4"})
-		if err != nil {
-			t.Errorf("WithTx failed: %v", err)
-		}
-		tx.Commit()
-
-		_, err = q.GetMediaByPathExact(ctx, "tx.mp4")
-		if err != nil {
-			t.Error("tx.mp4 should exist after successful transaction")
-		}
-	})
-
-	t.Run("StrictEnforcement", func(t *testing.T) {
-		var version string
-		sqlDB.QueryRow("SELECT sqlite_version()").Scan(&version)
-		var v1, v2, v3 int
-		fmt.Sscanf(version, "%d.%d.%d", &v1, &v2, &v3)
-		if v1 < 3 || (v1 == 3 && v2 < 37) {
-			t.Skip("STRICT not supported")
-		}
-
-		// Try to insert a string into an INTEGER column (duration)
-		_, err := sqlDB.Exec("INSERT INTO media (path, duration) VALUES ('strict-test.mp4', 'not-an-int')")
-		if err == nil {
-			t.Error("Expected error when inserting string into INTEGER column in STRICT table, but got none")
-		} else {
-			msg := err.Error()
-			if strings.Contains(msg, "datatype mismatch") ||
-				strings.Contains(msg, "cannot store TEXT value in INTEGER column") {
-				// This is the expected behavior for STRICT tables
-				t.Logf("Caught expected STRICT error: %v", msg)
-			} else {
-				// This is an unexpected error (e.g., connection issue, syntax error, etc.)
-				t.Errorf("Expected a datatype mismatch error from the STRICT table, but got a different error: %v", err)
-			}
-		}
-	})
+	}
 }

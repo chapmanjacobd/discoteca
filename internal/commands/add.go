@@ -329,25 +329,30 @@ func (c *AddCmd) reportProgress(opts processMediaTypeOptions, count int, startTi
 	}
 }
 
+// ExtractionWorkersParams contains the channels and synchronization primitives for extraction workers
+type ExtractionWorkersParams struct {
+	Jobs    <-chan string
+	Results chan<- *metadata.MediaMetadata
+	State   *processState
+	Wg      *sync.WaitGroup
+}
+
 func (c *AddCmd) startExtractionWorkers(
 	ctx context.Context,
 	opts processMediaTypeOptions,
-	jobs <-chan string,
-	results chan<- *metadata.MediaMetadata,
-	state *processState,
-	wg *sync.WaitGroup,
+	params ExtractionWorkersParams,
 ) {
 	worker := func() {
-		state.activeWorkers.Add(1)
-		defer state.activeWorkers.Add(-1)
+		params.State.activeWorkers.Add(1)
+		defer params.State.activeWorkers.Add(-1)
 		for {
-			if state.activeWorkers.Load() > state.targetConcurrency.Load() {
+			if params.State.activeWorkers.Load() > params.State.targetConcurrency.Load() {
 				return // Scale down
 			}
 			select {
 			case <-ctx.Done():
 				return
-			case path, ok := <-jobs:
+			case path, ok := <-params.Jobs:
 				if !ok {
 					return
 				}
@@ -363,25 +368,25 @@ func (c *AddCmd) startExtractionWorkers(
 				if extErr != nil {
 					models.Log.Error("\n  Metadata extraction failed", "path", path, "error", extErr)
 				} else if res != nil {
-					results <- res
+					params.Results <- res
 				}
-				state.completedJobs.Add(1)
+				params.State.completedJobs.Add(1)
 			}
 		}
 	}
 
-	for range state.targetConcurrency.Load() {
-		wg.Go(worker)
+	for range params.State.targetConcurrency.Load() {
+		params.Wg.Go(worker)
 	}
 
 	// For dynamic scaling
 	monitorDone := make(chan struct{})
-	startOne := func() { wg.Go(worker) }
-	go c.monitorConcurrency(ctx, state, startOne, monitorDone)
+	startOne := func() { params.Wg.Go(worker) }
+	go c.monitorConcurrency(ctx, params.State, startOne, monitorDone)
 	go func() {
-		wg.Wait()
+		params.Wg.Wait()
 		close(monitorDone)
-		close(results)
+		close(params.Results)
 	}()
 }
 
@@ -449,7 +454,12 @@ func (c *AddCmd) processMediaType(ctx context.Context, opts processMediaTypeOpti
 	}
 	state.targetConcurrency.Store(targetConcurrency)
 
-	c.startExtractionWorkers(ctx, opts, jobs, results, state, &wg)
+	c.startExtractionWorkers(ctx, opts, ExtractionWorkersParams{
+		Jobs:    jobs,
+		Results: results,
+		State:   state,
+		Wg:      &wg,
+	})
 
 	// Database writes
 	c.writeResultsToDB(ctx, opts, results, startTime, state)

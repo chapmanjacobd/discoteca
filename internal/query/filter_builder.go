@@ -262,48 +262,65 @@ func (fb *FilterBuilder) buildStatusFilters(whereClauses *[]string) {
 }
 
 func (fb *FilterBuilder) buildSearchFilters(ctx context.Context, whereClauses *[]string, args *[]any) {
+	fb.buildMediaLocationFilters(whereClauses)
+	fb.buildExtensionFilters(whereClauses, args)
+	fb.buildCategoryFilters(whereClauses, args)
+
+	allInclude, pathContains := fb.splitSearchTerms()
+
+	if len(allInclude) > 0 {
+		fb.buildSearchClauses(ctx, allInclude, whereClauses, args)
+	}
+
+	fb.buildExcludeFilters(whereClauses, args)
+	fb.buildRegexFilter(whereClauses, args)
+	fb.buildPathContainsFilters(pathContains, whereClauses, args)
+}
+
+func (fb *FilterBuilder) buildMediaLocationFilters(whereClauses *[]string) {
 	if fb.Flags.OnlineMediaOnly {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s LIKE 'http%%'", fb.col("path")))
 	}
 	if fb.Flags.LocalMediaOnly {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s NOT LIKE 'http%%'", fb.col("path")))
 	}
+}
 
-	// Extension filters (EndsWith pattern - surprisingly fast ~660μs per benchmark)
-	if len(fb.Flags.Ext) > 0 {
-		extClauses := make([]string, 0, len(fb.Flags.Ext))
-		for _, ext := range fb.Flags.Ext {
-			extClauses = append(extClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
-			*args = append(*args, "%"+ext)
-		}
-		*whereClauses = append(*whereClauses, "("+strings.Join(extClauses, " OR ")+")")
+func (fb *FilterBuilder) buildExtensionFilters(whereClauses *[]string, args *[]any) {
+	if len(fb.Flags.Ext) == 0 {
+		return
 	}
+	extClauses := make([]string, 0, len(fb.Flags.Ext))
+	for _, ext := range fb.Flags.Ext {
+		extClauses = append(extClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
+		*args = append(*args, "%"+ext)
+	}
+	*whereClauses = append(*whereClauses, "("+strings.Join(extClauses, " OR ")+")")
+}
 
-	// Category filter (LIKE with wildcards - expensive)
-	if len(fb.Flags.Category) > 0 {
-		var catClauses []string
-		for _, cat := range fb.Flags.Category {
-			if cat == "Uncategorized" {
-				catClauses = append(
-					catClauses,
-					fmt.Sprintf("(%s IS NULL OR %s = '')", fb.col("categories"), fb.col("categories")),
-				)
-			} else {
-				catClauses = append(catClauses, fmt.Sprintf("%s LIKE '%%' || ? || '%%'", fb.col("categories")))
-				*args = append(*args, ";"+cat+";")
-			}
-		}
-		if len(catClauses) > 0 {
-			*whereClauses = append(*whereClauses, "("+strings.Join(catClauses, " OR ")+")")
+func (fb *FilterBuilder) buildCategoryFilters(whereClauses *[]string, args *[]any) {
+	if len(fb.Flags.Category) == 0 {
+		return
+	}
+	var catClauses []string
+	for _, cat := range fb.Flags.Category {
+		if cat == "Uncategorized" {
+			catClauses = append(catClauses,
+				fmt.Sprintf("(%s IS NULL OR %s = '')", fb.col("categories"), fb.col("categories")))
+		} else {
+			catClauses = append(catClauses, fmt.Sprintf("%s LIKE '%%' || ? || '%%'", fb.col("categories")))
+			*args = append(*args, ";"+cat+";")
 		}
 	}
+	if len(catClauses) > 0 {
+		*whereClauses = append(*whereClauses, "("+strings.Join(catClauses, " OR ")+")")
+	}
+}
 
-	// Search terms (FTS or LIKE - most expensive operation)
-	allInclude := append([]string{}, fb.Flags.Search...)
+func (fb *FilterBuilder) splitSearchTerms() (allInclude, pathContains []string) {
+	allInclude = append([]string{}, fb.Flags.Search...)
 	allInclude = append(allInclude, fb.Flags.Include...)
-
-	// Path contains filters
-	pathContains := append([]string{}, fb.Flags.PathContains...)
+	pathContains = append([]string{}, fb.Flags.PathContains...)
 
 	var filteredInclude []string
 	for _, term := range allInclude {
@@ -315,113 +332,119 @@ func (fb *FilterBuilder) buildSearchFilters(ctx context.Context, whereClauses *[
 			filteredInclude = append(filteredInclude, term)
 		}
 	}
-	allInclude = filteredInclude
+	return filteredInclude, pathContains
+}
 
-	if len(allInclude) > 0 {
-		joinOp := " AND "
-		if fb.Flags.FlexibleSearch {
-			joinOp = " OR "
-		}
+func (fb *FilterBuilder) buildSearchClauses(
+	ctx context.Context,
+	allInclude []string,
+	whereClauses *[]string,
+	args *[]any,
+) {
+	joinOp := " AND "
+	if fb.Flags.FlexibleSearch {
+		joinOp = " OR "
+	}
 
-		// Determine search mode: --no-fts > --fts > auto-detect
-		useFTS := fb.Flags.FTS
-		noFTS := fb.Flags.NoFTS
+	useFTS := fb.resolveSearchMode(ctx)
 
-		// Auto-detect if not explicitly set
-		if !useFTS && !noFTS {
-			mode := DetectSearchMode(ctx, nil)
-			useFTS = (mode == SearchModeFTS5)
-		}
+	if useFTS && !fb.Flags.Exact {
+		fb.buildFTSSearchClauses(allInclude, joinOp, whereClauses, args)
+	} else {
+		fb.buildLikeSearchClauses(allInclude, joinOp, whereClauses, args)
+	}
+}
 
-		if noFTS {
-			// Force substring search
-			useFTS = false
-		}
+func (fb *FilterBuilder) resolveSearchMode(ctx context.Context) bool {
+	useFTS := fb.Flags.FTS
+	noFTS := fb.Flags.NoFTS
 
-		if useFTS && !fb.Flags.Exact {
-			// Hybrid FTS + LIKE search for phrase support with detail=none
-			// Note: FTS with detail=none doesn't support exact matching, so we use LIKE for --exact
-			// Combine all terms into a single query string for parsing
-			queryStr := strings.Join(allInclude, " ")
-			hybrid := utils.ParseHybridSearchQuery(queryStr)
+	if !useFTS && !noFTS {
+		mode := DetectSearchMode(ctx, nil)
+		useFTS = (mode == SearchModeFTS5)
+	}
 
-			// FTS terms (works with detail=none)
-			if hybrid.HasFTSTerms() {
-				// Use trigram matching for fuzzy search
-				ftsQuery := hybrid.BuildFTSQuery(joinOp)
-				if ftsQuery != "" {
-					*whereClauses = append(*whereClauses, fmt.Sprintf("%s MATCH ?", fb.getFTSTable()))
-					*args = append(*args, ftsQuery)
-				}
-			}
+	if noFTS {
+		useFTS = false
+	}
+	return useFTS
+}
 
-			// Phrase searches via LIKE (trigram-optimized)
-			for _, phrase := range hybrid.Phrases {
-				*whereClauses = append(
-					*whereClauses,
-					fmt.Sprintf(
-						"(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)",
-						fb.col("path"),
-						fb.col("title"),
-						fb.col("description"),
-					),
-				)
-				pattern := "%" + phrase + "%"
-				*args = append(*args, pattern, pattern, pattern)
-			}
-		} else {
-			// Regular LIKE search (also used for --exact mode since FTS detail=none doesn't support exact)
-			var searchParts []string
-			for _, term := range allInclude {
-				if fb.Flags.Exact {
-					// For exact match, use raw path column with word boundary matching
-					// Match basename containing the exact term followed by separator or extension
-					// This ensures "exact" matches "exact.mp4" but not "exact_match.mp4"
-					searchParts = append(searchParts, fmt.Sprintf(
-						"(%s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\')",
-						fb.col("path"), fb.col("path"),
-					))
-					// Match: "%/exact.%" or "%/exact" (basename boundaries)
-					// The % before matches any path prefix, then we match exact word boundary
-					*args = append(*args,
-						"%/"+term+".%", // path contains "/exact." (exact followed by extension)
-						"%/"+term,      // path ends with "/exact" (exact as basename)
-					)
-				} else {
-					searchParts = append(
-						searchParts,
-						fmt.Sprintf(
-							"(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)",
-							fb.col("path"),
-							fb.col("title"),
-							fb.col("path_tokenized"),
-						),
-					)
-					pattern := "%" + strings.ReplaceAll(term, " ", "%") + "%"
-					*args = append(*args, pattern, pattern, pattern)
-				}
-			}
-			*whereClauses = append(*whereClauses, "("+strings.Join(searchParts, joinOp)+")")
+func (fb *FilterBuilder) buildFTSSearchClauses(
+	allInclude []string,
+	joinOp string,
+	whereClauses *[]string,
+	args *[]any,
+) {
+	queryStr := strings.Join(allInclude, " ")
+	hybrid := utils.ParseHybridSearchQuery(queryStr)
+
+	if hybrid.HasFTSTerms() {
+		ftsQuery := hybrid.BuildFTSQuery(joinOp)
+		if ftsQuery != "" {
+			*whereClauses = append(*whereClauses, fmt.Sprintf("%s MATCH ?", fb.getFTSTable()))
+			*args = append(*args, ftsQuery)
 		}
 	}
 
-	// Exclude patterns (expensive NOT LIKE)
+	for _, phrase := range hybrid.Phrases {
+		*whereClauses = append(*whereClauses,
+			fmt.Sprintf(
+				"(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)",
+				fb.col("path"), fb.col("title"), fb.col("description"),
+			),
+		)
+		pattern := "%" + phrase + "%"
+		*args = append(*args, pattern, pattern, pattern)
+	}
+}
+
+func (fb *FilterBuilder) buildLikeSearchClauses(
+	allInclude []string,
+	joinOp string,
+	whereClauses *[]string,
+	args *[]any,
+) {
+	var searchParts []string
+	for _, term := range allInclude {
+		if fb.Flags.Exact {
+			searchParts = append(searchParts, fmt.Sprintf(
+				"(%s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\')",
+				fb.col("path"), fb.col("path"),
+			))
+			*args = append(*args, "%/"+term+".%", "%/"+term)
+		} else {
+			searchParts = append(searchParts,
+				fmt.Sprintf(
+					"(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)",
+					fb.col("path"), fb.col("title"), fb.col("path_tokenized"),
+				),
+			)
+			pattern := "%" + strings.ReplaceAll(term, " ", "%") + "%"
+			*args = append(*args, pattern, pattern, pattern)
+		}
+	}
+	*whereClauses = append(*whereClauses, "("+strings.Join(searchParts, joinOp)+")")
+}
+
+func (fb *FilterBuilder) buildExcludeFilters(whereClauses *[]string, args *[]any) {
 	for _, exc := range fb.Flags.Exclude {
-		*whereClauses = append(
-			*whereClauses,
+		*whereClauses = append(*whereClauses,
 			fmt.Sprintf("%s NOT LIKE ? AND %s NOT LIKE ?", fb.col("path"), fb.col("title")),
 		)
 		pattern := "%" + exc + "%"
 		*args = append(*args, pattern, pattern)
 	}
+}
 
-	// Regex filter (requires regex extension or post-filter)
+func (fb *FilterBuilder) buildRegexFilter(whereClauses *[]string, args *[]any) {
 	if fb.Flags.Regex != "" {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s REGEXP ?", fb.col("path")))
 		*args = append(*args, fb.Flags.Regex)
 	}
+}
 
-	// Path contains filters (substring search - expensive)
+func (fb *FilterBuilder) buildPathContainsFilters(pathContains []string, whereClauses *[]string, args *[]any) {
 	for _, contain := range pathContains {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
 		*args = append(*args, "%"+contain+"%")
@@ -1603,61 +1626,20 @@ func ExpandRelatedMedia(
 		return nil
 	}
 
-	// Get the first media item to find related content
 	first := (*media)[0]
-
-	// Extract search terms from flags first (if available)
-	var words []string
-	if len(flags.Search) > 0 {
-		// Use the original search query terms
-		queryStr := strings.Join(flags.Search, " ")
-		hybrid := utils.ParseHybridSearchQuery(queryStr)
-
-		// Use FTS terms from the search
-		words = append(words, hybrid.FTSTerms...)
-
-		// Also include phrases as individual words
-		for _, phrase := range hybrid.Phrases {
-			phraseWords := strings.FieldsSeq(phrase)
-			for w := range phraseWords {
-				if len(w) > 2 {
-					words = append(words, w)
-				}
-			}
-		}
-	}
-
-	// If no search terms from flags, extract from media item
-	if len(words) == 0 {
-		words = extractSearchWords(first)
-	}
-
+	words := extractSearchWordsFromFlagsOrMedia(flags, first)
 	if len(words) == 0 {
 		return nil
 	}
 
-	// Sort words by length (longer = more specific) and take top words
-	sort.Slice(words, func(i, j int) bool {
-		return len(words[i]) > len(words[j])
-	})
+	words = topWordsByLength(words, 50)
+	queryStr := buildRelatedMediaQueryStr(words)
 
-	maxWords := 50
-	if len(words) > maxWords {
-		words = words[:maxWords]
-	}
-
-	// Build FTS search query using trigram-compatible format for detail=none
-	hybrid := &utils.HybridSearchQuery{FTSTerms: words}
-	queryStr := hybrid.BuildFTSQuery("OR")
-
-	// Detect FTS table
 	ftsTable := detectFTSTable(ctx, sqlDB)
 	if ftsTable == "" {
-		// No FTS available, skip expansion
 		return nil
 	}
 
-	// Query for related media using FTS with rank
 	relatedRows, err := queryRelatedMediaWithRank(ctx, sqlDB, RelatedSearchParams{
 		FTSTable:    ftsTable,
 		ExcludePath: first.Path,
@@ -1668,39 +1650,84 @@ func ExpandRelatedMedia(
 		return err
 	}
 
-	// Convert rows to media items and append
-	seenPaths := make(map[string]bool)
+	appendRelatedMedia(media, relatedRows)
+	return nil
+}
+
+func extractSearchWordsFromFlagsOrMedia(flags models.GlobalFlags, first models.MediaWithDB) []string {
+	if len(flags.Search) > 0 {
+		return extractWordsFromSearch(flags.Search)
+	}
+	return extractSearchWords(first)
+}
+
+func extractWordsFromSearch(searchTerms []string) []string {
+	var words []string
+	queryStr := strings.Join(searchTerms, " ")
+	hybrid := utils.ParseHybridSearchQuery(queryStr)
+
+	words = append(words, hybrid.FTSTerms...)
+	for _, phrase := range hybrid.Phrases {
+		for w := range strings.FieldsSeq(phrase) {
+			if len(w) > 2 {
+				words = append(words, w)
+			}
+		}
+	}
+	return words
+}
+
+func topWordsByLength(words []string, max int) []string {
+	sort.Slice(words, func(i, j int) bool {
+		return len(words[i]) > len(words[j])
+	})
+	if len(words) > max {
+		return words[:max]
+	}
+	return words
+}
+
+func buildRelatedMediaQueryStr(words []string) string {
+	hybrid := &utils.HybridSearchQuery{FTSTerms: words}
+	return hybrid.BuildFTSQuery("OR")
+}
+
+func appendRelatedMedia(media *[]models.MediaWithDB, relatedRows []relatedMediaRow) {
+	seenPaths := make(map[string]bool, len(*media))
 	for _, m := range *media {
 		seenPaths[m.Path] = true
 	}
 
 	for _, row := range relatedRows {
-		if !seenPaths[row.Path] {
-			*media = append(*media, models.MediaWithDB{
-				Media: models.Media{
-					Path:           row.Path,
-					Title:          models.NullStringPtr(row.Title),
-					Size:           models.NullInt64Ptr(row.Size),
-					Duration:       models.NullInt64Ptr(row.Duration),
-					VideoCount:     models.NullInt64Ptr(row.VideoCount),
-					AudioCount:     models.NullInt64Ptr(row.AudioCount),
-					SubtitleCount:  models.NullInt64Ptr(row.SubtitleCount),
-					PlayCount:      models.NullInt64Ptr(row.PlayCount),
-					Playhead:       models.NullInt64Ptr(row.Playhead),
-					TimeCreated:    models.NullInt64Ptr(row.TimeCreated),
-					TimeModified:   models.NullInt64Ptr(row.TimeModified),
-					TimeDownloaded: models.NullInt64Ptr(row.TimeDownloaded),
-					TimeLastPlayed: models.NullInt64Ptr(row.TimeLastPlayed),
-					Score:          models.NullFloat64Ptr(row.Score),
-					MediaType:      models.NullStringPtr(row.MediaType),
-				},
-				DB: row.DB,
-			})
-			seenPaths[row.Path] = true
+		if seenPaths[row.Path] {
+			continue
 		}
+		*media = append(*media, relatedRowToMedia(row))
+		seenPaths[row.Path] = true
 	}
+}
 
-	return nil
+func relatedRowToMedia(row relatedMediaRow) models.MediaWithDB {
+	return models.MediaWithDB{
+		Media: models.Media{
+			Path:           row.Path,
+			Title:          models.NullStringPtr(row.Title),
+			Size:           models.NullInt64Ptr(row.Size),
+			Duration:       models.NullInt64Ptr(row.Duration),
+			VideoCount:     models.NullInt64Ptr(row.VideoCount),
+			AudioCount:     models.NullInt64Ptr(row.AudioCount),
+			SubtitleCount:  models.NullInt64Ptr(row.SubtitleCount),
+			PlayCount:      models.NullInt64Ptr(row.PlayCount),
+			Playhead:       models.NullInt64Ptr(row.Playhead),
+			TimeCreated:    models.NullInt64Ptr(row.TimeCreated),
+			TimeModified:   models.NullInt64Ptr(row.TimeModified),
+			TimeDownloaded: models.NullInt64Ptr(row.TimeDownloaded),
+			TimeLastPlayed: models.NullInt64Ptr(row.TimeLastPlayed),
+			Score:          models.NullFloat64Ptr(row.Score),
+			MediaType:      models.NullStringPtr(row.MediaType),
+		},
+		DB: row.DB,
+	}
 }
 
 // extractSearchWords extracts searchable words from a media item
@@ -2076,70 +2103,90 @@ func (qe *QueryExecutor) postProcessMediaQuery(
 ) ([]models.MediaWithDB, error) {
 	allMedia := opts.media
 	if opts.isEpisodic {
-		counts := make(map[string]int64)
-		for _, m := range allMedia {
-			counts[m.Parent()]++
-		}
-
-		r, err := utils.ParseRange(opts.flags.FileCounts, func(s string) (int64, error) {
-			return strconv.ParseInt(s, 10, 64)
-		})
-
-		if err == nil {
-			var filtered []models.MediaWithDB
-			for _, m := range allMedia {
-				if r.Matches(counts[m.Parent()]) {
-					filtered = append(filtered, m)
-				}
-			}
-			allMedia = filtered
-		}
-
-		// Apply sorting
-		NewSortBuilder(opts.flags).Sort(allMedia)
-
-		// Apply original limit/offset
-		if opts.origOffset > 0 {
-			if opts.origOffset >= len(allMedia) {
-				return []models.MediaWithDB{}, nil
-			}
-			allMedia = allMedia[opts.origOffset:]
-		}
-		if opts.origLimit > 0 && len(allMedia) > opts.origLimit {
-			allMedia = allMedia[:opts.origLimit]
-		}
+		allMedia = qe.applyEpisodicFilters(allMedia, opts)
 	}
 
-	// Group by parent directory
+	allMedia = qe.applyGroupingAndSiblings(ctx, allMedia, opts)
+
+	if opts.isMultiDB && !opts.isEpisodic && !opts.flags.GroupByParent && !opts.flags.All && opts.origLimit > 0 {
+		allMedia = qe.applyMultiDBLimitOffset(allMedia, opts)
+	}
+
+	return allMedia, nil
+}
+
+func (qe *QueryExecutor) applyEpisodicFilters(
+	allMedia []models.MediaWithDB,
+	opts postProcessOptions,
+) []models.MediaWithDB {
+	counts := make(map[string]int64)
+	for _, m := range allMedia {
+		counts[m.Parent()]++
+	}
+
+	r, err := utils.ParseRange(opts.flags.FileCounts, func(s string) (int64, error) {
+		return strconv.ParseInt(s, 10, 64)
+	})
+
+	if err == nil {
+		var filtered []models.MediaWithDB
+		for _, m := range allMedia {
+			if r.Matches(counts[m.Parent()]) {
+				filtered = append(filtered, m)
+			}
+		}
+		allMedia = filtered
+	}
+
+	NewSortBuilder(opts.flags).Sort(allMedia)
+
+	if opts.origOffset > 0 {
+		if opts.origOffset >= len(allMedia) {
+			return []models.MediaWithDB{}
+		}
+		allMedia = allMedia[opts.origOffset:]
+	}
+	if opts.origLimit > 0 && len(allMedia) > opts.origLimit {
+		allMedia = allMedia[:opts.origLimit]
+	}
+	return allMedia
+}
+
+func (qe *QueryExecutor) applyGroupingAndSiblings(
+	ctx context.Context,
+	allMedia []models.MediaWithDB,
+	opts postProcessOptions,
+) []models.MediaWithDB {
 	if opts.flags.GroupByParent {
 		allMedia = qe.GroupByParent(allMedia, opts.flags)
 	}
 
-	// Fetch siblings
 	if opts.flags.FetchSiblings != "" {
 		var err error
 		allMedia, err = qe.FetchSiblings(ctx, allMedia, opts.flags)
 		if err != nil {
-			return allMedia, err
+			return allMedia
 		}
 	}
+	return allMedia
+}
 
-	// For multiple databases, apply limit/offset after merging and sorting
-	if opts.isMultiDB && !opts.isEpisodic && !opts.flags.GroupByParent && !opts.flags.All && opts.origLimit > 0 {
-		NewSortBuilder(opts.flags).Sort(allMedia)
+func (qe *QueryExecutor) applyMultiDBLimitOffset(
+	allMedia []models.MediaWithDB,
+	opts postProcessOptions,
+) []models.MediaWithDB {
+	NewSortBuilder(opts.flags).Sort(allMedia)
 
-		if opts.origOffset > 0 {
-			if opts.origOffset >= len(allMedia) {
-				return []models.MediaWithDB{}, nil
-			}
-			allMedia = allMedia[opts.origOffset:]
+	if opts.origOffset > 0 {
+		if opts.origOffset >= len(allMedia) {
+			return []models.MediaWithDB{}
 		}
-		if len(allMedia) > opts.origLimit {
-			allMedia = allMedia[:opts.origLimit]
-		}
+		allMedia = allMedia[opts.origOffset:]
 	}
-
-	return allMedia, nil
+	if len(allMedia) > opts.origLimit {
+		allMedia = allMedia[:opts.origLimit]
+	}
+	return allMedia
 }
 
 // MediaQuery executes a query against multiple databases concurrently

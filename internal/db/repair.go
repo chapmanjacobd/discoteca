@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -20,30 +21,21 @@ import (
 func Repair(ctx context.Context, dbPath string) error {
 	start := time.Now()
 
-	// 1. Process-local lock
 	mu := getLock(dbPath)
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 2. Cross-process lock
-	lockPath := dbPath + ".repair.lock"
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o666)
+	lockFile, err := acquireCrossProcessLock(dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to open lock file: %w", err)
+		return err
 	}
 	defer func() {
 		lockFile.Close()
-		os.Remove(lockPath)
+		os.Remove(dbPath + ".repair.lock")
 	}()
-
-	if err2 := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err2 != nil {
-		return fmt.Errorf("failed to acquire flock: %w", err2)
-	}
-	defer func() { _ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN) }()
 
 	waitDuration := time.Since(start)
 
-	// 3. Check if it's actually corrupt
 	if IsHealthy(ctx, dbPath) {
 		if waitDuration > 1*time.Millisecond {
 			Log.Info("Database was repaired by another goroutine", "path", dbPath, "wait_time", waitDuration.String())
@@ -55,114 +47,142 @@ func Repair(ctx context.Context, dbPath string) error {
 		return errors.New("sqlite3 command line tool is required for auto-repair")
 	}
 
-	// 4. Backup
-	now := time.Now().Unix()
-	backupDir := fmt.Sprintf("%s.corrupt.%d", dbPath, now)
-	if err2 := os.MkdirAll(backupDir, 0o755); err2 != nil {
-		return fmt.Errorf("failed to create backup directory: %w", err2)
+	backupDir, err := backupCorruptDB(dbPath)
+	if err != nil {
+		return err
 	}
 
 	corruptMain := backupDir + "/main.db"
-	if err2 := os.Rename(dbPath, corruptMain); err2 != nil {
-		return fmt.Errorf("failed to move corrupted database: %w", err2)
+	if success := attemptRecovery(ctx, corruptMain, dbPath); !success {
+		os.RemoveAll(backupDir)
+		return errors.New("all recovery attempts failed to produce a healthy database")
+	}
+
+	if err := polishRecoveredDB(ctx, dbPath); err != nil {
+		Log.Error("Polish failed, but data may be recovered", "error", err)
+	}
+
+	if IsHealthy(ctx, dbPath) {
+		Log.Info("Database repair and polish successful")
+		os.RemoveAll(backupDir)
+		return nil
+	}
+	return errors.New("all recovery attempts failed to produce a healthy database")
+}
+
+func acquireCrossProcessLock(dbPath string) (*os.File, error) {
+	lockPath := dbPath + ".repair.lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o666)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open lock file: %w", err)
+	}
+	if err2 := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err2 != nil {
+		return nil, fmt.Errorf("failed to acquire flock: %w", err2)
+	}
+	_ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	return lockFile, nil
+}
+
+func backupCorruptDB(dbPath string) (string, error) {
+	now := time.Now().Unix()
+	backupDir := fmt.Sprintf("%s.corrupt.%d", dbPath, now)
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
+	corruptMain := backupDir + "/main.db"
+	if err := os.Rename(dbPath, corruptMain); err != nil {
+		return "", fmt.Errorf("failed to move corrupted database: %w", err)
 	}
 
 	for _, suffix := range []string{"-wal", "-shm"} {
 		sidecar := dbPath + suffix
-		if _, err2 := os.Stat(sidecar); err2 == nil {
+		if _, err := os.Stat(sidecar); err == nil {
 			if err3 := os.Rename(sidecar, corruptMain+suffix); err3 != nil {
 				Log.Warn("Failed to rename sidecar file", "suffix", suffix, "error", err3)
 			}
 		}
 	}
+	return backupDir, nil
+}
 
-	// 5. Recover
+func attemptRecovery(ctx context.Context, corruptMain, dbPath string) bool {
 	Log.Info("Attempting recovery...", "from", corruptMain, "to", dbPath)
 
 	quotedCorrupt := shellquote.ShellQuote(corruptMain)
 	quotedDB := shellquote.ShellQuote(dbPath)
 
-	// Fallback to .dump first as it preserves schema better if it works
-	repairStepSuccess := false
+	if tryDumpRecovery(ctx, quotedCorrupt, quotedDB) {
+		return true
+	}
+
+	os.Remove(dbPath)
+	return tryRecoverRecovery(ctx, quotedCorrupt, quotedDB)
+}
+
+func tryDumpRecovery(ctx context.Context, corrupt, target string) bool {
 	Log.Info("Trying recovery via .dump...")
 	cmdDump := exec.CommandContext(
 		ctx,
 		"bash",
 		"-c",
-		fmt.Sprintf("sqlite3 %s \".dump\" | sqlite3 %s", quotedCorrupt, quotedDB),
+		fmt.Sprintf("sqlite3 %s \".dump\" | sqlite3 %s", corrupt, target),
 	)
 	out, err := cmdDump.CombinedOutput()
 	if err == nil {
 		Log.Info("Initial recovery step successful via .dump")
-		repairStepSuccess = true
-	} else {
-		Log.Warn(".dump failed, falling back to .recover", "error", err, "output", string(out))
-		os.Remove(dbPath)
+		return true
+	}
+	Log.Warn(".dump failed, falling back to .recover", "error", err, "output", string(out))
+	return false
+}
 
-		// Fallback to .recover
-		// We use .quit to ensure it doesn't hang if it somehow enters interactive mode
-		cmdRecover := exec.CommandContext(
-			ctx,
-			"bash",
-			"-c",
-			fmt.Sprintf("sqlite3 %s \".recover\" \".quit\" | sqlite3 %s", quotedCorrupt, quotedDB),
-		)
-		out, err = cmdRecover.CombinedOutput()
-		if err == nil {
-			Log.Info("Initial recovery step successful via .recover")
-			repairStepSuccess = true
-		} else {
-			Log.Error("Recovery failed completely", "error", err, "output", string(out))
-		}
+func tryRecoverRecovery(ctx context.Context, corrupt, target string) bool {
+	cmdRecover := exec.CommandContext(
+		ctx,
+		"bash",
+		"-c",
+		fmt.Sprintf("sqlite3 %s \".recover\" \".quit\" | sqlite3 %s", corrupt, target),
+	)
+	out, err := cmdRecover.CombinedOutput()
+	if err == nil {
+		Log.Info("Initial recovery step successful via .recover")
+		return true
+	}
+	Log.Error("Recovery failed completely", "error", err, "output", string(out))
+	return false
+}
+
+func polishRecoveredDB(ctx context.Context, dbPath string) error {
+	db, err := Connect(ctx, dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open recovered database: %w", err)
+	}
+	defer db.Close()
+
+	Log.Info("Running final polish (REINDEX, FTS REBUILD, VACUUM)...")
+
+	if _, err := db.ExecContext(ctx, "REINDEX;"); err != nil {
+		Log.Warn("REINDEX failed", "error", err)
 	}
 
-	if repairStepSuccess {
-		// 6. Polish and Verify
-		db, err := Connect(ctx, dbPath)
-		if err != nil {
-			Log.Error("Failed to open recovered database for polish", "error", err)
-		} else {
-			Log.Info("Running final polish (REINDEX, FTS REBUILD, VACUUM)...")
-			if _, err := db.ExecContext(ctx, "REINDEX;"); err != nil {
-				Log.Warn("REINDEX failed", "error", err)
-			}
+	rebuildFTSTableIfExists(ctx, db, "media_fts")
+	rebuildFTSTableIfExists(ctx, db, "captions_fts")
 
-			// FTS rebuilding is critical as corruption often hides here
-			var hasMediaFTS bool
-			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
-				Scan(&hasMediaFTS)
-			if hasMediaFTS {
-				if _, err := db.ExecContext(
-					ctx,
-					"INSERT INTO media_fts(media_fts) VALUES('rebuild');",
-				); err != nil {
-					Log.Warn("media_fts rebuild failed", "error", err)
-				}
-			}
+	if _, err := db.ExecContext(ctx, "VACUUM;"); err != nil {
+		return fmt.Errorf("VACUUM failed: %w", err)
+	}
+	return nil
+}
 
-			var hasCaptionsFTS bool
-			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").
-				Scan(&hasCaptionsFTS)
-			if hasCaptionsFTS {
-				if _, err := db.ExecContext(
-					ctx,
-					"INSERT INTO captions_fts(captions_fts) VALUES('rebuild');",
-				); err != nil {
-					Log.Warn("captions_fts rebuild failed", "error", err)
-				}
-			}
-
-			if _, err := db.ExecContext(ctx, "VACUUM;"); err != nil {
-				Log.Error("Final VACUUM failed", "error", err)
-			}
-			db.Close()
-		}
-
-		if IsHealthy(ctx, dbPath) {
-			Log.Info("Database repair and polish successful")
-			os.RemoveAll(backupDir)
-			return nil
+func rebuildFTSTableIfExists(ctx context.Context, db *sql.DB, tableName string) {
+	var exists bool
+	_ = db.QueryRowContext(ctx, fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='%s')", tableName)).
+		Scan(&exists)
+	if exists {
+		query := fmt.Sprintf("INSERT INTO %s(%s) VALUES('rebuild');", tableName, tableName)
+		if _, err := db.ExecContext(ctx, query); err != nil {
+			Log.Warn("%s rebuild failed", tableName, "error", err)
 		}
 	}
-	return errors.New("all recovery attempts failed to produce a healthy database")
 }

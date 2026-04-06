@@ -84,26 +84,51 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 		return nil, err
 	}
 
-	// Extension-based Type Detection
 	ext := strings.ToLower(filepath.Ext(path))
-	mediaType := ""
+	mediaType := detectMediaType(ext)
 
-	// Check extension for type detection (no mimetype dependency)
-	if utils.TextExtensionMap[ext] {
-		mediaType = "text"
-	} else if utils.ComicExtensionMap[ext] {
-		mediaType = "text" // Comics are treated as text
-	} else if utils.ImageExtensionMap[ext] {
-		mediaType = "image"
-	} else if utils.AudioExtensionMap[ext] {
-		mediaType = "audio"
-	} else if utils.VideoExtensionMap[ext] {
-		mediaType = "video"
-	} else if utils.ArchiveExtensionMap[ext] {
-		mediaType = "text" // Archives are treated as text
+	params := buildBasicParams(path, stat, mediaType)
+	result := &MediaMetadata{Media: params}
+
+	if mediaType == "text" {
+		handleTextFile(ctx, path, ext, opts, stat, &params, result)
+		return result, nil
 	}
 
-	params := db.UpsertMediaParams{
+	if mediaType == "image" && opts.OCR {
+		extractImageOCRCaptions(ctx, path, opts.OCREngine, result)
+	}
+
+	if opts.SpeechRecognition && (mediaType == "audio" || mediaType == "video") {
+		extractSpeechCaptions(ctx, path, opts.SpeechRecEngine, result)
+	}
+
+	if !shouldProbeMedia(mediaType, opts) {
+		result.Media = params
+		return result, nil
+	}
+
+	return extractMediaMetadata(ctx, path, ext, stat, params, result, opts)
+}
+
+func detectMediaType(ext string) string {
+	if utils.TextExtensionMap[ext] || utils.ComicExtensionMap[ext] || utils.ArchiveExtensionMap[ext] {
+		return "text"
+	}
+	if utils.ImageExtensionMap[ext] {
+		return "image"
+	}
+	if utils.AudioExtensionMap[ext] {
+		return "audio"
+	}
+	if utils.VideoExtensionMap[ext] {
+		return "video"
+	}
+	return ""
+}
+
+func buildBasicParams(path string, stat os.FileInfo, mediaType string) db.UpsertMediaParams {
+	return db.UpsertMediaParams{
 		Path:           path,
 		PathTokenized:  utils.ToNullString(utils.PathToTokenized(path)),
 		Size:           utils.ToNullInt64(stat.Size()),
@@ -112,324 +137,366 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 		MediaType:      utils.ToNullString(mediaType),
 		TimeDownloaded: utils.ToNullInt64(time.Now().Unix()),
 	}
+}
 
-	result := &MediaMetadata{
-		Media: params,
+func handleTextFile(
+	ctx context.Context,
+	path, ext string,
+	opts ExtractOptions,
+	stat os.FileInfo,
+	params *db.UpsertMediaParams,
+	result *MediaMetadata,
+) {
+	if !opts.ScanSubtitles && !opts.ExtractText {
+		return
 	}
 
-	// Handle text files (including comics)
-	if mediaType == "text" {
-		if opts.ScanSubtitles || opts.ExtractText {
-			if params.Duration.Int64 == 0 {
-				// Fast word count for duration estimation on ingest
-				wordCount, err2 := utils.QuickWordCount(ctx, path, stat.Size())
-				if err2 != nil || wordCount <= 0 {
-					// Fallback to size-based estimate if word count fails
-					d := int64(float64(stat.Size())/4.2/220*60) + 10
-					params.Duration = utils.ToNullInt64(d)
-				} else {
-					// Calculate duration from word count (220 wpm average reading speed)
-					params.Duration = utils.ToNullInt64(utils.EstimateReadingDuration(wordCount))
-				}
-			}
-			result.Media = params
-
-			// Extract text from comic archives (CBZ/CBR) using OCR if requested
-			if utils.ComicExtensionMap[ext] && opts.OCR {
-				captions, err2 := ExtractImageTextFromComicArchive(ctx, path, opts.OCREngine)
-				if err2 != nil {
-					models.Log.Warn("Comic archive OCR extraction failed", "path", path, "error", err2)
-				} else {
-					result.Captions = captions
-				}
-			} else if opts.ExtractText && !utils.ComicExtensionMap[ext] {
-				// Extract full text from document if requested (non-comic documents)
-				captions, err2 := extractDocumentText(ctx, path)
-				if err2 != nil {
-					models.Log.Warn("Document text extraction failed", "path", path, "error", err2)
-				} else {
-					result.Captions = captions
-				}
-			}
-		}
-
-		return result, nil
+	if params.Duration.Int64 == 0 {
+		setTextDuration(ctx, path, stat, params)
 	}
+	result.Media = *params
 
-	// Extract text from images using OCR if requested
-	if mediaType == "image" && opts.OCR {
-		captions, err2 := extractImageText(ctx, path, opts.OCREngine)
-		if err2 != nil {
-			models.Log.Warn("Image OCR extraction failed", "path", path, "error", err2)
-		} else {
-			result.Captions = captions
-		}
+	if utils.ComicExtensionMap[ext] && opts.OCR {
+		extractComicText(ctx, path, opts.OCREngine, result)
+	} else if opts.ExtractText && !utils.ComicExtensionMap[ext] {
+		extractDocumentTextToCaptions(ctx, path, result)
 	}
+}
 
-	// Extract speech from audio/video files if requested
-	if opts.SpeechRecognition && (mediaType == "audio" || mediaType == "video") {
-		captions, err2 := ExtractSpeechToText(ctx, path, opts.SpeechRecEngine)
-		if err2 != nil {
-			models.Log.Warn("Speech recognition failed", "path", path, "error", err2)
-		} else {
-			result.Captions = append(result.Captions, captions...)
-		}
+func setTextDuration(ctx context.Context, path string, stat os.FileInfo, params *db.UpsertMediaParams) {
+	wordCount, err := utils.QuickWordCount(ctx, path, stat.Size())
+	if err != nil || wordCount <= 0 {
+		d := int64(float64(stat.Size())/4.2/220*60) + 10
+		params.Duration = utils.ToNullInt64(d)
+	} else {
+		params.Duration = utils.ToNullInt64(utils.EstimateReadingDuration(wordCount))
 	}
+}
 
-	// Skip ffprobe for non-media files (only run on video, audio, image)
-	// Skip ffprobe for images unless --probe-images is set
+func extractComicText(ctx context.Context, path, engine string, result *MediaMetadata) {
+	captions, err := ExtractImageTextFromComicArchive(ctx, path, engine)
+	if err != nil {
+		models.Log.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
+	} else {
+		result.Captions = captions
+	}
+}
+
+func extractDocumentTextToCaptions(ctx context.Context, path string, result *MediaMetadata) {
+	captions, err := extractDocumentText(ctx, path)
+	if err != nil {
+		models.Log.Warn("Document text extraction failed", "path", path, "error", err)
+	} else {
+		result.Captions = captions
+	}
+}
+
+func extractImageOCRCaptions(ctx context.Context, path, engine string, result *MediaMetadata) {
+	captions, err := extractImageText(ctx, path, engine)
+	if err != nil {
+		models.Log.Warn("Image OCR extraction failed", "path", path, "error", err)
+	} else {
+		result.Captions = captions
+	}
+}
+
+func extractSpeechCaptions(ctx context.Context, path, engine string, result *MediaMetadata) {
+	captions, err := ExtractSpeechToText(ctx, path, engine)
+	if err != nil {
+		models.Log.Warn("Speech recognition failed", "path", path, "error", err)
+	} else {
+		result.Captions = append(result.Captions, captions...)
+	}
+}
+
+func shouldProbeMedia(mediaType string, opts ExtractOptions) bool {
 	if mediaType != "video" && mediaType != "audio" && mediaType != "image" {
-		result.Media = params
-		return result, nil
+		return false
 	}
-
-	// Skip ffprobe for images unless explicitly requested
 	if mediaType == "image" && !opts.ProbeImages {
-		result.Media = params
-		return result, nil
+		return false
 	}
+	return true
+}
 
-	var duration int64
-	cmd := utils.FFProbe(ctx, path,
-		"-analyze_duration", "100000", // 0.1s
-		"-probesize", "500000", // 500KB
-	)
+type streamCounts struct {
+	vCount, aCount, sCount    int64
+	vCodecs, aCodecs, sCodecs []string
+}
 
-	var vCodecs, aCodecs, sCodecs []string
-	var vCount, aCount, sCount int64
-
+func extractMediaMetadata(
+	ctx context.Context,
+	path, ext string,
+	stat os.FileInfo,
+	params db.UpsertMediaParams,
+	result *MediaMetadata,
+	opts ExtractOptions,
+) (*MediaMetadata, error) {
+	duration := int64(0)
+	cmd := utils.FFProbe(ctx, path, "-analyze_duration", "100000", "-probesize", "500000")
 	output, err := cmd.Output()
 	if err != nil {
-		// Fallback without optimizations for corrupted or unusual files
 		cmdFallback := utils.FFProbe(ctx, path)
 		output, _ = cmdFallback.Output()
 	}
 
+	sc := streamCounts{}
 	if len(output) > 0 {
 		var data FFProbeOutput
 		if err := json.Unmarshal(output, &data); err == nil {
-			// Format info - including container format from ffprobe
-			if data.Format.FormatName != "" {
-				// Store the actual container format detected by ffprobe
-				result.ContainerFormat = &data.Format.FormatName
-			}
-
-			// Format info
-			if d, err := strconv.ParseFloat(data.Format.Duration, 64); err == nil {
-				duration = int64(d)
-				// Validate duration is reasonable (max 31 days for sanity)
-				if duration > 0 && duration < 2678400 {
-					// Check if we should override duration with format-specific estimate
-					ext := strings.ToLower(filepath.Ext(path))
-					if estimated, shouldOverride := utils.ShouldOverrideDuration(
-						float64(duration),
-						stat.Size(),
-						ext,
-					); shouldOverride {
-						models.Log.Debug("Replacing suspiciously low duration with format-specific estimate",
-							"path", path, "reported", duration, "estimated", int64(estimated),
-							"bitrate", utils.GetEstimatedBitrate(ext))
-						duration = int64(estimated)
-					}
-					params.Duration = utils.ToNullInt64(duration)
-				}
-			}
-
-			if data.Format.Tags != nil {
-				tags := data.Format.Tags
-				if t := tags["title"]; t != "" {
-					params.Title = utils.ToNullString(t)
-				}
-				if a := tags["artist"]; a != "" {
-					params.Artist = utils.ToNullString(a)
-				}
-				if al := tags["album"]; al != "" {
-					params.Album = utils.ToNullString(al)
-				}
-				if g := tags["genre"]; g != "" {
-					params.Genre = utils.ToNullString(g)
-				}
-				if l := tags["language"]; l != "" {
-					params.Language = utils.ToNullString(l)
-				}
-
-				var extraInfo []string
-				bestDate := utils.SpecificDate(
-					tags["originalyear"],
-					tags["TDOR"],
-					tags["TORY"],
-					tags["date"],
-					tags["TDRC"],
-					tags["TDRL"],
-					tags["year"],
-				)
-
-				if bestDate != nil {
-					extraInfo = append(extraInfo, utils.ToDecade(bestDate.Year()))
-					if ts := bestDate.Unix(); ts < params.TimeCreated.Int64 {
-						params.TimeCreated = utils.ToNullInt64(ts)
-					}
-				}
-
-				if m := tags["mood"]; m != "" {
-					extraInfo = append(extraInfo, "Mood: "+m)
-				}
-				if b := tags["bpm"]; b != "" {
-					extraInfo = append(extraInfo, "BPM: "+b)
-				}
-				if k := tags["key"]; k != "" {
-					extraInfo = append(extraInfo, "Key: "+k)
-				}
-
-				desc := tags["description"]
-				if desc == "" {
-					desc = tags["comment"]
-				}
-
-				if len(extraInfo) > 0 {
-					if desc != "" {
-						desc += "\n\n"
-					}
-					desc += strings.Join(extraInfo, " | ")
-				}
-				params.Description = utils.ToNullString(desc)
-
-				params.Categories = utils.ToNullString(tags["categories"])
-			}
-
-			// Streams info
-			for _, s := range data.Streams {
-				switch s.CodecType {
-				case "video":
-					if s.Disposition["attached_pic"] == 1 || s.CodecName == "mjpeg" || s.CodecName == "png" {
-						continue
-					}
-					vCount++
-					codecInfo := s.CodecName
-					if s.Profile != "" && s.Profile != "unknown" {
-						codecInfo += " (" + s.Profile + ")"
-					}
-					if s.PixFmt != "" {
-						codecInfo += " [" + s.PixFmt + "]"
-					}
-					vCodecs = append(vCodecs, codecInfo)
-
-					if params.Width.Int64 == 0 {
-						params.Width = utils.ToNullInt64(int64(s.Width))
-						params.Height = utils.ToNullInt64(int64(s.Height))
-						params.Fps = utils.ToNullFloat64(ParseFPS(s.AvgFrameRate))
-					}
-				case "audio":
-					aCount++
-					codecInfo := s.CodecName
-					if s.Channels > 0 {
-						codecInfo += " " + strconv.Itoa(s.Channels) + "ch"
-					}
-					if s.SampleRate != "" {
-						codecInfo += " " + s.SampleRate + "Hz"
-					}
-					var details []string
-					if lang := s.Tags["language"]; lang != "" {
-						details = append(details, lang)
-					}
-					if title := s.Tags["title"]; title != "" {
-						details = append(details, title)
-					}
-					if len(details) > 0 {
-						codecInfo += " (" + strings.Join(details, ", ") + ")"
-					}
-					aCodecs = append(aCodecs, codecInfo)
-				case "subtitle":
-					sCount++
-					var label string
-					if lang := s.Tags["language"]; lang != "" {
-						label = lang
-					}
-					if title := s.Tags["title"]; title != "" {
-						if label != "" {
-							label += " - " + title
-						} else {
-							label = title
-						}
-					}
-					if label == "" {
-						label = s.CodecName
-					}
-					sCodecs = append(sCodecs, label)
-				}
-			}
-
-			// Chapters
-			for _, ch := range data.Chapters {
-				title := ch.Tags["title"]
-				if title == "" {
-					continue
-				}
-				startTime, _ := strconv.ParseFloat(ch.StartTime, 64)
-				result.Captions = append(result.Captions, db.InsertCaptionParams{
-					MediaPath: path,
-					Time:      sql.NullFloat64{Float64: startTime, Valid: true},
-					Text:      sql.NullString{String: title, Valid: true},
-				})
-			}
+			processFormatInfo(data, path, stat, ext, &params, result, &duration)
+			sc = processStreams(data.Streams, path, &params, result)
+			processChapters(data.Chapters, path, result)
 		} else {
 			models.Log.Debug("ffprobe returned invalid JSON", "path", path, "output", string(output))
 		}
 	} else {
-		// If ffprobe fails, it might be a corrupted file or non-media file
-		// We already have some basic info from os.Stat and extension
-		// Don't estimate duration - leave it as zero/null
 		models.Log.Debug("ffprobe failed to extract metadata (empty output)", "path", path)
 	}
 
-	params.VideoCodecs = utils.ToNullString(utils.Combine(vCodecs))
-	params.AudioCodecs = utils.ToNullString(utils.Combine(aCodecs))
-
-	// External Subtitles
 	if opts.ScanSubtitles {
-		externalSubs := utils.GetExternalSubtitles(path)
-		for _, sub := range externalSubs {
-			sCount++
-			// Use ExtractSubtitleInfo to get a nice display name with language
-			displayName, _, _ := utils.ExtractSubtitleInfo(sub)
-			if displayName != "" {
-				sCodecs = append(sCodecs, displayName)
-			} else {
-				ext := strings.ToLower(filepath.Ext(sub))
-				sCodecs = append(sCodecs, strings.TrimPrefix(ext, "."))
-			}
-
-			ext := strings.ToLower(filepath.Ext(sub))
-			if ext == ".vtt" || ext == ".srt" {
-				caps, err := parseSubtitleFile(sub, path)
-				if err == nil {
-					result.Captions = append(result.Captions, caps...)
-				}
-			}
-		}
+		sc.sCount, sc.sCodecs = processExternalSubtitles(ctx, path, opts.ScanSubtitles, sc.sCount, sc.sCodecs, result)
 	}
 
-	params.SubtitleCodecs = utils.ToNullString(utils.Combine(sCodecs))
-	params.VideoCount = utils.ToNullInt64(vCount)
-	params.AudioCount = utils.ToNullInt64(aCount)
-	params.SubtitleCount = utils.ToNullInt64(sCount)
+	params.VideoCodecs = utils.ToNullString(utils.Combine(sc.vCodecs))
+	params.AudioCodecs = utils.ToNullString(utils.Combine(sc.aCodecs))
+	params.SubtitleCodecs = utils.ToNullString(utils.Combine(sc.sCodecs))
+	params.VideoCount = utils.ToNullInt64(sc.vCount)
+	params.AudioCount = utils.ToNullInt64(sc.aCount)
+	params.SubtitleCount = utils.ToNullInt64(sc.sCount)
 
-	// Refine Type Detection based on stream counts
-	if vCount > 0 && mediaType != "image" {
-		mediaType = "video"
-		if vCount == 1 && aCount == 0 && duration == 0 {
-			mediaType = "image"
-		}
-	} else if aCount > 0 && mediaType != "image" {
-		mediaType = "audio"
-		lowerPath := strings.ToLower(path)
-		if duration > 3600 || strings.Contains(lowerPath, "audiobook") {
-			mediaType = "audiobook"
-		}
-	}
-	params.MediaType = utils.ToNullString(mediaType)
+	originalMediaType := params.MediaType.String
+	params.MediaType = utils.ToNullString(
+		refineMediaTypeFromStreams(originalMediaType, sc.vCount, sc.aCount, duration, path),
+	)
 	result.Media = params
 	return result, nil
+}
+
+func refineMediaTypeFromStreams(mediaType string, vCount, aCount, duration int64, path string) string {
+	if vCount > 0 && mediaType != "image" {
+		if vCount == 1 && aCount == 0 && duration == 0 {
+			return "image"
+		}
+		return "video"
+	}
+	if aCount > 0 && mediaType != "image" {
+		lowerPath := strings.ToLower(path)
+		if duration > 3600 || strings.Contains(lowerPath, "audiobook") {
+			return "audiobook"
+		}
+		return "audio"
+	}
+	return mediaType
+}
+
+func processFormatInfo(
+	data FFProbeOutput,
+	path string,
+	stat os.FileInfo,
+	ext string,
+	params *db.UpsertMediaParams,
+	result *MediaMetadata,
+	duration *int64,
+) {
+	if data.Format.FormatName != "" {
+		result.ContainerFormat = &data.Format.FormatName
+	}
+
+	if d, err := strconv.ParseFloat(data.Format.Duration, 64); err == nil {
+		*duration = int64(d)
+		if *duration > 0 && *duration < 2678400 {
+			if estimated, shouldOverride := utils.ShouldOverrideDuration(
+				float64(*duration),
+				stat.Size(),
+				ext,
+			); shouldOverride {
+				models.Log.Debug("Replacing suspiciously low duration with format-specific estimate",
+					"path", path, "reported", *duration, "estimated", int64(estimated),
+					"bitrate", utils.GetEstimatedBitrate(ext))
+				*duration = int64(estimated)
+			}
+			params.Duration = utils.ToNullInt64(*duration)
+		}
+	}
+
+	if data.Format.Tags != nil {
+		extractFormatTags(data.Format.Tags, params)
+	}
+}
+
+func extractFormatTags(tags map[string]string, params *db.UpsertMediaParams) {
+	if t := tags["title"]; t != "" {
+		params.Title = utils.ToNullString(t)
+	}
+	if a := tags["artist"]; a != "" {
+		params.Artist = utils.ToNullString(a)
+	}
+	if al := tags["album"]; al != "" {
+		params.Album = utils.ToNullString(al)
+	}
+	if g := tags["genre"]; g != "" {
+		params.Genre = utils.ToNullString(g)
+	}
+	if l := tags["language"]; l != "" {
+		params.Language = utils.ToNullString(l)
+	}
+
+	var extraInfo []string
+	bestDate := utils.SpecificDate(
+		tags["originalyear"], tags["TDOR"], tags["TORY"],
+		tags["date"], tags["TDRC"], tags["TDRL"], tags["year"],
+	)
+	if bestDate != nil {
+		extraInfo = append(extraInfo, utils.ToDecade(bestDate.Year()))
+		if ts := bestDate.Unix(); ts < params.TimeCreated.Int64 {
+			params.TimeCreated = utils.ToNullInt64(ts)
+		}
+	}
+
+	for key, prefix := range map[string]string{"mood": "Mood: ", "bpm": "BPM: ", "key": "Key: "} {
+		if v := tags[key]; v != "" {
+			extraInfo = append(extraInfo, prefix+v)
+		}
+	}
+
+	desc := tags["description"]
+	if desc == "" {
+		desc = tags["comment"]
+	}
+	if len(extraInfo) > 0 {
+		if desc != "" {
+			desc += "\n\n"
+		}
+		desc += strings.Join(extraInfo, " | ")
+	}
+	params.Description = utils.ToNullString(desc)
+	params.Categories = utils.ToNullString(tags["categories"])
+}
+
+func processStreams(streams []Stream, path string, params *db.UpsertMediaParams, result *MediaMetadata) streamCounts {
+	sc := streamCounts{}
+	for _, s := range streams {
+		switch s.CodecType {
+		case "video":
+			processVideoStream(s, &sc, params)
+		case "audio":
+			processAudioStream(s, &sc)
+		case "subtitle":
+			processSubtitleStream(s, &sc)
+		}
+	}
+	return sc
+}
+
+func processVideoStream(s Stream, sc *streamCounts, params *db.UpsertMediaParams) {
+	if s.Disposition["attached_pic"] == 1 || s.CodecName == "mjpeg" || s.CodecName == "png" {
+		return
+	}
+	sc.vCount++
+	codecInfo := s.CodecName
+	if s.Profile != "" && s.Profile != "unknown" {
+		codecInfo += " (" + s.Profile + ")"
+	}
+	if s.PixFmt != "" {
+		codecInfo += " [" + s.PixFmt + "]"
+	}
+	sc.vCodecs = append(sc.vCodecs, codecInfo)
+
+	if params.Width.Int64 == 0 {
+		params.Width = utils.ToNullInt64(int64(s.Width))
+		params.Height = utils.ToNullInt64(int64(s.Height))
+		params.Fps = utils.ToNullFloat64(ParseFPS(s.AvgFrameRate))
+	}
+}
+
+func processAudioStream(s Stream, sc *streamCounts) {
+	sc.aCount++
+	codecInfo := s.CodecName
+	if s.Channels > 0 {
+		codecInfo += " " + strconv.Itoa(s.Channels) + "ch"
+	}
+	if s.SampleRate != "" {
+		codecInfo += " " + s.SampleRate + "Hz"
+	}
+	var details []string
+	if lang := s.Tags["language"]; lang != "" {
+		details = append(details, lang)
+	}
+	if title := s.Tags["title"]; title != "" {
+		details = append(details, title)
+	}
+	if len(details) > 0 {
+		codecInfo += " (" + strings.Join(details, ", ") + ")"
+	}
+	sc.aCodecs = append(sc.aCodecs, codecInfo)
+}
+
+func processSubtitleStream(s Stream, sc *streamCounts) {
+	sc.sCount++
+	var label string
+	if lang := s.Tags["language"]; lang != "" {
+		label = lang
+	}
+	if title := s.Tags["title"]; title != "" {
+		if label != "" {
+			label += " - " + title
+		} else {
+			label = title
+		}
+	}
+	if label == "" {
+		label = s.CodecName
+	}
+	sc.sCodecs = append(sc.sCodecs, label)
+}
+
+func processChapters(chapters []Chapter, path string, result *MediaMetadata) {
+	for _, ch := range chapters {
+		title := ch.Tags["title"]
+		if title == "" {
+			continue
+		}
+		startTime, _ := strconv.ParseFloat(ch.StartTime, 64)
+		result.Captions = append(result.Captions, db.InsertCaptionParams{
+			MediaPath: path,
+			Time:      sql.NullFloat64{Float64: startTime, Valid: true},
+			Text:      sql.NullString{String: title, Valid: true},
+		})
+	}
+}
+
+func processExternalSubtitles(
+	ctx context.Context,
+	path string,
+	scanSubtitles bool,
+	sCount int64,
+	sCodecs []string,
+	result *MediaMetadata,
+) (int64, []string) {
+	if !scanSubtitles {
+		return sCount, sCodecs
+	}
+	externalSubs := utils.GetExternalSubtitles(path)
+	for _, sub := range externalSubs {
+		sCount++
+		displayName, _, _ := utils.ExtractSubtitleInfo(sub)
+		if displayName != "" {
+			sCodecs = append(sCodecs, displayName)
+		} else {
+			ext := strings.ToLower(filepath.Ext(sub))
+			sCodecs = append(sCodecs, strings.TrimPrefix(ext, "."))
+		}
+
+		ext := strings.ToLower(filepath.Ext(sub))
+		if ext == ".vtt" || ext == ".srt" {
+			caps, err := parseSubtitleFile(sub, path)
+			if err == nil {
+				result.Captions = append(result.Captions, caps...)
+			}
+		}
+	}
+	return sCount, sCodecs
 }
 
 func ParseFPS(s string) float64 {
@@ -463,40 +530,55 @@ func parseSubtitleFile(subPath, mediaPath string) ([]db.InsertCaptionParams, err
 			continue
 		}
 		if timeRegex.MatchString(line) && strings.Contains(line, "-->") {
-			matches := timeRegex.FindAllString(line, -1)
-			if len(matches) > 0 {
-				startTime := utils.FromTimestampSeconds(strings.ReplaceAll(matches[0], ",", "."))
-
-				// Skip captions that start before 10 seconds
-				if startTime < 10.0 {
-					continue
-				}
-
-				// Text can span multiple lines until empty line
-				var textLines []string
-				for scanner.Scan() {
-					textLine := strings.TrimSpace(scanner.Text())
-					if textLine == "" {
-						break
-					}
-					textLines = append(textLines, textLine)
-				}
-
-				if len(textLines) > 0 {
-					text := cleanCaptionText(strings.Join(textLines, " "))
-					if text != "" {
-						captions = append(captions, db.InsertCaptionParams{
-							MediaPath: mediaPath,
-							Time:      sql.NullFloat64{Float64: startTime, Valid: true},
-							Text:      sql.NullString{String: text, Valid: true},
-						})
-					}
-				}
-			}
+			captions = captionForLine(line, mediaPath, scanner, captions)
 		}
 	}
 
 	return captions, scanner.Err()
+}
+
+func captionForLine(
+	line, mediaPath string,
+	scanner *bufio.Scanner,
+	captions []db.InsertCaptionParams,
+) []db.InsertCaptionParams {
+	matches := timeRegex.FindAllString(line, -1)
+	if len(matches) == 0 {
+		return captions
+	}
+
+	startTime := utils.FromTimestampSeconds(strings.ReplaceAll(matches[0], ",", "."))
+	if startTime < 10.0 {
+		return captions
+	}
+
+	textLines := scanCaptionText(scanner)
+	if len(textLines) == 0 {
+		return captions
+	}
+
+	text := cleanCaptionText(strings.Join(textLines, " "))
+	if text == "" {
+		return captions
+	}
+
+	return append(captions, db.InsertCaptionParams{
+		MediaPath: mediaPath,
+		Time:      sql.NullFloat64{Float64: startTime, Valid: true},
+		Text:      sql.NullString{String: text, Valid: true},
+	})
+}
+
+func scanCaptionText(scanner *bufio.Scanner) []string {
+	var textLines []string
+	for scanner.Scan() {
+		textLine := strings.TrimSpace(scanner.Text())
+		if textLine == "" {
+			break
+		}
+		textLines = append(textLines, textLine)
+	}
+	return textLines
 }
 
 // extractDocumentText extracts full text from a document and returns it as captions.
@@ -1040,7 +1122,12 @@ func extractImageTextFromCBZ(ctx context.Context, path, ocrEngine string) ([]db.
 	var allCaptions []db.InsertCaptionParams
 
 	for pageNum, imgFile := range imageFiles {
-		captions, err := processComicPage(ctx, r, imgFile, ocrEngine, path, pageNum)
+		captions, err := processComicPage(ctx, ComicPageParams{
+			Reader:      r,
+			ImageFile:   imgFile,
+			OCREngine:   ocrEngine,
+			ArchivePath: path,
+		})
 		if err != nil {
 			continue
 		}
@@ -1053,17 +1140,30 @@ func extractImageTextFromCBZ(ctx context.Context, path, ocrEngine string) ([]db.
 	return allCaptions, nil
 }
 
+// ComicPageParams contains the context needed to process a single comic page
+type ComicPageParams struct {
+	Reader      *zip.ReadCloser
+	ImageFile   imageFile
+	OCREngine   string
+	ArchivePath string
+}
+
 // processComicPage extracts and OCRs a single comic page image
 func processComicPage(
 	ctx context.Context,
-	r *zip.ReadCloser,
-	imgFile imageFile,
-	ocrEngine, archivePath string,
-	_ int,
+	params ComicPageParams,
 ) ([]db.InsertCaptionParams, error) {
-	rc, err := r.File[imgFile.idx].Open()
+	rc, err := params.Reader.File[params.ImageFile.idx].Open()
 	if err != nil {
-		models.Log.Warn("Failed to open image in archive", "archive", archivePath, "image", imgFile.name, "error", err)
+		models.Log.Warn(
+			"Failed to open image in archive",
+			"archive",
+			params.ArchivePath,
+			"image",
+			params.ImageFile.name,
+			"error",
+			err,
+		)
 		return nil, err
 	}
 	defer rc.Close()
@@ -1084,9 +1184,17 @@ func processComicPage(
 	}
 
 	// Run OCR on the extracted image
-	captions, err := extractImageText(ctx, tmpPath, ocrEngine)
+	captions, err := extractImageText(ctx, tmpPath, params.OCREngine)
 	if err != nil {
-		models.Log.Warn("OCR failed on comic page", "archive", archivePath, "page", imgFile.name, "error", err)
+		models.Log.Warn(
+			"OCR failed on comic page",
+			"archive",
+			params.ArchivePath,
+			"page",
+			params.ImageFile.name,
+			"error",
+			err,
+		)
 		return nil, err
 	}
 

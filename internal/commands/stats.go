@@ -25,91 +25,107 @@ type StatsCmd struct {
 
 func (c *StatsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := models.GlobalFlags{}
 
-	timeCol := "time_last_played"
-	switch c.Facet {
-	case "deleted":
-		timeCol = "time_deleted"
-		flags.MarkDeleted = true // Ensure we don't hide deleted in query
-	case "created":
-		timeCol = "time_created"
-	case "modified":
-		timeCol = "time_modified"
-	}
+	timeCol := c.getTimeColumn()
 
 	for _, dbPath := range c.Databases {
-		sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
-		if err != nil {
+		if err := c.processDatabase(ctx, dbPath, timeCol); err != nil {
 			return err
 		}
-		defer sqlDB.Close()
-
-		if c.Frequency != "" {
-			stats, err2 := query.HistoricalUsage(ctx, dbPath, c.Frequency, timeCol)
-			if err2 != nil {
-				return err2
-			}
-
-			if c.JSON {
-				if err2 := utils.PrintJSON(stats); err2 != nil {
-					return err2
-				}
-				continue
-			}
-
-			fmt.Printf("%s media (%s) for %s:\n", utils.Title(c.Facet), c.Frequency, dbPath)
-			if err2 := PrintFrequencyStats(stats); err2 != nil {
-				return err2
-			}
-			continue
-		}
-
-		stats, err := queries.GetStats(ctx)
-		if err != nil {
-			return err
-		}
-
-		typeStats, err := queries.GetStatsByType(ctx)
-		if err != nil {
-			return err
-		}
-
-		if c.JSON {
-			result := map[string]any{
-				"database":  dbPath,
-				"summary":   stats,
-				"breakdown": typeStats,
-			}
-			if err := utils.PrintJSON(result); err != nil {
-				return err
-			}
-			continue
-		}
-
-		fmt.Printf("Statistics for %s:\n", dbPath)
-		fmt.Printf("  Total Files:      %d\n", stats.TotalCount)
-		fmt.Printf("  Total Size:       %s\n", utils.FormatSize(utils.GetInt64(stats.TotalSize)))
-		fmt.Printf("  Total Duration:   %s\n", utils.FormatDuration(int(utils.GetInt64(stats.TotalDuration))))
-		fmt.Printf("  Watched Files:    %d\n", stats.WatchedCount)
-		fmt.Printf("  Unwatched Files:  %d\n", stats.UnwatchedCount)
-
-		if len(typeStats) > 0 {
-			fmt.Println("\n  Breakdown by MediaType:")
-			for _, ts := range typeStats {
-				t := "unknown"
-				if ts.MediaType.Valid {
-					t = ts.MediaType.String
-				}
-				fmt.Printf("    %-10s: %d files, %s, %s\n",
-					t, ts.Count,
-					utils.FormatSize(utils.GetInt64(ts.TotalSize)),
-					utils.FormatDuration(int(utils.GetInt64(ts.TotalDuration))))
-			}
-		}
-		fmt.Println()
 	}
 	return nil
+}
+
+func (c *StatsCmd) getTimeColumn() string {
+	switch c.Facet {
+	case "deleted":
+		return "time_deleted"
+	case "created":
+		return "time_created"
+	case "modified":
+		return "time_modified"
+	default:
+		return "time_last_played"
+	}
+}
+
+func (c *StatsCmd) processDatabase(ctx context.Context, dbPath, timeCol string) error {
+	sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	if c.Frequency != "" {
+		return c.printFrequencyStats(ctx, dbPath, timeCol)
+	}
+
+	return c.printGeneralStats(ctx, dbPath, queries)
+}
+
+func (c *StatsCmd) printFrequencyStats(ctx context.Context, dbPath, timeCol string) error {
+	stats, err := query.HistoricalUsage(ctx, dbPath, c.Frequency, timeCol)
+	if err != nil {
+		return err
+	}
+
+	if c.JSON {
+		return utils.PrintJSON(stats)
+	}
+
+	fmt.Printf("%s media (%s) for %s:\n", utils.Title(c.Frequency), c.Frequency, dbPath)
+	return PrintFrequencyStats(stats)
+}
+
+func (c *StatsCmd) printGeneralStats(ctx context.Context, dbPath string, queries *db.Queries) error {
+	stats, err := queries.GetStats(ctx)
+	if err != nil {
+		return err
+	}
+
+	typeStats, err := queries.GetStatsByType(ctx)
+	if err != nil {
+		return err
+	}
+
+	if c.JSON {
+		return utils.PrintJSON(map[string]any{
+			"database":  dbPath,
+			"summary":   stats,
+			"breakdown": typeStats,
+		})
+	}
+
+	printGeneralStatsOutput(dbPath, stats, typeStats)
+	return nil
+}
+
+func printGeneralStatsOutput(dbPath string, stats db.GetStatsRow, typeStats []db.GetStatsByTypeRow) {
+	fmt.Printf("Statistics for %s:\n", dbPath)
+	fmt.Printf("  Total Files:      %d\n", stats.TotalCount)
+	fmt.Printf("  Total Size:       %s\n", utils.FormatSize(utils.GetInt64(stats.TotalSize)))
+	fmt.Printf("  Total Duration:   %s\n", utils.FormatDuration(int(utils.GetInt64(stats.TotalDuration))))
+	fmt.Printf("  Watched Files:    %d\n", stats.WatchedCount)
+	fmt.Printf("  Unwatched Files:  %d\n", stats.UnwatchedCount)
+
+	if len(typeStats) > 0 {
+		printTypeBreakdown(typeStats)
+	}
+	fmt.Println()
+}
+
+func printTypeBreakdown(typeStats []db.GetStatsByTypeRow) {
+	fmt.Println("\n  Breakdown by MediaType:")
+	for _, ts := range typeStats {
+		t := "unknown"
+		if ts.MediaType.Valid {
+			t = ts.MediaType.String
+		}
+		fmt.Printf("    %-10s: %d files, %s, %s\n",
+			t, ts.Count,
+			utils.FormatSize(utils.GetInt64(ts.TotalSize)),
+			utils.FormatDuration(int(utils.GetInt64(ts.TotalDuration))))
+	}
 }
 
 func PrintFrequencyStats(stats []query.FrequencyStats) error {

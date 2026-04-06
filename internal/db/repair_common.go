@@ -32,8 +32,6 @@ func IsHealthy(ctx context.Context, dbPath string) bool {
 		return false
 	}
 
-	// Use sql.Open directly instead of Connect to avoid connection pool deadlocks.
-	// IsHealthy needs to be able to open its own connection regardless of global pool limits.
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		Log.Debug("Health check: failed to open connection", "path", dbPath, "error", err)
@@ -41,10 +39,28 @@ func IsHealthy(ctx context.Context, dbPath string) bool {
 	}
 	defer db.Close()
 
-	// Enable WAL mode to match application behavior and detect WAL corruption
 	_, _ = db.ExecContext(ctx, "PRAGMA journal_mode=WAL")
 
-	// 1. Thorough integrity check
+	if !checkIntegrity(ctx, db) {
+		return false
+	}
+
+	if !checkSchema(ctx, db) {
+		return false
+	}
+
+	if !checkWriteConsistency(ctx, db) {
+		return false
+	}
+
+	if !checkFTSConsistency(ctx, db) {
+		return false
+	}
+
+	return true
+}
+
+func checkIntegrity(ctx context.Context, db *sql.DB) bool {
 	rows, err := db.QueryContext(ctx, "PRAGMA integrity_check")
 	if err != nil {
 		Log.Debug("Health check: PRAGMA integrity_check query failed", "error", err)
@@ -73,18 +89,20 @@ func IsHealthy(ctx context.Context, dbPath string) bool {
 		Log.Debug("Health check: integrity_check returned no rows")
 		return false
 	}
+	return true
+}
 
-	// 2. Schema check
+func checkSchema(ctx context.Context, db *sql.DB) bool {
 	row := db.QueryRowContext(ctx, "SELECT name FROM sqlite_master LIMIT 1")
 	var name string
 	if scanErr := row.Scan(&name); scanErr != nil && scanErr != sql.ErrNoRows {
 		Log.Debug("Health check: schema check failed", "error", scanErr)
 		return false
 	}
+	return true
+}
 
-	// 3. Write check
-	// We attempt to perform a real write inside a transaction and roll it back.
-	// This ensures that indices and FTS triggers are actually working.
+func checkWriteConsistency(ctx context.Context, db *sql.DB) bool {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		Log.Debug("Health check: failed to begin transaction", "error", err)
@@ -92,66 +110,60 @@ func IsHealthy(ctx context.Context, dbPath string) bool {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Check for media table and perform a REAL write if possible
 	var hasMedia bool
 	_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media')").
 		Scan(&hasMedia)
 	if hasMedia {
-		var somePath string
-		_ = db.QueryRowContext(ctx, "SELECT path FROM media LIMIT 1").Scan(&somePath)
+		return checkMediaWrite(ctx, tx, db)
+	}
 
-		// If the table is not empty, we MUST update a real row to trigger the FTS and index logic.
-		// If we only update a non-existent row, the triggers will not fire and we won't detect FTS corruption.
-		if somePath != "" {
-			if _, err = tx.ExecContext(
-				ctx,
-				"UPDATE media SET time_deleted = time_deleted WHERE path = ?",
-				somePath,
-			); err != nil {
-				Log.Warn(
-					"Health check: write consistency check (media triggers) failed",
-					"path",
-					somePath,
-					"error",
-					err,
-				)
-				return false
-			}
-		} else {
-			if _, err = tx.ExecContext(
-				ctx,
-				"UPDATE media SET time_deleted = time_deleted WHERE rowid = -1",
-			); err != nil {
-				Log.Warn("Health check: write consistency check (media) failed", "error", err)
-				return false
-			}
+	// Generic write check for non-media DBs
+	if _, err = tx.ExecContext(
+		ctx,
+		"CREATE TEMP TABLE _health_check(id INT); DROP TABLE _health_check;",
+	); err != nil {
+		Log.Debug("Health check: generic write check failed", "error", err)
+		return false
+	}
+	return true
+}
+
+func checkMediaWrite(ctx context.Context, tx *sql.Tx, db *sql.DB) bool {
+	var somePath string
+	_ = db.QueryRowContext(ctx, "SELECT path FROM media LIMIT 1").Scan(&somePath)
+
+	var err error
+	if somePath != "" {
+		_, err = tx.ExecContext(
+			ctx,
+			"UPDATE media SET time_deleted = time_deleted WHERE path = ?",
+			somePath,
+		)
+		if err != nil {
+			Log.Warn("Health check: write consistency check (media triggers) failed", "path", somePath, "error", err)
+			return false
 		}
 	} else {
-		// Generic write check for non-media DBs (e.g. in tests)
-		if _, err = tx.ExecContext(
-			ctx,
-			"CREATE TEMP TABLE _health_check(id INT); DROP TABLE _health_check;",
-		); err != nil {
-			Log.Debug("Health check: generic write check failed", "error", err)
+		_, err = tx.ExecContext(ctx, "UPDATE media SET time_deleted = time_deleted WHERE rowid = -1")
+		if err != nil {
+			Log.Warn("Health check: write consistency check (media) failed", "error", err)
 			return false
 		}
 	}
+	return true
+}
 
-	// Specifically check FTS virtual table consistency
+func checkFTSConsistency(ctx context.Context, db *sql.DB) bool {
 	var hasFTS bool
 	_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
 		Scan(&hasFTS)
 	if hasFTS {
-		if _, err = tx.ExecContext(
-			ctx,
-			"SELECT rowid FROM media_fts LIMIT 1",
-		); err != nil &&
+		if _, err := db.ExecContext(ctx, "SELECT rowid FROM media_fts LIMIT 1"); err != nil &&
 			!errors.Is(err, sql.ErrNoRows) {
 
 			Log.Warn("Health check: FTS check (media_fts) failed", "error", err)
 			return false
 		}
 	}
-
 	return true
 }

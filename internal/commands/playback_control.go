@@ -67,7 +67,11 @@ type StopCmd struct {
 }
 
 func (c *StopCmd) Run(ctx context.Context) error {
-	return DispatchPlaybackCommand(ctx, c.ControlFlags, "loadfile", []any{"/dev/null"}, "stop")
+	return DispatchPlaybackCommand(ctx, c.ControlFlags, PlaybackCommandParams{
+		MpvCmd:  "loadfile",
+		MpvArgs: []any{"/dev/null"},
+		CastCmd: "stop",
+	})
 }
 
 type PauseCmd struct {
@@ -75,7 +79,11 @@ type PauseCmd struct {
 }
 
 func (c *PauseCmd) Run(ctx context.Context) error {
-	return DispatchPlaybackCommand(ctx, c.ControlFlags, "cycle", []any{"pause"}, "play_toggle")
+	return DispatchPlaybackCommand(ctx, c.ControlFlags, PlaybackCommandParams{
+		MpvCmd:  "cycle",
+		MpvArgs: []any{"pause"},
+		CastCmd: "play_toggle",
+	})
 }
 
 type NextCmd struct {
@@ -84,7 +92,11 @@ type NextCmd struct {
 
 func (c *NextCmd) Run(ctx context.Context) error {
 	// Note: We don't remove cattFile for next because CastPlay loop handles it
-	return DispatchPlaybackCommand(ctx, c.ControlFlags, "playlist_next", []any{"force"}, "stop")
+	return DispatchPlaybackCommand(ctx, c.ControlFlags, PlaybackCommandParams{
+		MpvCmd:  "playlist_next",
+		MpvArgs: []any{"force"},
+		CastCmd: "stop",
+	})
 }
 
 type SeekCmd struct {
@@ -141,9 +153,11 @@ func (c *SeekCmd) Run(ctx context.Context) error {
 	return DispatchPlaybackCommand(
 		ctx,
 		c.ControlFlags,
-		"seek",
-		[]any{seconds, mode},
-		castCmd,
-		strconv.FormatInt(int64(seconds), 10),
+		PlaybackCommandParams{
+			MpvCmd:   "seek",
+			MpvArgs:  []any{seconds, mode},
+			CastCmd:  castCmd,
+			CastArgs: []string{strconv.FormatInt(int64(seconds), 10)},
+		},
 	)
 }

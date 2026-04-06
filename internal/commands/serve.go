@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -128,74 +129,70 @@ func (c *ServeCmd) isPathBlocklisted(path string) bool {
 	return false
 }
 
-// Mux creates the HTTP request multiplexer with all routes
-func (c *ServeCmd) Mux() http.Handler {
-	if c.APIToken == "" {
-		c.APIToken = "test-token"
-	}
-	mux := http.NewServeMux()
-
-	// Health and Static
+// registerAPIRoutes registers all API routes with the mux
+func (c *ServeCmd) registerAPIRoutes(mux *http.ServeMux) {
+	// Health and favicon
 	mux.HandleFunc("/health", c.HandleHealth)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// API routes
-	mux.HandleFunc("/api/databases", c.authMiddleware(c.HandleDatabases))
-	mux.HandleFunc("/api/categories", c.authMiddleware(c.HandleCategories))
-	mux.HandleFunc("/api/genres", c.authMiddleware(c.HandleGenres))
-	mux.HandleFunc("/api/languages", c.authMiddleware(c.HandleLanguages))
-	mux.HandleFunc("/api/ratings", c.authMiddleware(c.HandleRatings))
-	mux.HandleFunc("/api/query", c.authMiddleware(c.HandleQuery))
-	mux.HandleFunc("/api/metadata", c.authMiddleware(c.HandleMetadata))
-	mux.HandleFunc("/api/play", c.authMiddleware(c.HandlePlay))
-	mux.HandleFunc("/api/delete", c.authMiddleware(c.HandleDelete))
-	mux.HandleFunc("/api/progress", c.authMiddleware(c.HandleProgress))
-	mux.HandleFunc("/api/mark-played", c.authMiddleware(c.HandleMarkPlayed))
-	mux.HandleFunc("/api/mark-unplayed", c.authMiddleware(c.HandleMarkUnplayed))
-	mux.HandleFunc("/api/rate", c.authMiddleware(c.HandleRate))
-	mux.HandleFunc("/api/playlists", c.authMiddleware(c.HandlePlaylists))
-	mux.HandleFunc("/api/playlists/items", c.authMiddleware(c.HandlePlaylistItems))
-	mux.HandleFunc("/api/playlists/reorder", c.authMiddleware(c.HandlePlaylistReorder))
-	mux.HandleFunc("/api/events", c.authMiddleware(c.HandleEvents))
-	mux.HandleFunc("/api/ls", c.authMiddleware(c.HandleLs))
-	mux.HandleFunc("/api/du", c.authMiddleware(c.HandleDU))
-	mux.HandleFunc("/api/episodes", c.authMiddleware(c.HandleEpisodes))
-	mux.HandleFunc("/api/filter-bins", c.authMiddleware(c.HandleFilterBins))
-	mux.HandleFunc("/api/random-clip", c.authMiddleware(c.HandleRandomClip))
-	mux.HandleFunc("/api/categorize/suggest", c.authMiddleware(c.HandleCategorizeSuggest))
-	mux.HandleFunc("/api/categorize/apply", c.authMiddleware(c.HandleCategorizeApply))
-	mux.HandleFunc("/api/categorize/keywords", c.authMiddleware(c.HandleCategorizeKeywords))
-	mux.HandleFunc("/api/categorize/category", c.authMiddleware(c.HandleCategorizeDeleteCategory))
-	mux.HandleFunc("/api/categorize/keyword", c.authMiddleware(c.HandleCategorizeKeyword))
-	mux.HandleFunc("/api/raw", c.authMiddleware(c.HandleRaw))
+	// Core API routes
+	apiRoutes := []struct {
+		pattern string
+		handler http.HandlerFunc
+	}{
+		{"/api/databases", c.HandleDatabases},
+		{"/api/categories", c.HandleCategories},
+		{"/api/genres", c.HandleGenres},
+		{"/api/languages", c.HandleLanguages},
+		{"/api/ratings", c.HandleRatings},
+		{"/api/query", c.HandleQuery},
+		{"/api/metadata", c.HandleMetadata},
+		{"/api/play", c.HandlePlay},
+		{"/api/delete", c.HandleDelete},
+		{"/api/progress", c.HandleProgress},
+		{"/api/mark-played", c.HandleMarkPlayed},
+		{"/api/mark-unplayed", c.HandleMarkUnplayed},
+		{"/api/rate", c.HandleRate},
+		{"/api/playlists", c.HandlePlaylists},
+		{"/api/playlists/items", c.HandlePlaylistItems},
+		{"/api/playlists/reorder", c.HandlePlaylistReorder},
+		{"/api/events", c.HandleEvents},
+		{"/api/ls", c.HandleLs},
+		{"/api/du", c.HandleDU},
+		{"/api/episodes", c.HandleEpisodes},
+		{"/api/filter-bins", c.HandleFilterBins},
+		{"/api/random-clip", c.HandleRandomClip},
+		{"/api/categorize/suggest", c.HandleCategorizeSuggest},
+		{"/api/categorize/apply", c.HandleCategorizeApply},
+		{"/api/categorize/keywords", c.HandleCategorizeKeywords},
+		{"/api/categorize/category", c.HandleCategorizeDeleteCategory},
+		{"/api/categorize/keyword", c.HandleCategorizeKeyword},
+		{"/api/raw", c.HandleRaw},
+		{"/api/queries", c.HandleQueries},
+		{"/api/zim/view", c.HandleZimView},
+		{"/api/zim/proxy/{port}/{rest...}", c.HandleZimProxy},
+		{"/api/rsvp", c.HandleRSVP},
+		{"/api/epub/{path...}", c.HandleEpubConvert},
+		{"/api/hls/playlist", c.HandleHLSPlaylist},
+		{"/api/hls/segment", c.HandleHLSSegment},
+		{"/api/subtitles", c.HandleSubtitles},
+		{"/api/thumbnail", c.HandleThumbnail},
+		{"/opds", c.HandleOPDS},
+		{"/api/trash", c.HandleTrash},
+		{"/api/empty-bin", c.HandleEmptyBin},
+	}
 
-	// Query statistics / slow query dashboard
-	mux.HandleFunc("/api/queries", c.authMiddleware(c.HandleQueries))
+	for _, route := range apiRoutes {
+		mux.HandleFunc(route.pattern, c.authMiddleware(route.handler))
+	}
+}
 
-	// ZIM routes
-	mux.HandleFunc("/api/zim/view", c.authMiddleware(c.HandleZimView))
-	mux.HandleFunc("/api/zim/proxy/{port}/{rest...}", c.authMiddleware(c.HandleZimProxy))
-
-	// Special features
-	mux.HandleFunc("/api/rsvp", c.authMiddleware(c.HandleRSVP))
-	mux.HandleFunc("/api/epub/{path...}", c.authMiddleware(c.HandleEpubConvert))
-
-	// Streaming
-	mux.HandleFunc("/api/hls/playlist", c.authMiddleware(c.HandleHLSPlaylist))
-	mux.HandleFunc("/api/hls/segment", c.authMiddleware(c.HandleHLSSegment))
-	mux.HandleFunc("/api/subtitles", c.authMiddleware(c.HandleSubtitles))
-	mux.HandleFunc("/api/thumbnail", c.authMiddleware(c.HandleThumbnail))
-	mux.HandleFunc("/opds", c.authMiddleware(c.HandleOPDS))
-
-	// Trash endpoints (respects ReadOnly mode)
-	mux.HandleFunc("/api/trash", c.authMiddleware(c.HandleTrash))
-	mux.HandleFunc("/api/empty-bin", c.authMiddleware(c.HandleEmptyBin))
-
-	// Static assets
-	mux.HandleFunc("/lib/", func(w http.ResponseWriter, r *http.Request) {
+// newLibHandler creates a handler for library static assets
+func (c *ServeCmd) newLibHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		var f http.File
 		var err error
@@ -215,13 +212,12 @@ func (c *ServeCmd) Mux() http.Handler {
 		}
 		stat, _ := f.Stat()
 		http.ServeContent(w, r, path, stat.ModTime(), f)
-	})
+	}
+}
 
-	// Serve other static files
-	fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set cookie on every load so the frontend has access to it
-		// Note: HttpOnly is set to true for security (prevents XSS token theft)
-		// The auth middleware checks both X-Disco-Token header and the cookie
+// newStaticHandler creates a handler for all other static files
+func (c *ServeCmd) newStaticHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{
 			Name:     "disco_token",
 			Value:    c.APIToken,
@@ -230,101 +226,124 @@ func (c *ServeCmd) Mux() http.Handler {
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		// Set Cache-Control headers for static assets (1 week cache)
-		// Disable caching in dev mode for easier development
-		if !c.Dev {
-			if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".mjs") ||
-				strings.HasSuffix(r.URL.Path, ".ts") {
-
-				w.Header().Set("Content-Type", "text/javascript")
-				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week
-			} else if strings.HasSuffix(
-				r.URL.Path,
-				".css",
-			) {
-
-				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week
-			} else if strings.HasSuffix(
-				r.URL.Path,
-				".html",
-			) {
-
-				w.Header().Set("Cache-Control", "no-cache, must-revalidate") // HTML should not be cached
-			} else if strings.HasPrefix(
-				r.URL.Path,
-				"/lib/",
-			) {
-
-				w.Header().Set("Cache-Control", "public, max-age=604800") // 1 week for library files
-			}
-		} else {
-			// Dev mode: disable caching for all static assets
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		}
+		c.setCacheControlHeaders(w, r)
 
 		if c.PublicDir != "" {
 			http.FileServer(http.Dir(c.PublicDir)).ServeHTTP(w, r)
 		} else {
 			http.FileServer(http.FS(web.FS)).ServeHTTP(w, r)
 		}
-	})
+	}
+}
 
-	mux.Handle("/", fileHandler)
+// setCacheControlHeaders sets appropriate cache headers based on file type
+func (c *ServeCmd) setCacheControlHeaders(w http.ResponseWriter, r *http.Request) {
+	if c.Dev {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		return
+	}
+
+	path := r.URL.Path
+	switch {
+	case strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") || strings.HasSuffix(path, ".ts"):
+		w.Header().Set("Content-Type", "text/javascript")
+		w.Header().Set("Cache-Control", "public, max-age=604800")
+	case strings.HasSuffix(path, ".css"):
+		w.Header().Set("Cache-Control", "public, max-age=604800")
+	case strings.HasSuffix(path, ".html"):
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+	case strings.HasPrefix(path, "/lib/"):
+		w.Header().Set("Cache-Control", "public, max-age=604800")
+	}
+}
+
+// Mux creates the HTTP request multiplexer with all routes
+func (c *ServeCmd) Mux() http.Handler {
+	if c.APIToken == "" {
+		c.APIToken = "test-token"
+	}
+	mux := http.NewServeMux()
+
+	c.registerAPIRoutes(mux)
+	mux.HandleFunc("/lib/", c.newLibHandler())
+	mux.Handle("/", c.newStaticHandler())
+
 	return mux
+}
+
+// getOrCreateDBConn retrieves a cached database connection or creates a new one
+func (c *ServeCmd) getOrCreateDBConn(ctx context.Context, dbPath string) (*sql.DB, error) {
+	if val, ok := c.dbCache.Load(dbPath); ok {
+		if dbConn, ok := val.(*sql.DB); ok {
+			return dbConn, nil
+		}
+	}
+
+	newDB, err := db.Connect(ctx, dbPath)
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB := newDB
+	if loaded, ok := c.dbCache.LoadOrStore(dbPath, sqlDB); ok {
+		if dbConn, ok := loaded.(*sql.DB); ok {
+			sqlDB = dbConn
+		}
+		_ = newDB.Close()
+	}
+	return sqlDB, nil
+}
+
+// handleCorruptionError attempts to repair a corrupted database and returns whether to retry
+func (c *ServeCmd) handleCorruptionError(
+	ctx context.Context,
+	dbPath string,
+	sqlDB *sql.DB,
+	err error,
+	isConnectError bool,
+) (shouldRetry bool, wrappedErr error) {
+	if !db.IsCorruptionError(err) {
+		return false, nil
+	}
+
+	if isConnectError {
+		if repErr := db.Repair(ctx, dbPath); repErr != nil {
+			return false, fmt.Errorf("repair failed: %w (original error: %w)", repErr, err)
+		}
+		models.Log.Info("Database repaired, retrying connect", "db", dbPath)
+		return true, nil
+	}
+
+	// Query error: delete from cache and close connection
+	c.dbCache.Delete(dbPath)
+	_ = sqlDB.Close()
+
+	if repErr := db.Repair(ctx, dbPath); repErr != nil {
+		models.Log.Error("Database repair failed", "db", dbPath, "error", repErr)
+		return false, nil // Return original error
+	}
+	models.Log.Info("Database repaired, retrying operation", "db", dbPath)
+	return true, nil
 }
 
 // execDB connects to the database and executes fn. If a corruption error occurs,
 // it attempts to repair the database and retries the operation once.
 func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(ctx context.Context, sqlDB *sql.DB) error) error {
 	const maxRetries = 1
-	var lastErr error
-
 	for i := 0; i <= maxRetries; i++ {
-		var sqlDB *sql.DB
-		if val, ok := c.dbCache.Load(dbPath); ok {
-			if dbConn, ok := val.(*sql.DB); ok {
-				sqlDB = dbConn
+		sqlDB, err := c.getOrCreateDBConn(ctx, dbPath)
+		if err != nil {
+			if shouldRetry, wrappedErr := c.handleCorruptionError(ctx, dbPath, nil, err, true); shouldRetry {
+				continue
+			} else if wrappedErr != nil {
+				return wrappedErr
 			}
-		} else {
-			// Create a new connection
-			newDB, err := db.Connect(ctx, dbPath)
-			if err != nil {
-				// Connect error might be corruption too (e.g. invalid header)
-				if db.IsCorruptionError(err) && i < maxRetries {
-					models.Log.Warn("Database corruption detected on connect, attempting repair", "db", dbPath)
-					if repErr := db.Repair(ctx, dbPath); repErr != nil {
-						return fmt.Errorf("repair failed: %w (original error: %w)", repErr, err)
-					}
-					models.Log.Info("Database repaired, retrying connect", "db", dbPath)
-					continue
-				}
-				return err
-			}
-
-			// Use LoadOrStore to avoid race condition where multiple goroutines
-			// create duplicate connections. If we lose the race, close our connection.
-			sqlDB = newDB
-			if loaded, ok := c.dbCache.LoadOrStore(dbPath, sqlDB); ok {
-				// Another goroutine stored a connection first; use theirs and close ours
-				if dbConn, ok := loaded.(*sql.DB); ok {
-					sqlDB = dbConn
-				}
-				_ = newDB.Close()
-			}
+			return err
 		}
 
-		err := fn(ctx, sqlDB)
+		err = fn(ctx, sqlDB)
 		if err != nil {
-			if db.IsCorruptionError(err) && i < maxRetries {
-				c.dbCache.Delete(dbPath)
-				_ = sqlDB.Close()
-
-				models.Log.Warn("Database corruption detected on query, attempting repair", "db", dbPath)
-				if repErr := db.Repair(ctx, dbPath); repErr != nil {
-					models.Log.Error("Database repair failed", "db", dbPath, "error", repErr)
-					return err // Return original error if repair fails
-				}
-				models.Log.Info("Database repaired, retrying operation", "db", dbPath)
+			if shouldRetry, _ := c.handleCorruptionError(ctx, dbPath, sqlDB, err, false); shouldRetry {
 				continue
 			}
 			if i > 0 {
@@ -334,7 +353,7 @@ func (c *ServeCmd) execDB(ctx context.Context, dbPath string, fn func(ctx contex
 		}
 		return nil
 	}
-	return lastErr
+	return fmt.Errorf("operation failed after %d retries", maxRetries)
 }
 
 // Close closes all cached database connections
@@ -356,6 +375,92 @@ func (c *ServeCmd) Close() error {
 	return nil
 }
 
+// initDatabases connects to all databases and caches the connections
+func (c *ServeCmd) initDatabases(ctx context.Context) {
+	for _, dbPath := range c.Databases {
+		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	}
+}
+
+// setupAPIToken sets the API token from environment or generates a new one
+func (c *ServeCmd) setupAPIToken() {
+	if envToken := os.Getenv("DISCO_API_TOKEN"); envToken != "" {
+		c.APIToken = envToken
+	} else {
+		c.APIToken = utils.RandomString(32)
+	}
+}
+
+// cacheDatabases connects to all databases and stores them in the cache
+func (c *ServeCmd) cacheDatabases(ctx context.Context) {
+	for _, dbPath := range c.Databases {
+		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
+		if err != nil {
+			models.Log.Error("Failed to connect to database on startup", "db", dbPath, "error", err)
+			continue
+		}
+		c.dbCache.Store(dbPath, sqlDB)
+	}
+}
+
+// runMaintenance runs maintenance on all databases asynchronously
+func (c *ServeCmd) runMaintenance(ctx context.Context) {
+	go func() {
+		config := db.DefaultMaintenanceConfig()
+		for _, dbPath := range c.Databases {
+			if val, ok := c.dbCache.Load(dbPath); ok {
+				if sqlDB, ok := val.(*sql.DB); ok {
+					if err := db.RunMaintenance(ctx, sqlDB, config, dbPath); err != nil {
+						models.Log.Error("Maintenance failed", "db", dbPath, "error", err)
+					}
+				}
+			}
+		}
+	}()
+}
+
+// checkFfmpeg checks if ffmpeg is available in PATH
+func (c *ServeCmd) checkFfmpeg() {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		models.Log.Warn("ffmpeg not found in PATH, on-the-fly transcoding will be unavailable")
+		c.hasFfmpeg = false
+	} else {
+		c.hasFfmpeg = true
+	}
+}
+
+// openBrowser opens the default browser to the server URL
+func (c *ServeCmd) openBrowser(ctx context.Context, baseURL string) {
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		var openCmd string
+		var openArgs []string
+
+		switch runtime.GOOS {
+		case "linux":
+			openCmd = "xdg-open"
+		case "darwin":
+			openCmd = "open"
+		case "windows":
+			openCmd = "cmd"
+			openArgs = []string{"/c", "start"}
+		}
+
+		if openCmd != "" {
+			openArgs = append(openArgs, baseURL)
+			browserCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(browserCtx, openCmd, openArgs...)
+			if err := cmd.Start(); err != nil {
+				models.Log.Debug("Failed to open browser", "error", err)
+			}
+		}
+	}()
+}
+
 // Run starts the HTTP server
 func (c *ServeCmd) Run(ctx context.Context) error {
 	defer c.Close()
@@ -369,51 +474,23 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 	// Start ZIM manager background goroutine
 	StartZimManager()
 
-	for _, dbPath := range c.Databases {
-		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	}
+	// Pre-warm database connections
+	c.initDatabases(ctx)
 
 	c.ApplicationStartTime = time.Now().UnixNano()
 
-	if envToken := os.Getenv("DISCO_API_TOKEN"); envToken != "" {
-		c.APIToken = envToken
-	} else {
-		c.APIToken = utils.RandomString(32)
-	}
+	// Setup API token
+	c.setupAPIToken()
 
-	for _, dbPath := range c.Databases {
-		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
-		if err != nil {
-			models.Log.Error("Failed to connect to database on startup", "db", dbPath, "error", err)
-			continue
-		}
-		c.dbCache.Store(dbPath, sqlDB)
-	}
+	// Connect and cache all databases
+	c.cacheDatabases(ctx)
 
 	// Run maintenance on all databases (refresh folder_stats and FTS if needed)
 	// This runs asynchronously so it doesn't block server startup
-	go func() {
-		config := db.DefaultMaintenanceConfig()
-		for _, dbPath := range c.Databases {
-			if val, ok := c.dbCache.Load(dbPath); ok {
-				if sqlDB, ok := val.(*sql.DB); ok {
-					if err := db.RunMaintenance(ctx, sqlDB, config, dbPath); err != nil {
-						models.Log.Error("Maintenance failed", "db", dbPath, "error", err)
-					}
-				}
-			}
-		}
-	}()
+	c.runMaintenance(ctx)
 
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		models.Log.Warn("ffmpeg not found in PATH, on-the-fly transcoding will be unavailable")
-		c.hasFfmpeg = false
-	} else {
-		c.hasFfmpeg = true
-	}
+	// Check for ffmpeg
+	c.checkFfmpeg()
 
 	handler := c.Mux()
 
@@ -423,32 +500,7 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 
 	// Open browser unless --no-browser is passed
 	if !c.NoBrowser {
-		go func() {
-			// Give server time to start
-			time.Sleep(500 * time.Millisecond)
-			var openCmd string
-			var openArgs []string
-
-			switch runtime.GOOS {
-			case "linux":
-				openCmd = "xdg-open"
-			case "darwin":
-				openCmd = "open"
-			case "windows":
-				openCmd = "cmd"
-				openArgs = []string{"/c", "start"}
-			}
-
-			if openCmd != "" {
-				openArgs = append(openArgs, baseURL)
-				browserCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-				defer cancel()
-				cmd := exec.CommandContext(browserCtx, openCmd, openArgs...)
-				if err := cmd.Start(); err != nil {
-					models.Log.Debug("Failed to open browser", "error", err)
-				}
-			}
-		}()
+		c.openBrowser(ctx, baseURL)
 	}
 
 	server := &http.Server{
@@ -481,13 +533,20 @@ func (c *ServeCmd) GetGlobalFlags() models.GlobalFlags {
 	}
 }
 
-// ParseFlags extracts query parameters into GlobalFlags
-func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
-	flags := c.GetGlobalFlags()
-	q := r.URL.Query()
+// parseSearchFlags extracts search-related flags from query parameters
+func (c *ServeCmd) parseSearchFlags(flags *models.GlobalFlags, q url.Values) {
 	if search := q.Get("search"); search != "" {
 		flags.Search = strings.Fields(search)
 	}
+	if searchType := q.Get("search_type"); searchType == "substring" {
+		flags.FTS = false
+	} else if searchType == "fts" {
+		flags.FTS = true
+	}
+}
+
+// parseCategoryFlags extracts category and genre flags
+func (c *ServeCmd) parseCategoryFlags(flags *models.GlobalFlags, q url.Values) {
 	if categories := q["category"]; len(categories) > 0 {
 		flags.Category = categories
 	} else if category := q.Get("category"); category != "" {
@@ -496,12 +555,24 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	if genre := q.Get("genre"); genre != "" {
 		flags.Genre = genre
 	}
+}
+
+// parseLanguageFlags extracts language filter flags
+func (c *ServeCmd) parseLanguageFlags(flags *models.GlobalFlags, q url.Values) {
 	if languages := q["language"]; len(languages) > 0 {
 		flags.Language = languages
 	}
+}
+
+// parsePathFlags extracts path-related flags
+func (c *ServeCmd) parsePathFlags(flags *models.GlobalFlags, q url.Values) {
 	if paths := q.Get("paths"); paths != "" {
 		flags.Paths = strings.Split(paths, ",")
 	}
+}
+
+// parseRatingFlags extracts rating filter flags
+func (c *ServeCmd) parseRatingFlags(flags *models.GlobalFlags, q url.Values) {
 	if ratings := q["rating"]; len(ratings) > 0 {
 		var clauses []string
 		for _, rating := range ratings {
@@ -521,6 +592,23 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 			}
 		}
 	}
+}
+
+// parseScoreFlags extracts min/max score and unplayed flags
+func (c *ServeCmd) parseScoreFlags(flags *models.GlobalFlags, q url.Values) {
+	if minScore := q.Get("min_score"); minScore != "" {
+		flags.Where = append(flags.Where, "score >= "+minScore)
+	}
+	if maxScore := q.Get("max_score"); maxScore != "" {
+		flags.Where = append(flags.Where, "score <= "+maxScore)
+	}
+	if unplayed := q.Get("unplayed"); unplayed == "true" {
+		flags.Where = append(flags.Where, "COALESCE(play_count, 0) = 0 AND COALESCE(playhead, 0) = 0")
+	}
+}
+
+// parseSortFlags extracts sorting-related flags
+func (c *ServeCmd) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
 	if sortBy := q.Get("sort"); sortBy != "" {
 		flags.SortBy = sortBy
 		if sortBy == "random" {
@@ -529,31 +617,25 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	}
 	// Support complex sorting with sort_fields array (JSON) or comma-separated string
 	if sortFields := q.Get("sort_fields"); sortFields != "" {
-		// If it starts with '[', treat as JSON array
 		if strings.HasPrefix(sortFields, "[") {
 			var fieldList []string
 			if err := json.Unmarshal([]byte(sortFields), &fieldList); err == nil {
-				// Convert array to comma-separated format
 				flags.PlayInOrder = strings.Join(fieldList, ",")
 			}
 		} else {
-			// Already comma-separated or single field
 			flags.PlayInOrder = sortFields
 		}
 	}
-	// Also support sort_order for explicit direction (overrides individual field directions)
+	// Also support sort_order for explicit direction
 	if sortDesc := q.Get("sort_desc"); sortDesc != "" {
-		// Comma-separated list of fields to sort descending
 		descFields := make(map[string]bool)
 		for f := range strings.SplitSeq(sortDesc, ",") {
 			descFields[strings.TrimSpace(f)] = true
 		}
-		// If PlayInOrder is set, prepend '-' to descending fields
 		if flags.PlayInOrder != "" {
 			var newOrder []string
 			for f := range strings.SplitSeq(flags.PlayInOrder, ",") {
 				f = strings.TrimSpace(f)
-				// Remove existing direction prefix
 				f = strings.TrimPrefix(f, "-")
 				f = strings.TrimSuffix(f, " desc")
 				f = strings.TrimSuffix(f, " asc")
@@ -569,6 +651,10 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	if reverse := q.Get("reverse"); reverse == "true" {
 		flags.Reverse = true
 	}
+}
+
+// parsePaginationFlags extracts limit and offset flags
+func (c *ServeCmd) parsePaginationFlags(flags *models.GlobalFlags, q url.Values) {
 	if limit := q.Get("limit"); limit != "" {
 		if l, err := strconv.Atoi(limit); err == nil {
 			flags.Limit = l
@@ -579,6 +665,10 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 			flags.Offset = o
 		}
 	}
+}
+
+// parseSizeFlags extracts size filter flags
+func (c *ServeCmd) parseSizeFlags(flags *models.GlobalFlags, q url.Values) {
 	if minSize := q.Get("min_size"); minSize != "" {
 		flags.Size = append(flags.Size, ">"+minSize+"MB")
 	}
@@ -588,6 +678,10 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	if sizes := q["size"]; len(sizes) > 0 {
 		flags.Size = append(flags.Size, sizes...)
 	}
+}
+
+// parseDurationFlags extracts duration filter flags
+func (c *ServeCmd) parseDurationFlags(flags *models.GlobalFlags, q url.Values) {
 	if minDuration := q.Get("min_duration"); minDuration != "" {
 		flags.Duration = append(flags.Duration, ">"+minDuration+"min")
 	}
@@ -597,7 +691,10 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	if durations := q["duration"]; len(durations) > 0 {
 		flags.Duration = append(flags.Duration, durations...)
 	}
+}
 
+// parseTimeFlags extracts time-based filter flags
+func (c *ServeCmd) parseTimeFlags(flags *models.GlobalFlags, q url.Values) {
 	if minModified := q.Get("min_modified"); minModified != "" {
 		flags.ModifiedAfter = minModified
 	}
@@ -654,23 +751,10 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 			}
 		}
 	}
+}
 
-	if episodes := q.Get("episodes"); episodes != "" {
-		flags.FileCounts = episodes
-	}
-	if minScore := q.Get("min_score"); minScore != "" {
-		flags.Where = append(flags.Where, "score >= "+minScore)
-	}
-	if maxScore := q.Get("max_score"); maxScore != "" {
-		flags.Where = append(flags.Where, "score <= "+maxScore)
-	}
-	if unplayed := q.Get("unplayed"); unplayed == "true" {
-		flags.Where = append(flags.Where, "COALESCE(play_count, 0) = 0 AND COALESCE(playhead, 0) = 0")
-	}
-	if all := q.Get("all"); all == "true" {
-		flags.All = true
-	}
-
+// parseMediaFlags extracts media type filter flags
+func (c *ServeCmd) parseMediaFlags(flags *models.GlobalFlags, q url.Values) {
 	mediaTypes := q["media_type"]
 	if len(mediaTypes) == 0 {
 		mediaTypes = q["type"]
@@ -713,6 +797,13 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	if completed := q.Get("completed"); completed == "true" {
 		flags.Completed = true
 	}
+}
+
+// parseStatusFlags extracts status-related flags (trash, all, episodes, group_by)
+func (c *ServeCmd) parseStatusFlags(flags *models.GlobalFlags, q url.Values) {
+	if all := q.Get("all"); all == "true" {
+		flags.All = true
+	}
 	if q.Get("trash") == "true" {
 		flags.OnlyDeleted = true
 		flags.HideDeleted = false
@@ -725,17 +816,37 @@ func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	if groupBy := q.Get("group_by"); groupBy == "parent" {
 		flags.GroupByParent = true
 	}
+}
 
-	// Parse search type (FTS vs substring)
-	if searchType := q.Get("search_type"); searchType == "substring" {
-		flags.FTS = false
-	} else if searchType == "fts" {
-		flags.FTS = true
-	}
-
-	// Parse database filter from request
+// parseDatabaseFlags extracts database filter flags
+func (c *ServeCmd) parseDatabaseFlags(flags *models.GlobalFlags, q url.Values) {
 	if dbs := q["db"]; len(dbs) > 0 {
 		flags.Databases = dbs
+	}
+}
+
+// ParseFlags extracts query parameters into GlobalFlags
+func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
+	flags := c.GetGlobalFlags()
+	q := r.URL.Query()
+
+	c.parseSearchFlags(&flags, q)
+	c.parseCategoryFlags(&flags, q)
+	c.parseLanguageFlags(&flags, q)
+	c.parsePathFlags(&flags, q)
+	c.parseRatingFlags(&flags, q)
+	c.parseScoreFlags(&flags, q)
+	c.parseSortFlags(&flags, q)
+	c.parsePaginationFlags(&flags, q)
+	c.parseSizeFlags(&flags, q)
+	c.parseDurationFlags(&flags, q)
+	c.parseTimeFlags(&flags, q)
+	c.parseMediaFlags(&flags, q)
+	c.parseStatusFlags(&flags, q)
+	c.parseDatabaseFlags(&flags, q)
+
+	if episodes := q.Get("episodes"); episodes != "" {
+		flags.FileCounts = episodes
 	}
 
 	return flags

@@ -265,29 +265,37 @@ func (c *ServeCmd) HandleLanguages(w http.ResponseWriter, r *http.Request) {
 	}, "Failed to fetch languages")
 }
 
+// CaptionsQueryParams contains the search query and filter options for caption retrieval
+type CaptionsQueryParams struct {
+	QueryStr  string
+	Limit     int64
+	VideoOnly bool
+	AudioOnly bool
+	ImageOnly bool
+	TextOnly  bool
+}
+
 // getCaptionsWithContext fetches captions matching a query along with 2 captions before and after each match
 func (c *ServeCmd) getCaptionsWithContext(
 	ctx context.Context,
 	queries *database.Queries,
-	queryStr string,
-	limit int64,
-	videoOnly, audioOnly, imageOnly, textOnly bool,
+	params CaptionsQueryParams,
 ) ([]database.SearchCaptionsRow, error) {
 	// First, get the matching captions with media type filters
 	matches, err := queries.SearchCaptions(ctx, database.SearchCaptionsParams{
-		Query:     queryStr,
-		VideoOnly: videoOnly,
-		AudioOnly: audioOnly,
-		ImageOnly: imageOnly,
-		TextOnly:  textOnly,
-		Limit:     limit,
+		Query:     params.QueryStr,
+		VideoOnly: params.VideoOnly,
+		AudioOnly: params.AudioOnly,
+		ImageOnly: params.ImageOnly,
+		TextOnly:  params.TextOnly,
+		Limit:     params.Limit,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Apply in-memory ranking for better relevance
-	database.RankCaptionsResults(matches, queryStr)
+	database.RankCaptionsResults(matches, params.QueryStr)
 
 	if len(matches) == 0 {
 		return matches, nil

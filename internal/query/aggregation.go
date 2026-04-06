@@ -1081,116 +1081,141 @@ func buildDUWithParentFilterQuery(
 	flags models.GlobalFlags,
 	matchingParents map[string]struct{},
 ) (string, []any) {
+	parentList := sortedParentList(matchingParents)
+
 	var query string
 	var args []any
 
-	// Convert matching parents map to IN clause
+	if pathPrefix == "" {
+		query, args = buildRootDUQuery(parentList)
+	} else {
+		query, args = buildSubdirDUQuery(pathPrefix, targetDepth, parentList)
+	}
+
+	query, args = appendDUFilterClauses(ctx, flags, query, args)
+	query += " GROUP BY agg_path ORDER BY total_size DESC"
+	return query, args
+}
+
+func sortedParentList(matchingParents map[string]struct{}) []string {
 	parentList := make([]string, 0, len(matchingParents))
 	for parent := range matchingParents {
 		parentList = append(parentList, parent)
 	}
-
-	// Sort for consistent ordering
 	slices.Sort(parentList)
+	return parentList
+}
 
-	if pathPrefix == "" {
-		query = `
-			SELECT
-				CASE
-					WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
-						substr(replace(path, '\\', '/'), 1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), 2), '/')
-								ELSE length(replace(path, '\\', '/'))
-							END
-						)
-					ELSE
+func buildRootDUQuery(parentList []string) (string, []any) {
+	query := `
+		SELECT
+			CASE
+				WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
+					substr(replace(path, '\\', '/'), 1,
 						CASE
-							WHEN instr(replace(path, '\\', '/'), '/') > 0
-							THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
-							ELSE replace(path, '\\', '/')
+							WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
+							THEN instr(substr(replace(path, '\\', '/'), 2), '/')
+							ELSE length(replace(path, '\\', '/'))
 						END
-				END as agg_path,
-				COUNT(*) as count,
-				COALESCE(SUM(size), 0) as total_size,
-				COALESCE(SUM(duration), 0) as total_duration
-			FROM media
-			WHERE COALESCE(time_deleted, 0) = 0
-		`
+					)
+				ELSE
+					CASE
+						WHEN instr(replace(path, '\\', '/'), '/') > 0
+						THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
+						ELSE replace(path, '\\', '/')
+					END
+			END as agg_path,
+			COUNT(*) as count,
+			COALESCE(SUM(size), 0) as total_size,
+			COALESCE(SUM(duration), 0) as total_duration
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0
+	`
 
-		// Add parent filter
-		if len(parentList) > 0 {
-			placeholders := make([]string, len(parentList))
-			for i, p := range parentList {
-				placeholders[i] = "?"
-				args = append(args, p)
-			}
-			query += fmt.Sprintf(
-				" AND CASE WHEN substr(replace(path, '\\\\', '/'), 1, 1) = '/' THEN substr(replace(path, '\\\\', '/'), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), 2), '/') ELSE length(replace(path, '\\\\', '/')) END) ELSE CASE WHEN instr(replace(path, '\\\\', '/'), '/') > 0 THEN substr(replace(path, '\\\\', '/'), 1, instr(replace(path, '\\\\', '/'), '/') - 1) ELSE replace(path, '\\\\', '/') END END IN (%s)",
-				strings.Join(placeholders, ", "),
-			)
-		}
-	} else {
-		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
-
-		query = `
-			SELECT
-				CASE
-					WHEN substr(?, 1, 1) = '/' THEN
-						? || substr(
-							substr(replace(path, '\\', '/'), length(?) + 1),
-							1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
-								ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
-							END
-						)
-					ELSE
-						? || CASE
-							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
-							THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
-							ELSE substr(replace(path, '\\', '/'), length(?) + 1)
-						END
-				END as agg_path,
-				COUNT(*) as count,
-				COALESCE(SUM(size), 0) as total_size,
-				COALESCE(SUM(duration), 0) as total_duration
-			FROM media
-			WHERE COALESCE(time_deleted, 0) = 0
-				AND replace(path, '\\', '/') LIKE ? || '/%'
-				AND (length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))) > ?
-		`
-		args = append(args,
-			normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-			normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-			normalizedPrefix, escapedPrefix, targetDepth,
-		)
-
-		// Add parent filter
-		if len(parentList) > 0 {
-			placeholders := make([]string, len(parentList))
-			for i, p := range parentList {
-				placeholders[i] = "?"
-				args = append(args, p)
-			}
-			// Reuse the same CASE expression for extracting parent path
-			query += fmt.Sprintf(
-				" AND CASE WHEN substr(?, 1, 1) = '/' THEN ? || substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') ELSE length(substr(replace(path, '\\\\', '/'), length(?) + 1)) END) ELSE ? || CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 1), '/') > 0 THEN substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') - 1) ELSE substr(replace(path, '\\\\', '/'), length(?) + 1) END END IN (%s)",
-				strings.Join(placeholders, ", "),
-			)
-			// Add the same args again for the CASE expression (11 total)
-			args = append(args,
-				normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-				normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-				normalizedPrefix,
-			)
-		}
+	if len(parentList) == 0 {
+		return query, nil
 	}
 
-	// Add basic filters
+	args := make([]any, 0, len(parentList))
+	placeholders := make([]string, len(parentList))
+	for i, p := range parentList {
+		placeholders[i] = "?"
+		args = append(args, p)
+	}
+	query += fmt.Sprintf(
+		" AND CASE WHEN substr(replace(path, '\\\\', '/'), 1, 1) = '/' THEN substr(replace(path, '\\\\', '/'), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), 2), '/') ELSE length(replace(path, '\\\\', '/')) END) ELSE CASE WHEN instr(replace(path, '\\\\', '/'), '/') > 0 THEN substr(replace(path, '\\\\', '/'), 1, instr(replace(path, '\\\\', '/'), '/') - 1) ELSE replace(path, '\\\\', '/') END END IN (%s)",
+		strings.Join(placeholders, ", "),
+	)
+	return query, args
+}
+
+func buildSubdirDUQuery(pathPrefix string, targetDepth int, parentList []string) (string, []any) {
+	normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
+	escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
+
+	query := `
+		SELECT
+			CASE
+				WHEN substr(?, 1, 1) = '/' THEN
+					? || substr(
+						substr(replace(path, '\\', '/'), length(?) + 1),
+						1,
+						CASE
+							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
+							THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
+							ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
+						END
+					)
+				ELSE
+					? || CASE
+						WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
+						THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
+						ELSE substr(replace(path, '\\', '/'), length(?) + 1)
+					END
+			END as agg_path,
+			COUNT(*) as count,
+			COALESCE(SUM(size), 0) as total_size,
+			COALESCE(SUM(duration), 0) as total_duration
+		FROM media
+		WHERE COALESCE(time_deleted, 0) = 0
+			AND replace(path, '\\', '/') LIKE ? || '/%'
+			AND (length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))) > ?
+	`
+	args := subdirBaseArgs(normalizedPrefix, escapedPrefix, targetDepth)
+
+	if len(parentList) > 0 {
+		query, args = appendSubdirParentFilter(query, args, normalizedPrefix, parentList)
+	}
+	return query, args
+}
+
+func subdirBaseArgs(normalizedPrefix, escapedPrefix string, targetDepth int) []any {
+	return []any{
+		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
+		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
+		normalizedPrefix, escapedPrefix, targetDepth,
+	}
+}
+
+func appendSubdirParentFilter(query string, args []any, normalizedPrefix string, parentList []string) (string, []any) {
+	placeholders := make([]string, len(parentList))
+	for i, p := range parentList {
+		placeholders[i] = "?"
+		args = append(args, p)
+	}
+	query += fmt.Sprintf(
+		" AND CASE WHEN substr(?, 1, 1) = '/' THEN ? || substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') ELSE length(substr(replace(path, '\\\\', '/'), length(?) + 1)) END) ELSE ? || CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 1), '/') > 0 THEN substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') - 1) ELSE substr(replace(path, '\\\\', '/'), length(?) + 1) END END IN (%s)",
+		strings.Join(placeholders, ", "),
+	)
+	args = append(args,
+		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
+		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
+		normalizedPrefix,
+	)
+	return query, args
+}
+
+func appendDUFilterClauses(ctx context.Context, flags models.GlobalFlags, query string, args []any) (string, []any) {
 	basicFlags := flags
 	basicFlags.FileCounts = ""
 	basicFlags.FolderCounts = ""
@@ -1204,8 +1229,6 @@ func buildDUWithParentFilterQuery(
 			args = append(args, filterArgs...)
 		}
 	}
-
-	query += " GROUP BY agg_path ORDER BY total_size DESC"
 	return query, args
 }
 
