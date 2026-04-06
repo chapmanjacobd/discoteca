@@ -1677,12 +1677,12 @@ func extractWordsFromSearch(searchTerms []string) []string {
 	return words
 }
 
-func topWordsByLength(words []string, max int) []string {
+func topWordsByLength(words []string, maxCount int) []string {
 	sort.Slice(words, func(i, j int) bool {
 		return len(words[i]) > len(words[j])
 	})
-	if len(words) > max {
-		return words[:max]
+	if len(words) > maxCount {
+		return words[:maxCount]
 	}
 	return words
 }

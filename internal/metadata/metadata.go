@@ -91,7 +91,14 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 	result := &MediaMetadata{Media: params}
 
 	if mediaType == "text" {
-		handleTextFile(ctx, path, ext, opts, stat, &params, result)
+		handleTextFile(ctx, textFileParams{
+			path:   path,
+			ext:    ext,
+			opts:   opts,
+			stat:   stat,
+			params: &params,
+			result: result,
+		})
 		return result, nil
 	}
 
@@ -108,7 +115,12 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 		return result, nil
 	}
 
-	return extractMediaMetadata(ctx, path, ext, stat, params, result, opts)
+	return extractMediaMetadata(ctx, mediaMetadataParams{
+		path: path,
+		ext:  ext,
+		stat: stat,
+		opts: opts,
+	}, params, result)
 }
 
 func detectMediaType(ext string) string {
@@ -139,27 +151,29 @@ func buildBasicParams(path string, stat os.FileInfo, mediaType string) db.Upsert
 	}
 }
 
-func handleTextFile(
-	ctx context.Context,
-	path, ext string,
-	opts ExtractOptions,
-	stat os.FileInfo,
-	params *db.UpsertMediaParams,
-	result *MediaMetadata,
-) {
-	if !opts.ScanSubtitles && !opts.ExtractText {
+type textFileParams struct {
+	path   string
+	ext    string
+	opts   ExtractOptions
+	stat   os.FileInfo
+	params *db.UpsertMediaParams
+	result *MediaMetadata
+}
+
+func handleTextFile(ctx context.Context, p textFileParams) {
+	if !p.opts.ScanSubtitles && !p.opts.ExtractText {
 		return
 	}
 
-	if params.Duration.Int64 == 0 {
-		setTextDuration(ctx, path, stat, params)
+	if p.params.Duration.Int64 == 0 {
+		setTextDuration(ctx, p.path, p.stat, p.params)
 	}
-	result.Media = *params
+	p.result.Media = *p.params
 
-	if utils.ComicExtensionMap[ext] && opts.OCR {
-		extractComicText(ctx, path, opts.OCREngine, result)
-	} else if opts.ExtractText && !utils.ComicExtensionMap[ext] {
-		extractDocumentTextToCaptions(ctx, path, result)
+	if utils.ComicExtensionMap[p.ext] && p.opts.OCR {
+		extractComicText(ctx, p.path, p.opts.OCREngine, p.result)
+	} else if p.opts.ExtractText && !utils.ComicExtensionMap[p.ext] {
+		extractDocumentTextToCaptions(ctx, p.path, p.result)
 	}
 }
 
@@ -224,19 +238,24 @@ type streamCounts struct {
 	vCodecs, aCodecs, sCodecs []string
 }
 
+type mediaMetadataParams struct {
+	path string
+	ext  string
+	stat os.FileInfo
+	opts ExtractOptions
+}
+
 func extractMediaMetadata(
 	ctx context.Context,
-	path, ext string,
-	stat os.FileInfo,
+	paramsIn mediaMetadataParams,
 	params db.UpsertMediaParams,
 	result *MediaMetadata,
-	opts ExtractOptions,
 ) (*MediaMetadata, error) {
 	duration := int64(0)
-	cmd := utils.FFProbe(ctx, path, "-analyze_duration", "100000", "-probesize", "500000")
+	cmd := utils.FFProbe(ctx, paramsIn.path, "-analyze_duration", "100000", "-probesize", "500000")
 	output, err := cmd.Output()
 	if err != nil {
-		cmdFallback := utils.FFProbe(ctx, path)
+		cmdFallback := utils.FFProbe(ctx, paramsIn.path)
 		output, _ = cmdFallback.Output()
 	}
 
@@ -244,18 +263,28 @@ func extractMediaMetadata(
 	if len(output) > 0 {
 		var data FFProbeOutput
 		if err := json.Unmarshal(output, &data); err == nil {
-			processFormatInfo(data, path, stat, ext, &params, result, &duration)
-			sc = processStreams(data.Streams, path, &params, result)
-			processChapters(data.Chapters, path, result)
+			processFormatInfo(data, formatInfoParams{
+				path:     paramsIn.path,
+				stat:     paramsIn.stat,
+				ext:      paramsIn.ext,
+				params:   &params,
+				result:   result,
+				duration: &duration,
+			})
+			sc = processStreams(data.Streams, paramsIn.path, &params)
+			processChapters(data.Chapters, paramsIn.path, result)
 		} else {
-			models.Log.Debug("ffprobe returned invalid JSON", "path", path, "output", string(output))
+			models.Log.Debug("ffprobe returned invalid JSON", "path", paramsIn.path, "output", string(output))
 		}
 	} else {
-		models.Log.Debug("ffprobe failed to extract metadata (empty output)", "path", path)
+		models.Log.Debug("ffprobe failed to extract metadata (empty output)", "path", paramsIn.path)
 	}
 
-	if opts.ScanSubtitles {
-		sc.sCount, sc.sCodecs = processExternalSubtitles(ctx, path, opts.ScanSubtitles, sc.sCount, sc.sCodecs, result)
+	if paramsIn.opts.ScanSubtitles {
+		sc.sCount, sc.sCodecs = processExternalSubtitles(ctx, externalSubtitlesParams{
+			path:          paramsIn.path,
+			scanSubtitles: paramsIn.opts.ScanSubtitles,
+		}, sc.sCount, sc.sCodecs, result)
 	}
 
 	params.VideoCodecs = utils.ToNullString(utils.Combine(sc.vCodecs))
@@ -267,7 +296,7 @@ func extractMediaMetadata(
 
 	originalMediaType := params.MediaType.String
 	params.MediaType = utils.ToNullString(
-		refineMediaTypeFromStreams(originalMediaType, sc.vCount, sc.aCount, duration, path),
+		refineMediaTypeFromStreams(originalMediaType, sc.vCount, sc.aCount, duration, paramsIn.path),
 	)
 	result.Media = params
 	return result, nil
@@ -290,38 +319,42 @@ func refineMediaTypeFromStreams(mediaType string, vCount, aCount, duration int64
 	return mediaType
 }
 
+type formatInfoParams struct {
+	path     string
+	stat     os.FileInfo
+	ext      string
+	params   *db.UpsertMediaParams
+	result   *MediaMetadata
+	duration *int64
+}
+
 func processFormatInfo(
 	data FFProbeOutput,
-	path string,
-	stat os.FileInfo,
-	ext string,
-	params *db.UpsertMediaParams,
-	result *MediaMetadata,
-	duration *int64,
+	p formatInfoParams,
 ) {
 	if data.Format.FormatName != "" {
-		result.ContainerFormat = &data.Format.FormatName
+		p.result.ContainerFormat = &data.Format.FormatName
 	}
 
 	if d, err := strconv.ParseFloat(data.Format.Duration, 64); err == nil {
-		*duration = int64(d)
-		if *duration > 0 && *duration < 2678400 {
+		*p.duration = int64(d)
+		if *p.duration > 0 && *p.duration < 2678400 {
 			if estimated, shouldOverride := utils.ShouldOverrideDuration(
-				float64(*duration),
-				stat.Size(),
-				ext,
+				float64(*p.duration),
+				p.stat.Size(),
+				p.ext,
 			); shouldOverride {
 				models.Log.Debug("Replacing suspiciously low duration with format-specific estimate",
-					"path", path, "reported", *duration, "estimated", int64(estimated),
-					"bitrate", utils.GetEstimatedBitrate(ext))
-				*duration = int64(estimated)
+					"path", p.path, "reported", *p.duration, "estimated", int64(estimated),
+					"bitrate", utils.GetEstimatedBitrate(p.ext))
+				*p.duration = int64(estimated)
 			}
-			params.Duration = utils.ToNullInt64(*duration)
+			p.params.Duration = utils.ToNullInt64(*p.duration)
 		}
 	}
 
 	if data.Format.Tags != nil {
-		extractFormatTags(data.Format.Tags, params)
+		extractFormatTags(data.Format.Tags, p.params)
 	}
 }
 
@@ -374,7 +407,7 @@ func extractFormatTags(tags map[string]string, params *db.UpsertMediaParams) {
 	params.Categories = utils.ToNullString(tags["categories"])
 }
 
-func processStreams(streams []Stream, path string, params *db.UpsertMediaParams, result *MediaMetadata) streamCounts {
+func processStreams(streams []Stream, _ string, params *db.UpsertMediaParams) streamCounts {
 	sc := streamCounts{}
 	for _, s := range streams {
 		switch s.CodecType {
@@ -466,18 +499,22 @@ func processChapters(chapters []Chapter, path string, result *MediaMetadata) {
 	}
 }
 
+type externalSubtitlesParams struct {
+	path          string
+	scanSubtitles bool
+}
+
 func processExternalSubtitles(
-	ctx context.Context,
-	path string,
-	scanSubtitles bool,
+	_ context.Context,
+	p externalSubtitlesParams,
 	sCount int64,
 	sCodecs []string,
 	result *MediaMetadata,
 ) (int64, []string) {
-	if !scanSubtitles {
+	if !p.scanSubtitles {
 		return sCount, sCodecs
 	}
-	externalSubs := utils.GetExternalSubtitles(path)
+	externalSubs := utils.GetExternalSubtitles(p.path)
 	for _, sub := range externalSubs {
 		sCount++
 		displayName, _, _ := utils.ExtractSubtitleInfo(sub)
@@ -490,7 +527,7 @@ func processExternalSubtitles(
 
 		ext := strings.ToLower(filepath.Ext(sub))
 		if ext == ".vtt" || ext == ".srt" {
-			caps, err := parseSubtitleFile(sub, path)
+			caps, err := parseSubtitleFile(sub, p.path)
 			if err == nil {
 				result.Captions = append(result.Captions, caps...)
 			}

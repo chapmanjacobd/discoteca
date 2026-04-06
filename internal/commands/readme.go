@@ -193,7 +193,7 @@ func writeSubcommand(sb *strings.Builder, node *kong.Node) {
 	writeSubcommandOptions(sb, node)
 }
 
-func writeExamples(sb *strings.Builder, name string, examples []string) {
+func writeExamples(sb *strings.Builder, _ string, examples []string) {
 	sb.WriteString("Examples:\n\n```bash\n")
 	for _, line := range examples {
 		fmt.Fprintf(sb, "$ %s\n", line)

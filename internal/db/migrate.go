@@ -927,10 +927,7 @@ func rebuildFTSTable(ctx context.Context, db *sql.DB, tableName, _ string) error
 		}
 	}
 
-	if err := rebuildFTSData(ctx, db, tableName); err != nil {
-		return err
-	}
-	return nil
+	return rebuildFTSData(ctx, db, tableName)
 }
 
 func ftsCreateSQL(tableName string) string {

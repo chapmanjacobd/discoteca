@@ -126,8 +126,8 @@ func (c *WatchCmd) playMedia(
 		return true, err
 	}
 
-	if err := ExecutePostAction(ctx, flags, []models.MediaWithDB{m}); err != nil {
-		models.Log.Error("Post action failed", "path", m.Path, "error", err)
+	if postErr := ExecutePostAction(ctx, flags, []models.MediaWithDB{m}); postErr != nil {
+		models.Log.Error("Post action failed", "path", m.Path, "error", postErr)
 	}
 
 	return false, err
@@ -337,8 +337,8 @@ func (c *ListenCmd) playMedia(
 		return true, err
 	}
 
-	if err := ExecutePostAction(ctx, flags, []models.MediaWithDB{m}); err != nil {
-		models.Log.Error("Post action failed", "path", m.Path, "error", err)
+	if postErr := ExecutePostAction(ctx, flags, []models.MediaWithDB{m}); postErr != nil {
+		models.Log.Error("Post action failed", "path", m.Path, "error", postErr)
 	}
 
 	return false, err
@@ -426,7 +426,7 @@ func mustInt(p *int64) int {
 	return int(*p)
 }
 
-func runPlayer(ctx context.Context, args []string, path string) (exitCode int, err error) {
+func runPlayer(ctx context.Context, args []string, _ string) (exitCode int, err error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -446,7 +446,7 @@ func handlePlayerExit(
 	ctx context.Context,
 	flags models.GlobalFlags,
 	exitCode int,
-	err error,
+	_ error,
 	m models.MediaWithDB,
 ) bool {
 	if exitCode == 4 {

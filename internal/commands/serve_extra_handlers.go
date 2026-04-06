@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -1118,10 +1119,39 @@ func (c *ServeCmd) HandlePlaylistItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ServeCmd) HandleRSVP(w http.ResponseWriter, r *http.Request) {
+	path, wpm, err := c.validateAndExtractRSVPParams(w, r)
+	if err != nil {
+		return
+	}
+
+	text, err := utils.ExtractText(r.Context(), path)
+	if err != nil {
+		models.Log.Error("Text extraction failed", "path", path, "error", err)
+		http.Error(w, fmt.Sprintf("Text extraction failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	assContent, duration := utils.GenerateRSVPAss(text, wpm)
+	if duration <= 0 {
+		http.Error(w, "Empty text content", http.StatusBadRequest)
+		return
+	}
+
+	tmpDir, wavPath, err := c.prepareRSVPFiles(r.Context(), text, assContent)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	c.streamRSVPVideo(w, r, assContent, wavPath, duration)
+}
+
+func (c *ServeCmd) validateAndExtractRSVPParams(w http.ResponseWriter, r *http.Request) (string, int, error) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "Path required", http.StatusBadRequest)
-		return
+		return "", 0, errors.New("path required")
 	}
 
 	// Verify path in database
@@ -1142,7 +1172,7 @@ func (c *ServeCmd) HandleRSVP(w http.ResponseWriter, r *http.Request) {
 
 	if !found {
 		http.Error(w, "Access denied", http.StatusForbidden)
-		return
+		return "", 0, errors.New("access denied")
 	}
 
 	wpm := 250
@@ -1152,21 +1182,37 @@ func (c *ServeCmd) HandleRSVP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	text, err := utils.ExtractText(r.Context(), path)
+	return path, wpm, nil
+}
+
+func (c *ServeCmd) prepareRSVPFiles(ctx context.Context, text, assContent string) (tmpDir, wavPath string, err error) {
+	tmpDir, err = os.MkdirTemp("", "disco-rsvp-*")
 	if err != nil {
-		models.Log.Error("Text extraction failed", "path", path, "error", err)
-		http.Error(w, fmt.Sprintf("Text extraction failed: %v", err), http.StatusInternalServerError)
-		return
+		return "", "", errors.New("failed to create temp directory")
 	}
 
-	assContent, duration := utils.GenerateRSVPAss(text, wpm)
-	if duration <= 0 {
-		http.Error(w, "Empty text content", http.StatusBadRequest)
-		return
+	assPath := filepath.Join(tmpDir, "subtitles.ass")
+	if writeErr := os.WriteFile(assPath, []byte(assContent), 0o644); writeErr != nil {
+		return tmpDir, "", errors.New("failed to write subtitles")
 	}
 
-	// Create temp directory for ASS and WAV
-	tmpDir, err := os.MkdirTemp("", "disco-rsvp-*")
+	wavPath = filepath.Join(tmpDir, "audio.wav")
+	if ttsErr := utils.GenerateTTS(ctx, text, wavPath, 250); ttsErr != nil {
+		models.Log.Warn("TTS generation failed", "error", ttsErr)
+		wavPath = ""
+	}
+
+	return tmpDir, wavPath, nil
+}
+
+func (c *ServeCmd) streamRSVPVideo(
+	w http.ResponseWriter,
+	r *http.Request,
+	assContent, wavPath string,
+	duration float64,
+) {
+	// Create temp directory for ASS
+	tmpDir, err := os.MkdirTemp("", "disco-rsvp-ass-*")
 	if err != nil {
 		http.Error(w, "Failed to create temp directory", http.StatusInternalServerError)
 		return
@@ -1177,12 +1223,6 @@ func (c *ServeCmd) HandleRSVP(w http.ResponseWriter, r *http.Request) {
 	if err := os.WriteFile(assPath, []byte(assContent), 0o644); err != nil {
 		http.Error(w, "Failed to write subtitles", http.StatusInternalServerError)
 		return
-	}
-
-	wavPath := filepath.Join(tmpDir, "audio.wav")
-	if err := utils.GenerateTTS(r.Context(), text, wavPath, wpm); err != nil {
-		models.Log.Warn("TTS generation failed", "error", err)
-		wavPath = ""
 	}
 
 	w.Header().Set("Content-Type", "video/webm")
@@ -1216,7 +1256,7 @@ func (c *ServeCmd) HandleRSVP(w http.ResponseWriter, r *http.Request) {
 
 	args = append(args, "-f", "webm", "pipe:1")
 
-	models.Log.Info("Starting RSVP stream", "path", path, "wpm", wpm, "duration", duration)
+	models.Log.Info("Starting RSVP stream", "wpm", 250, "duration", duration)
 
 	cmd := exec.CommandContext(r.Context(), "ffmpeg", args...)
 	cmd.Stdout = w

@@ -122,9 +122,15 @@ func (c *MergeDBsCmd) mergeTable(ctx context.Context, srcConn, targetConn *sql.D
 		return nil
 	}
 
-	insertQuery := c.buildInsertQuery(targetConn, table, selectedCols)
+	insertQuery := c.buildInsertQuery(ctx, targetConn, table, selectedCols)
 
-	return c.copyRows(ctx, srcConn, targetConn, table, selectedCols, insertQuery)
+	return c.copyRows(ctx, copyRowsParams{
+		srcConn:      srcConn,
+		targetConn:   targetConn,
+		table:        table,
+		selectedCols: selectedCols,
+		insertQuery:  insertQuery,
+	})
 }
 
 func (c *MergeDBsCmd) selectColumns(srcCols, targetCols []string) []string {
@@ -171,8 +177,13 @@ func (c *MergeDBsCmd) filterSkipColumns(cols []string) []string {
 	return filtered
 }
 
-func (c *MergeDBsCmd) buildInsertQuery(targetConn *sql.DB, table string, selectedCols []string) string {
-	pks := c.resolvePrimaryKeys(targetConn, table)
+func (c *MergeDBsCmd) buildInsertQuery(
+	ctx context.Context,
+	targetConn *sql.DB,
+	table string,
+	selectedCols []string,
+) string {
+	pks := c.resolvePrimaryKeys(ctx, targetConn, table)
 	baseQuery := c.buildBaseInsert(table, selectedCols)
 
 	if c.Upsert && len(pks) > 0 {
@@ -184,13 +195,13 @@ func (c *MergeDBsCmd) buildInsertQuery(targetConn *sql.DB, table string, selecte
 	return baseQuery
 }
 
-func (c *MergeDBsCmd) resolvePrimaryKeys(targetConn *sql.DB, table string) []string {
+func (c *MergeDBsCmd) resolvePrimaryKeys(ctx context.Context, targetConn *sql.DB, table string) []string {
 	pks := c.PrimaryKeys
 	if len(c.BusinessKeys) > 0 {
 		pks = c.BusinessKeys
 	}
 	if c.Upsert && len(pks) == 0 && targetConn != nil {
-		pks, _ = c.getPrimaryKeyColumns(context.Background(), targetConn, table)
+		pks, _ = c.getPrimaryKeyColumns(ctx, targetConn, table)
 	}
 	return pks
 }
@@ -241,38 +252,40 @@ func (c *MergeDBsCmd) buildUpsertQuery(table string, selectedCols, pks []string)
 		strings.Join(pks, ", "), strings.Join(updateParts, ", "))
 }
 
-func (c *MergeDBsCmd) copyRows(
-	ctx context.Context,
-	srcConn, targetConn *sql.DB,
-	table string,
-	selectedCols []string,
-	insertQuery string,
-) error {
+type copyRowsParams struct {
+	srcConn      *sql.DB
+	targetConn   *sql.DB
+	table        string
+	selectedCols []string
+	insertQuery  string
+}
+
+func (c *MergeDBsCmd) copyRows(ctx context.Context, p copyRowsParams) error {
 	whereClause := ""
 	if len(c.Where) > 0 {
 		whereClause = " WHERE " + strings.Join(c.Where, " AND ")
 	}
-	selectQuery := fmt.Sprintf("SELECT %s FROM %s%s", strings.Join(selectedCols, ", "), table, whereClause)
+	selectQuery := fmt.Sprintf("SELECT %s FROM %s%s", strings.Join(p.selectedCols, ", "), p.table, whereClause)
 
-	rows, err := srcConn.QueryContext(ctx, selectQuery)
+	rows, err := p.srcConn.QueryContext(ctx, selectQuery)
 	if err != nil {
 		return fmt.Errorf("failed to select from source: %w", err)
 	}
 	defer rows.Close()
 
-	tx, err := targetConn.BeginTx(ctx, nil)
+	tx, err := p.targetConn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	stmt, err := tx.PrepareContext(ctx, insertQuery)
+	stmt, err := tx.PrepareContext(ctx, p.insertQuery)
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert: %w", err)
 	}
 	defer stmt.Close()
 
-	count, err := c.executeInserts(ctx, rows, stmt, len(selectedCols))
+	count, err := c.executeInserts(ctx, rows, stmt, len(p.selectedCols))
 	if err != nil {
 		return err
 	}
@@ -281,7 +294,7 @@ func (c *MergeDBsCmd) copyRows(
 		return err
 	}
 
-	models.Log.Info("Merged rows", "table", table, "count", count)
+	models.Log.Info("Merged rows", "table", p.table, "count", count)
 	return nil
 }
 

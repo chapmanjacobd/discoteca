@@ -35,85 +35,7 @@ func (c *ServeCmd) HandleTranscode(
 	w.Header().Set("Accept-Ranges", "none")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filepath.Base(path)))
 
-	start := r.URL.Query().Get("start")
-
-	// Add flags to help with piped streaming duration and timestamp issues
-	var args []string
-
-	if start != "" {
-		args = append(args, "-ss", start)
-	}
-
-	args = append(args, "-fflags", "+genpts", "-i", path)
-
-	// If we have duration in metadata, tell ffmpeg so it can write it to headers
-	if m.Duration != nil && *m.Duration > 0 {
-		args = append(args, "-t", strconv.FormatInt(*m.Duration, 10))
-	}
-
-	if strategy.VideoCopy {
-		args = append(args, "-c:v", "copy")
-	} else {
-		if strategy.TargetMime == "video/mp4" {
-			args = append(args, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28")
-		} else {
-			// WebM
-			args = append(
-				args,
-				"-c:v",
-				"libvpx-vp9",
-				"-deadline",
-				"realtime",
-				"-cpu-used",
-				"8",
-				"-crf",
-				"30",
-				"-b:v",
-				"0",
-			)
-		}
-	}
-
-	if strategy.AudioCopy {
-		args = append(args, "-c:a", "copy")
-	} else {
-		if strategy.TargetMime == "video/mp4" {
-			args = append(args, "-c:a", "aac", "-b:a", "128k", "-ac", "2")
-		} else {
-			// WebM supports Opus
-			args = append(args, "-c:a", "libopus", "-b:a", "128k", "-ac", "2")
-		}
-	}
-
-	args = append(args, "-avoid_negative_ts", "make_zero", "-map_metadata", "-1", "-sn")
-
-	if strategy.TargetMime == "video/mp4" {
-		// frag_keyframe+empty_moov+default_base_moof+global_sidx is the standard for fragmented streaming
-		args = append(
-			args,
-			"-f",
-			"mp4",
-			"-movflags",
-			"frag_keyframe+empty_moov+default_base_moof+global_sidx",
-			"pipe:1",
-		)
-	} else {
-		// Matroska with index space reserved and cluster limits can help browsers determine duration
-		args = append(
-			args,
-			"-f",
-			"matroska",
-			"-live",
-			"1",
-			"-reserve_index_space",
-			"1024k",
-			"-cluster_size_limit",
-			"2M",
-			"-cluster_time_limit",
-			"5100",
-			"pipe:1",
-		)
-	}
+	args := c.buildTranscodeArgs(r, path, m, strategy)
 
 	ffmpegArgs := append([]string{"-hide_banner", "-loglevel", "error"}, args...)
 	models.Log.Info(
@@ -126,7 +48,105 @@ func (c *ServeCmd) HandleTranscode(
 		strings.Join(ffmpegArgs, " "),
 	)
 
-	cmd := exec.CommandContext(r.Context(), "ffmpeg", ffmpegArgs...)
+	c.runTranscodeCommand(r.Context(), w, path, ffmpegArgs)
+}
+
+// buildTranscodeArgs assembles all ffmpeg arguments for transcoding
+func (c *ServeCmd) buildTranscodeArgs(
+	r *http.Request,
+	path string,
+	m models.Media,
+	strategy utils.TranscodeStrategy,
+) []string {
+	var args []string
+
+	// Add seek/start time
+	if start := r.URL.Query().Get("start"); start != "" {
+		args = append(args, "-ss", start)
+	}
+
+	// Input file
+	args = append(args, "-fflags", "+genpts", "-i", path)
+
+	// Add duration from metadata if available
+	if m.Duration != nil && *m.Duration > 0 {
+		args = append(args, "-t", strconv.FormatInt(*m.Duration, 10))
+	}
+
+	// Video codec settings
+	args = append(args, c.buildVideoCodecArgs(strategy)...)
+
+	// Audio codec settings
+	args = append(args, c.buildAudioCodecArgs(strategy)...)
+
+	// Common output flags
+	args = append(args, "-avoid_negative_ts", "make_zero", "-map_metadata", "-1", "-sn")
+
+	// Format-specific output flags
+	args = append(args, c.buildFormatArgs(strategy)...)
+
+	return args
+}
+
+// buildVideoCodecArgs returns the video codec arguments based on the strategy
+func (c *ServeCmd) buildVideoCodecArgs(strategy utils.TranscodeStrategy) []string {
+	if strategy.VideoCopy {
+		return []string{"-c:v", "copy"}
+	}
+
+	if strategy.TargetMime == "video/mp4" {
+		return []string{"-c:v", "libx264", "-preset", "ultrafast", "-crf", "28"}
+	}
+
+	// WebM
+	return []string{
+		"-c:v", "libvpx-vp9",
+		"-deadline", "realtime",
+		"-cpu-used", "8",
+		"-crf", "30",
+		"-b:v", "0",
+	}
+}
+
+// buildAudioCodecArgs returns the audio codec arguments based on the strategy
+func (c *ServeCmd) buildAudioCodecArgs(strategy utils.TranscodeStrategy) []string {
+	if strategy.AudioCopy {
+		return []string{"-c:a", "copy"}
+	}
+
+	if strategy.TargetMime == "video/mp4" {
+		return []string{"-c:a", "aac", "-b:a", "128k", "-ac", "2"}
+	}
+
+	// WebM supports Opus
+	return []string{"-c:a", "libopus", "-b:a", "128k", "-ac", "2"}
+}
+
+// buildFormatArgs returns the format-specific output arguments
+func (c *ServeCmd) buildFormatArgs(strategy utils.TranscodeStrategy) []string {
+	if strategy.TargetMime == "video/mp4" {
+		// frag_keyframe+empty_moov+default_base_moof+global_sidx is the standard for fragmented streaming
+		return []string{
+			"-f", "mp4",
+			"-movflags", "frag_keyframe+empty_moov+default_base_moof+global_sidx",
+			"pipe:1",
+		}
+	}
+
+	// Matroska with index space reserved and cluster limits can help browsers determine duration
+	return []string{
+		"-f", "matroska",
+		"-live", "1",
+		"-reserve_index_space", "1024k",
+		"-cluster_size_limit", "2M",
+		"-cluster_time_limit", "5100",
+		"pipe:1",
+	}
+}
+
+// runTranscodeCommand executes the ffmpeg command and handles errors
+func (c *ServeCmd) runTranscodeCommand(ctx context.Context, w http.ResponseWriter, path string, ffmpegArgs []string) {
+	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
 	cmd.Stdout = w
 
 	if err := cmd.Start(); err != nil {
@@ -136,7 +156,7 @@ func (c *ServeCmd) HandleTranscode(
 	}
 
 	if err := cmd.Wait(); err != nil {
-		if r.Context().Err() == nil {
+		if ctx.Err() == nil {
 			models.Log.Error("ffmpeg failed", "path", path, "error", err)
 			http.Error(w, fmt.Sprintf("Unplayable: ffmpeg failed: %v", err), http.StatusUnsupportedMediaType)
 		} else {
