@@ -222,6 +222,7 @@ type processMediaTypeOptions struct {
 	queries             *db.Queries
 	flags               models.GlobalFlags
 	totalProcessedSoFar int
+	totalFiles          int
 }
 
 func (c *AddCmd) monitorConcurrency(
@@ -300,7 +301,7 @@ func (c *AddCmd) reportProgress(opts processMediaTypeOptions, count int, startTi
 					"\r  %s: Processed %d/%d files (avg: %.1f workers)%s%s",
 					opts.mediaType.name,
 					typeTotal,
-					len(opts.mediaType.files),
+					opts.totalFiles,
 					avgWorkers,
 					etaStr,
 					utils.ClearSeq,
@@ -310,7 +311,7 @@ func (c *AddCmd) reportProgress(opts processMediaTypeOptions, count int, startTi
 					"\r  %s: Processed %d/%d files (%d workers)%s%s",
 					opts.mediaType.name,
 					typeTotal,
-					len(opts.mediaType.files),
+					opts.totalFiles,
 					workers,
 					etaStr,
 					utils.ClearSeq,
@@ -321,7 +322,7 @@ func (c *AddCmd) reportProgress(opts processMediaTypeOptions, count int, startTi
 				"\r  %s: Processed %d/%d files%s%s",
 				opts.mediaType.name,
 				typeTotal,
-				len(opts.mediaType.files),
+				opts.totalFiles,
 				etaStr,
 				utils.ClearSeq,
 			)
@@ -564,6 +565,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 	// Group files by media type for separate processing with accurate ETA per media type
 	mediaTypes := groupFilesByMediaType(toProbe)
 
+	totalFilesCount := len(toProbe)
 	totalProcessed := 0
 	for _, mediaType := range mediaTypes {
 		processed := c.processMediaType(ctx, processMediaTypeOptions{
@@ -572,6 +574,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 			queries:             opts.queries,
 			flags:               opts.flags,
 			totalProcessedSoFar: totalProcessed,
+			totalFiles:          totalFilesCount,
 		})
 		totalProcessed += processed
 	}
