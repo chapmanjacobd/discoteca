@@ -53,6 +53,27 @@ type processState struct {
 	targetConcurrency  atomic.Int32
 }
 
+func (c *AddCmd) getMediaFilter() map[string]bool {
+	var filter map[string]bool
+	if c.VideoOnly || c.AudioOnly || c.ImageOnly || c.TextOnly {
+		filter = make(map[string]bool)
+		if c.VideoOnly {
+			maps.Copy(filter, utils.VideoExtensionMap)
+		}
+		if c.AudioOnly {
+			maps.Copy(filter, utils.AudioExtensionMap)
+		}
+		if c.ImageOnly {
+			maps.Copy(filter, utils.ImageExtensionMap)
+		}
+		if c.TextOnly {
+			maps.Copy(filter, utils.TextExtensionMap)
+			maps.Copy(filter, utils.ComicExtensionMap)
+		}
+	}
+	return filter
+}
+
 func (c *AddCmd) flushBatch(ctx context.Context, opts processMediaTypeOptions, batch []*metadata.MediaMetadata) error {
 	if len(batch) == 0 {
 		return nil
@@ -514,23 +535,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 		models.Log.Warn("Failed to insert playlist root", "path", absRoot, "error", playlistErr)
 	}
 
-	var filter map[string]bool
-	if c.VideoOnly || c.AudioOnly || c.ImageOnly || c.TextOnly {
-		filter = make(map[string]bool)
-		if c.VideoOnly {
-			maps.Copy(filter, utils.VideoExtensionMap)
-		}
-		if c.AudioOnly {
-			maps.Copy(filter, utils.AudioExtensionMap)
-		}
-		if c.ImageOnly {
-			maps.Copy(filter, utils.ImageExtensionMap)
-		}
-		if c.TextOnly {
-			maps.Copy(filter, utils.TextExtensionMap)
-			maps.Copy(filter, utils.ComicExtensionMap)
-		}
-	}
+	filter := c.getMediaFilter()
 
 	var toProbe []string
 	var newFilesFound bool

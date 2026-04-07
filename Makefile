@@ -52,7 +52,7 @@ macos-deps:
 	-brew install --cask calibre
 
 go-deps:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	go install gotest.tools/gotestsum@latest
 
 deps-update:
@@ -92,10 +92,7 @@ webcover:
 	cd web && npm run cover
 
 fmt:
-	gofmt -s -w -e .
-	-goimports -w -e .
-	-gofumpt -w .
-	-gci write .
+	golangci-lint fmt
 	go fix -tags "$(BUILD_TAGS)" ./...
 
 lint:

@@ -9,8 +9,9 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
 
 func Repair(ctx context.Context, dbPath string) error {
@@ -73,7 +74,12 @@ func Repair(ctx context.Context, dbPath string) error {
 	repairStepSuccess := false
 	Log.Info("Trying recovery via .dump...")
 	// On Windows, use cmd /c and redirection instead of bash
-	cmdDump := exec.CommandContext(ctx, "cmd", "/c", fmt.Sprintf("%s %s \".dump\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB))
+	cmdDump := exec.CommandContext(
+		ctx,
+		"cmd",
+		"/c",
+		fmt.Sprintf("%s %s \".dump\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB),
+	)
 	out, err := cmdDump.CombinedOutput()
 	if err == nil {
 		Log.Info("Initial recovery step successful via .dump")
@@ -83,7 +89,12 @@ func Repair(ctx context.Context, dbPath string) error {
 		os.Remove(dbPath)
 
 		// Fallback to .recover
-		cmdRecover := exec.CommandContext(ctx, "cmd", "/c", fmt.Sprintf("%s %s \".recover\" \".quit\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB))
+		cmdRecover := exec.CommandContext(
+			ctx,
+			"cmd",
+			"/c",
+			fmt.Sprintf("%s %s \".recover\" \".quit\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB),
+		)
 		out, err = cmdRecover.CombinedOutput()
 		if err == nil {
 			Log.Info("Initial recovery step successful via .recover")
@@ -106,7 +117,8 @@ func Repair(ctx context.Context, dbPath string) error {
 
 			// FTS rebuilding is critical as corruption often hides here
 			var hasMediaFTS bool
-			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").Scan(&hasMediaFTS)
+			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
+				Scan(&hasMediaFTS)
 			if hasMediaFTS {
 				if _, err := db.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('rebuild');"); err != nil {
 					Log.Warn("media_fts rebuild failed", "error", err)
@@ -114,9 +126,13 @@ func Repair(ctx context.Context, dbPath string) error {
 			}
 
 			var hasCaptionsFTS bool
-			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").Scan(&hasCaptionsFTS)
+			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").
+				Scan(&hasCaptionsFTS)
 			if hasCaptionsFTS {
-				if _, err := db.ExecContext(ctx, "INSERT INTO captions_fts(captions_fts) VALUES('rebuild');"); err != nil {
+				if _, err := db.ExecContext(
+					ctx,
+					"INSERT INTO captions_fts(captions_fts) VALUES('rebuild');",
+				); err != nil {
 					Log.Warn("captions_fts rebuild failed", "error", err)
 				}
 			}
