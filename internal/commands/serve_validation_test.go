@@ -185,6 +185,7 @@ func TestServeCmd_HandleHLSPlaylist_Validation(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
+	defer cmd.Close()
 	handler := cmd.Mux()
 
 	t.Run("MissingPath", func(t *testing.T) {

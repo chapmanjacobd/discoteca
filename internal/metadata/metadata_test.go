@@ -112,6 +112,7 @@ func TestExtract_WithMockFFProbe(t *testing.T) {
 	f.Write(
 		[]byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'},
 	) // Basic mp4 header to avoid text detection
+	f.Close()
 	defer os.Remove(f.Name())
 
 	meta, err := metadata.Extract(context.Background(), f.Name(), metadata.ExtractOptions{})

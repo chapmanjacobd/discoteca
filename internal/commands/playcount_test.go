@@ -26,6 +26,7 @@ func TestServeCmd_HandleProgress_PlayCount(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
+	defer cmd.Close()
 
 	// 1. Initial play count should be 0
 	dbConn := fixture.GetDB()
@@ -89,6 +90,7 @@ func TestServeCmd_HandleMarkPlayed(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
+	defer cmd.Close()
 
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()
@@ -137,6 +139,7 @@ func TestServeCmd_HandleMarkUnplayed(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
+	defer cmd.Close()
 
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()

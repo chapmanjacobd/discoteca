@@ -57,6 +57,7 @@ func TestHandleCategorizeKeywords(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
+	defer cmd.Close()
 
 	t.Run("GetKeywords returns all categories and keywords", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/categorize/keywords", nil)
@@ -123,6 +124,7 @@ func TestHandleCategorizeKeywords(t *testing.T) {
 		emptyCmd := &commands.ServeCmd{
 			Databases: []string{emptyDB.Name()},
 		}
+		defer emptyCmd.Close()
 
 		req := httptest.NewRequest(http.MethodGet, "/api/categorize/keywords", nil)
 		w := httptest.NewRecorder()

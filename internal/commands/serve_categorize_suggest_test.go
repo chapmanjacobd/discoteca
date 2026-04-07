@@ -117,6 +117,7 @@ func TestHandleCategorizeSuggest(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{tmpDB.Name()},
 	}
+	defer cmd.Close()
 
 	t.Run("SuggestKeywords returns uncategorized word frequencies", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/categorize/suggest", nil)
@@ -248,6 +249,7 @@ func TestHandleCategorizeSuggest(t *testing.T) {
 		emptyCmd := &commands.ServeCmd{
 			Databases: []string{emptyDB.Name()},
 		}
+		defer emptyCmd.Close()
 
 		req := httptest.NewRequest(http.MethodGet, "/api/categorize/suggest", nil)
 		w := httptest.NewRecorder()

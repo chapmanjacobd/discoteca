@@ -128,6 +128,7 @@ func TestQuickWordCount(t *testing.T) {
 		content.WriteString("The quick brown fox jumps over the lazy dog. ")
 	}
 	os.WriteFile(tmpFile.Name(), []byte(content.String()), 0o644)
+	tmpFile.Close()
 	stat, _ := os.Stat(tmpFile.Name())
 
 	count, err := utils.QuickWordCount(context.Background(), tmpFile.Name(), stat.Size())
@@ -151,6 +152,7 @@ func TestQuickWordCount(t *testing.T) {
 	}
 	htmlContent.WriteString("</body></html>")
 	os.WriteFile(htmlFile.Name(), []byte(htmlContent.String()), 0o644)
+	htmlFile.Close()
 	stat, _ = os.Stat(htmlFile.Name())
 
 	count, err = utils.QuickWordCount(context.Background(), htmlFile.Name(), stat.Size())

@@ -118,6 +118,7 @@ func TestDatabaseFiltering_FilterBins(t *testing.T) {
 	cmd := &commands.ServeCmd{
 		Databases: []string{fixture.DBPath},
 	}
+	defer cmd.Close()
 	handler := cmd.Mux()
 
 	t.Run("FilterBins_RejectUnauthorizedDatabase", func(t *testing.T) {

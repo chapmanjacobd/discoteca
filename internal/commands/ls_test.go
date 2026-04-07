@@ -46,8 +46,10 @@ func TestServeCmd_HandleLs(t *testing.T) {
 	if dbCount == 0 {
 		t.Fatalf("DB is empty after manual insert")
 	}
+	dbConn.Close()
 
 	cmd := SetupTestServeCmd(fixture.DBPath)
+	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("Absolute Path - Root", func(t *testing.T) {

@@ -38,6 +38,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		Databases: []string{tmpDB.Name()},
 		ReadOnly:  false,
 	}
+	defer cmd.Close()
 
 	t.Run("AddKeyword inserts new keyword", func(t *testing.T) {
 		body := bytes.NewReader([]byte(`{"category": "Genre", "keyword": "Rock"}`))
@@ -87,6 +88,7 @@ func TestHandleCategorizeKeyword(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to reopen db: %v", err)
 		}
+		defer db.Close()
 		_, err = db.Exec("INSERT INTO custom_keywords (category, keyword) VALUES ('Mood', 'Happy')")
 		if err != nil {
 			t.Fatalf("Failed to insert keyword: %v", err)
