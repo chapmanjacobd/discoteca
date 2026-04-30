@@ -1,13 +1,14 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 
 	"github.com/charlievieth/fastwalk"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func FindMedia(root string, filter map[string]bool) (map[string]os.FileInfo, error) {
@@ -64,7 +65,8 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 
 	return fastwalk.Walk(&conf, root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return err
+			models.Log.Warn("Skipping unreadable path during scan", "path", path, "error", err)
+			return nil
 		}
 		if d.IsDir() {
 			dirsCount.Add(1)
@@ -80,7 +82,8 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 
 		i, err := d.Info()
 		if err != nil {
-			return fmt.Errorf("failed to get file info for %s: %w", path, err)
+			models.Log.Warn("Skipping path with unreadable file info", "path", path, "error", err)
+			return nil
 		}
 
 		fc := filesCount.Add(1)

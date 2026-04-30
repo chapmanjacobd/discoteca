@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
@@ -169,5 +170,92 @@ func TestAddCmd_FilterVideo(t *testing.T) {
 	dbConn.QueryRow("SELECT COUNT(*) FROM media").Scan(&count)
 	if count != 1 {
 		t.Errorf("Expected 1 item (video only), got %d", count)
+	}
+}
+
+func TestAddCmd_MissingScanRootDoesNotFail(t *testing.T) {
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	f1 := fixture.CreateDummyFile("video1.mp4")
+	missingRoot := filepath.Join(fixture.TempDir, "missing")
+
+	cmd := &commands.AddCmd{
+		Args: []string{fixture.DBPath, missingRoot, f1},
+	}
+	if err := cmd.AfterApply(); err != nil {
+		t.Fatalf("AfterApply failed: %v", err)
+	}
+
+	if err := cmd.Run(context.Background()); err != nil {
+		t.Fatalf("commands.AddCmd failed: %v", err)
+	}
+
+	dbConn := fixture.GetDB()
+	defer dbConn.Close()
+
+	var count int
+	if err := dbConn.QueryRow("SELECT COUNT(*) FROM media").Scan(&count); err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 item in database, got %d", count)
+	}
+}
+
+func TestAddCmd_UnreadableSubdirDoesNotFail(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission handling differs on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("permission-based test is unreliable as root")
+	}
+
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	scanRoot := filepath.Join(fixture.TempDir, "scan")
+	readableFile := filepath.Join(scanRoot, "video1.mp4")
+	restrictedDir := filepath.Join(scanRoot, "restricted")
+	restrictedFile := filepath.Join(restrictedDir, "video2.mp4")
+
+	if err := os.MkdirAll(restrictedDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(readableFile, []byte("fake video"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.WriteFile(restrictedFile, []byte("fake video"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.Chmod(restrictedDir, 0); err != nil {
+		t.Fatalf("Chmod failed: %v", err)
+	}
+	defer os.Chmod(restrictedDir, 0o755)
+
+	if _, err := os.ReadDir(restrictedDir); err == nil {
+		t.Skip("filesystem permissions are not enforced in this environment")
+	}
+
+	cmd := &commands.AddCmd{
+		Args: []string{fixture.DBPath, scanRoot},
+	}
+	if err := cmd.AfterApply(); err != nil {
+		t.Fatalf("AfterApply failed: %v", err)
+	}
+
+	if err := cmd.Run(context.Background()); err != nil {
+		t.Fatalf("commands.AddCmd failed: %v", err)
+	}
+
+	dbConn := fixture.GetDB()
+	defer dbConn.Close()
+
+	var count int
+	if err := dbConn.QueryRow("SELECT COUNT(*) FROM media").Scan(&count); err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 readable item in database, got %d", count)
 	}
 }
