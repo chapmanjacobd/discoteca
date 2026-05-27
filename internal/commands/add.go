@@ -508,8 +508,8 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 		models.Log.Error("Failed to get absolute path", "path", opts.root, "error", err)
 		return false, nil
 	}
-	if _, err := os.Stat(absRoot); err != nil {
-		models.Log.Warn("Scan root unavailable, skipping", "path", absRoot, "error", err)
+	if _, statErr := os.Stat(absRoot); statErr != nil {
+		models.Log.Warn("Scan root unavailable, skipping", "path", absRoot, "error", statErr)
 		return false, nil
 	}
 
