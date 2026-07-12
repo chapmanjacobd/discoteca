@@ -179,7 +179,9 @@ type traceStmt struct {
 
 func (s *traceStmt) Exec(args []driver.Value) (driver.Result, error) {
 	start := time.Now()
-	result, err := s.Stmt.Exec(args) //nolint:staticcheck // Required for driver compatibility
+	//lint:ignore SA1019 Required for driver compatibility
+	//nolint:staticcheck // Required for driver compatibility
+	result, err := s.Stmt.Exec(args)
 	logSlowQuery(s.query, valuesToNamedValues(args), start)
 	return result, err
 }
@@ -198,7 +200,9 @@ func (s *traceStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (
 
 func (s *traceStmt) Query(args []driver.Value) (driver.Rows, error) {
 	start := time.Now()
-	rows, err := s.Stmt.Query(args) //nolint:staticcheck // Required for driver compatibility
+	//lint:ignore SA1019 Required for driver compatibility
+	//nolint:staticcheck // Required for driver compatibility
+	rows, err := s.Stmt.Query(args)
 	if err != nil {
 		return nil, err
 	}

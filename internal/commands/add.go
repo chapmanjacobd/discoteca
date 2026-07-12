@@ -313,26 +313,31 @@ func (c *AddCmd) reportProgress(opts processMediaTypeOptions, count int, startTi
 			}
 		}
 
-		typeTotal := opts.totalProcessedSoFar + count
+		typeTotal := len(opts.mediaType.files)
+		totalStr := fmt.Sprintf("/%d", typeTotal)
+		if count == typeTotal {
+			totalStr = ""
+		}
+
 		if c.Verbose > 0 {
 			workers := state.activeWorkers.Load()
 			if workers == 0 && state.totalWorkerSamples > 0 {
 				avgWorkers := float64(state.workerSum) / float64(state.totalWorkerSamples)
 				fmt.Printf(
-					"\r  %s: Processed %d/%d files (avg: %.1f workers)%s%s",
+					"\r  %s: Processed %d%s files (avg: %.1f workers)%s%s",
 					opts.mediaType.name,
-					typeTotal,
-					opts.totalFiles,
+					count,
+					totalStr,
 					avgWorkers,
 					etaStr,
 					utils.ClearSeq,
 				)
 			} else {
 				fmt.Printf(
-					"\r  %s: Processed %d/%d files (%d workers)%s%s",
+					"\r  %s: Processed %d%s files (%d workers)%s%s",
 					opts.mediaType.name,
-					typeTotal,
-					opts.totalFiles,
+					count,
+					totalStr,
 					workers,
 					etaStr,
 					utils.ClearSeq,
@@ -340,10 +345,10 @@ func (c *AddCmd) reportProgress(opts processMediaTypeOptions, count int, startTi
 			}
 		} else {
 			fmt.Printf(
-				"\r  %s: Processed %d/%d files%s%s",
+				"\r  %s: Processed %d%s files%s%s",
 				opts.mediaType.name,
-				typeTotal,
-				opts.totalFiles,
+				count,
+				totalStr,
 				etaStr,
 				utils.ClearSeq,
 			)
