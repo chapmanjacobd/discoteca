@@ -46,6 +46,24 @@ CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped
 -- Index for fast folder_stats queries
 CREATE INDEX IF NOT EXISTS idx_folder_stats_depth ON folder_stats(depth);
 
+CREATE TRIGGER IF NOT EXISTS folder_stats_media_insert
+AFTER INSERT ON media
+BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS folder_stats_media_delete
+AFTER DELETE ON media
+BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS folder_stats_media_update
+AFTER UPDATE OF path, size, duration, time_deleted ON media
+BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+
 -- Initialize maintenance tracking keys
 INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES ('folder_stats_last_refresh', '0', 0);
 INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES ('fts_last_rebuild', '0', 0);

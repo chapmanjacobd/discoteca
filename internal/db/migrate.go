@@ -844,6 +844,17 @@ func createMaintenanceTables(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("failed to create folder_stats table: %w", err)
 	}
 
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS folder_stats_meta (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		dirty INTEGER NOT NULL DEFAULT 1
+	)`); err != nil {
+		return fmt.Errorf("failed to create folder_stats_meta table: %w", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT OR IGNORE INTO folder_stats_meta (id, dirty) VALUES (1, 1)`); err != nil {
+		return fmt.Errorf("failed to insert initial folder_stats_meta row: %w", err)
+	}
+
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS _maintenance_meta (
 		key TEXT PRIMARY KEY,
 		value TEXT,
@@ -865,6 +876,29 @@ func createMaintenanceTables(ctx context.Context, db *sql.DB) error {
 	); err != nil {
 		return fmt.Errorf("failed to create folder_stats index: %w", err)
 	}
+
+	for _, triggerSQL := range []string{
+		`CREATE TRIGGER IF NOT EXISTS folder_stats_media_insert
+		AFTER INSERT ON media
+		BEGIN
+			UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+		END;`,
+		`CREATE TRIGGER IF NOT EXISTS folder_stats_media_delete
+		AFTER DELETE ON media
+		BEGIN
+			UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+		END;`,
+		`CREATE TRIGGER IF NOT EXISTS folder_stats_media_update
+		AFTER UPDATE OF path, size, duration, time_deleted ON media
+		BEGIN
+			UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+		END;`,
+	} {
+		if _, err := db.ExecContext(ctx, triggerSQL); err != nil {
+			return fmt.Errorf("failed to create folder_stats trigger: %w", err)
+		}
+	}
+
 	return nil
 }
 

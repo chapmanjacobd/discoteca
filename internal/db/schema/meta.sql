@@ -14,6 +14,13 @@ CREATE TABLE IF NOT EXISTS folder_stats (
     total_duration INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS folder_stats_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    dirty INTEGER NOT NULL DEFAULT 1
+);
+
+INSERT OR IGNORE INTO folder_stats_meta (id, dirty) VALUES (1, 1);
+
 -- Metadata table for tracking maintenance tasks
 CREATE TABLE IF NOT EXISTS _maintenance_meta (
     key TEXT PRIMARY KEY,

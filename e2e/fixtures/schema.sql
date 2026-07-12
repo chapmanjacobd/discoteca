@@ -82,6 +82,10 @@ CREATE TABLE folder_stats (
     total_size INTEGER,
     total_duration INTEGER
 );
+CREATE TABLE folder_stats_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    dirty INTEGER NOT NULL DEFAULT 1
+);
 CREATE TABLE _maintenance_meta (
     key TEXT PRIMARY KEY,
     value TEXT,
@@ -148,6 +152,15 @@ END;
 CREATE TRIGGER media_au AFTER UPDATE ON media BEGIN
     INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description, time_deleted) VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description, old.time_deleted);
     INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description, new.time_deleted);
+END;
+CREATE TRIGGER folder_stats_media_insert AFTER INSERT ON media BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+CREATE TRIGGER folder_stats_media_delete AFTER DELETE ON media BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+CREATE TRIGGER folder_stats_media_update AFTER UPDATE OF path, size, duration, time_deleted ON media BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
 END;
 CREATE VIRTUAL TABLE captions_fts USING fts5(
     media_path UNINDEXED,
