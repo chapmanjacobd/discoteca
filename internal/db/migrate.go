@@ -833,7 +833,34 @@ func migrateLegacyTables(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+func dropIncompatibleFolderStatsTable(ctx context.Context, db *sql.DB) error {
+	rows, err := db.QueryContext(ctx, "PRAGMA table_info(folder_stats)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	colCount := 0
+	for rows.Next() {
+		colCount++
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if colCount > 0 && colCount != 5 {
+		if _, err := db.ExecContext(ctx, "DROP TABLE folder_stats"); err != nil {
+			return fmt.Errorf("failed to drop incompatible folder_stats table: %w", err)
+		}
+	}
+	return nil
+}
+
 func createMaintenanceTables(ctx context.Context, db *sql.DB) error {
+	if err := dropIncompatibleFolderStatsTable(ctx, db); err != nil {
+		return err
+	}
+
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS folder_stats (
 		parent TEXT PRIMARY KEY,
 		depth INTEGER,
