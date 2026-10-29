@@ -100,25 +100,25 @@ export default defineConfig({
       },
     },
 
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
+    {
+      name: 'Mobile Safari',
+      use: { ...devices['iPhone 12'] },
+    },
 
-    // {
-    //   name: 'webkit',
-    //   use: {
-    //     ...devices['Desktop Safari'],
-    //     // Mute audio for Safari/WebKit
-    //     launchOptions: {
-    //       headless: true,
-    //     },
-    //     contextOptions: {
-    //       // WebKit doesn't have a direct mute option, but we can reduce motion
-    //       reducedMotion: 'reduce',
-    //     },
-    //   },
-    // },
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        // Mute audio for Safari/WebKit
+        launchOptions: {
+          headless: true,
+        },
+        contextOptions: {
+          // WebKit doesn't have a direct mute option, but we can reduce motion
+          reducedMotion: 'reduce',
+        },
+      },
+    },
 
     // {
     //   name: 'Microsoft Edge',

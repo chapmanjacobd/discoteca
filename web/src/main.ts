@@ -722,7 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openActivePlayer(item, isNewSession = false, skipSync = false, queueIndex = -1, keepFullscreen = false) {
         const type = item.media_type || "";
         // Check if it's a document or an HTML folder (folder with index.html)
-        const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi');
+        const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi') || type.includes('oeb') || type.includes('opf') || type.includes('xhtml');
         const isHTMLFolder = item.count !== undefined && item.count > 0 && type === 'text';
 
         // Close any existing player before opening new one
@@ -1725,16 +1725,16 @@ document.addEventListener('DOMContentLoaded', () => {
             state.currentPage = 1;
         }
 
-        // Set default sort for DU view on first visit: size descending
+        // Set default sort for DU view on first visit: DU default (xklb-style)
         // Only apply defaults if user hasn't already set a sort preference
-        if (isFirstDUVisit && !state.filters.sort) {
-            state.filters.sort = 'size';
-            state.filters.reverse = true;
+        if (isFirstDUVisit && (!state.filters.sort || state.filters.sort === 'default')) {
+            state.filters.sort = 'default';
+            state.filters.reverse = false;
             state.view = 'grid'; // Default to grid view in DU
             const sortBy = document.getElementById('sort-by');
             const sortReverseBtn = document.getElementById('sort-reverse-btn');
-            if (sortBy) (sortBy as HTMLSelectElement).value = 'size';
-            if (sortReverseBtn) sortReverseBtn.classList.add('active');
+            if (sortBy) (sortBy as HTMLSelectElement).value = 'default';
+            if (sortReverseBtn) sortReverseBtn.classList.remove('active');
         }
 
         syncUrl();

@@ -64,9 +64,39 @@ func SortFolders(folders []FolderStats, sortBy string, reverse bool) {
 			return folders[i].TotalSize < folders[j].TotalSize
 		case "duration":
 			return folders[i].TotalDuration < folders[j].TotalDuration
+		case "priority", "size_per_count", "size_per_file":
+			p1 := float64(folders[i].TotalSize) / float64(max(1, folders[i].Count))
+			p2 := float64(folders[j].TotalSize) / float64(max(1, folders[j].Count))
+			if p1 != p2 {
+				return p1 < p2
+			}
+			if folders[i].TotalSize != folders[j].TotalSize {
+				return folders[i].TotalSize < folders[j].TotalSize
+			}
+			if folders[i].Count != folders[j].Count {
+				return folders[i].Count < folders[j].Count
+			}
+			return folders[i].Path > folders[j].Path
 		default:
-			return folders[i].Path < folders[j].Path
+			// Default to DU-style sorting
+			p1 := float64(folders[i].TotalSize) / float64(max(1, folders[i].Count))
+			p2 := float64(folders[j].TotalSize) / float64(max(1, folders[j].Count))
+			if p1 != p2 {
+				return p1 < p2
+			}
+			if folders[i].TotalSize != folders[j].TotalSize {
+				return folders[i].TotalSize < folders[j].TotalSize
+			}
+			if folders[i].Count != folders[j].Count {
+				return folders[i].Count < folders[j].Count
+			}
+			return folders[i].Path > folders[j].Path
 		}
+	}
+
+	if reverse && sortBy == "" {
+		sort.Slice(folders, less)
+		return
 	}
 
 	if reverse {
@@ -74,4 +104,11 @@ func SortFolders(folders []FolderStats, sortBy string, reverse bool) {
 	} else {
 		sort.Slice(folders, less)
 	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

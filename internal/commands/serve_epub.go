@@ -108,7 +108,8 @@ func (c *ServeCmd) resolveDocAndAssetPath(pathParts string) (docPath, assetPath 
 	ebookExts := []string{
 		".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu",
 		".cbz", ".cbr", ".docx", ".odt", ".rtf", ".txt",
-		".md", ".html", ".htm", ".pdf",
+		".md", ".html", ".htm", ".pdf", ".xhtml", ".opf", ".ncx",
+		".oeb", ".oebps", ".xml",
 	}
 
 	for _, ext := range ebookExts {

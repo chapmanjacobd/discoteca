@@ -267,18 +267,53 @@ func SortFolders(folders []models.FolderStats, sortBy string, reverse bool) {
 			return folders[i].TotalSize < folders[j].TotalSize
 		case "duration":
 			return folders[i].TotalDuration < folders[j].TotalDuration
-		case "priority":
+		case "priority", "size_per_count", "size_per_file":
 			p1 := float64(folders[i].TotalSize) / float64(utils.Max(1, folders[i].Count))
 			p2 := float64(folders[j].TotalSize) / float64(utils.Max(1, folders[j].Count))
 			if p1 != p2 {
 				return p1 < p2
 			}
-			return folders[i].TotalSize < folders[j].TotalSize
+			if folders[i].TotalSize != folders[j].TotalSize {
+				return folders[i].TotalSize < folders[j].TotalSize
+			}
+			if folders[i].Count != folders[j].Count {
+				return folders[i].Count < folders[j].Count
+			}
+			if folders[i].FolderCount != folders[j].FolderCount {
+				return folders[i].FolderCount < folders[j].FolderCount
+			}
+			return folders[i].Path > folders[j].Path // reverse path
+		case "folders", "folder_count":
+			if folders[i].FolderCount != folders[j].FolderCount {
+				return folders[i].FolderCount < folders[j].FolderCount
+			}
+			return folders[i].Path < folders[j].Path
 		case "path":
 			return folders[i].Path < folders[j].Path
 		default:
-			return folders[i].Path < folders[j].Path
+			// Default to DU-style sorting: (size/count), size, count, folders, reverse(path)
+			p1 := float64(folders[i].TotalSize) / float64(utils.Max(1, folders[i].Count))
+			p2 := float64(folders[j].TotalSize) / float64(utils.Max(1, folders[j].Count))
+			if p1 != p2 {
+				return p1 < p2
+			}
+			if folders[i].TotalSize != folders[j].TotalSize {
+				return folders[i].TotalSize < folders[j].TotalSize
+			}
+			if folders[i].Count != folders[j].Count {
+				return folders[i].Count < folders[j].Count
+			}
+			if folders[i].FolderCount != folders[j].FolderCount {
+				return folders[i].FolderCount < folders[j].FolderCount
+			}
+			return folders[i].Path > folders[j].Path // reverse(path)
 		}
+	}
+
+	if reverse && sortBy == "" {
+		// For default DU sort, the TODO says (size/count desc etc.) - our less is already in desc order of those criteria
+		sort.Slice(folders, less)
+		return
 	}
 
 	if reverse {

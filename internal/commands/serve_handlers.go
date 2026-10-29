@@ -1126,9 +1126,9 @@ func (c *ServeCmd) parseDUSortParams(r *http.Request) (sortBy string, reverse bo
 	sortBy = r.URL.Query().Get("sort")
 	reverse = r.URL.Query().Get("reverse") == "true"
 
-	if sortBy == "" {
-		sortBy = "size"
-		reverse = true
+	if sortBy == "" || sortBy == "default" {
+		sortBy = ""
+		reverse = false
 	}
 	return sortBy, reverse
 }
