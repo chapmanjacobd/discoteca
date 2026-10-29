@@ -88,6 +88,7 @@ disco serve library.db
 - `kiwix-serve` - ZIM file serving (Wikipedia offline)
 
 See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.
+See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, nginx, and URL-prefix setup.
 
 ## Pre-built Binaries
 
@@ -3448,12 +3449,22 @@ Flags:
         Port to listen on
   --public-dir
         Override embedded web assets with local directory
+  --base-path
+        URL prefix when served behind a reverse proxy (for example /disco)
   --dev
         Enable development mode (auto-reload)
   --read-only
         Disable write operations (progress tracking, playlist modifications, deletions)
   --no-browser
         Don't open browser on startup
+  --search-timeout
+        Timeout for a single /api/query search
+  --max-concurrent-searches
+        Maximum concurrent /api/query searches (0 = unlimited)
+  --max-limit
+        Maximum number of results a client may request per database (0 = unlimited)
+  --db-cache-mb
+        SQLite page cache size in MiB per connection
 ```
 
 </details>

@@ -109,7 +109,8 @@ func writeDependencies(sb *strings.Builder) {
 	sb.WriteString("- `espeak-ng` - Text-to-speech generation\n\n")
 	sb.WriteString("### Web & Proxy\n\n")
 	sb.WriteString("- `kiwix-serve` - ZIM file serving (Wikipedia offline)\n\n")
-	sb.WriteString("See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.\n\n")
+	sb.WriteString("See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.\n")
+	sb.WriteString("See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, nginx, and URL-prefix setup.\n\n")
 }
 
 func writeBinaries(sb *strings.Builder) {

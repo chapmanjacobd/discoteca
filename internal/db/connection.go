@@ -28,7 +28,7 @@ func Connect(ctx context.Context, dbPath string) (*sql.DB, error) {
 	tuning := []string{
 		"PRAGMA journal_mode=WAL",
 		"PRAGMA synchronous=NORMAL",
-		"PRAGMA cache_size=-256000",
+		fmt.Sprintf("PRAGMA cache_size=-%d", CacheSizeMB()*1024),
 		"PRAGMA temp_store=MEMORY",
 		"PRAGMA foreign_keys=ON",
 		"PRAGMA mmap_size=2147483648",

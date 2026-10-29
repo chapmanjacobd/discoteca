@@ -13,7 +13,7 @@ func TestGenerateHLSPlaylist(t *testing.T) {
 	duration := 15.0
 	segmentDuration := 6
 
-	playlist := utils.GenerateHLSPlaylist(path, duration, segmentDuration)
+	playlist := utils.GenerateHLSPlaylist(path, duration, segmentDuration, "")
 
 	if !strings.Contains(playlist, "#EXTM3U") {
 		t.Error("Playlist missing #EXTM3U")
@@ -30,9 +30,22 @@ func TestGenerateHLSPlaylist(t *testing.T) {
 		t.Error("Playlist missing last segment duration")
 	}
 
-	segmentCount := strings.Count(playlist, "/api/hls/segment")
+	segmentCount := strings.Count(playlist, "\n/api/hls/segment")
 	if segmentCount != 3 {
 		t.Errorf("Expected 3 segments, got %d", segmentCount)
+	}
+
+	if strings.Contains(playlist, "//api/hls/segment") {
+		t.Error("Playlist has a malformed root path")
+	}
+}
+
+func TestGenerateHLSPlaylistWithBasePath(t *testing.T) {
+	playlist := utils.GenerateHLSPlaylist("/media/video.mp4", 12, 6, "/disco/")
+
+	segmentCount := strings.Count(playlist, "\n/disco/api/hls/segment")
+	if segmentCount != 2 {
+		t.Errorf("Expected 2 prefixed segments, got %d\n%s", segmentCount, playlist)
 	}
 }
 

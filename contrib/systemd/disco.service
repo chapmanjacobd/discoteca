@@ -1,0 +1,48 @@
+[Unit]
+Description=discoteca media library server
+Documentation=https://github.com/chapmanjacobd/discoteca
+After=network-online.target local-fs.target
+Wants=network-online.target
+# Stop retrying when the service cannot stay up (for example when it is
+# OOM-killed on a small device).
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=disco
+Group=disco
+WorkingDirectory=/var/lib/disco
+# Add --base-path /disco when the server is mounted below an nginx prefix.
+ExecStart=/usr/local/bin/disco serve /var/lib/disco/library.db --port 5555 --no-browser
+Environment=HOME=/var/lib/disco
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+
+# Cap memory per service (including ffmpeg children) instead of letting the
+# whole device run out of memory. Lower these on a 512 MB or 1 GB host.
+MemoryHigh=70%
+MemoryMax=80%
+OOMPolicy=stop
+LimitNOFILE=8192
+
+# Hardening. ReadWritePaths must include every directory that holds a
+# database (including its -wal and -shm files). Media libraries only need read
+# access and can stay read-only.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/disco
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

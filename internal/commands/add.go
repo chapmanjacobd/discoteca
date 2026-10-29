@@ -280,7 +280,9 @@ func (c *AddCmd) monitorConcurrency(
 			newTarget := min(
 				// Step by 2
 				max(
-					current+(direction*2), 1), 300)
+					current+(direction*2), 1,
+				), 300,
+			)
 
 			state.targetConcurrency.Store(newTarget)
 

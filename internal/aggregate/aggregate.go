@@ -105,10 +105,3 @@ func SortFolders(folders []FolderStats, sortBy string, reverse bool) {
 		sort.Slice(folders, less)
 	}
 }
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

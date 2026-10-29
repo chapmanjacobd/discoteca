@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // Relative asset URLs keep the build usable when the app is mounted below a
+  // reverse-proxy prefix such as /disco.
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,

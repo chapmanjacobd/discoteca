@@ -1,6 +1,7 @@
 import './style.css';
 import Hls from 'hls.js';
 import { fetchAPI, getCookie } from './api';
+import { appUrl } from './base';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
 import { initComplexSorting, loadConfigFromCurrentSort } from './complex-sort';
@@ -2123,7 +2124,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 (card as HTMLElement).onclick = () => playMedia(mediaItem);
 
                 const title = truncateString(mediaItem.title || mediaItem.path.split('/').pop());
-                const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(mediaItem.path)}`;
+                const thumbUrl = appUrl(`/api/thumbnail?path=${encodeURIComponent(mediaItem.path)}`);
                 const size = formatSize(mediaItem.size);
                 const duration = formatDuration(mediaItem.duration);
                 const icon = getIcon(mediaItem.media_type);
@@ -2421,7 +2422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 (card as HTMLElement).onclick = () => playMedia(item);
 
                 const title = item.title || item.path.split('/').pop();
-                const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(item.path)}`;
+                const thumbUrl = appUrl(`/api/thumbnail?path=${encodeURIComponent(item.path)}`);
 
                 card.innerHTML = `
                     <div class="media-thumb">
@@ -4662,7 +4663,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nextItem = currentMedia[i];
                 if (nextItem.type && nextItem.type.includes('image')) {
                     const img = new Image();
-                    img.src = `/api/raw?path=${encodeURIComponent(nextItem.path)}`;
+                    img.src = appUrl(`/api/raw?path=${encodeURIComponent(nextItem.path)}`);
                     count++;
                 }
             }
@@ -4756,7 +4757,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Standard raw URL (possibly sliced if using fallback)
-        let url = item.rsvp ? `/api/rsvp?path=${encodeURIComponent(path)}&wpm=${state.rsvpWpm}` : `/api/raw?path=${encodeURIComponent(path)}`;
+        let url = item.rsvp ? appUrl(`/api/rsvp?path=${encodeURIComponent(path)}&wpm=${state.rsvpWpm}`) : appUrl(`/api/raw?path=${encodeURIComponent(path)}`);
 
         if (state.playback.hlsInstance) {
             state.playback.hlsInstance.destroy();
@@ -4827,7 +4828,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (needsTranscode) {
-                const hlsUrl = `/api/hls/playlist?path=${encodeURIComponent(path)}`;
+                const hlsUrl = appUrl(`/api/hls/playlist?path=${encodeURIComponent(path)}`);
 
                 if (el.canPlayType('application/vnd.apple.mpegurl')) {
                     // Native HLS (Safari)
@@ -4928,10 +4929,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         // External subtitle: need to find the actual file
                         // The backend stores the display name, but we need to construct the URL
                         // Try to get the subtitle via the API which will find the external file
-                        trackUrl = `/api/subtitles?path=${encodeURIComponent(path)}&ext=${fileExt}`;
+                        trackUrl = appUrl(`/api/subtitles?path=${encodeURIComponent(path)}&ext=${fileExt}`);
                     } else {
                         // Embedded subtitle
-                        trackUrl = `/api/subtitles?path=${encodeURIComponent(path)}&index=${index}`;
+                        trackUrl = appUrl(`/api/subtitles?path=${encodeURIComponent(path)}&index=${index}`);
                     }
 
                     addTrack(trackUrl, label, isExt ? 'auto' : index);
@@ -4941,7 +4942,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 2. Always check for external subtitle file (sibling with same name)
             // This is a fallback for when external subtitles weren't scanned during import
             if (!type.includes('image')) {
-                addTrack(`/api/subtitles?path=${encodeURIComponent(path)}`, 'External', 'auto');
+                addTrack(appUrl(`/api/subtitles?path=${encodeURIComponent(path)}`), 'External', 'auto');
             }
 
             // Setup cursor auto-hide for video in fullscreen mode
@@ -4984,7 +4985,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!type.includes('image')) {
                 const track = document.createElement('track');
                 track.kind = 'subtitles';
-                track.src = `/api/subtitles?path=${encodeURIComponent(path)}`;
+                track.src = appUrl(`/api/subtitles?path=${encodeURIComponent(path)}`);
                 (track as any).srclang = state.language || 'en';
                 el.appendChild(track);
 
@@ -5250,7 +5251,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render an HTML folder (folder with index.html) in the document viewer
     async function renderHTMLFolder(item, container, normalizedPath) {
-        const baseUrl = `/api/epub/${normalizedPath}`;
+        const baseUrl = appUrl(`/api/epub/${normalizedPath}`);
         
         const iframe = document.createElement("iframe");
         iframe.src = baseUrl;
@@ -5310,7 +5311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Try to load index.html to verify it's an HTML folder
             const pathWithoutLeadingSlash = item.path.replace(/^\/+/, '');
             const normalizedPath = pathWithoutLeadingSlash.endsWith('/') ? pathWithoutLeadingSlash : pathWithoutLeadingSlash + '/';
-            const indexUrl = `/api/epub/${encodeURIComponent(normalizedPath)}index.html`;
+            const indexUrl = appUrl(`/api/epub/${encodeURIComponent(normalizedPath)}index.html`);
             
             try {
                 const response = await fetch(indexUrl);
@@ -5350,7 +5351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.doc_transcode) {
                 const pathWithoutLeadingSlash = item.path.replace(/^\/+/, "");
                 const encodedPath = encodeURIComponent(pathWithoutLeadingSlash);
-                const htmlUrl = `/api/epub/${encodedPath}`;
+                const htmlUrl = appUrl(`/api/epub/${encodedPath}`);
 
                 const iframe = document.createElement("iframe");
                 iframe.src = htmlUrl;
@@ -5363,7 +5364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 applyDocumentProgress(iframe, item.path);
             } else {
                 // Serve raw file directly (e.g. PDF or raw text/markdown)
-                const rawUrl = `/api/raw?path=${encodeURIComponent(item.path)}`;
+                const rawUrl = appUrl(`/api/raw?path=${encodeURIComponent(item.path)}`);
                 const iframe = document.createElement('iframe');
                 iframe.src = rawUrl;
                 iframe.style.width = '100%';
@@ -5380,7 +5381,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (streamBtn) streamBtn.classList.add('hidden');
 
             // Use raw endpoint for unknown formats
-            const url = `/api/raw?path=${encodeURIComponent(item.path)}`;
+            const url = appUrl(`/api/raw?path=${encodeURIComponent(item.path)}`);
 
             // Use iframe for all document types - modern browsers have built-in PDF viewers
             // and browser extensions handle EPUB files better than any JS library
@@ -5869,7 +5870,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (item.path.toLowerCase().endsWith('.zim')) {
-                window.open(`/api/zim/view?path=${encodeURIComponent(item.path)}`, '_blank');
+                window.open(appUrl(`/api/zim/view?path=${encodeURIComponent(item.path)}`), '_blank');
                 return;
             }
 
@@ -5889,7 +5890,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const size = formatSize(item.size);
         const duration = formatDuration(item.duration);
         const plays = getPlayCount(item);
-        const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(item.path)}`;
+        const thumbUrl = appUrl(`/api/thumbnail?path=${encodeURIComponent(item.path)}`);
 
         const localPos = getLocalProgress(item);
         const playhead = (localPos > 0) ? localPos : (item.playhead || 0);
@@ -6253,7 +6254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             group.className = 'caption-group';
 
             const basename = path.split('/').pop();
-            const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(path)}`;
+            const thumbUrl = appUrl(`/api/thumbnail?path=${encodeURIComponent(path)}`);
             const firstCap = captions[0];
 
             let segmentsHtml = '';
@@ -6315,7 +6316,7 @@ document.addEventListener('DOMContentLoaded', () => {
             (card as HTMLElement).dataset.path = path;
 
             const basename = path.split('/').pop();
-            const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(path)}`;
+            const thumbUrl = appUrl(`/api/thumbnail?path=${encodeURIComponent(path)}`);
             const firstCap = captions[0];
 
             // Get caption count from aggregated data or count manually
@@ -7558,7 +7559,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Dev Mode Auto-Reload ---
     async function setupAutoReload() {
-        const url = '/api/events';
+        const url = appUrl('/api/events');
         try {
             const res = await fetch(url, { credentials: 'include' });
             if (res.status === 401) {

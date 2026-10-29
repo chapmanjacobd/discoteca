@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 )
 
@@ -104,8 +105,8 @@ func FzfSelect(items []string, multi bool) ([]string, error) {
 
 	go func() {
 		defer stdin.Close()
-		for i := len(items) - 1; i >= 0; i-- {
-			fmt.Fprintln(stdin, items[i])
+		for _, item := range slices.Backward(items) {
+			fmt.Fprintln(stdin, item)
 		}
 	}()
 

@@ -718,7 +718,7 @@ func (c *ServeCmd) HandleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	playlist := utils.GenerateHLSPlaylist(path, duration, HlsSegmentDuration)
+	playlist := utils.GenerateHLSPlaylist(path, duration, HlsSegmentDuration, BasePathFromContext(r.Context()))
 	fmt.Fprint(w, playlist)
 }
 
@@ -782,7 +782,8 @@ func (c *ServeCmd) HandleHLSSegment(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.CommandContext(
 		r.Context(),
 		"ffmpeg",
-		append([]string{"-hide_banner", "-loglevel", "error"}, args...)...)
+		append([]string{"-hide_banner", "-loglevel", "error"}, args...)...,
+	)
 	cmd.Stdout = w
 
 	if err := cmd.Run(); err != nil {

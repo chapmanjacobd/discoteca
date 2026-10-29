@@ -32,8 +32,15 @@ func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	flags := c.ParseFlags(r)
 	q := r.URL.Query()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), c.searchTimeout())
 	defer cancel()
+
+	release, err := c.acquireSearchSlot(ctx)
+	if err != nil {
+		http.Error(w, "Server busy: search concurrency limit reached", http.StatusServiceUnavailable)
+		return
+	}
+	defer release()
 
 	dbs, err := c.getDBs(flags)
 	if err != nil {

@@ -69,17 +69,24 @@ type ServeCmd struct {
 	models.PostActionFlags  `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Databases            []string `help:"SQLite database files"                                                           required:"true" arg:"" type:"existingfile"`
-	Port                 int      `help:"Port to listen on"                                                                                                          default:"5555" short:"p"`
-	PublicDir            string   `help:"Override embedded web assets with local directory"`
-	Dev                  bool     `help:"Enable development mode (auto-reload)"`
-	ReadOnly             bool     `help:"Disable write operations (progress tracking, playlist modifications, deletions)"`
-	NoBrowser            bool     `help:"Don't open browser on startup"`
-	ApplicationStartTime int64    `                                                                                                                                                           kong:"-"`
-	APIToken             string   `                                                                                                                                                           kong:"-"`
-	thumbnailCache       sync.Map
-	dbCache              sync.Map
-	hasFfmpeg            bool
+	Databases             []string      `help:"SQLite database files"                                                           required:"true" arg:"" type:"existingfile"`
+	Port                  int           `help:"Port to listen on"                                                                                                          default:"5555" short:"p"`
+	PublicDir             string        `help:"Override embedded web assets with local directory"`
+	BasePath              string        `help:"URL prefix when served behind a reverse proxy (for example /disco)"                                                         default:""`
+	Dev                   bool          `help:"Enable development mode (auto-reload)"`
+	ReadOnly              bool          `help:"Disable write operations (progress tracking, playlist modifications, deletions)"`
+	NoBrowser             bool          `help:"Don't open browser on startup"`
+	SearchTimeout         time.Duration `help:"Timeout for a single /api/query search"                                                                                     default:"15s"`
+	MaxConcurrentSearches int           `help:"Maximum concurrent /api/query searches (0 = unlimited)"                                                                     default:"4"`
+	MaxLimit              int           `help:"Maximum number of results a client may request per database (0 = unlimited)"                                                default:"1000"`
+	DBCacheMB             int           `help:"SQLite page cache size in MiB per connection"                                                                               default:"256"`
+	ApplicationStartTime  int64         `                                                                                                                                                           kong:"-"`
+	APIToken              string        `                                                                                                                                                           kong:"-"`
+	thumbnailCache        sync.Map
+	dbCache               sync.Map
+	searchSem             chan struct{}
+	searchSemOnce         sync.Once
+	hasFfmpeg             bool
 }
 
 // authMiddleware validates API token for authenticated endpoints
@@ -218,15 +225,27 @@ func (c *ServeCmd) newLibHandler() http.HandlerFunc {
 // newStaticHandler creates a handler for all other static files
 func (c *ServeCmd) newStaticHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		prefix := BasePathFromContext(r.Context())
+
+		cookiePath := "/"
+		if prefix != "" {
+			cookiePath = prefix + "/"
+		}
 		http.SetCookie(w, &http.Cookie{
 			Name:     "disco_token",
 			Value:    c.APIToken,
-			Path:     "/",
+			Path:     cookiePath,
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		})
 
 		c.setCacheControlHeaders(w, r)
+
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			if c.serveIndexHTML(w, r, prefix) {
+				return
+			}
+		}
 
 		if c.PublicDir != "" {
 			http.FileServer(http.Dir(c.PublicDir)).ServeHTTP(w, r)
@@ -268,7 +287,7 @@ func (c *ServeCmd) Mux() http.Handler {
 	mux.HandleFunc("/lib/", c.newLibHandler())
 	mux.Handle("/", c.newStaticHandler())
 
-	return mux
+	return c.withBasePath(mux)
 }
 
 // getOrCreateDBConn retrieves a cached database connection or creates a new one
@@ -467,6 +486,7 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	db.InitFtsConfig()
 	db.SetFtsEnabled(true)
+	db.SetCacheSizeMB(c.DBCacheMB)
 
 	// Initialize MIME types
 	initMimeTypes()
@@ -656,12 +676,15 @@ func (c *ServeCmd) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
 // parsePaginationFlags extracts limit and offset flags
 func (c *ServeCmd) parsePaginationFlags(flags *models.GlobalFlags, q url.Values) {
 	if limit := q.Get("limit"); limit != "" {
-		if l, err := strconv.Atoi(limit); err == nil {
+		if l, err := strconv.Atoi(limit); err == nil && l >= 0 {
+			if c.MaxLimit > 0 && l > c.MaxLimit {
+				l = c.MaxLimit
+			}
 			flags.Limit = l
 		}
 	}
 	if offset := q.Get("offset"); offset != "" {
-		if o, err := strconv.Atoi(offset); err == nil {
+		if o, err := strconv.Atoi(offset); err == nil && o >= 0 {
 			flags.Offset = o
 		}
 	}
@@ -883,4 +906,30 @@ func (c *ServeCmd) filterDatabases(requested []string) ([]string, error) {
 // It validates that all requested databases are in the server's allowed list
 func (c *ServeCmd) getDBs(flags models.GlobalFlags) ([]string, error) {
 	return c.filterDatabases(flags.Databases)
+}
+
+// searchTimeout returns the configured per-search timeout.
+func (c *ServeCmd) searchTimeout() time.Duration {
+	if c.SearchTimeout <= 0 {
+		return 15 * time.Second
+	}
+	return c.SearchTimeout
+}
+
+// acquireSearchSlot blocks until a search slot is free or ctx is done. The
+// returned function must be called to release the slot. A limit of 0 disables
+// the check.
+func (c *ServeCmd) acquireSearchSlot(ctx context.Context) (func(), error) {
+	if c.MaxConcurrentSearches <= 0 {
+		return func() {}, nil
+	}
+	c.searchSemOnce.Do(func() {
+		c.searchSem = make(chan struct{}, c.MaxConcurrentSearches)
+	})
+	select {
+	case c.searchSem <- struct{}{}:
+		return func() { <-c.searchSem }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }

@@ -114,7 +114,20 @@ jobs:
             make release-build GOOS=windows GOARCH=amd64
           else
             make release-build GOOS=linux GOARCH=amd64
+            make release-build GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc
+            make release-build GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc
           fi
+
+      - name: Write checksums
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd dist
+          for f in disco-*; do
+            case "$f" in
+              *.sha256) continue ;;
+            esac
+            sha256sum "$f" > "$f.sha256"
+          done
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && matrix.os == 'ubuntu-latest'

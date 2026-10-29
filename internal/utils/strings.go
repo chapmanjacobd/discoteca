@@ -7,6 +7,7 @@ import (
 	"html"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -279,8 +280,8 @@ func ShortenMiddle(text string, maxWidth int) string {
 	var rightProper strings.Builder
 	rightStart := len(chunks)
 	currentWidth = 0
-	for i := len(chunks) - 1; i >= 0; i-- {
-		w := runewidth.StringWidth(chunks[i])
+	for i, chunk := range slices.Backward(chunks) {
+		w := runewidth.StringWidth(chunk)
 		if currentWidth+w > rightWidth {
 			break
 		}
@@ -447,8 +448,8 @@ func FromTimestampSeconds(s string) float64 {
 	parts := strings.Split(s, ":")
 	var seconds float64
 	multiplier := 1.0
-	for i := len(parts) - 1; i >= 0; i-- {
-		val, _ := strconv.ParseFloat(parts[i], 64)
+	for _, part := range slices.Backward(parts) {
+		val, _ := strconv.ParseFloat(part, 64)
 		seconds += val * multiplier
 		multiplier *= 60
 	}

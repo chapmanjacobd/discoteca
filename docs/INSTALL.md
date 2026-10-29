@@ -209,6 +209,9 @@ sudo apt install calibre
 sudo apt install espeak-ng
 ```
 
+For a systemd service, nginx reverse proxy, URL prefixes, and memory tuning,
+see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ### Windows
 
 #### PowerShell vs Command Prompt
@@ -304,40 +307,53 @@ go build -tags "fts5" -o disco ./cmd/disco
 
 ### Build Variants
 
-See [BUILD_MODES.md](BUILD_MODES.md) for different build options:
+The default build enables SQLite FTS5, which full-text search requires:
 
 ```bash
 # FTS5 support (default, recommended)
 make build-fts5
 
-# No full-text search (minimal)
-make build-nofts
+# Same build without the webbuild shortcut
+make BUILD_TAGS=fts5 build
 ```
+
+Dropping the `fts5` tag removes full-text search. Keep it for any build you
+intend to deploy.
 
 ### Cross-Compilation
 
-Discoteca uses GoReleaser for cross-platform builds:
+Discoteca requires CGO for SQLite, so cross-compilation needs a C compiler and
+a C library for each target. CI builds each supported OS natively; use that
+route when you need macOS or Windows binaries.
+
+Linux cross-builds use the compilers installed by `make cross-deps`:
 
 ```bash
-# Install GoReleaser
-go install github.com/goreleaser/goreleaser@latest
+# Installs gcc-aarch64-linux-gnu and gcc-arm-linux-gnueabihf
+make cross-deps
 
-# Build all platforms
-goreleaser release --snapshot --clean
+# linux/amd64, linux/arm64, and linux/armv7 plus SHA256SUMS
+make release-linux-matrix
 ```
 
-Or manually:
+Single targets:
 
 ```bash
-# Linux
-GOOS=linux GOARCH=amd64 go build -tags "fts5" -o disco-linux-amd64 ./cmd/disco
-
-# macOS
-GOOS=darwin GOARCH=arm64 go build -tags "fts5" -o disco-darwin-arm64 ./cmd/disco
-
-# Windows
-GOOS=windows GOARCH=amd64 go build -tags "fts5" -o disco-windows-amd64.exe ./cmd/disco
+make release-build GOOS=linux GOARCH=amd64
+make release-build GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc
+make release-build GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc
 ```
+
+Native builds (the same commands CI uses):
+
+```bash
+make release-build GOOS=darwin GOARCH=arm64
+make release-build GOOS=windows GOARCH=amd64
+```
+
+Verify a release with `sha256sum -c SHA256SUMS` after
+`make release-checksums`. `armv7` needs `GOARM=7`; `armv6` targets (Pi Zero and
+older) are not built by default.
 
 ---
 
@@ -500,6 +516,6 @@ rmdir %LOCALAPPDATA%\disco
 
 ## Next Steps
 
-- See [README.md](README.md) for usage examples
-- See [BUILD_MODES.md](BUILD_MODES.md) for build configuration options
+- See [README.md](../README.md) for usage examples
+- See [DEPLOYMENT.md](DEPLOYMENT.md) for systemd and nginx setup
 - Run `disco --help` for command reference

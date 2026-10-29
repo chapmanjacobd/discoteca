@@ -725,6 +725,7 @@ func (c *ServeCmd) HandleOPDS(w http.ResponseWriter, r *http.Request) {
 	if r.TLS != nil {
 		scheme = "https"
 	}
+	basePath := BasePathFromContext(r.Context())
 
 	for _, m := range media {
 		title := m.Stem()
@@ -749,14 +750,14 @@ func (c *ServeCmd) HandleOPDS(w http.ResponseWriter, r *http.Request) {
     <updated>%s</updated>
     <author><name>%s</name></author>
     <content type="text">%s</content>
-    <link rel="http://opds-spec.org/acquisition" href="%s://%s/api/raw?path=%s" type="%s"/>
+    <link rel="http://opds-spec.org/acquisition" href="%s://%s%s/api/raw?path=%s" type="%s"/>
   </entry>`,
 			utils.EscapeXML(title),
 			utils.EscapeXML(m.Path),
 			time.Now().Format(time.RFC3339), // Ideally use modification time
 			utils.EscapeXML(author),
 			utils.EscapeXML(m.Path),
-			scheme, host, strings.ReplaceAll(url.QueryEscape(m.Path), "+", "%20"),
+			scheme, host, basePath, strings.ReplaceAll(url.QueryEscape(m.Path), "+", "%20"),
 			mimeMediaType,
 		)
 	}

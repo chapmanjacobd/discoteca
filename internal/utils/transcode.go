@@ -18,8 +18,9 @@ type TranscodeStrategy struct {
 	TargetMime     string
 }
 
-func GenerateHLSPlaylist(path string, duration float64, segmentDuration int) string {
+func GenerateHLSPlaylist(path string, duration float64, segmentDuration int, basePath string) string {
 	segments := int(math.Ceil(duration / float64(segmentDuration)))
+	basePath = strings.TrimSuffix(basePath, "/")
 
 	var sb strings.Builder
 	sb.WriteString("#EXTM3U\n")
@@ -37,7 +38,7 @@ func GenerateHLSPlaylist(path string, duration float64, segmentDuration int) str
 			}
 		}
 		fmt.Fprintf(&sb, "#EXTINF:%f,\n", segDuration)
-		fmt.Fprintf(&sb, "/api/hls/segment?path=%s&index=%d\n", url.QueryEscape(path), i)
+		fmt.Fprintf(&sb, "%s/api/hls/segment?path=%s&index=%d\n", basePath, url.QueryEscape(path), i)
 	}
 
 	sb.WriteString("#EXT-X-ENDLIST\n")

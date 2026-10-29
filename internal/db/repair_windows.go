@@ -9,8 +9,9 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
 
 func Repair(ctx context.Context, dbPath string) error {

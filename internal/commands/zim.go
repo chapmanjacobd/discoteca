@@ -77,6 +77,13 @@ func (c *ServeCmd) HandleZimProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// kiwix-serve is started with --urlRootLocation set to the external path
+	// (including any base path), so restore the prefix that the base-path
+	// middleware stripped before forwarding.
+	if basePath := BasePathFromContext(r.Context()); basePath != "" {
+		r = cloneRequestWithPath(r, basePath+r.URL.Path)
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	// We need to strip the prefix /api/zim/proxy/{port} before sending to target
 	// but kiwix-serve was started with --urlRootLocation=/api/zim/proxy/{port}/
@@ -104,13 +111,13 @@ func (c *ServeCmd) HandleZimView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	port, err := ZimManager.EnsureKiwixServing(r.Context(), localPath)
+	port, err := ZimManager.EnsureKiwixServing(r.Context(), localPath, BasePathFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err2 := WaitForKiwixReady(r.Context(), port, 10*time.Second); err2 != nil {
+	if err2 := waitForKiwixReady(r.Context(), port, BasePathFromContext(r.Context()), 10*time.Second); err2 != nil {
 		http.Error(
 			w,
 			fmt.Sprintf("Kiwix server did not start in time: %s", err2.Error()),
@@ -119,10 +126,10 @@ func (c *ServeCmd) HandleZimView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentURL, err := getKiwixContentURL(r.Context(), port)
+	contentURL, err := getKiwixContentURL(r.Context(), port, BasePathFromContext(r.Context()))
 	if err != nil {
 		models.Log.Warn("Could not parse ZIM catalog, using root URL", "error", err)
-		contentURL = fmt.Sprintf("/api/zim/proxy/%d/", port)
+		contentURL = fmt.Sprintf("%s/api/zim/proxy/%d/", BasePathFromContext(r.Context()), port)
 	}
 
 	zimName := filepath.Base(localPath)
@@ -146,11 +153,26 @@ func (c *ServeCmd) HandleZimView(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(html))
 }
 
-func (m *KiwixManager) EnsureKiwixServing(ctx context.Context, zimPath string) (int, error) {
+// zimInstanceKey keeps the historical zimPath key at the root, and separates
+// instances that were started for different base paths.
+func zimInstanceKey(zimPath, basePath string) string {
+	if basePath == "" {
+		return zimPath
+	}
+	return basePath + "|" + zimPath
+}
+
+func (m *KiwixManager) EnsureKiwixServing(ctx context.Context, zimPath string, basePathArg ...string) (int, error) {
+	basePath := ""
+	if len(basePathArg) > 0 {
+		basePath = normalizeBasePath(basePathArg[0])
+	}
+	key := zimInstanceKey(zimPath, basePath)
+
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	if instance, exists := m.Instances[zimPath]; exists {
+	if instance, exists := m.Instances[key]; exists {
 		instance.LastUsed = time.Now()
 		return instance.Port, nil
 	}
@@ -160,12 +182,14 @@ func (m *KiwixManager) EnsureKiwixServing(ctx context.Context, zimPath string) (
 		return 0, errors.New("no available ports for kiwix-serve")
 	}
 
+	urlRoot := fmt.Sprintf("%s/api/zim/proxy/%d/", basePath, port)
+
 	cmd := exec.CommandContext(
 		ctx,
 		KiwixBin,
 		"--nolibrarybutton",
 		"-p", strconv.Itoa(port),
-		fmt.Sprintf("--urlRootLocation=/api/zim/proxy/%d/", port),
+		fmt.Sprintf("--urlRootLocation=%s", urlRoot),
 		zimPath,
 	)
 
@@ -173,7 +197,7 @@ func (m *KiwixManager) EnsureKiwixServing(ctx context.Context, zimPath string) (
 		return 0, fmt.Errorf("failed to start kiwix-serve: %w", err)
 	}
 
-	m.Instances[zimPath] = &KiwixInstance{
+	m.Instances[key] = &KiwixInstance{
 		Process:  cmd,
 		Port:     port,
 		ZimPath:  zimPath,
@@ -229,9 +253,22 @@ func IsPortAvailable(ctx context.Context, port int) bool {
 
 var WaitForKiwixReady = DefaultWaitForKiwixReady
 
+// waitForKiwixReady uses the injectable WaitForKiwixReady at the root so tests
+// can stub it, and a base-aware check when the app is mounted below a prefix.
+func waitForKiwixReady(ctx context.Context, port int, basePath string, timeout time.Duration) error {
+	if basePath == "" {
+		return WaitForKiwixReady(ctx, port, timeout)
+	}
+	return defaultWaitForKiwixReadyAt(ctx, port, basePath, timeout)
+}
+
 func DefaultWaitForKiwixReady(ctx context.Context, port int, timeout time.Duration) error {
+	return defaultWaitForKiwixReadyAt(ctx, port, "", timeout)
+}
+
+func defaultWaitForKiwixReadyAt(ctx context.Context, port int, basePath string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	urlRoot := fmt.Sprintf("/api/zim/proxy/%d/", port)
+	urlRoot := fmt.Sprintf("%s/api/zim/proxy/%d/", basePath, port)
 	checkURL := fmt.Sprintf("http://127.0.0.1:%d%s", port, urlRoot)
 
 	for time.Now().Before(deadline) {
@@ -250,8 +287,8 @@ func DefaultWaitForKiwixReady(ctx context.Context, port int, timeout time.Durati
 	return fmt.Errorf("timeout waiting for kiwix-serve on port %d", port)
 }
 
-func getKiwixContentURL(ctx context.Context, port int) (string, error) {
-	urlRoot := fmt.Sprintf("/api/zim/proxy/%d", port)
+func getKiwixContentURL(ctx context.Context, port int, basePath string) (string, error) {
+	urlRoot := fmt.Sprintf("%s/api/zim/proxy/%d", basePath, port)
 	catalogURL := fmt.Sprintf("http://127.0.0.1:%d%s/catalog/v2/entries", port, urlRoot)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, catalogURL, nil)

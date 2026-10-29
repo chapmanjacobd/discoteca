@@ -1,7 +1,8 @@
-.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build benchmark benchstat profiles screenshots
+.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build release-checksums release-linux-matrix cross-deps benchmark benchstat profiles screenshots
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
+RELEASE_LDFLAGS=-s -w
 
 ifeq ($(OS),Windows_NT)
 	EXE=.exe
@@ -44,7 +45,9 @@ ubuntu-deps:
 		ffmpeg \
 		groff \
 		pandoc \
-		wget
+		wget \
+		gcc-aarch64-linux-gnu \
+		gcc-arm-linux-gnueabihf
 	sudo -v && wget -qO- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
 
 macos-deps:
@@ -120,9 +123,29 @@ e2e-cli: e2e-init
 e2e-web: e2e-init
 	npm run test --prefix e2e -- --grep-invert 'cli-'
 
+# GoReleaser is not used because discoteca needs CGO (SQLite). CI builds
+# natively on Linux, macOS, and Windows; the linux-arm targets below require the
+# cross compilers installed by 'make cross-deps'.
 release-build: webbuild
 	mkdir -p dist
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -tags "$(BUILD_TAGS)" -o dist/$(BINARY_NAME)-$(GOOS)-$(GOARCH)$(EXE) ./cmd/disco
+	CGO_ENABLED=1 GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) \
+	go build -tags "$(BUILD_TAGS)" -trimpath -ldflags "$(RELEASE_LDFLAGS)" \
+	-o dist/$(BINARY_NAME)-$(GOOS)-$(GOARCH)$(if $(GOARM),v$(GOARM))$(EXE) ./cmd/disco
+
+release-checksums:
+	cd dist && sha256sum $(BINARY_NAME)-* > SHA256SUMS
+
+cross-deps:
+	sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+		gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+
+# Linux cross-builds for the architectures used by Raspberry Pi and similar
+# appliances. macOS and Windows builds run natively in CI.
+release-linux-matrix: webbuild
+	$(MAKE) release-build GOOS=linux GOARCH=amd64
+	$(MAKE) release-build GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc
+	$(MAKE) release-build GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc
+	$(MAKE) release-checksums
 
 benchmark:
 	go test -tags "$(BUILD_TAGS)" -bench=. -benchmem -benchtime=2s ./...
