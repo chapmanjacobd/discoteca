@@ -1168,9 +1168,9 @@ func extractImageTextFromCBZ(ctx context.Context, path, ocrEngine string) ([]db.
 		if err != nil {
 			continue
 		}
-		for _, cap := range captions {
-			cap.Time = sql.NullFloat64{Float64: float64(pageNum), Valid: true}
-			allCaptions = append(allCaptions, cap)
+		for _, caption := range captions {
+			caption.Time = sql.NullFloat64{Float64: float64(pageNum), Valid: true}
+			allCaptions = append(allCaptions, caption)
 		}
 	}
 
@@ -1314,9 +1314,9 @@ func extractImageTextFromCBR(ctx context.Context, path, ocrEngine string) ([]db.
 		}
 
 		// Add page number as timestamp
-		for _, cap := range captions {
-			cap.Time = sql.NullFloat64{Float64: float64(pageNum), Valid: true}
-			allCaptions = append(allCaptions, cap)
+		for _, caption := range captions {
+			caption.Time = sql.NullFloat64{Float64: float64(pageNum), Valid: true}
+			allCaptions = append(allCaptions, caption)
 		}
 	}
 

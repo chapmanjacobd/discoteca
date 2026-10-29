@@ -333,11 +333,11 @@ type nearbyCaptionsParams struct {
 func (c *ServeCmd) findNearbyCaptions(params nearbyCaptionsParams) []database.SearchCaptionsRow {
 	var nearby []database.SearchCaptionsRow
 	count := 0
-	for _, cap := range params.allCaptions {
-		if cap.MediaPath != params.path || !cap.Time.Valid {
+	for _, caption := range params.allCaptions {
+		if caption.MediaPath != params.path || !caption.Time.Valid {
 			continue
 		}
-		capTime := cap.Time.Float64
+		capTime := caption.Time.Float64
 		var matchesCondition bool
 		if params.isBefore {
 			matchesCondition = capTime < params.matchTime
@@ -348,9 +348,9 @@ func (c *ServeCmd) findNearbyCaptions(params nearbyCaptionsParams) []database.Se
 		if matchesCondition && !params.matchTimes[params.path][capTime] {
 			if count < 2 && !params.added[params.path][capTime] {
 				nearby = append(nearby, database.SearchCaptionsRow{
-					MediaPath: cap.MediaPath,
-					Time:      cap.Time,
-					Text:      cap.Text,
+					MediaPath: caption.MediaPath,
+					Time:      caption.Time,
+					Text:      caption.Text,
 				})
 				params.added[params.path][capTime] = true
 				count++

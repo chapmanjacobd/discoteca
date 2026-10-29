@@ -9,10 +9,6 @@ const defaultCacheSizeMB = 256
 
 var cacheSizeMB atomic.Int64
 
-func init() {
-	cacheSizeMB.Store(defaultCacheSizeMB)
-}
-
 // SetCacheSizeMB sets the SQLite page cache size in MiB for connections opened
 // after this call. Values below 1 restore the default.
 func SetCacheSizeMB(mb int) {
@@ -24,5 +20,8 @@ func SetCacheSizeMB(mb int) {
 
 // CacheSizeMB returns the configured SQLite page cache size in MiB.
 func CacheSizeMB() int {
-	return int(cacheSizeMB.Load())
+	if mb := cacheSizeMB.Load(); mb > 0 {
+		return int(mb)
+	}
+	return defaultCacheSizeMB
 }

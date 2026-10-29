@@ -27,13 +27,6 @@ func BasePathFromContext(ctx context.Context) string {
 	return prefix
 }
 
-func withBasePath(ctx context.Context, prefix string) context.Context {
-	if prefix == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, basePathKey{}, prefix)
-}
-
 // normalizeBasePath turns user or proxy input into a clean prefix such as
 // "/disco". Invalid values return "" (serve at the root).
 func normalizeBasePath(raw string) string {
@@ -99,15 +92,16 @@ func (c *ServeCmd) withBasePath(next http.Handler) http.Handler {
 			if stripped == "" {
 				stripped = "/"
 			}
+			ctx := context.WithValue(r.Context(), basePathKey{}, prefix)
 			r = cloneRequestWithPath(r, stripped)
-			r = r.WithContext(withBasePath(r.Context(), prefix))
+			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
 			return
 
 		case fromForwardedHeader:
 			// The proxy already stripped the prefix before forwarding the
 			// request. Keep the prefix for URL generation only.
-			r = r.WithContext(withBasePath(r.Context(), prefix))
+			r = r.WithContext(context.WithValue(r.Context(), basePathKey{}, prefix))
 			next.ServeHTTP(w, r)
 			return
 

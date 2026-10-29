@@ -150,32 +150,32 @@ func (c *SearchCaptionsCmd) printCaptions(captions []MergedCaption) {
 
 	fmt.Printf("%d captions\n", len(captions))
 	lastPath := ""
-	for _, cap := range captions {
-		if cap.Path != lastPath {
+	for _, caption := range captions {
+		if caption.Path != lastPath {
 			if lastPath != "" {
 				fmt.Println()
 			}
-			displayTitle := cap.Path
-			if cap.Title != "" {
-				displayTitle = cap.Title + " - " + cap.Path
+			displayTitle := caption.Path
+			if caption.Title != "" {
+				displayTitle = caption.Title + " - " + caption.Path
 			}
 			fmt.Printf("%s\n", displayTitle)
-			lastPath = cap.Path
+			lastPath = caption.Path
 		}
-		fmt.Printf("%s %s\n", utils.FormatDuration(int(cap.Time)), cap.Text)
+		fmt.Printf("%s %s\n", utils.FormatDuration(int(caption.Time)), caption.Text)
 	}
 }
 
 func (c *SearchCaptionsCmd) playCaptions(ctx context.Context, captions []MergedCaption) {
-	for _, cap := range captions {
-		fmt.Printf("Playing: %s at %s\n", cap.Path, utils.FormatDuration(int(cap.Time)))
-		fmt.Printf("Text: %s\n", cap.Text)
+	for _, caption := range captions {
+		fmt.Printf("Playing: %s at %s\n", caption.Path, utils.FormatDuration(int(caption.Time)))
+		fmt.Printf("Text: %s\n", caption.Text)
 
 		args := []string{
 			"mpv",
-			cap.Path,
-			fmt.Sprintf("--start=%f", math.Max(0, cap.Time-2)),
-			fmt.Sprintf("--end=%f", cap.End+1.5),
+			caption.Path,
+			fmt.Sprintf("--start=%f", math.Max(0, caption.Time-2)),
+			fmt.Sprintf("--end=%f", caption.End+1.5),
 		}
 
 		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
@@ -184,7 +184,7 @@ func (c *SearchCaptionsCmd) playCaptions(ctx context.Context, captions []MergedC
 		cmd.Stdin = os.Stdin
 
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("Error playing %s: %v\n", cap.Path, err)
+			fmt.Printf("Error playing %s: %v\n", caption.Path, err)
 		}
 	}
 }

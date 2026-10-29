@@ -257,57 +257,54 @@ func RegexSortMedia(media []models.MediaWithDB, flags models.GlobalFlags) []mode
 	return result
 }
 
+// folderLess reports whether a sorts before b for the given sort key.
+func folderLess(a, b models.FolderStats, sortBy string) bool {
+	switch sortBy {
+	case "count":
+		return a.Count < b.Count
+	case "size":
+		return a.TotalSize < b.TotalSize
+	case "duration":
+		return a.TotalDuration < b.TotalDuration
+	case "priority", "size_per_count", "size_per_file":
+		return lessDiskUsage(a, b)
+	case "folders", "folder_count":
+		if a.FolderCount != b.FolderCount {
+			return a.FolderCount < b.FolderCount
+		}
+		return a.Path < b.Path
+	case "path":
+		return a.Path < b.Path
+	default:
+		// Default to DU-style sorting: (size/count), size, count, folders, reverse(path)
+		return lessDiskUsage(a, b)
+	}
+}
+
+// lessDiskUsage orders folders by average file size, then size, count,
+// folder count, and finally reverse path.
+func lessDiskUsage(a, b models.FolderStats) bool {
+	aPerFile := float64(a.TotalSize) / float64(utils.Max(1, a.Count))
+	bPerFile := float64(b.TotalSize) / float64(utils.Max(1, b.Count))
+	if aPerFile != bPerFile {
+		return aPerFile < bPerFile
+	}
+	if a.TotalSize != b.TotalSize {
+		return a.TotalSize < b.TotalSize
+	}
+	if a.Count != b.Count {
+		return a.Count < b.Count
+	}
+	if a.FolderCount != b.FolderCount {
+		return a.FolderCount < b.FolderCount
+	}
+	return a.Path > b.Path // reverse path
+}
+
 // SortFolders sorts folder stats
 func SortFolders(folders []models.FolderStats, sortBy string, reverse bool) {
 	less := func(i, j int) bool {
-		switch sortBy {
-		case "count":
-			return folders[i].Count < folders[j].Count
-		case "size":
-			return folders[i].TotalSize < folders[j].TotalSize
-		case "duration":
-			return folders[i].TotalDuration < folders[j].TotalDuration
-		case "priority", "size_per_count", "size_per_file":
-			p1 := float64(folders[i].TotalSize) / float64(utils.Max(1, folders[i].Count))
-			p2 := float64(folders[j].TotalSize) / float64(utils.Max(1, folders[j].Count))
-			if p1 != p2 {
-				return p1 < p2
-			}
-			if folders[i].TotalSize != folders[j].TotalSize {
-				return folders[i].TotalSize < folders[j].TotalSize
-			}
-			if folders[i].Count != folders[j].Count {
-				return folders[i].Count < folders[j].Count
-			}
-			if folders[i].FolderCount != folders[j].FolderCount {
-				return folders[i].FolderCount < folders[j].FolderCount
-			}
-			return folders[i].Path > folders[j].Path // reverse path
-		case "folders", "folder_count":
-			if folders[i].FolderCount != folders[j].FolderCount {
-				return folders[i].FolderCount < folders[j].FolderCount
-			}
-			return folders[i].Path < folders[j].Path
-		case "path":
-			return folders[i].Path < folders[j].Path
-		default:
-			// Default to DU-style sorting: (size/count), size, count, folders, reverse(path)
-			p1 := float64(folders[i].TotalSize) / float64(utils.Max(1, folders[i].Count))
-			p2 := float64(folders[j].TotalSize) / float64(utils.Max(1, folders[j].Count))
-			if p1 != p2 {
-				return p1 < p2
-			}
-			if folders[i].TotalSize != folders[j].TotalSize {
-				return folders[i].TotalSize < folders[j].TotalSize
-			}
-			if folders[i].Count != folders[j].Count {
-				return folders[i].Count < folders[j].Count
-			}
-			if folders[i].FolderCount != folders[j].FolderCount {
-				return folders[i].FolderCount < folders[j].FolderCount
-			}
-			return folders[i].Path > folders[j].Path // reverse(path)
-		}
+		return folderLess(folders[i], folders[j], sortBy)
 	}
 
 	if reverse && sortBy == "" {

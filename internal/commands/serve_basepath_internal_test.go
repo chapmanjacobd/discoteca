@@ -54,7 +54,7 @@ func TestAcquireSearchSlot(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := cmd.acquireSearchSlot(ctx); err == nil {
+	if _, waitErr := cmd.acquireSearchSlot(ctx); waitErr == nil {
 		t.Fatal("second slot should wait until the first is released")
 	}
 

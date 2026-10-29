@@ -516,7 +516,8 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 		return false, nil
 	}
 	if _, statErr := os.Stat(absRoot); statErr != nil {
-		return false, statErr
+		models.Log.Warn("Failed to stat scan root, skipping", "path", absRoot, "error", statErr)
+		return false, nil
 	}
 
 	// Check if this path is a child of an existing playlist root
