@@ -630,7 +630,6 @@ func (c *AddCmd) AfterApply() error {
 func (c *AddCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	db.InitFtsConfig()
-	db.SetFtsEnabled(true)
 
 	dbPath := c.Database
 	c.ScanPaths = utils.ExpandStdin(c.ScanPaths)

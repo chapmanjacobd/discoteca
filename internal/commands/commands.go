@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/db/schema"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // SchemaFS provides access to the database schema
 func SchemaFS() embed.FS {
-	return db.SchemaFS
+	return schema.SchemaFS
 }
 
 // GetSchema returns the database schema SQL
 func GetSchema() string {
-	return db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS()
+	return schema.GetSchema()
 }
 
 // ParseDatabaseAndScanPaths separates .db files from scan paths

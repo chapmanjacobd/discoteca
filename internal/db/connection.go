@@ -15,8 +15,10 @@ import (
 // Connect opens a SQLite database and applies performance tuning PRAGMAs
 // Slow query logging (50ms threshold) is enabled when SetDebugMode(true) is called
 func Connect(ctx context.Context, dbPath string) (*sql.DB, error) {
-	// Add busy timeout and immediate locking to handle concurrent writes better
-	dsn := fmt.Sprintf("%s?_busy_timeout=30000&_txlock=immediate", dbPath)
+	// Add busy timeout and immediate locking to handle concurrent writes better.
+	// _foreign_keys is set in the DSN so every pooled connection enforces FKs,
+	// not just the first connection used to run the tuning PRAGMAs.
+	dsn := fmt.Sprintf("%s?_busy_timeout=30000&_txlock=immediate&_foreign_keys=on", dbPath)
 
 	// Open the base database
 	baseDB, err := sql.Open("sqlite3", dsn)

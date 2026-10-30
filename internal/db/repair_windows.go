@@ -3,6 +3,7 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -10,8 +11,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/chapmanjacobd/discoteca/internal/shellquote"
+	"golang.org/x/sys/windows"
 )
 
 func Repair(ctx context.Context, dbPath string) error {
@@ -22,8 +22,12 @@ func Repair(ctx context.Context, dbPath string) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 2. Cross-process lock - skip on Windows for now or implement via Win32 API if needed.
-	// For now, process-local lock is better than nothing.
+	// 2. Cross-process lock
+	lockFile, err := acquireCrossProcessLock(dbPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lockFile.Close() }()
 
 	waitDuration := time.Since(start)
 
@@ -46,8 +50,7 @@ func Repair(ctx context.Context, dbPath string) error {
 	Log.Debug("Using sqlite3 tool", "path", sqliteTool)
 
 	// 4. Backup
-	now := time.Now().Unix()
-	backupDir := fmt.Sprintf("%s.corrupt.%d", dbPath, now)
+	backupDir := backupDirName(dbPath)
 	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
 	}
@@ -60,47 +63,28 @@ func Repair(ctx context.Context, dbPath string) error {
 	for _, suffix := range []string{"-wal", "-shm"} {
 		sidecar := dbPath + suffix
 		if _, err := os.Stat(sidecar); err == nil {
-			os.Rename(sidecar, corruptMain+suffix)
+			_ = os.Rename(sidecar, corruptMain+suffix)
 		}
 	}
 
-	// 5. Recover
+	// 5. Recover. Invoke sqlite3 with arguments and pipe the dump through Go's
+	// stdin instead of building a cmd /c shell pipeline.
 	Log.Info("Attempting recovery...", "from", corruptMain, "to", dbPath)
 
-	quotedCorrupt := shellquote.ShellQuote(corruptMain)
-	quotedDB := shellquote.ShellQuote(dbPath)
-
-	// Fallback to .dump first as it preserves schema better if it works
 	repairStepSuccess := false
 	Log.Info("Trying recovery via .dump...")
-	// On Windows, use cmd /c and redirection instead of bash
-	cmdDump := exec.CommandContext(
-		ctx,
-		"cmd",
-		"/c",
-		fmt.Sprintf("%s %s \".dump\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB),
-	)
-	out, err := cmdDump.CombinedOutput()
-	if err == nil {
+	if dumpErr := runSQLiteDump(ctx, sqliteTool, corruptMain, ".dump", dbPath); dumpErr == nil {
 		Log.Info("Initial recovery step successful via .dump")
 		repairStepSuccess = true
 	} else {
-		Log.Warn(".dump failed, falling back to .recover", "error", err, "output", string(out))
-		os.Remove(dbPath)
+		Log.Warn(".dump failed, falling back to .recover", "error", dumpErr)
+		_ = os.Remove(dbPath)
 
-		// Fallback to .recover
-		cmdRecover := exec.CommandContext(
-			ctx,
-			"cmd",
-			"/c",
-			fmt.Sprintf("%s %s \".recover\" \".quit\" | %s %s", sqliteTool, quotedCorrupt, sqliteTool, quotedDB),
-		)
-		out, err = cmdRecover.CombinedOutput()
-		if err == nil {
+		if recoverErr := runSQLiteDump(ctx, sqliteTool, corruptMain, ".recover", dbPath); recoverErr == nil {
 			Log.Info("Initial recovery step successful via .recover")
 			repairStepSuccess = true
 		} else {
-			Log.Error("Recovery failed completely", "error", err, "output", string(out))
+			Log.Error("Recovery failed completely", "error", recoverErr)
 		}
 	}
 
@@ -115,27 +99,8 @@ func Repair(ctx context.Context, dbPath string) error {
 				Log.Warn("REINDEX failed", "error", err)
 			}
 
-			// FTS rebuilding is critical as corruption often hides here
-			var hasMediaFTS bool
-			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_fts')").
-				Scan(&hasMediaFTS)
-			if hasMediaFTS {
-				if _, err := db.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('rebuild');"); err != nil {
-					Log.Warn("media_fts rebuild failed", "error", err)
-				}
-			}
-
-			var hasCaptionsFTS bool
-			_ = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='captions_fts')").
-				Scan(&hasCaptionsFTS)
-			if hasCaptionsFTS {
-				if _, err := db.ExecContext(
-					ctx,
-					"INSERT INTO captions_fts(captions_fts) VALUES('rebuild');",
-				); err != nil {
-					Log.Warn("captions_fts rebuild failed", "error", err)
-				}
-			}
+			rebuildFTSTableIfExists(ctx, db, "media_fts")
+			rebuildFTSTableIfExists(ctx, db, "captions_fts")
 
 			if _, err := db.ExecContext(ctx, "VACUUM;"); err != nil {
 				Log.Error("Final VACUUM failed", "error", err)
@@ -145,9 +110,53 @@ func Repair(ctx context.Context, dbPath string) error {
 
 		if IsHealthy(ctx, dbPath) {
 			Log.Info("Database repair and polish successful")
-			os.RemoveAll(backupDir)
+			_ = os.RemoveAll(backupDir)
 			return nil
 		}
 	}
 	return fmt.Errorf("all recovery attempts failed to produce a healthy database")
+}
+
+func acquireCrossProcessLock(dbPath string) (*os.File, error) {
+	lockPath := dbPath + ".repair.lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o666)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open lock file: %w", err)
+	}
+
+	overlapped := new(windows.Overlapped)
+	if err := windows.LockFileEx(
+		windows.Handle(lockFile.Fd()),
+		windows.LOCKFILE_EXCLUSIVE_LOCK,
+		0,
+		1,
+		0,
+		overlapped,
+	); err != nil {
+		_ = lockFile.Close()
+		return nil, fmt.Errorf("another repair is active or the repair lock failed: %w", err)
+	}
+	return lockFile, nil
+}
+
+// runSQLiteDump runs `sqlite3 corrupt <dotCommand>` and feeds the resulting
+// SQL to `sqlite3 target` through stdin. No shell quoting is involved.
+func runSQLiteDump(ctx context.Context, sqliteTool, corruptPath, dotCommand, targetPath string) error {
+	var stderr bytes.Buffer
+
+	dumpCmd := exec.CommandContext(ctx, sqliteTool, corruptPath, dotCommand)
+	dumpCmd.Stderr = &stderr
+	dump, err := dumpCmd.Output()
+	if err != nil {
+		return fmt.Errorf("%s failed: %w: %s", dotCommand, err, stderr.String())
+	}
+
+	stderr.Reset()
+	loadCmd := exec.CommandContext(ctx, sqliteTool, targetPath)
+	loadCmd.Stdin = bytes.NewReader(dump)
+	loadCmd.Stderr = &stderr
+	if err := loadCmd.Run(); err != nil {
+		return fmt.Errorf("loading recovered SQL failed: %w: %s", err, stderr.String())
+	}
+	return nil
 }

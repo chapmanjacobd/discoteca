@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"math"
 	"os"
@@ -45,6 +46,9 @@ func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
 	defer sqlDB.Close()
 
 	queries := db.New(sqlDB)
+	if schemaErr := requireCaptionSchema(ctx, sqlDB); schemaErr != nil {
+		return schemaErr
+	}
 	queryStr := strings.Join(c.Search, " ")
 
 	limit := int64(c.Limit)
@@ -187,4 +191,26 @@ func (c *SearchCaptionsCmd) playCaptions(ctx context.Context, captions []MergedC
 			fmt.Printf("Error playing %s: %v\n", caption.Path, err)
 		}
 	}
+}
+
+// requireCaptionSchema returns a clear error when a database was created
+// without captions/FTS instead of leaking a raw "no such table" SQL error.
+func requireCaptionSchema(ctx context.Context, sqlDB *sql.DB) error {
+	for _, table := range []string{"captions", "captions_fts"} {
+		var exists bool
+		if err := sqlDB.QueryRowContext(
+			ctx,
+			"SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
+			table,
+		).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf(
+				"caption search is unavailable: table %q is missing; this database was created without FTS support",
+				table,
+			)
+		}
+	}
+	return nil
 }

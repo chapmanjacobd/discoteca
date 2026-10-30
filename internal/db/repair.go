@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -29,10 +28,9 @@ func Repair(ctx context.Context, dbPath string) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		lockFile.Close()
-		os.Remove(dbPath + ".repair.lock")
-	}()
+	// Keep the lock (and the stable lock file) for the whole repair. Closing
+	// the file releases the flock.
+	defer func() { _ = lockFile.Close() }()
 
 	waitDuration := time.Since(start)
 
@@ -77,15 +75,14 @@ func acquireCrossProcessLock(dbPath string) (*os.File, error) {
 		return nil, fmt.Errorf("failed to open lock file: %w", err)
 	}
 	if err2 := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err2 != nil {
+		_ = lockFile.Close()
 		return nil, fmt.Errorf("failed to acquire flock: %w", err2)
 	}
-	_ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
 	return lockFile, nil
 }
 
 func backupCorruptDB(dbPath string) (string, error) {
-	now := time.Now().Unix()
-	backupDir := fmt.Sprintf("%s.corrupt.%d", dbPath, now)
+	backupDir := backupDirName(dbPath)
 	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
 	}
@@ -173,16 +170,4 @@ func polishRecoveredDB(ctx context.Context, dbPath string) error {
 		return fmt.Errorf("VACUUM failed: %w", err)
 	}
 	return nil
-}
-
-func rebuildFTSTableIfExists(ctx context.Context, db *sql.DB, tableName string) {
-	var exists bool
-	_ = db.QueryRowContext(ctx, fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='%s')", tableName)).
-		Scan(&exists)
-	if exists {
-		query := fmt.Sprintf("INSERT INTO %s(%s) VALUES('rebuild');", tableName, tableName)
-		if _, err := db.ExecContext(ctx, query); err != nil {
-			Log.Warn("%s rebuild failed", tableName, "error", err)
-		}
-	}
 }

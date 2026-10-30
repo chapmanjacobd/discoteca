@@ -1,7 +1,6 @@
 -- Core indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_time_deleted ON media(time_deleted);
 CREATE INDEX IF NOT EXISTS idx_time_last_played ON media(time_last_played);
-CREATE INDEX IF NOT EXISTS idx_path ON media(path);
 
 -- Composite indexes for common filtered queries (time_deleted is frequently used)
 CREATE INDEX IF NOT EXISTS idx_media_deleted_type ON media(time_deleted, media_type);
@@ -15,7 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_media_active ON media(path, media_type) WHERE tim
 -- Individual column indexes for non-composite queries
 CREATE INDEX IF NOT EXISTS idx_duration ON media(duration);
 CREATE INDEX IF NOT EXISTS idx_size ON media(size);
-CREATE INDEX IF NOT EXISTS idx_type ON media(media_type);
+CREATE INDEX IF NOT EXISTS idx_media_type ON media(media_type);
 CREATE INDEX IF NOT EXISTS idx_genre ON media(genre);
 CREATE INDEX IF NOT EXISTS idx_artist ON media(artist);
 CREATE INDEX IF NOT EXISTS idx_album ON media(album);
@@ -35,6 +34,3 @@ CREATE INDEX IF NOT EXISTS idx_media_active_time_downloaded ON media(time_downlo
 -- History indexes
 CREATE INDEX IF NOT EXISTS idx_history_path ON history(media_path);
 CREATE INDEX IF NOT EXISTS idx_history_time ON history(time_played);
-
--- Meta indexes
-CREATE INDEX IF NOT EXISTS idx_folder_stats_depth ON folder_stats(depth);

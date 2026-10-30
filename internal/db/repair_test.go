@@ -117,4 +117,9 @@ func TestRepairRace(t *testing.T) {
 			t.Errorf("Found leftover backup directory: %s", entry.Name())
 		}
 	}
+
+	// The repair lock file is intentionally stable across repairs.
+	if _, err := os.Stat(dbPath + ".repair.lock"); err != nil {
+		t.Errorf("repair lock file should remain after repair: %v", err)
+	}
 }

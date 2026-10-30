@@ -4,12 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 var repairLocks sync.Map
+
+// backupDirName returns a collision-resistant directory name for a corrupted
+// database backup. Two repairs starting in the same second must not share a
+// directory.
+func backupDirName(dbPath string) string {
+	return fmt.Sprintf("%s.corrupt.%d.%d", dbPath, time.Now().UnixNano(), os.Getpid())
+}
 
 func getLock(path string) *sync.Mutex {
 	v, _ := repairLocks.LoadOrStore(path, &sync.Mutex{})
@@ -166,4 +175,20 @@ func checkFTSConsistency(ctx context.Context, db *sql.DB) bool {
 		}
 	}
 	return true
+}
+
+func rebuildFTSTableIfExists(ctx context.Context, db *sql.DB, tableName string) {
+	var exists bool
+	_ = db.QueryRowContext(
+		ctx,
+		"SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)",
+		tableName,
+	).Scan(&exists)
+	if !exists {
+		return
+	}
+	query := fmt.Sprintf("INSERT INTO %s(%s) VALUES('rebuild');", tableName, tableName)
+	if _, err := db.ExecContext(ctx, query); err != nil {
+		Log.Warn("FTS rebuild failed", "table", tableName, "error", err)
+	}
 }

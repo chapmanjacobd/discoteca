@@ -46,6 +46,12 @@ disco serve library.db
 
 ![Settings Modal](docs/screenshots/settings-modal.png)
 
+## Requirements
+
+- Go 1.26 or newer to build from source
+- SQLite **3.37.0 or newer** (the schema uses STRICT tables)
+- A SQLite build with FTS5 enabled (`-tags fts5`)
+
 ## Optional dependencies
 
 ### Core Media Features

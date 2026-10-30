@@ -3,39 +3,42 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode"
+
+	"github.com/chapmanjacobd/discoteca/internal/db/schema"
 )
 
-func renameMediaTypeColumn(ctx context.Context, db *sql.DB) error {
-	rows, err := db.QueryContext(ctx, "PRAGMA table_info(media)")
-	if err != nil {
-		if strings.Contains(err.Error(), "no such table") {
-			return nil
-		}
+// minimumSQLiteVersion is required for STRICT tables, which the canonical
+// schema and all migrations use unconditionally.
+const minimumSQLiteVersion = "3.37.0"
+
+func requireStrictSupport(ctx context.Context, db dbExecer) error {
+	var version string
+	if err := db.QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&version); err != nil {
 		return err
 	}
-	defer rows.Close()
-
-	hasType := false
-	hasMediaType := false
-	for rows.Next() {
-		var cid int
-		var name, dtype string
-		var notnull, pk int
-		var dfltValue any
-		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
-			return err
-		}
-		if strings.EqualFold(name, "type") {
-			hasType = true
-		}
-		if strings.EqualFold(name, "media_type") {
-			hasMediaType = true
-		}
+	if !isVersionGreaterOrEqual(version, minimumSQLiteVersion) {
+		return fmt.Errorf(
+			"discoteca requires SQLite %s or newer (found %s); upgrade SQLite or the sqlite driver",
+			minimumSQLiteVersion,
+			version,
+		)
 	}
-	if err := rows.Err(); err != nil {
+	return nil
+}
+
+func renameMediaTypeColumn(ctx context.Context, db dbExecer) error {
+	hasType, err := columnExists(ctx, db, "media", "type")
+	if err != nil {
+		return err
+	}
+	hasMediaType, err := columnExists(ctx, db, "media", "media_type")
+	if err != nil {
 		return err
 	}
 
@@ -50,37 +53,108 @@ func renameMediaTypeColumn(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// Migrate runs schema migrations on an existing database
+// Migrate runs schema migrations on an existing database.
+//
+// The whole migration runs on a single connection with foreign key enforcement
+// disabled. That prevents DROP TABLE media from cascading into history,
+// captions, and playlist_items while the table is recreated.
 func Migrate(ctx context.Context, db *sql.DB) error {
-	// 0. Check SQLite version for STRICT support (3.37.0+)
-	var version string
-	if err := db.QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&version); err != nil {
+	conn, err := db.Conn(ctx)
+	if err != nil {
 		return err
 	}
-	hasStrict := isVersionGreaterOrEqual(version, "3.37.0")
+	defer conn.Close()
 
-	// 0.1 Rename 'type' to 'media_type' if needed
+	if err := requireStrictSupport(ctx, conn); err != nil {
+		return err
+	}
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("failed to disable foreign keys for migration: %w", err)
+	}
+	reEnableForeignKeys := func() error {
+		if _, err := conn.ExecContext(context.WithoutCancel(ctx), "PRAGMA foreign_keys = ON"); err != nil {
+			return fmt.Errorf("failed to re-enable foreign keys after migration: %w", err)
+		}
+		return nil
+	}
+	defer func() { _ = reEnableForeignKeys() }()
+
+	if err := migrate(ctx, conn); err != nil {
+		return err
+	}
+
+	if err := checkForeignKeys(ctx, conn); err != nil {
+		return err
+	}
+
+	return reEnableForeignKeys()
+}
+
+func migrate(ctx context.Context, db dbExecer) error {
+	// Rename before adding columns so both old and new names are handled.
 	if err := renameMediaTypeColumn(ctx, db); err != nil {
 		return err
 	}
 
-	// 1. Column migrations (Add new ones first)
+	// Add missing columns first so every later step can rely on the canonical
+	// column set.
 	if err := migrateColumns(ctx, db); err != nil {
 		return err
 	}
 
-	// 2. Data consolidation and table cleanup (now includes STRICT)
-	if err := cleanupMediaTable(ctx, db, hasStrict); err != nil {
+	// Convert legacy media_id references while rowids still point at the
+	// original media rows. Recreating media can reassign rowids.
+	if err := convertColumnsBeforeStrict(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert columns: %w", err)
+	}
+
+	// Consolidate metadata and recreate media (dropping dead columns and/or
+	// applying STRICT). Foreign keys are disabled for the whole migration.
+	if err := cleanupMediaTable(ctx, db); err != nil {
 		return err
 	}
 
-	// 3. Table migrations (FTS etc, and STRICT for other tables)
-	if err := migrateTables(ctx, db, hasStrict); err != nil {
+	// Rows that point at missing parents cannot satisfy foreign_key_check.
+	// Preserve them in a quarantine table instead of silently deleting them.
+	if err := quarantineOrphanPlaylistItems(ctx, db); err != nil {
 		return err
 	}
 
-	// 4. Index migrations
+	if err := migrateTables(ctx, db); err != nil {
+		return err
+	}
+
 	return migrateIndexes(ctx, db)
+}
+
+func checkForeignKeys(ctx context.Context, db dbExecer) error {
+	rows, err := db.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return fmt.Errorf("failed to run foreign_key_check: %w", err)
+	}
+	defer rows.Close()
+
+	var violations []string
+	for rows.Next() {
+		var table string
+		var rowid int64
+		var parent string
+		var fkid int
+		if err := rows.Scan(&table, &rowid, &parent, &fkid); err != nil {
+			return err
+		}
+		if len(violations) < 10 {
+			violations = append(violations, fmt.Sprintf("%s rowid=%d -> %s (fk %d)", table, rowid, parent, fkid))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(violations) > 0 {
+		return fmt.Errorf("foreign key violations remain after migration: %s", strings.Join(violations, "; "))
+	}
+	return nil
 }
 
 func isVersionGreaterOrEqual(v, target string) bool {
@@ -98,7 +172,7 @@ func isVersionGreaterOrEqual(v, target string) bool {
 	return v3 >= t3
 }
 
-func isTableStrict(ctx context.Context, db *sql.DB, tableName string) bool {
+func isTableStrict(ctx context.Context, db dbExecer, tableName string) bool {
 	var isStrict bool
 	// PRAGMA table_list is available since 3.37.0
 	err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT strict FROM pragma_table_list WHERE name='%s'", tableName)).
@@ -110,138 +184,152 @@ func isTableStrict(ctx context.Context, db *sql.DB, tableName string) bool {
 	return isStrict
 }
 
-func migrateToStrict(ctx context.Context, db *sql.DB, tableName, createSQL string) error {
+func tableExists(ctx context.Context, db dbExecer, tableName string) (bool, error) {
+	var count int
+	err := db.QueryRowContext(
+		ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?",
+		tableName,
+	).Scan(&count)
+	return count > 0, err
+}
+
+func tableColumns(ctx context.Context, db dbQueryer, tableName string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", tableName))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var columns []string
+	for rows.Next() {
+		var cid int
+		var name, dataType string
+		var notNull, pk int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &pk); err != nil {
+			return nil, err
+		}
+		columns = append(columns, name)
+	}
+	return columns, rows.Err()
+}
+
+func migrateToStrict(ctx context.Context, db dbExecer, tableName, createSQL string) error {
 	strict := isTableStrict(ctx, db, tableName)
 	if strict {
 		return nil
 	}
 
-	// Disable foreign key checks during migration to avoid constraint violations
-	// when copying data that may reference deleted entries
-	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
-		return fmt.Errorf("failed to disable foreign keys: %w", err)
+	// Rebuild into a temporary table instead of renaming the old table first.
+	// Renaming the old table makes SQLite rewrite foreign key references in
+	// other tables to point at the temporary name.
+	tempTable := tableName + "_new_strict"
+	tempCreateSQL := strings.Replace(createSQL, "CREATE TABLE "+tableName, "CREATE TABLE "+tempTable, 1)
+	if tempCreateSQL == createSQL {
+		return fmt.Errorf("could not build temporary create statement for %s", tableName)
 	}
-	defer func() {
-		// Re-enable foreign key checks after migration
-		if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-			// Log but don't fail on this error
-			fmt.Printf("Warning: failed to re-enable foreign keys: %v\n", err)
-		}
-	}()
 
+	// Foreign keys are disabled for the whole migration on this connection.
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Rename old table
-	oldTable := tableName + "_old_strict"
-	if _, err2 := tx.ExecContext(
-		ctx,
-		fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tableName, oldTable),
-	); err2 != nil {
-		return fmt.Errorf("failed to rename %s: %w", tableName, err2)
+	if _, err := tx.ExecContext(ctx, tempCreateSQL); err != nil {
+		return fmt.Errorf("failed to create temporary strict %s: %w", tableName, err)
 	}
 
-	// Create new STRICT table
-	if _, err2 := tx.ExecContext(ctx, createSQL); err2 != nil {
-		return fmt.Errorf("failed to create strict %s: %w", tableName, err2)
-	}
-
-	// Copy data
-	// Get columns from old table to ensure they match
-	rows, err := tx.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", oldTable))
+	// Copy only columns that exist in both tables, plus rowid so FTS content
+	// mappings remain stable.
+	oldColumns, err := tableColumns(ctx, tx, tableName)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-
-	var cols []string
-	for rows.Next() {
-		var name string
-		var ignored any
-		if err := rows.Scan(&ignored, &name, &ignored, &ignored, &ignored, &ignored); err != nil {
-			return err
-		}
-		cols = append(cols, name)
-	}
-	if err := rows.Err(); err != nil {
+	newColumns, err := tableColumns(ctx, tx, tempTable)
+	if err != nil {
 		return err
 	}
+	var columns []string
+	for _, column := range oldColumns {
+		if slices.Contains(newColumns, column) {
+			columns = append(columns, column)
+		}
+	}
+	if len(columns) == 0 {
+		return fmt.Errorf("no shared columns while migrating %s to STRICT", tableName)
+	}
 
-	colStr := strings.Join(cols, ", ")
+	columnList := "rowid, " + strings.Join(columns, ", ")
 	if _, err := tx.ExecContext(
 		ctx,
-		fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM %s", tableName, colStr, colStr, oldTable),
+		fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM %s", tempTable, columnList, columnList, tableName),
 	); err != nil {
 		return fmt.Errorf("failed to copy data for %s: %w", tableName, err)
 	}
 
-	// Drop old table
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", oldTable)); err != nil {
-		return fmt.Errorf("failed to drop %s: %w", oldTable, err)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
+		return fmt.Errorf("failed to drop old %s: %w", tableName, err)
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tempTable, tableName),
+	); err != nil {
+		return fmt.Errorf("failed to rename temporary %s: %w", tableName, err)
 	}
 
 	return tx.Commit()
 }
 
-// convertColumnsBeforeStrict handles column type conversions before STRICT migration
-// e.g., history.media_id (INTEGER) -> history.media_path (TEXT)
-func convertColumnsBeforeStrict(ctx context.Context, db *sql.DB) error {
-	// Check if history table has media_id column that needs conversion
+// convertColumnsBeforeStrict handles column type conversions before STRICT
+// migration, e.g. history.media_id (INTEGER) -> history.media_path (TEXT).
+func convertColumnsBeforeStrict(ctx context.Context, db dbExecer) error {
 	if err := convertHistoryMediaID(ctx, db); err != nil {
 		return fmt.Errorf("failed to convert history.media_id: %w", err)
 	}
-
-	// Check if captions table has media_id column that needs conversion
 	if err := convertCaptionsMediaID(ctx, db); err != nil {
 		return fmt.Errorf("failed to convert captions.media_id: %w", err)
 	}
-
 	return nil
 }
 
-func convertHistoryMediaID(ctx context.Context, db *sql.DB) error {
-	var hasMediaID bool
-	rows, err := db.QueryContext(ctx, "PRAGMA table_info(history)")
+func mediaIDJoinKey(ctx context.Context, db dbExecer) string {
+	columns, err := tableColumns(ctx, db, "media")
+	if err == nil && slices.Contains(columns, "id") {
+		return "m.id"
+	}
+	return "m.rowid"
+}
+
+func convertHistoryMediaID(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "history")
 	if err != nil {
-		if strings.Contains(err.Error(), "no such table") {
-			return nil // Table doesn't exist yet, nothing to convert
-		}
 		return err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name, dtype string
-		var notnull, pk int
-		var dfltValue any
-		if scanErr := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); scanErr != nil {
-			return scanErr
-		}
-		if strings.EqualFold(name, "media_id") {
-			hasMediaID = true
-			break
-		}
-	}
-	if err2 := rows.Err(); err2 != nil {
-		return err2
+	if !slices.Contains(columns, "media_id") {
+		return nil
 	}
 
-	if !hasMediaID {
-		return nil // No conversion needed
+	joinKey := mediaIDJoinKey(ctx, db)
+
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS history_orphaned (
+		id INTEGER,
+		media_id INTEGER NOT NULL,
+		time_played INTEGER,
+		playhead INTEGER,
+		done INTEGER,
+		quarantined_at INTEGER DEFAULT (unixepoch())
+	)`); err != nil {
+		return fmt.Errorf("failed to create history_orphaned: %w", err)
 	}
 
-	// Convert media_id to media_path by joining with media table
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Create temp history table with media_path
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE history_tmp (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		media_path TEXT NOT NULL,
@@ -253,23 +341,32 @@ func convertHistoryMediaID(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("failed to create history_tmp: %w", err)
 	}
 
-	// Copy data, converting media_id to media_path via JOIN
-	// LEFT JOIN to preserve history entries even if media was deleted
+	// Preserve rows that cannot be resolved to a media path in a quarantine
+	// table instead of silently mapping them to an unrelated path.
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO history_tmp (id, media_path, time_played, playhead, done)
-		SELECT h.id, COALESCE(m.path, ''), h.time_played, h.playhead, h.done
-		FROM history h
-		LEFT JOIN media m ON h.media_id = m.rowid`,
+		fmt.Sprintf(`INSERT INTO history_orphaned (id, media_id, time_played, playhead, done)
+			SELECT h.id, h.media_id, h.time_played, h.playhead, h.done
+			FROM history h
+			LEFT JOIN media m ON h.media_id = %s
+			WHERE m.path IS NULL`, joinKey),
+	); err != nil {
+		return fmt.Errorf("failed to quarantine orphaned history rows: %w", err)
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		fmt.Sprintf(`INSERT INTO history_tmp (id, media_path, time_played, playhead, done)
+			SELECT h.id, m.path, h.time_played, h.playhead, h.done
+			FROM history h
+			JOIN media m ON h.media_id = %s`, joinKey),
 	); err != nil {
 		return fmt.Errorf("failed to convert history media_id to media_path: %w", err)
 	}
 
-	// Drop old table and rename new one
 	if _, err := tx.ExecContext(ctx, "DROP TABLE history"); err != nil {
 		return fmt.Errorf("failed to drop old history: %w", err)
 	}
-
 	if _, err := tx.ExecContext(ctx, "ALTER TABLE history_tmp RENAME TO history"); err != nil {
 		return fmt.Errorf("failed to rename history_tmp: %w", err)
 	}
@@ -277,47 +374,32 @@ func convertHistoryMediaID(ctx context.Context, db *sql.DB) error {
 	return tx.Commit()
 }
 
-func convertCaptionsMediaID(ctx context.Context, db *sql.DB) error {
-	var hasMediaID bool
-	rows, err := db.QueryContext(ctx, "PRAGMA table_info(captions)")
+func convertCaptionsMediaID(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "captions")
 	if err != nil {
-		if strings.Contains(err.Error(), "no such table") {
-			return nil // Table doesn't exist yet, nothing to convert
-		}
 		return err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name, dtype string
-		var notnull, pk int
-		var dfltValue any
-		if scanErr := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); scanErr != nil {
-			return scanErr
-		}
-		if strings.EqualFold(name, "media_id") {
-			hasMediaID = true
-			break
-		}
-	}
-	if err2 := rows.Err(); err2 != nil {
-		return err2
-	}
-	rows.Close()
-
-	if !hasMediaID {
-		return nil // No conversion needed
+	if !slices.Contains(columns, "media_id") {
+		return nil
 	}
 
-	// Convert media_id to media_path by joining with media table
+	joinKey := mediaIDJoinKey(ctx, db)
+
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS captions_orphaned (
+		media_id INTEGER NOT NULL,
+		time REAL,
+		text TEXT,
+		quarantined_at INTEGER DEFAULT (unixepoch())
+	)`); err != nil {
+		return fmt.Errorf("failed to create captions_orphaned: %w", err)
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Create temp captions table with media_path
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE captions_tmp (
 		media_path TEXT NOT NULL,
 		time REAL,
@@ -327,24 +409,56 @@ func convertCaptionsMediaID(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("failed to create captions_tmp: %w", err)
 	}
 
-	// Copy data, converting media_id to media_path via JOIN
-	if _, err := tx.ExecContext(ctx, `INSERT INTO captions_tmp (media_path, time, text)
-		SELECT COALESCE(m.path, ''), c.time, c.text
-		FROM captions c
-		LEFT JOIN media m ON c.media_id = m.rowid`); err != nil {
+	if _, err := tx.ExecContext(
+		ctx,
+		fmt.Sprintf(`INSERT INTO captions_orphaned (media_id, time, text)
+			SELECT c.media_id, c.time, c.text
+			FROM captions c
+			LEFT JOIN media m ON c.media_id = %s
+			WHERE m.path IS NULL`, joinKey),
+	); err != nil {
+		return fmt.Errorf("failed to quarantine orphaned caption rows: %w", err)
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		fmt.Sprintf(`INSERT INTO captions_tmp (media_path, time, text)
+			SELECT m.path, c.time, c.text
+			FROM captions c
+			JOIN media m ON c.media_id = %s`, joinKey),
+	); err != nil {
 		return fmt.Errorf("failed to convert captions media_id to media_path: %w", err)
 	}
 
-	// Drop old table and rename new one
 	if _, err := tx.ExecContext(ctx, "DROP TABLE captions"); err != nil {
 		return fmt.Errorf("failed to drop old captions: %w", err)
 	}
-
 	if _, err := tx.ExecContext(ctx, "ALTER TABLE captions_tmp RENAME TO captions"); err != nil {
 		return fmt.Errorf("failed to rename captions_tmp: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Dropping captions also drops its FTS triggers. Recreate and rebuild now
+	// so captions_fts never points at stale rowids. An incompatible table is
+	// left for upgradeFTSTable, which can recreate it safely.
+	if IsFtsEnabled() {
+		matches, err := ftsTableMatches(ctx, db, "captions_fts")
+		if err != nil {
+			return err
+		}
+		if matches {
+			if err := ensureCaptionsFTSTriggers(ctx, db); err != nil {
+				return err
+			}
+			if err := rebuildFTSData(ctx, db, "captions_fts"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 var (
@@ -418,9 +532,12 @@ func removeConsecutives(s string, chars []string) string {
 	return s
 }
 
-func migrateColumns(ctx context.Context, db *sql.DB) error {
+func migrateColumns(ctx context.Context, db dbExecer) error {
 	cols := []columnDef{
 		{"playlists", "title", "TEXT"},
+		{"playlists", "time_created", "INTEGER"},
+		{"playlists", "time_modified", "INTEGER"},
+		{"playlists", "hours_update_delay", "INTEGER"},
 		{"playlist_items", "time_added", "INTEGER DEFAULT 0"},
 		{"media", "path_tokenized", "TEXT"},
 		{"media", "description", "TEXT"},
@@ -463,7 +580,7 @@ type columnDef struct {
 	schema string
 }
 
-func addColumnIfNeeded(ctx context.Context, db *sql.DB, c columnDef) error {
+func addColumnIfNeeded(ctx context.Context, db dbExecer, c columnDef) error {
 	exists, err := columnExists(ctx, db, c.table, c.column)
 	if err != nil {
 		return err
@@ -474,32 +591,21 @@ func addColumnIfNeeded(ctx context.Context, db *sql.DB, c columnDef) error {
 	return addColumn(ctx, db, c)
 }
 
-func columnExists(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", table))
+func columnExists(ctx context.Context, db dbExecer, table, column string) (bool, error) {
+	columns, err := tableColumns(ctx, db, table)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
-			return true, nil // Treat missing table as column existing (will be created later)
+			return true, nil // Treat missing table as column existing (it will be created later)
 		}
 		return false, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name, dtype string
-		var notnull, pk int
-		var dfltValue any
-		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
-			return false, err
-		}
-		if strings.EqualFold(name, column) {
-			return true, nil
-		}
+	if len(columns) == 0 {
+		return true, nil // Missing table
 	}
-	return false, rows.Err()
+	return slices.Contains(columns, column), nil
 }
 
-func addColumn(ctx context.Context, db *sql.DB, c columnDef) error {
+func addColumn(ctx context.Context, db dbExecer, c columnDef) error {
 	if _, err := db.ExecContext(
 		ctx,
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.schema),
@@ -518,29 +624,25 @@ func addColumn(ctx context.Context, db *sql.DB, c columnDef) error {
 	return nil
 }
 
-func cleanupMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
-	hasDead, err := needsCleanup(ctx, db, hasStrict)
+func cleanupMediaTable(ctx context.Context, db dbExecer) error {
+	hasDead, err := needsCleanup(ctx, db)
 	if err != nil || !hasDead {
 		return err
 	}
 
-	// 2. Consolidate metadata into description before dropping columns
 	if err := consolidateMetadata(ctx, db); err != nil {
 		return err
 	}
 
-	// 3. Recreate table (SQLite standard way to drop multiple columns and/or add STRICT)
-	return recreateMediaTable(ctx, db, hasStrict)
+	return recreateMediaTable(ctx, db)
 }
 
-func needsCleanup(ctx context.Context, db *sql.DB, hasStrict bool) (bool, error) {
-	rows, err := db.QueryContext(ctx, "PRAGMA table_info(media)")
+func needsCleanup(ctx context.Context, db dbExecer) (bool, error) {
+	columns, err := tableColumns(ctx, db, "media")
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
 
-	hasDeadColumns := false
 	deadColumns := map[string]bool{
 		"upvote_ratio": true, "num_comments": true, "favorite_count": true,
 		"view_count": true, "time_uploaded": true, "uploader": true,
@@ -548,114 +650,237 @@ func needsCleanup(ctx context.Context, db *sql.DB, hasStrict bool) (bool, error)
 		"latitude": true, "longitude": true, "decade": true,
 		"mood": true, "bpm": true, "key": true, "extension": true,
 	}
-
-	for rows.Next() {
-		var cid int
-		var name, dtype string
-		var notnull, pk int
-		var dfltValue any
-		if scanErr := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); scanErr != nil {
-			return false, scanErr
-		}
-		if deadColumns[strings.ToLower(name)] {
-			hasDeadColumns = true
-			break
+	for _, column := range columns {
+		if deadColumns[strings.ToLower(column)] {
+			return true, nil
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return false, err
-	}
 
-	strict := isTableStrict(ctx, db, "media")
-	needsStrictMigration := hasStrict && !strict
-
-	return hasDeadColumns || needsStrictMigration, nil
+	return !isTableStrict(ctx, db, "media"), nil
 }
 
-func consolidateMetadata(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `UPDATE media SET description =
-		COALESCE(description, '') ||
-		CASE WHEN decade IS NOT NULL AND decade != '' THEN '\nDate: ' || decade ELSE '' END ||
-		CASE WHEN mood IS NOT NULL AND mood != '' THEN '\nMood: ' || mood ELSE '' END ||
-		CASE WHEN bpm IS NOT NULL AND bpm != 0 THEN '\nBPM: ' || bpm ELSE '' END ||
-		CASE WHEN "key" IS NOT NULL AND "key" != '' THEN '\nKey: ' || "key" ELSE '' END
-		WHERE decade IS NOT NULL OR mood IS NOT NULL OR bpm IS NOT NULL OR "key" IS NOT NULL`)
+func consolidateMetadata(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "media")
+	if err != nil {
+		return err
+	}
+
+	var valueParts []string
+	var whereParts []string
+	if slices.Contains(columns, "decade") {
+		valueParts = append(valueParts, `CASE WHEN decade IS NOT NULL AND decade != '' `+
+			`THEN '\nDate: ' || decade ELSE '' END`)
+		whereParts = append(whereParts, "decade IS NOT NULL")
+	}
+	if slices.Contains(columns, "mood") {
+		valueParts = append(valueParts, `CASE WHEN mood IS NOT NULL AND mood != '' `+
+			`THEN '\nMood: ' || mood ELSE '' END`)
+		whereParts = append(whereParts, "mood IS NOT NULL")
+	}
+	if slices.Contains(columns, "bpm") {
+		valueParts = append(valueParts, `CASE WHEN bpm IS NOT NULL AND bpm != 0 `+
+			`THEN '\nBPM: ' || bpm ELSE '' END`)
+		whereParts = append(whereParts, "bpm IS NOT NULL")
+	}
+	if slices.Contains(columns, "key") {
+		valueParts = append(valueParts, `CASE WHEN "key" IS NOT NULL AND "key" != '' `+
+			`THEN '\nKey: ' || "key" ELSE '' END`)
+		whereParts = append(whereParts, `"key" IS NOT NULL`)
+	}
+
+	if len(valueParts) == 0 {
+		return nil
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		`UPDATE media SET description = COALESCE(description, '') || %s WHERE %s`,
+		strings.Join(valueParts, " || "),
+		strings.Join(whereParts, " OR "),
+	))
 	return err
 }
 
-func recreateMediaTable(ctx context.Context, db *sql.DB, hasStrict bool) error {
+// canonicalMediaColumns is the production column order, excluding id.
+func canonicalMediaColumns(ftsEnabled bool) []string {
+	columns := []string{"path"}
+	if ftsEnabled {
+		columns = append(columns, "path_tokenized")
+	}
+	return append(columns,
+		"title",
+		"duration",
+		"size",
+		"time_created",
+		"time_modified",
+		"time_deleted",
+		"time_first_played",
+		"time_last_played",
+		"play_count",
+		"playhead",
+		"media_type",
+		"width",
+		"height",
+		"fps",
+		"video_codecs",
+		"audio_codecs",
+		"subtitle_codecs",
+		"video_count",
+		"audio_count",
+		"subtitle_count",
+		"album",
+		"artist",
+		"genre",
+		"categories",
+		"description",
+		"language",
+		"time_downloaded",
+		"score",
+		"fasthash",
+		"sha256",
+		"is_deduped",
+	)
+}
+
+func mediaColumnDefinitions(ftsEnabled bool) map[string]string {
+	definitions := map[string]string{
+		"path":              "TEXT NOT NULL UNIQUE",
+		"path_tokenized":    "TEXT",
+		"title":             "TEXT",
+		"duration":          "INTEGER",
+		"size":              "INTEGER",
+		"time_created":      "INTEGER",
+		"time_modified":     "INTEGER",
+		"time_deleted":      "INTEGER DEFAULT 0",
+		"time_first_played": "INTEGER DEFAULT 0",
+		"time_last_played":  "INTEGER DEFAULT 0",
+		"play_count":        "INTEGER DEFAULT 0",
+		"playhead":          "INTEGER DEFAULT 0",
+		"media_type":        "TEXT",
+		"width":             "INTEGER",
+		"height":            "INTEGER",
+		"fps":               "REAL",
+		"video_codecs":      "TEXT",
+		"audio_codecs":      "TEXT",
+		"subtitle_codecs":   "TEXT",
+		"video_count":       "INTEGER DEFAULT 0",
+		"audio_count":       "INTEGER DEFAULT 0",
+		"subtitle_count":    "INTEGER DEFAULT 0",
+		"album":             "TEXT",
+		"artist":            "TEXT",
+		"genre":             "TEXT",
+		"categories":        "TEXT",
+		"description":       "TEXT",
+		"language":          "TEXT",
+		"time_downloaded":   "INTEGER",
+		"score":             "REAL",
+		"fasthash":          "TEXT",
+		"sha256":            "TEXT",
+		"is_deduped":        "INTEGER DEFAULT 0",
+	}
+	if !ftsEnabled {
+		delete(definitions, "path_tokenized")
+	}
+	return definitions
+}
+
+func recreateMediaTable(ctx context.Context, db dbExecer) error {
+	oldColumns, err := tableColumns(ctx, db, "media")
+	if err != nil {
+		return err
+	}
+
+	ftsEnabled := IsFtsEnabled()
+	columns := canonicalMediaColumns(ftsEnabled)
+	definitions := mediaColumnDefinitions(ftsEnabled)
+
+	var definitionsSQL strings.Builder
+	definitionsSQL.WriteString("id INTEGER PRIMARY KEY AUTOINCREMENT")
+	for _, column := range columns {
+		definitionsSQL.WriteString(",\n")
+		definitionsSQL.WriteString(column)
+		definitionsSQL.WriteString(" ")
+		definitionsSQL.WriteString(definitions[column])
+	}
+
+	// Preserve ids when the old table has them so media rowids and FTS
+	// content_rowid mappings stay stable.
+	copyColumns := make([]string, 0, len(columns)+1)
+	if slices.Contains(oldColumns, "id") {
+		copyColumns = append(copyColumns, "id")
+	}
+	for _, column := range columns {
+		if slices.Contains(oldColumns, column) {
+			copyColumns = append(copyColumns, column)
+		}
+	}
+	if !slices.Contains(copyColumns, "path") {
+		return errors.New("cannot recreate media: old table has no path column")
+	}
+	columnList := strings.Join(copyColumns, ", ")
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	strictSQL := ""
-	if hasStrict {
-		strictSQL = "STRICT"
-	}
-
-	colsDef := "path TEXT PRIMARY KEY, path_tokenized TEXT,"
-	colsNames := "path, path_tokenized,"
-	if !IsFtsEnabled() {
-		colsDef = "path TEXT PRIMARY KEY,"
-		colsNames = "path,"
-	}
-
-	sqls := []string{
-		fmt.Sprintf(`CREATE TABLE media_dg_tmp (
-            %s
-            title TEXT,
-            duration INTEGER,
-            size INTEGER,
-            time_created INTEGER,
-            time_modified INTEGER,
-            time_deleted INTEGER DEFAULT 0,
-            time_first_played INTEGER DEFAULT 0,
-            time_last_played INTEGER DEFAULT 0,
-            play_count INTEGER DEFAULT 0,
-            playhead INTEGER DEFAULT 0,
-            media_type TEXT,
-            width INTEGER,
-            height INTEGER,
-            fps REAL,
-            video_codecs TEXT,
-            audio_codecs TEXT,
-            subtitle_codecs TEXT,
-            video_count INTEGER DEFAULT 0,
-            audio_count INTEGER DEFAULT 0,
-            subtitle_count INTEGER DEFAULT 0,
-            album TEXT,
-            artist TEXT,
-            genre TEXT,
-            categories TEXT,
-            description TEXT,
-            language TEXT,
-            time_downloaded INTEGER,
-            score REAL,
-            fasthash TEXT,
-            sha256 TEXT,
-            is_deduped INTEGER DEFAULT 0
-        ) %s`, colsDef, strictSQL),
+	statements := []string{
+		fmt.Sprintf("CREATE TABLE media_dg_tmp (\n%s\n) STRICT", definitionsSQL.String()),
 		fmt.Sprintf(
-			"INSERT INTO media_dg_tmp (%s title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped) SELECT %s title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped FROM media",
-			colsNames,
-			colsNames,
+			"INSERT INTO media_dg_tmp (%s) SELECT %s FROM media",
+			columnList,
+			columnList,
 		),
 		"DROP TABLE media",
 		"ALTER TABLE media_dg_tmp RENAME TO media",
 	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("failed to recreate media table: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
-	for _, s := range sqls {
-		if _, err := tx.ExecContext(ctx, s); err != nil {
+	if ftsEnabled {
+		if err := refreshFTSAfterMediaRecreation(ctx, db); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func refreshFTSAfterMediaRecreation(ctx context.Context, db dbExecer) error {
+	mediaFTSMatches, err := ftsTableMatches(ctx, db, "media_fts")
+	if err != nil {
+		return err
+	}
+	if mediaFTSMatches {
+		if err := ensureMediaFTSTriggers(ctx, db); err != nil {
+			return err
+		}
+		if err := rebuildFTSData(ctx, db, "media_fts"); err != nil {
 			return err
 		}
 	}
 
-	return tx.Commit()
+	captionsFTSMatches, err := ftsTableMatches(ctx, db, "captions_fts")
+	if err != nil {
+		return err
+	}
+	if captionsFTSMatches {
+		if err := ensureCaptionsFTSTriggers(ctx, db); err != nil {
+			return err
+		}
+		if err := rebuildFTSData(ctx, db, "captions_fts"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func populatePathTokenized(ctx context.Context, db *sql.DB) error {
+func populatePathTokenized(ctx context.Context, db dbExecer) error {
 	rows, err := db.QueryContext(ctx, "SELECT path FROM media WHERE path_tokenized IS NULL")
 	if err != nil {
 		return err
@@ -706,17 +931,8 @@ func populatePathTokenized(ctx context.Context, db *sql.DB) error {
 	return tx.Commit()
 }
 
-func migrateTables(ctx context.Context, db *sql.DB, hasStrict bool) error {
-	strictSQL := ""
-	if hasStrict {
-		strictSQL = "STRICT"
-	}
-
-	if err := convertColumnsBeforeStrict(ctx, db); err != nil {
-		return fmt.Errorf("failed to convert columns: %w", err)
-	}
-
-	if err := migrateTablesToStrict(ctx, db, strictSQL, hasStrict); err != nil {
+func migrateTables(ctx context.Context, db dbExecer) error {
+	if err := migrateStrictTables(ctx, db); err != nil {
 		return err
 	}
 
@@ -725,11 +941,25 @@ func migrateTables(ctx context.Context, db *sql.DB, hasStrict bool) error {
 	}
 
 	if IsFtsEnabled() {
-		if err := upgradeFTSTable(ctx, db, "media_fts", "description"); err != nil {
-			return err
+		for _, tableName := range []string{"media_fts", "captions_fts"} {
+			if err := upgradeFTSTable(ctx, db, tableName); err != nil {
+				return err
+			}
 		}
-		if err := upgradeFTSTable(ctx, db, "captions_fts", ""); err != nil {
+
+		if exists, err := tableExists(ctx, db, "media_fts"); err != nil {
 			return err
+		} else if exists {
+			if err := ensureMediaFTSTriggers(ctx, db); err != nil {
+				return err
+			}
+		}
+		if exists, err := tableExists(ctx, db, "captions_fts"); err != nil {
+			return err
+		} else if exists {
+			if err := ensureCaptionsFTSTriggers(ctx, db); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -741,9 +971,9 @@ type tableMigration struct {
 	sql  string
 }
 
-func strictTableMigrations(strictSQL string) []tableMigration {
+func strictTableMigrations() []tableMigration {
 	return []tableMigration{
-		{"playlists", fmt.Sprintf(`CREATE TABLE playlists (
+		{"playlists", `CREATE TABLE playlists (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT UNIQUE,
                 title TEXT,
@@ -753,8 +983,8 @@ func strictTableMigrations(strictSQL string) []tableMigration {
                 time_modified INTEGER,
                 hours_update_delay INTEGER,
                 time_deleted INTEGER DEFAULT 0
-            ) %s`, strictSQL)},
-		{"playlist_items", fmt.Sprintf(`CREATE TABLE playlist_items (
+            ) STRICT`},
+		{"playlist_items", `CREATE TABLE playlist_items (
                 playlist_id INTEGER NOT NULL,
                 media_path TEXT NOT NULL,
                 track_number INTEGER,
@@ -762,38 +992,31 @@ func strictTableMigrations(strictSQL string) []tableMigration {
                 PRIMARY KEY (playlist_id, media_path),
                 FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-            ) %s`, strictSQL)},
-		{"captions", fmt.Sprintf(`CREATE TABLE captions (
+            ) STRICT`},
+		{"captions", `CREATE TABLE captions (
                 media_path TEXT NOT NULL,
                 time REAL,
                 text TEXT,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-            ) %s`, strictSQL)},
-		{"history", fmt.Sprintf(`CREATE TABLE history (
+            ) STRICT`},
+		{"history", `CREATE TABLE history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 media_path TEXT NOT NULL,
                 time_played INTEGER DEFAULT (unixepoch()),
                 playhead INTEGER,
                 done INTEGER,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
-            ) %s`, strictSQL)},
-		{"custom_keywords", fmt.Sprintf(`CREATE TABLE custom_keywords (
+            ) STRICT`},
+		{"custom_keywords", `CREATE TABLE custom_keywords (
                 category TEXT NOT NULL,
                 keyword TEXT NOT NULL,
                 PRIMARY KEY (category, keyword)
-            ) %s`, strictSQL)},
+            ) STRICT`},
 	}
 }
 
-func migrateTablesToStrict(ctx context.Context, db *sql.DB, strictSQL string, hasStrict bool) error {
-	if hasStrict {
-		return migrateStrictTables(ctx, db, strictSQL)
-	}
-	return migrateLegacyTables(ctx, db)
-}
-
-func migrateStrictTables(ctx context.Context, db *sql.DB, strictSQL string) error {
-	for _, m := range strictTableMigrations(strictSQL) {
+func migrateStrictTables(ctx context.Context, db dbExecer) error {
+	for _, m := range strictTableMigrations() {
 		if !IsFtsEnabled() && m.name == "captions" {
 			continue
 		}
@@ -804,13 +1027,12 @@ func migrateStrictTables(ctx context.Context, db *sql.DB, strictSQL string) erro
 	return nil
 }
 
-func migrateOrCreateTable(ctx context.Context, db *sql.DB, name, createSQL string) error {
-	var exists int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", name).
-		Scan(&exists); err != nil {
+func migrateOrCreateTable(ctx context.Context, db dbExecer, name, createSQL string) error {
+	exists, err := tableExists(ctx, db, name)
+	if err != nil {
 		return err
 	}
-	if exists > 0 {
+	if exists {
 		if err := migrateToStrict(ctx, db, name, createSQL); err != nil {
 			return fmt.Errorf("migrateToStrict failed for %s: %w", name, err)
 		}
@@ -822,33 +1044,12 @@ func migrateOrCreateTable(ctx context.Context, db *sql.DB, name, createSQL strin
 	return nil
 }
 
-func migrateLegacyTables(ctx context.Context, db *sql.DB) error {
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS custom_keywords (
-            category TEXT NOT NULL,
-            keyword TEXT NOT NULL,
-            PRIMARY KEY (category, keyword)
-        )`); err != nil {
-		return fmt.Errorf("failed to create custom_keywords table: %w", err)
-	}
-	return nil
-}
-
-func dropIncompatibleFolderStatsTable(ctx context.Context, db *sql.DB) error {
-	rows, err := db.QueryContext(ctx, "PRAGMA table_info(folder_stats)")
+func dropIncompatibleFolderStatsTable(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "folder_stats")
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-
-	colCount := 0
-	for rows.Next() {
-		colCount++
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	if colCount > 0 && colCount != 5 {
+	if len(columns) > 0 && len(columns) != 4 {
 		if _, err := db.ExecContext(ctx, "DROP TABLE folder_stats"); err != nil {
 			return fmt.Errorf("failed to drop incompatible folder_stats table: %w", err)
 		}
@@ -856,14 +1057,13 @@ func dropIncompatibleFolderStatsTable(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func createMaintenanceTables(ctx context.Context, db *sql.DB) error {
+func createMaintenanceTables(ctx context.Context, db dbExecer) error {
 	if err := dropIncompatibleFolderStatsTable(ctx, db); err != nil {
 		return err
 	}
 
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS folder_stats (
 		parent TEXT PRIMARY KEY,
-		depth INTEGER,
 		file_count INTEGER,
 		total_size INTEGER,
 		total_duration INTEGER
@@ -897,13 +1097,6 @@ func createMaintenanceTables(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	if _, err := db.ExecContext(
-		ctx,
-		`CREATE INDEX IF NOT EXISTS idx_folder_stats_depth ON folder_stats(depth)`,
-	); err != nil {
-		return fmt.Errorf("failed to create folder_stats index: %w", err)
-	}
-
 	for _, triggerSQL := range []string{
 		`CREATE TRIGGER IF NOT EXISTS folder_stats_media_insert
 		AFTER INSERT ON media
@@ -929,7 +1122,7 @@ func createMaintenanceTables(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func initMaintenanceMeta(ctx context.Context, db *sql.DB, key string) error {
+func initMaintenanceMeta(ctx context.Context, db dbExecer, key string) error {
 	if _, err := db.ExecContext(
 		ctx,
 		`INSERT OR IGNORE INTO _maintenance_meta (key, value, last_updated) VALUES (?, '0', 0)`,
@@ -940,22 +1133,81 @@ func initMaintenanceMeta(ctx context.Context, db *sql.DB, key string) error {
 	return nil
 }
 
-func upgradeFTSTable(ctx context.Context, db *sql.DB, tableName, expectedSQLPart string) error {
-	existingSQL, err := getTableSQL(ctx, db, tableName)
-	if err != nil || existingSQL == "" {
-		return err
+func normalizeSQL(statement string) string {
+	normalized := strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r == ';' {
+			return -1
+		}
+		return unicode.ToLower(r)
+	}, statement)
+	return strings.ReplaceAll(normalized, "ifnotexists", "")
+}
+
+func ftsTableMatches(ctx context.Context, db dbExecer, tableName string) (bool, error) {
+	exists, err := tableExists(ctx, db, tableName)
+	if err != nil || !exists {
+		return false, err
 	}
 
-	if strings.Contains(existingSQL, "trigram") &&
-		(expectedSQLPart == "" || strings.Contains(existingSQL, expectedSQLPart)) {
+	columns, err := tableColumns(ctx, db, tableName)
+	if err != nil {
+		return false, err
+	}
 
+	var expectedColumns, expectedSQLParts []string
+	switch tableName {
+	case "media_fts":
+		expectedColumns = []string{"path", "path_tokenized", "title", "description", "time_deleted"}
+		expectedSQLParts = []string{"content='media'", "content_rowid='rowid'"}
+	case "captions_fts":
+		expectedColumns = []string{"media_path", "text"}
+		expectedSQLParts = []string{"content='captions'"}
+	default:
+		return false, fmt.Errorf("unknown FTS table %s", tableName)
+	}
+
+	if !slices.Equal(columns, expectedColumns) {
+		return false, nil
+	}
+
+	existingSQL, err := getTableSQL(ctx, db, tableName)
+	if err != nil {
+		return false, err
+	}
+	normalized := normalizeSQL(existingSQL)
+	if !strings.Contains(normalized, "usingfts5(") {
+		return false, nil
+	}
+	expectedSQLParts = append(expectedSQLParts, "tokenize='trigram'", "detail='full'")
+	for _, part := range expectedSQLParts {
+		if !strings.Contains(normalized, normalizeSQL(part)) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func upgradeFTSTable(ctx context.Context, db dbExecer, tableName string) error {
+	matches, err := ftsTableMatches(ctx, db, tableName)
+	if err != nil {
+		return err
+	}
+	if matches {
 		return nil
 	}
 
-	return rebuildFTSTable(ctx, db, tableName, existingSQL)
+	existingSQL, err := getTableSQL(ctx, db, tableName)
+	if err != nil {
+		return err
+	}
+	if existingSQL == "" {
+		return nil
+	}
+
+	return rebuildFTSTable(ctx, db, tableName)
 }
 
-func getTableSQL(ctx context.Context, db *sql.DB, tableName string) (string, error) {
+func getTableSQL(ctx context.Context, db dbExecer, tableName string) (string, error) {
 	var existingSQL string
 	err := db.QueryRowContext(ctx, "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).
 		Scan(&existingSQL)
@@ -968,22 +1220,40 @@ func getTableSQL(ctx context.Context, db *sql.DB, tableName string) (string, err
 	return existingSQL, nil
 }
 
-func rebuildFTSTable(ctx context.Context, db *sql.DB, tableName, _ string) error {
-	if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
-		return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)
+func getTriggerSQL(ctx context.Context, db dbExecer, triggerName string) (string, error) {
+	var triggerSQL string
+	err := db.QueryRowContext(ctx, "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", triggerName).
+		Scan(&triggerSQL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
 	}
+	return triggerSQL, nil
+}
 
+func rebuildFTSTable(ctx context.Context, db dbExecer, tableName string) error {
 	createSQL := ftsCreateSQL(tableName)
 	if createSQL == "" {
-		return nil
+		return fmt.Errorf("no FTS schema defined for %s", tableName)
+	}
+
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
+		return fmt.Errorf("failed to drop %s for upgrade: %w", tableName, err)
 	}
 
 	if _, err := db.ExecContext(ctx, createSQL); err != nil {
 		return fmt.Errorf("failed to recreate %s: %w", tableName, err)
 	}
 
-	if tableName == "media_fts" {
-		if err := createFTSTriggers(ctx, db); err != nil {
+	switch tableName {
+	case "media_fts":
+		if err := ensureMediaFTSTriggers(ctx, db); err != nil {
+			return err
+		}
+	case "captions_fts":
+		if err := ensureCaptionsFTSTriggers(ctx, db); err != nil {
 			return err
 		}
 	}
@@ -1017,96 +1287,179 @@ func ftsCreateSQL(tableName string) string {
 	return ""
 }
 
-func createFTSTriggers(ctx context.Context, db *sql.DB) error {
-	for _, tsql := range ftsTriggerSQLs() {
-		if _, err := db.ExecContext(ctx, tsql); err != nil {
-			return fmt.Errorf("failed to recreate trigger: %w", err)
+func ensureTrigger(ctx context.Context, db dbExecer, name, createSQL string) error {
+	existingSQL, err := getTriggerSQL(ctx, db, name)
+	if err != nil {
+		return err
+	}
+	if existingSQL != "" && normalizeSQL(existingSQL) == normalizeSQL(createSQL) {
+		return nil
+	}
+	if existingSQL != "" {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP TRIGGER %s", name)); err != nil {
+			return fmt.Errorf("failed to drop outdated trigger %s: %w", name, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, createSQL); err != nil {
+		return fmt.Errorf("failed to create trigger %s: %w", name, err)
+	}
+	return nil
+}
+
+func ensureMediaFTSTriggers(ctx context.Context, db dbExecer) error {
+	return ensureTriggerSet(ctx, db, mediaFTSTriggerSQLs())
+}
+
+func ensureCaptionsFTSTriggers(ctx context.Context, db dbExecer) error {
+	return ensureTriggerSet(ctx, db, captionsFTSTriggerSQLs())
+}
+
+func ensureTriggerSet(ctx context.Context, db dbExecer, triggers []triggerDef) error {
+	for _, trigger := range triggers {
+		if err := ensureTrigger(ctx, db, trigger.name, trigger.sql); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func ftsTriggerSQLs() []string {
-	return []string{
-		`CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
+type triggerDef struct {
+	name string
+	sql  string
+}
+
+func mediaFTSTriggerSQLs() []triggerDef {
+	return []triggerDef{
+		{"media_ai", `CREATE TRIGGER IF NOT EXISTS media_ai AFTER INSERT ON media BEGIN
 			INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted)
 			VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description, new.time_deleted);
-		END;`,
-		`CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
+		END;`},
+		{"media_ad", `CREATE TRIGGER IF NOT EXISTS media_ad AFTER DELETE ON media BEGIN
 			DELETE FROM media_fts WHERE rowid = old.rowid;
-		END;`,
-		`CREATE TRIGGER IF NOT EXISTS media_au AFTER UPDATE ON media BEGIN
+		END;`},
+		{"media_au", `CREATE TRIGGER IF NOT EXISTS media_au AFTER UPDATE ON media BEGIN
 			INSERT INTO media_fts(media_fts, rowid, path, path_tokenized, title, description, time_deleted) VALUES('delete', old.rowid, old.path, old.path_tokenized, old.title, old.description, old.time_deleted);
 			INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) VALUES (new.rowid, new.path, new.path_tokenized, new.title, new.description, new.time_deleted);
-		END;`,
+		END;`},
 	}
 }
 
-func rebuildFTSData(ctx context.Context, db *sql.DB, tableName string) error {
-	switch tableName {
-	case "media_fts":
-		if _, err := db.ExecContext(
-			ctx,
-			"INSERT INTO media_fts(rowid, path, path_tokenized, title, description, time_deleted) SELECT rowid, path, path_tokenized, title, description, time_deleted FROM media",
-		); err != nil {
-			return fmt.Errorf("failed to rebuild media_fts: %w", err)
-		}
-	case "captions_fts":
-		if _, err := db.ExecContext(
-			ctx,
-			"INSERT INTO captions_fts(rowid, media_path, text) SELECT rowid, media_path, text FROM captions",
-		); err != nil {
-			return fmt.Errorf("failed to rebuild captions_fts: %w", err)
-		}
+func captionsFTSTriggerSQLs() []triggerDef {
+	return []triggerDef{
+		{"captions_ai", `CREATE TRIGGER IF NOT EXISTS captions_ai AFTER INSERT ON captions BEGIN
+			INSERT INTO captions_fts(rowid, media_path, text)
+			VALUES (new.rowid, new.media_path, new.text);
+		END;`},
+		{"captions_ad", `CREATE TRIGGER IF NOT EXISTS captions_ad AFTER DELETE ON captions BEGIN
+			DELETE FROM captions_fts WHERE rowid = old.rowid;
+		END;`},
+		{"captions_au", `CREATE TRIGGER IF NOT EXISTS captions_au AFTER UPDATE ON captions BEGIN
+			INSERT INTO captions_fts(captions_fts, rowid, media_path, text)
+			VALUES('delete', old.rowid, old.media_path, old.text);
+			INSERT INTO captions_fts(rowid, media_path, text)
+			VALUES (new.rowid, new.media_path, new.text);
+		END;`},
+	}
+}
+
+func rebuildFTSData(ctx context.Context, db dbExecer, tableName string) error {
+	exists, err := tableExists(ctx, db, tableName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		fmt.Sprintf("INSERT INTO %s(%s) VALUES('rebuild')", tableName, tableName),
+	); err != nil {
+		return fmt.Errorf("failed to rebuild %s: %w", tableName, err)
 	}
 	return nil
 }
 
-func migrateIndexes(ctx context.Context, db *sql.DB) error {
-	indexes := []string{
-		// Core indexes
-		"CREATE INDEX IF NOT EXISTS idx_path ON media(path)",
-		"CREATE INDEX IF NOT EXISTS idx_media_type ON media(media_type)",
-		"CREATE INDEX IF NOT EXISTS idx_genre ON media(genre)",
-		"CREATE INDEX IF NOT EXISTS idx_artist ON media(artist)",
-		"CREATE INDEX IF NOT EXISTS idx_album ON media(album)",
-		"CREATE INDEX IF NOT EXISTS idx_categories ON media(categories)",
-		"CREATE INDEX IF NOT EXISTS idx_score ON media(score)",
-		"CREATE INDEX IF NOT EXISTS idx_time_created ON media(time_created)",
-		"CREATE INDEX IF NOT EXISTS idx_time_modified ON media(time_modified)",
-		"CREATE INDEX IF NOT EXISTS idx_time_downloaded ON media(time_downloaded)",
-		"CREATE INDEX IF NOT EXISTS idx_size ON media(size)",
-		"CREATE INDEX IF NOT EXISTS idx_duration ON media(duration)",
-		// Composite indexes for common filtered queries
-		"CREATE INDEX IF NOT EXISTS idx_media_deleted_type ON media(time_deleted, media_type)",
-		"CREATE INDEX IF NOT EXISTS idx_media_deleted_size ON media(time_deleted, size)",
-		"CREATE INDEX IF NOT EXISTS idx_media_deleted_duration ON media(time_deleted, duration)",
-		"CREATE INDEX IF NOT EXISTS idx_media_deleted_path ON media(time_deleted, path)",
-		// Partial index for active media (most common query pattern)
-		"CREATE INDEX IF NOT EXISTS idx_media_active ON media(path, media_type) WHERE time_deleted = 0",
-		// Indexes for filter bins calculation (optimize include_counts)
-		"CREATE INDEX IF NOT EXISTS idx_media_active_size ON media(size) WHERE time_deleted = 0 AND size > 0",
-		"CREATE INDEX IF NOT EXISTS idx_media_active_duration ON media(duration) WHERE time_deleted = 0 AND duration > 0",
-		"CREATE INDEX IF NOT EXISTS idx_media_active_time_modified ON media(time_modified) WHERE time_deleted = 0 AND time_modified > 0",
-		"CREATE INDEX IF NOT EXISTS idx_media_active_time_created ON media(time_created) WHERE time_deleted = 0 AND time_created > 0",
-		"CREATE INDEX IF NOT EXISTS idx_media_active_time_downloaded ON media(time_downloaded) WHERE time_deleted = 0 AND time_downloaded > 0",
+func migrateIndexes(ctx context.Context, db dbExecer) error {
+	// Use the canonical schema so fresh and migrated databases get exactly the
+	// same index set.
+	if _, err := db.ExecContext(ctx, schema.GetCoreIndexes()); err != nil {
+		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
-	for _, idx := range indexes {
-		if _, err := db.ExecContext(ctx, idx); err != nil {
-			return fmt.Errorf("failed to create index: %w", err)
+	// Remove legacy redundant indexes. The UNIQUE constraint on media.path
+	// already provides the idx_path lookup, and idx_type was renamed to
+	// idx_media_type.
+	for _, indexName := range []string{"idx_path", "idx_type"} {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)); err != nil {
+			return fmt.Errorf("failed to drop redundant index %s: %w", indexName, err)
 		}
 	}
 
-	// Remove unused function-based index (SQLite can't use it efficiently)
-	if _, err := db.ExecContext(ctx, "DROP INDEX IF EXISTS idx_path_prefix"); err != nil {
-		return fmt.Errorf("failed to drop idx_path_prefix: %w", err)
+	// The maintenance scan is no longer part of every migration. Populate only
+	// when the materialized view has never been filled.
+	empty, err := folderStatsEmpty(ctx, db)
+	if err != nil {
+		return err
 	}
-
-	// Populate folder_stats materialized view
-	if err := PopulateFolderStatsInGo(ctx, db); err != nil {
-		return fmt.Errorf("failed to populate folder_stats: %w", err)
+	if empty {
+		if err := populateFolderStats(ctx, db); err != nil {
+			return fmt.Errorf("failed to populate folder_stats: %w", err)
+		}
+		if err := markFolderStatsRefreshed(ctx, db); err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// quarantineOrphanPlaylistItems moves playlist_items rows whose media or
+// playlist is missing into playlist_items_orphaned. This keeps
+// PRAGMA foreign_key_check clean without silently discarding the rows.
+func quarantineOrphanPlaylistItems(ctx context.Context, db dbExecer) error {
+	exists, err := tableExists(ctx, db, "playlist_items")
+	if err != nil || !exists {
+		return err
+	}
+
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS playlist_items_orphaned (
+		playlist_id INTEGER NOT NULL,
+		media_path TEXT NOT NULL,
+		track_number INTEGER,
+		time_added INTEGER,
+		reason TEXT NOT NULL,
+		quarantined_at INTEGER DEFAULT (unixepoch())
+	)`); err != nil {
+		return fmt.Errorf("failed to create playlist_items_orphaned: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO playlist_items_orphaned (playlist_id, media_path, track_number, time_added, reason)
+		SELECT pi.playlist_id, pi.media_path, pi.track_number, pi.time_added,
+			CASE
+				WHEN NOT EXISTS (SELECT 1 FROM media m WHERE m.path = pi.media_path) THEN 'missing media'
+				ELSE 'missing playlist'
+			END
+		FROM playlist_items pi
+		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = pi.media_path)
+		   OR NOT EXISTS (SELECT 1 FROM playlists p WHERE p.id = pi.playlist_id)
+	`); err != nil {
+		return fmt.Errorf("failed to quarantine orphaned playlist_items: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM playlist_items
+		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = playlist_items.media_path)
+		   OR NOT EXISTS (SELECT 1 FROM playlists p WHERE p.id = playlist_items.playlist_id)
+	`); err != nil {
+		return fmt.Errorf("failed to remove orphaned playlist_items: %w", err)
+	}
+
+	return tx.Commit()
 }

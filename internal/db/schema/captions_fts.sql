@@ -16,3 +16,10 @@ END;
 CREATE TRIGGER IF NOT EXISTS captions_ad AFTER DELETE ON captions BEGIN
     DELETE FROM captions_fts WHERE rowid = old.rowid;
 END;
+
+CREATE TRIGGER IF NOT EXISTS captions_au AFTER UPDATE ON captions BEGIN
+    INSERT INTO captions_fts(captions_fts, rowid, media_path, text)
+    VALUES('delete', old.rowid, old.media_path, old.text);
+    INSERT INTO captions_fts(rowid, media_path, text)
+    VALUES (new.rowid, new.media_path, new.text);
+END;

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -54,49 +55,63 @@ func GetMaintenanceStatus(ctx context.Context, db *sql.DB) (MaintenanceStatus, e
 	return status, nil
 }
 
-// NeedsRefresh checks if maintenance tasks need to be run based on the last refresh time
+// NeedsRefresh checks if maintenance tasks need to be run.
+//
+// folder_stats uses a dirty bit written by media triggers and cleared after a
+// successful refresh. FTS still uses the timestamp interval because rewriting
+// the full-text index is expensive and not tied to a single write.
 func NeedsRefresh(ctx context.Context, db *sql.DB, interval time.Duration) (bool, error) {
 	status, err := GetMaintenanceStatus(ctx, db)
 	if err != nil {
 		return true, err // If we can't check, assume we need to refresh
 	}
 
-	needsRefresh := time.Since(status.FolderStatsLastRefresh) > interval ||
-		time.Since(status.FTSLastRebuild) > interval
+	var dirty int
+	err = db.QueryRowContext(ctx, "SELECT dirty FROM folder_stats_meta WHERE id = 1").Scan(&dirty)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return true, err
+	}
 
-	return needsRefresh, nil
+	folderStatsDirty := dirty != 0 || status.FolderStatsLastRefresh.IsZero()
+	ftsStale := status.FTSLastRebuild.IsZero() || time.Since(status.FTSLastRebuild) > interval
+
+	return folderStatsDirty || ftsStale, nil
 }
 
-// RefreshFolderStats rebuilds the folder_stats materialized view
+// RefreshFolderStats rebuilds the folder_stats materialized view and clears
+// the dirty bit.
 func RefreshFolderStats(ctx context.Context, db *sql.DB) error {
 	Log.Info("Refreshing folder_stats materialized view...")
 	start := time.Now()
 
-	// Clear existing data
-	if _, err := db.ExecContext(ctx, "DELETE FROM folder_stats"); err != nil {
-		return fmt.Errorf("failed to clear folder_stats: %w", err)
-	}
-
-	// Use Go approach (SQLite doesn't have reverse() function)
 	if err := PopulateFolderStatsInGo(ctx, db); err != nil {
 		return fmt.Errorf("failed to populate folder_stats: %w", err)
 	}
 
-	// Update metadata
-	now := time.Now().Unix()
-	_, err := db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO _maintenance_meta (key, value, last_updated)
-		VALUES ('folder_stats_last_refresh', ?, ?)
-	`, "success", now)
-	if err != nil {
-		return fmt.Errorf("failed to update metadata: %w", err)
+	// Update metadata and clear the dirty bit only after a successful rebuild.
+	if err := markFolderStatsRefreshed(ctx, db); err != nil {
+		return err
 	}
 
 	Log.Info("folder_stats refresh completed", "duration", time.Since(start))
 	return nil
 }
 
-// RebuildFTS rebuilds the FTS index
+func markFolderStatsRefreshed(ctx context.Context, db dbExecer) error {
+	now := time.Now().Unix()
+	if _, err := db.ExecContext(ctx, `
+		INSERT OR REPLACE INTO _maintenance_meta (key, value, last_updated)
+		VALUES ('folder_stats_last_refresh', ?, ?)
+	`, "success", now); err != nil {
+		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE folder_stats_meta SET dirty = 0 WHERE id = 1"); err != nil {
+		return fmt.Errorf("failed to clear folder_stats dirty bit: %w", err)
+	}
+	return nil
+}
+
+// RebuildFTS rebuilds the FTS indexes.
 func RebuildFTS(ctx context.Context, db *sql.DB, dbPath string) error {
 	Log.Info("Rebuilding FTS index...", "db", dbPath)
 	start := time.Now()
@@ -106,7 +121,7 @@ func RebuildFTS(ctx context.Context, db *sql.DB, dbPath string) error {
 	err := db.QueryRowContext(ctx, `
 		SELECT EXISTS (
 			SELECT 1 FROM sqlite_master
-			WHERE type='virtual' AND name='media_fts'
+			WHERE type='table' AND name='media_fts'
 		)
 	`).Scan(&exists)
 	if err != nil {
@@ -117,10 +132,24 @@ func RebuildFTS(ctx context.Context, db *sql.DB, dbPath string) error {
 		return nil
 	}
 
-	// Rebuild FTS using the special rebuild command
-	_, err = db.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('rebuild')")
+	if _, err = db.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('rebuild')"); err != nil {
+		return fmt.Errorf("failed to rebuild media_fts: %w", err)
+	}
+
+	var hasCaptionsFTS bool
+	err = db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM sqlite_master
+			WHERE type='table' AND name='captions_fts'
+		)
+	`).Scan(&hasCaptionsFTS)
 	if err != nil {
-		return fmt.Errorf("failed to rebuild FTS: %w", err)
+		return fmt.Errorf("failed to check captions FTS table: %w", err)
+	}
+	if hasCaptionsFTS {
+		if _, err = db.ExecContext(ctx, "INSERT INTO captions_fts(captions_fts) VALUES('rebuild')"); err != nil {
+			return fmt.Errorf("failed to rebuild captions_fts: %w", err)
+		}
 	}
 
 	// Update metadata
@@ -166,9 +195,14 @@ func RunMaintenance(ctx context.Context, db *sql.DB, config MaintenanceConfig, d
 	return nil
 }
 
-// PopulateFolderStatsInGo populates folder_stats using Go path manipulation
-// This is used by both maintenance and migration code
+// PopulateFolderStatsInGo populates folder_stats using Go path manipulation.
+// It replaces the whole materialized view so folders that no longer contain
+// media do not leave stale rows behind.
 func PopulateFolderStatsInGo(ctx context.Context, db *sql.DB) error {
+	return populateFolderStats(ctx, db)
+}
+
+func populateFolderStats(ctx context.Context, db dbExecer) error {
 	rows, err := db.QueryContext(ctx, `
 		SELECT path, COALESCE(size, 0), COALESCE(duration, 0)
 		FROM media
@@ -203,21 +237,44 @@ func PopulateFolderStatsInGo(ctx context.Context, db *sql.DB) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	rows.Close()
 
-	// Insert into folder_stats
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM folder_stats"); err != nil {
+		return err
+	}
+
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO folder_stats (parent, file_count, total_size, total_duration)
+		VALUES (?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
 	for parent, data := range folderMap {
-		depth := strings.Count(strings.ReplaceAll(parent, "\\", "/"), "/")
-		if parent != "" && parent != "." {
-			depth = strings.Count(strings.ReplaceAll(parent, "\\", "/"), "/")
-		}
-		_, err := db.ExecContext(ctx, `
-			INSERT OR REPLACE INTO folder_stats (parent, depth, file_count, total_size, total_duration)
-			VALUES (?, ?, ?, ?, ?)
-		`, parent, depth, data.count, data.size, data.duration)
-		if err != nil {
+		if _, err := stmt.ExecContext(ctx, parent, data.count, data.size, data.duration); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return tx.Commit()
+}
+
+func folderStatsEmpty(ctx context.Context, db dbExecer) (bool, error) {
+	var empty bool
+	err := db.QueryRowContext(ctx, "SELECT NOT EXISTS(SELECT 1 FROM folder_stats)").Scan(&empty)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return true, nil
+		}
+		return false, err
+	}
+	return empty, nil
 }

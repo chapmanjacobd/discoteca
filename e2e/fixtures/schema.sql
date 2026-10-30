@@ -51,6 +51,9 @@ CREATE TABLE playlists (
     title TEXT,
     extractor_key TEXT,
     extractor_config TEXT,
+    time_created INTEGER,
+    time_modified INTEGER,
+    hours_update_delay INTEGER,
     time_deleted INTEGER DEFAULT 0
 ) STRICT;
 CREATE TABLE playlist_items (
@@ -77,7 +80,6 @@ CREATE TABLE custom_keywords (
 ) STRICT;
 CREATE TABLE folder_stats (
     parent TEXT PRIMARY KEY,
-    depth INTEGER,
     file_count INTEGER,
     total_size INTEGER,
     total_duration INTEGER
@@ -97,8 +99,6 @@ CREATE TABLE captions (
                 text TEXT,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
             ) STRICT;
-CREATE INDEX idx_folder_stats_depth ON folder_stats(depth);
-CREATE INDEX idx_path ON media(path);
 CREATE INDEX idx_media_type ON media(media_type);
 CREATE INDEX idx_genre ON media(genre);
 CREATE INDEX idx_artist ON media(artist);
@@ -122,7 +122,6 @@ CREATE INDEX idx_media_active_time_created ON media(time_created) WHERE time_del
 CREATE INDEX idx_media_active_time_downloaded ON media(time_downloaded) WHERE time_deleted = 0 AND time_downloaded > 0;
 CREATE INDEX idx_time_deleted ON media(time_deleted);
 CREATE INDEX idx_time_last_played ON media(time_last_played);
-CREATE INDEX idx_type ON media(media_type);
 CREATE INDEX idx_history_path ON history(media_path);
 CREATE INDEX idx_history_time ON history(time_played);
 CREATE INDEX idx_captions_path ON captions(media_path);

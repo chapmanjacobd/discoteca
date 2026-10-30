@@ -485,7 +485,6 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 	defer c.Close()
 	models.SetupLogging(c.Verbose)
 	db.InitFtsConfig()
-	db.SetFtsEnabled(true)
 	db.SetCacheSizeMB(c.DBCacheMB)
 
 	// Initialize MIME types

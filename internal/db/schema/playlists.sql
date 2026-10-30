@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS playlists (
     title TEXT,
     extractor_key TEXT,
     extractor_config TEXT,
+    time_created INTEGER,
+    time_modified INTEGER,
+    hours_update_delay INTEGER,
     time_deleted INTEGER DEFAULT 0
 ) STRICT;
 

@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS custom_keywords (
 -- This pre-aggregates folder-level stats to avoid expensive GROUP BY queries
 CREATE TABLE IF NOT EXISTS folder_stats (
     parent TEXT PRIMARY KEY,
-    depth INTEGER,
     file_count INTEGER,
     total_size INTEGER,
     total_duration INTEGER
@@ -20,6 +19,26 @@ CREATE TABLE IF NOT EXISTS folder_stats_meta (
 );
 
 INSERT OR IGNORE INTO folder_stats_meta (id, dirty) VALUES (1, 1);
+
+-- Triggers mark folder_stats dirty after media changes. The dirty bit is
+-- read by NeedsRefresh and cleared by RefreshFolderStats.
+CREATE TRIGGER IF NOT EXISTS folder_stats_media_insert
+AFTER INSERT ON media
+BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS folder_stats_media_delete
+AFTER DELETE ON media
+BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS folder_stats_media_update
+AFTER UPDATE OF path, size, duration, time_deleted ON media
+BEGIN
+    UPDATE folder_stats_meta SET dirty = 1 WHERE id = 1;
+END;
 
 -- Metadata table for tracking maintenance tasks
 CREATE TABLE IF NOT EXISTS _maintenance_meta (

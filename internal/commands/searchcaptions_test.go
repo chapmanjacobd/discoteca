@@ -3,6 +3,7 @@ package commands_test
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
@@ -125,4 +126,27 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 			t.Fatalf("commands.SearchCaptionsCmd with ImageOnly failed: %v", err)
 		}
 	})
+}
+
+func TestSearchCaptionsCmd_MissingFTSTables(t *testing.T) {
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	sqlDB := fixture.GetDB()
+	if err := testutils.InitTestDBNoFTS(sqlDB); err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.Close()
+
+	cmd := &commands.SearchCaptionsCmd{
+		Database: fixture.DBPath,
+		Search:   []string{"world"},
+	}
+	err := cmd.Run(context.Background())
+	if err == nil {
+		t.Fatal("expected an error when captions_fts is missing")
+	}
+	if !strings.Contains(err.Error(), "captions_fts") {
+		t.Errorf("error should name the missing table, got: %v", err)
+	}
 }

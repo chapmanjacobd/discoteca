@@ -10,6 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/db/schema"
 )
 
 func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
@@ -18,22 +19,7 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 		t.Fatal(err)
 	}
 
-	schema := db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS()
-
-	var version string
-	if err2 := sqlDB.QueryRow("SELECT sqlite_version()").Scan(&version); err2 != nil {
-		t.Fatal(err2)
-	}
-	var v1, v2, v3 int
-	fmt.Sscanf(version, "%d.%d.%d", &v1, &v2, &v3)
-	hasStrict := v1 > 3 || (v1 == 3 && v2 >= 37)
-
-	if !hasStrict {
-		schema = strings.ReplaceAll(schema, "STRICT", "")
-		if v1 < 3 || (v1 == 3 && v2 < 38) {
-			schema = strings.ReplaceAll(schema, "unixepoch()", "strftime('%s', 'now')")
-		}
-	}
+	schemaSQL := schema.GetSchema()
 
 	var hasFTS5 bool
 	err = sqlDB.QueryRow("SELECT 1 FROM pragma_compile_options WHERE compile_options = 'ENABLE_FTS5'").Scan(&hasFTS5)
@@ -48,7 +34,7 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 	if !hasFTS5 {
 		var filteredSchema strings.Builder
 		skipNextEnd := false
-		for line := range strings.SplitSeq(schema, ";") {
+		for line := range strings.SplitSeq(schemaSQL, ";") {
 			trimmed := strings.TrimSpace(line)
 			if trimmed == "" {
 				continue
@@ -67,10 +53,10 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 			filteredSchema.WriteString(trimmed)
 			filteredSchema.WriteString(";")
 		}
-		schema = filteredSchema.String()
+		schemaSQL = filteredSchema.String()
 	}
 
-	if _, err := sqlDB.Exec(schema); err != nil {
+	if _, err := sqlDB.Exec(schemaSQL); err != nil {
 		t.Fatalf("Failed to execute schema: %v", err)
 	}
 

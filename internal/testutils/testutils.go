@@ -11,7 +11,7 @@ import (
 	// Register SQLite driver for database/sql
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/db/schema"
 )
 
 type TestFixture struct {
@@ -80,13 +80,13 @@ func (f *TestFixture) GetDB() *sql.DB {
 
 // GetSchema returns the canonical database schema
 func GetSchema() string {
-	return db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS()
+	return schema.GetSchema()
 }
 
 // InitTestDB initializes a test database with the canonical schema
 func InitTestDB(_ testing.TB, sqlDB *sql.DB) error {
-	schema := db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS()
-	_, err := sqlDB.ExecContext(context.Background(), schema)
+	schemaSQL := schema.GetSchema()
+	_, err := sqlDB.ExecContext(context.Background(), schemaSQL)
 	return err
 }
 
@@ -119,14 +119,14 @@ func StripFTSFromSchema(schema string) string {
 
 // InitTestDBNoFTS initializes a test database with the schema minus FTS5 features
 func InitTestDBNoFTS(sqlDB *sql.DB) error {
-	schema := StripFTSFromSchema(db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS())
-	_, err := sqlDB.ExecContext(context.Background(), schema)
+	schemaSQL := StripFTSFromSchema(schema.GetSchema())
+	_, err := sqlDB.ExecContext(context.Background(), schemaSQL)
 	return err
 }
 
 // InitTestDBWithDB initializes a test database with the canonical schema using provided DB connection
 func InitTestDBWithDB(_ testing.TB, sqlDB *sql.DB) error {
-	schema := db.GetSchemaTables() + "\n" + db.GetSchemaTriggers() + "\n" + db.GetSchemaFTS()
-	_, err := sqlDB.ExecContext(context.Background(), schema)
+	schemaSQL := schema.GetSchema()
+	_, err := sqlDB.ExecContext(context.Background(), schemaSQL)
 	return err
 }
