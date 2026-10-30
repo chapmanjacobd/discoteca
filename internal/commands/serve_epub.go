@@ -252,6 +252,14 @@ func serveHTMLWithTOC(w http.ResponseWriter, _ *http.Request, htmlDir, originalP
 			initialSrc = escapeURLPath("/api/epub/" + filepath.Join(strings.TrimPrefix(originalPath, "/"), rel))
 		}
 	}
+	// If the converted output has no obvious main file, start with the first
+	// chapter rather than an empty iframe (which would reload the TOC wrapper).
+	if initialSrc == "" && len(htmlFiles) > 0 {
+		rel := filepath.Clean(htmlFiles[0])
+		if !filepath.IsAbs(rel) && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			initialSrc = escapeURLPath("/api/epub/" + filepath.Join(strings.TrimPrefix(originalPath, "/"), rel))
+		}
+	}
 
 	// Create wrapper HTML with sticky TOC
 	wrapperHTML := createWrapperHTML(initialSrc, htmlFiles, htmlDir, originalPath)
@@ -269,11 +277,20 @@ func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir, originalP
 	originalPrefix := strings.TrimPrefix(originalPath, "/")
 	var tocOptions strings.Builder
 	for _, file := range htmlFiles {
-		rel, err := filepath.Rel(htmlDir, file)
-		if err != nil || !pathWithinBase(htmlDir, file) {
+		// GetHTMLFiles returns paths relative to htmlDir, but tolerate
+		// absolute paths from any future caller.
+		rel := filepath.Clean(file)
+		if filepath.IsAbs(rel) {
+			var err error
+			rel, err = filepath.Rel(htmlDir, rel)
+			if err != nil {
+				continue
+			}
+		}
+		if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 			continue
 		}
-		baseName := filepath.Base(file)
+		baseName := filepath.Base(rel)
 		baseName = strings.TrimSuffix(baseName, filepath.Ext(baseName))
 		// Clean up filename for display
 		baseName = strings.ReplaceAll(baseName, "_", " ")

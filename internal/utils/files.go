@@ -270,6 +270,21 @@ func CommonPathFull(paths []string) string {
 	return CommonPath(paths)
 }
 
+// SubtitleExtensions lists sidecar subtitle formats. These are captions for a
+// media file, not standalone media, and should not be indexed in the media grid.
+var SubtitleExtensions = []string{".srt", ".vtt", ".ass", ".ssa", ".lrc", ".idx", ".sub"}
+
+// IsSubtitlePath reports whether path has a sidecar subtitle extension.
+func IsSubtitlePath(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	for _, subExt := range SubtitleExtensions {
+		if ext == subExt {
+			return true
+		}
+	}
+	return false
+}
+
 // GetExternalSubtitles finds external subtitle files associated with a media file
 // Supports patterns: movie.srt, movie.en.srt, movie_eng.srt, movie.EN.srt, movie.eng.srt, etc.
 func GetExternalSubtitles(path string) []string {
@@ -277,7 +292,7 @@ func GetExternalSubtitles(path string) []string {
 	base := strings.TrimSuffix(path, ext)
 
 	var subs []string
-	subExts := []string{".srt", ".vtt", ".ass", ".ssa", ".lrc", ".idx", ".sub"}
+	subExts := SubtitleExtensions
 
 	for _, sExt := range subExts {
 		// Exact match: movie.srt

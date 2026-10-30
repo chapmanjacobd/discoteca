@@ -13,7 +13,8 @@ import {
     truncateString,
     formatParents,
     getIcon,
-    generateClientThumbnail
+    generateClientThumbnail,
+    escapeHtml
 } from './utils';
 
 const DEFAULT_CATEGORIES: Record<string, string[]> = {
@@ -455,6 +456,8 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.unplayed = false;
         state.filters.unfinished = false;
         state.filters.completed = false;
+        state.filters.search = '';
+        if (searchInput) (searchInput as HTMLInputElement).value = '';
 
         // Clear sidebar filter UI
         document.querySelectorAll('#sidebar .category-btn.active').forEach(btn => {
@@ -1131,7 +1134,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const isRelative = inputVal.startsWith('./');
 
         searchSuggestions.innerHTML = items.map((item, idx) => {
-            let displayName = item.name;
+            const safeName = truncateString(item.name);
+            let displayName = escapeHtml(safeName);
             if (isRelative) {
                 // If browsing relative paths, bold the part that matches what's after the last slash
                 const lastSlash = inputVal.lastIndexOf('/');
@@ -1139,20 +1143,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // If the item name contains the query, highlight it.
                 // We should only do this if we are actively filtering.
-                if (query && item.name.toLowerCase().includes(query)) {
-                    const qIdx = item.name.toLowerCase().indexOf(query);
-                    displayName = `${item.name.substring(0, qIdx)}<b>${item.name.substring(qIdx, qIdx + query.length)}</b>${item.name.substring(qIdx + query.length)}`;
+                if (query && safeName.toLowerCase().includes(query)) {
+                    const qIdx = safeName.toLowerCase().indexOf(query);
+                    displayName = `${escapeHtml(safeName.substring(0, qIdx))}<b>${escapeHtml(safeName.substring(qIdx, qIdx + query.length))}</b>${escapeHtml(safeName.substring(qIdx + query.length))}`;
                 }
             }
-            displayName = truncateString(displayName);
-            const displayPath = formatParents(item.path);
+            const displayPath = escapeHtml(formatParents(item.path));
 
             return `
-                <div class="suggestion-item" data-path="${item.path}" data-is-dir="${item.is_dir}" data-name="${item.name}" data-index="${idx}">
+                <div class="suggestion-item" data-path="${escapeHtml(item.path)}" data-is-dir="${item.is_dir}" data-name="${escapeHtml(item.name)}" data-index="${idx}">
                     <div class="suggestion-icon">${item.is_dir ? '📁' : getIcon(item.media_type)}</div>
                     <div class="suggestion-info">
                         <div class="suggestion-name">${displayName}</div>
-                        <div class="suggestion-path" title="${item.path}">${displayPath}</div>
+                        <div class="suggestion-path" title="${escapeHtml(item.path)}">${displayPath}</div>
                     </div>
                 </div>
             `;
@@ -1283,10 +1286,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const playlists = state.playlists || [];
         playlistList.innerHTML = playlists.map(title => `
             <div class="category-btn playlist-drop-zone ${state.page === 'playlist' && state.filters.playlist === title ? 'active' : ''}"
-                 data-title="${title}"
+                 data-title="${escapeHtml(title)}"
                  style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="playlist-name" data-title="${title}" style="flex: 1; cursor: pointer;">📁 ${title}</span>
-                ${!state.readOnly ? `<button class="delete-playlist-btn" data-title="${title}" style="background: none; border: none; opacity: 0.5; cursor: pointer;">&times;</button>` : ''}
+                <span class="playlist-name" data-title="${escapeHtml(title)}" style="flex: 1; cursor: pointer;">📁 ${escapeHtml(title)}</span>
+                ${!state.readOnly ? `<button class="delete-playlist-btn" data-title="${escapeHtml(title)}" style="background: none; border: none; opacity: 0.5; cursor: pointer;">&times;</button>` : ''}
             </div>
         `).join('');
 
@@ -1508,7 +1511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`Create failed: ${errorText || resp.statusText}`);
             }
             showToast('Playlist created');
-            fetchPlaylists();
+            await fetchPlaylists();
         } catch (err) {
             console.error('Create playlist failed:', err);
             showToast(err.message);
@@ -1575,6 +1578,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 addBtn.classList.remove('success');
                 addBtn.textContent = '+';
             }
+        }
+    }
+
+    async function promptAddToPlaylist(item) {
+        if (state.playlists.length === 0) {
+            const title = prompt('Create a playlist to add this item.\n\nPlaylist Title:');
+            if (!title || !title.trim()) return;
+            await createPlaylist(title.trim());
+            if (state.playlists.length === 0) return;
+        }
+
+        if (state.playlists.length === 1) {
+            await addToPlaylist(state.playlists[0], item);
+            return;
+        }
+
+        const names = state.playlists.map((title, i) => `${i + 1}: ${title}`).join('\n');
+        const choice = prompt(`Add to which playlist?\n${names}`);
+        const idx = parseInt(choice) - 1;
+        if (state.playlists[idx]) {
+            await addToPlaylist(state.playlists[idx], item);
         }
     }
 
@@ -1944,9 +1968,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             breadcrumbs.push(`<span class="du-breadcrumb-sep">›</span>`);
             if (isLast) {
-                breadcrumbs.push(`<span class="du-breadcrumb-item current">${part}</span>`);
+                breadcrumbs.push(`<span class="du-breadcrumb-item current">${escapeHtml(part)}</span>`);
             } else {
-                breadcrumbs.push(`<span class="du-breadcrumb-item" data-path="${currentPath}/">${part}</span>`);
+                breadcrumbs.push(`<span class="du-breadcrumb-item" data-path="${escapeHtml(currentPath + '/')}">${escapeHtml(part)}</span>`);
             }
         }
 
@@ -2031,8 +2055,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const duration = formatDuration(mediaItem.duration);
 
                 tr.innerHTML = `
-                    <td>📄 ${name}</td>
-                    <td>${type}</td>
+                    <td>📄 ${escapeHtml(name)}</td>
+                    <td>${escapeHtml(type)}</td>
                     <td>${size}</td>
                     <td>${duration}</td>
                     <td>-</td>
@@ -2048,8 +2072,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const duration = formatDuration(mediaItem.duration);
 
                     fileTr.innerHTML = `
-                        <td>📄 ${name}</td>
-                        <td>${type}</td>
+                        <td>📄 ${escapeHtml(name)}</td>
+                        <td>${escapeHtml(type)}</td>
                         <td>${size}</td>
                         <td>${duration}</td>
                         <td>-</td>
@@ -2066,7 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const count = item.count;
 
                 tr.innerHTML = `
-                    <td>📁 ${name}</td>
+                    <td>📁 ${escapeHtml(name)}</td>
                     <td>folder</td>
                     <td>${size}</td>
                     <td>${duration}</td>
@@ -2168,7 +2192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="media-info">
-                        <div class="media-title">${title}</div>
+                        <div class="media-title">${escapeHtml(title)}</div>
                         <div class="media-meta">
                             <span>${size}</span>
                         </div>
@@ -2207,7 +2231,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="media-info">
-                        <div class="media-title" title="${item.path}">${name}</div>
+                        <div class="media-title" title="${escapeHtml(item.path)}">${escapeHtml(name)}</div>
                         <div class="media-meta">
                             <span title="Folder Size">${size}</span>
                             <span>${count} files</span>
@@ -2226,23 +2250,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const btnAddPlaylist = card.querySelector('.media-action-btn.add-playlist');
             if (btnAddPlaylist) {
-                (btnAddPlaylist as HTMLElement).onclick = (e) => {
+                (btnAddPlaylist as HTMLElement).onclick = async (e) => {
                     e.stopPropagation();
-                    if (state.playlists.length === 0) {
-                        showToast('Create a playlist first');
-                        return;
-                    }
-                    // For simplicity, just add to the first playlist if only one, or prompt
-                    if (state.playlists.length === 1) {
-                        addToPlaylist(state.playlists[0], item);
-                    } else {
-                        const names = state.playlists.map((title, i) => `${i + 1}: ${title}`).join('\n');
-                        const choice = prompt(`Add to which playlist?\n${names}`);
-                        const idx = parseInt(choice) - 1;
-                        if (state.playlists[idx]) {
-                            addToPlaylist(state.playlists[idx], item);
-                        }
-                    }
+                    await promptAddToPlaylist(item);
                 };
             }
 
@@ -2431,7 +2441,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const groupHeader = document.createElement('div');
             groupHeader.className = 'similarity-header';
             groupHeader.innerHTML = `
-                <h3>${group.path || 'Common context'}</h3>
+                <h3>${escapeHtml(group.path || 'Common context')}</h3>
                 <div class="group-meta">${group.count} files • ${formatSize(totalSize)} • ${formatDuration(totalDuration)}</div>
             `;
             groupEl.appendChild(groupHeader);
@@ -2456,10 +2466,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="media-duration">${formatDuration(item.duration)}</span>
                     </div>
                     <div class="media-info">
-                        <div class="media-title" title="${item.path}">${title}</div>
+                        <div class="media-title" title="${escapeHtml(item.path)}">${escapeHtml(title)}</div>
                         <div class="media-meta">
                             <span>${formatSize(item.size)}</span>
-                            <span>${item.video_codecs || ''}</span>
+                            <span>${escapeHtml(item.video_codecs || '')}</span>
                         </div>
                     </div>
                 `;
@@ -2508,14 +2518,14 @@ document.addEventListener('DOMContentLoaded', () => {
         card.style.border = '1px solid var(--border-color)';
 
         let keywordsHtml = (cat.keywords || []).map(kw =>
-            `<span class="curation-tag existing-keyword" data-keyword="${kw}" data-category="${cat.category}">
-                ${kw} <span class="remove-kw" style="cursor:pointer; margin-left:4px; opacity:0.6;">&times;</span>
+            `<span class="curation-tag existing-keyword" data-keyword="${escapeHtml(kw)}" data-category="${escapeHtml(cat.category)}">
+                ${escapeHtml(kw)} <span class="remove-kw" style="cursor:pointer; margin-left:4px; opacity:0.6;">&times;</span>
             </span>`
         ).join('');
 
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <h4 style="margin: 0;">${cat.category}</h4>
+                <h4 style="margin: 0;">${escapeHtml(cat.category)}</h4>
                 <button class="delete-cat-btn" title="Delete Category" style="background: none; border: none; cursor: pointer; opacity: 0.5;">🗑️</button>
             </div>
             <div class="cat-keywords" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
@@ -2803,8 +2813,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </p>
             <div class="tags-cloud">
                 ${suggestions.map(tag => `
-                    <span class="curation-tag suggestion-tag" draggable="true" data-word="${tag.word}" title="${tag.count} uncategorized files contain this word">
-                        ${tag.word} <small>${tag.count}</small>
+                    <span class="curation-tag suggestion-tag" draggable="true" data-word="${escapeHtml(tag.word)}" title="${tag.count} uncategorized files contain this word">
+                        ${escapeHtml(tag.word)} <small>${tag.count}</small>
                     </span>
                 `).join('')}
             </div>
@@ -2871,7 +2881,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         tag.className = 'curation-tag existing-keyword';
                         (tag as HTMLElement).dataset.keyword = keyword;
                         (tag as HTMLElement).dataset.category = category;
-                        tag.innerHTML = `${keyword} <span class="remove-kw" style="cursor:pointer; margin-left:4px; opacity:0.6;">&times;</span>`;
+                        tag.innerHTML = `${escapeHtml(keyword)} <span class="remove-kw" style="cursor:pointer; margin-left:4px; opacity:0.6;">&times;</span>`;
 
                         // Add delete handler to the new tag
                         (tag.querySelector('.remove-kw') as HTMLElement).onclick = async (e) => {
@@ -2940,7 +2950,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function performSearch() {
+    // Tracks the last query-defining state. When any of it changes (search text,
+    // filters, sort, limit, ...) the user is looking at a new result set and must
+    // go back to page 1. Page changes themselves are intentionally excluded.
+    let lastSearchSignature: string | null = null;
+
+    function buildSearchSignature(): string {
+        const f = state.filters;
+        return JSON.stringify([
+            state.page,
+            f.search,
+            f.playlist,
+            f.categories,
+            f.genre,
+            f.languages,
+            f.ratings,
+            f.min_score,
+            f.max_score,
+            f.searchType,
+            f.media_types,
+            f.unplayed,
+            f.unfinished,
+            f.completed,
+            f.episodes,
+            f.sizes,
+            f.durations,
+            f.modified,
+            f.created,
+            f.downloaded,
+            f.sort,
+            f.customSortFields,
+            f.reverse,
+            f.limit,
+            f.all,
+            getIncludedDatabases(),
+            f.excludedDbs
+        ]);
+    }
+
+    async function performSearch(allowPageClampRetry = true, preservePage = false) {
         if (state.page !== 'trash' && state.page !== 'history' && state.page !== 'playlist' && state.page !== 'du' && state.page !== 'curation' && state.page !== 'captions') {
             state.page = 'search';
         }
@@ -2951,6 +2999,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedSort) state.filters.sort = selectedSort;
         state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
         state.filters.all = limitAll ? limitAll.checked : false;
+
+        const signature = buildSearchSignature();
+        if (!preservePage && lastSearchSignature !== null && signature !== lastSearchSignature) {
+            state.currentPage = 1;
+        }
+        lastSearchSignature = signature;
 
         if (state.page === 'playlist' && state.filters.playlist) {
             filterPlaylistItems();
@@ -3043,7 +3097,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const xTotalCount = resp.headers.get('X-Total-Count');
             if (xTotalCount) {
-                state.totalCount = parseInt(xTotalCount);
+                const totalCount = parseInt(xTotalCount, 10);
+                state.totalCount = totalCount;
+                if (!state.filters.all) {
+                    const totalPages = Math.max(1, Math.ceil(totalCount / state.filters.limit));
+                    if (state.currentPage > totalPages) {
+                        state.currentPage = totalPages;
+                        if (allowPageClampRetry) {
+                            clearTimeout(skeletonTimeout);
+                            return performSearch(false);
+                        }
+                    }
+                }
             }
 
             let data = await resp.json();
@@ -3151,7 +3216,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(skeletonTimeout);
             if (err.name === 'AbortError') return;
             console.error('Search failed:', err);
-            resultsContainer.innerHTML = `<div class="error">Search failed: ${err.message}</div>`;
+            resultsContainer.innerHTML = `<div class="error">Search failed: ${escapeHtml(err.message)}</div>`;
             if (err.message === 'Unauthorized') {
                 window.location.reload();
             }
@@ -3766,7 +3831,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.currentPage < totalPages) {
                 // End of current page, fetch next
                 state.currentPage++;
-                performSearch().then(() => {
+                performSearch(true, true).then(() => {
                     if (currentMedia.length > 0) {
                         playItem(0);
                     }
@@ -3776,7 +3841,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (nextIndex < 0 && state.currentPage > 1 && !state.filters.all && state.page === 'search') {
             // Beginning of current page, fetch previous
             state.currentPage--;
-            performSearch().then(() => {
+            performSearch(true, true).then(() => {
                 if (currentMedia.length > 0) {
                     playItem(currentMedia.length - 1);
                 }
@@ -4422,7 +4487,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="queue-item-handle" draggable="true">☰</div>
                 <div class="queue-item-thumb">${icon}</div>
                 <div class="queue-item-info">
-                    <div class="queue-item-title" title="${item.path}">${itemBasename}</div>
+                    <div class="queue-item-title" title="${escapeHtml(item.path)}">${escapeHtml(itemBasename)}</div>
                     <div class="queue-item-meta">${formatDuration(item.duration)}</div>
                 </div>
                 <div class="queue-item-actions">
@@ -5418,7 +5483,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         content.innerHTML = keys.map(k => {
             const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            return `<div>${label}</div><div>${formatValue(k, item[k])}</div>`;
+            return `<div>${escapeHtml(label)}</div><div>${escapeHtml(formatValue(k, item[k]))}</div>`;
         }).join('');
 
         openModal('metadata-modal');
@@ -5777,6 +5842,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hide pagination if there's only one page or less
         if (totalPages <= 1) {
             paginationContainer.classList.add('hidden');
+            pageInfo.textContent = 'Page 1';
             // Still set disabled state for tests
             (prevPageBtn as HTMLButtonElement).disabled = true;
             (nextPageBtn as HTMLButtonElement).disabled = true;
@@ -5883,7 +5949,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const captionHtml = item.caption_text ? `
             <div class="caption-highlight" title="Click to play at this time">
-                "…${item.caption_text}…"
+                "…${escapeHtml(item.caption_text)}…"
                 <span class="caption-time">${formatDuration(item.caption_time)}</span>
             </div>
         ` : '';
@@ -5930,11 +5996,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
             <div class="media-info">
-                <div class="media-title" title="${item.path}">${title}</div>
+                <div class="media-title" title="${escapeHtml(item.path)}">${escapeHtml(title)}</div>
                 <div class="media-meta">
                     <span>${size}</span>
 
-                    <span title="${item.path}">${displayPath}</span>
+                    <span title="${escapeHtml(item.path)}">${escapeHtml(displayPath)}</span>
                     ${plays > 0 ? `<span title="Play count">▶️ ${plays}</span>` : ''}
                 </div>
                 ${progressHtml}
@@ -6021,23 +6087,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const btnAddPlaylist = card.querySelector('.media-action-btn.add-playlist');
-        if (btnAddPlaylist) (btnAddPlaylist as HTMLElement).onclick = (e) => {
+        if (btnAddPlaylist) (btnAddPlaylist as HTMLElement).onclick = async (e) => {
             e.stopPropagation();
-            if (state.playlists.length === 0) {
-                showToast('Create a playlist first');
-                return;
-            }
-            // For simplicity, just add to the first playlist if only one, or prompt
-            if (state.playlists.length === 1) {
-                addToPlaylist(state.playlists[0], item);
-            } else {
-                const names = state.playlists.map((title, i) => `${i + 1}: ${title}`).join('\n');
-                const choice = prompt(`Add to which playlist?\n${names}`);
-                const idx = parseInt(choice) - 1;
-                if (state.playlists[idx]) {
-                    addToPlaylist(state.playlists[idx], item);
-                }
-            }
+            await promptAddToPlaylist(item);
         };
 
         const btnMarkPlayed = card.querySelector('.media-action-btn.mark-played');
@@ -6146,10 +6198,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h2 style="margin: 0 0 0.5rem 0; color: var(--text);">No media found</h2>
                     <p style="margin: 0; max-width: 400px;">
                         ${state.filters.search ?
-                    `No results for "${state.filters.search}". Try adjusting your search or filters.` :
+                    `No results for "${escapeHtml(state.filters.search)}". Try adjusting your search or filters.` :
                     'Try adjusting your filters or add some media to your library.'}
                     </p>
-                    ${state.filters.media_types.length > 0 || state.filters.categories.length > 0 || state.filters.sizes.length > 0 || state.filters.durations.length > 0 ? `
+                    ${state.filters.media_types.length > 0 || state.filters.categories.length > 0 || state.filters.sizes.length > 0 || state.filters.durations.length > 0 || state.filters.search ? `
                         <button class="category-btn" onclick="window.disco.resetFilters()" style="margin-top: 1.5rem;">
                             Clear all filters
                         </button>
@@ -6271,7 +6323,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 segmentsHtml += `
                     <div class="caption-group-segment" data-time="${cap.caption_time}">
                         <span class="caption-group-time">${timeStr}</span>
-                        <span class="caption-group-text">${cap.caption_text}</span>
+                        <span class="caption-group-text">${escapeHtml(cap.caption_text)}</span>
                     </div>
                 `;
             });
@@ -6280,7 +6332,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="caption-group-header">
                     <img class="caption-group-thumb" src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')">
                     <div class="caption-group-info">
-                        <div class="caption-group-title" title="${path}">${basename}</div>
+                        <div class="caption-group-title" title="${escapeHtml(path)}">${escapeHtml(basename)}</div>
                         <div class="caption-group-meta">${captions.length} captions found • ${formatSize(firstCap.size)}</div>
                     </div>
                     <button class="queue-control-btn play-group" title="Play Media">▶️ Play</button>
@@ -6339,7 +6391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 captionsHtml += `
                     <div class="caption-segment ${isMatch ? 'caption-match' : ''}" data-time="${cap.caption_time}">
                         <span class="caption-time-link" title="Jump to ${timeStr}">${timeStr}</span>
-                        <span class="caption-text">${cap.caption_text}</span>
+                        <span class="caption-text">${escapeHtml(cap.caption_text)}</span>
                     </div>
                 `;
             }
@@ -6351,7 +6403,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="caption-count-badge">${captionCount}</span>
                     </div>
                     <div class="media-info">
-                        <div class="media-title" title="${path}">${basename}</div>
+                        <div class="media-title" title="${escapeHtml(path)}">${escapeHtml(basename)}</div>
                     </div>
                 </div>
                 <div class="caption-segments-container">
@@ -6417,12 +6469,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const duration = formatDuration(firstCap.duration || 0);
 
             tr.innerHTML = `
-                <td>${path}</td>
-                <td>${firstCap.media_type || 'unknown'}</td>
+                <td>${escapeHtml(path)}</td>
+                <td>${escapeHtml(firstCap.media_type || 'unknown')}</td>
                 <td>${size}</td>
                 <td>${duration}</td>
                 <td>${captions.length}</td>
-                <td>${firstCap.caption_text ? firstCap.caption_text.substring(0, 50) + (firstCap.caption_text.length > 50 ? '...' : '') : ''}</td>
+                <td>${escapeHtml(firstCap.caption_text ? firstCap.caption_text.substring(0, 50) + (firstCap.caption_text.length > 50 ? '...' : '') : '')}</td>
             `;
 
             tr.onclick = () => {
@@ -6581,10 +6633,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let cells = `
                 <td>
-                    <div class="table-cell-title" title="${item.path}">
+                    <div class="table-cell-title" title="${escapeHtml(item.path)}">
                         <span class="table-icon">${getIcon(item.media_type)}</span>
                         <div style="display: flex; flex-direction: column;">
-                            <span class="media-title-span">${title}</span>
+                            <span class="media-title-span">${escapeHtml(title)}</span>
 
                         </div>
                     </div>
@@ -6592,7 +6644,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${formatSize(item.size)}</td>
                 <td>${formatDuration(item.duration)}</td>
                 <td>${progressHtml}</td>
-                <td>${item.media_type || ''}</td>
+                <td>${escapeHtml(item.media_type || '')}</td>
                 <td>${isTrash ? formatRelativeDate(item.time_deleted) : (getPlayCount(item) || '')}</td>
             `;
 
@@ -6637,22 +6689,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const btnAdd = tr.querySelector('.add-btn');
-            if (btnAdd) (btnAdd as HTMLElement).onclick = (e) => {
+            if (btnAdd) (btnAdd as HTMLElement).onclick = async (e) => {
                 e.stopPropagation();
-                if (state.playlists.length === 0) {
-                    showToast('Create a playlist first');
-                    return;
-                }
-                if (state.playlists.length === 1) {
-                    addToPlaylist(state.playlists[0], item);
-                } else {
-                    const names = state.playlists.map((title, i) => `${i + 1}: ${title}`).join('\n');
-                    const choice = prompt(`Add to which playlist?\n${names}`);
-                    const idx = parseInt(choice) - 1;
-                    if (state.playlists[idx]) {
-                        addToPlaylist(state.playlists[idx], item);
-                    }
-                }
+                await promptAddToPlaylist(item);
             };
 
             const btnRemove = tr.querySelector('.remove-btn');
@@ -6703,9 +6742,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         list.innerHTML = dbs.map(db => `
             <label class="db-checkbox-item">
-                <input type="checkbox" value="${db}" ${!state.filters.excludedDbs.includes(db) ? 'checked' : ''}>
-                <span>${db.split('/').pop()}</span>
-                <small style="color: #666; margin-left: auto;">${db}</small>
+                <input type="checkbox" value="${escapeHtml(db)}" ${!state.filters.excludedDbs.includes(db) ? 'checked' : ''}>
+                <span>${escapeHtml(db.split('/').pop())}</span>
+                <small style="color: #666; margin-left: auto;">${escapeHtml(db)}</small>
             </label>
         `).join('');
 
@@ -6736,8 +6775,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         categoryList.innerHTML = sortedCategories.map(c => `
-            <button class="category-btn ${state.filters.categories.includes(c.category) ? 'active' : ''}" data-cat="${c.category}">
-                ${c.category} <small>(${c.count})</small>
+            <button class="category-btn ${state.filters.categories.includes(c.category) ? 'active' : ''}" data-cat="${escapeHtml(c.category)}">
+                ${escapeHtml(c.category)} <small>(${c.count})</small>
             </button>
         `).join('') + `
             <button id="categorization-link-btn" class="category-btn ${state.page === 'curation' ? 'active' : ''}" style="width: 100%; text-align: left;">
@@ -6798,8 +6837,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         languageList.innerHTML = sortedLanguages.map(l => `
-            <button class="category-btn ${state.filters.languages.includes(l.category) ? 'active' : ''}" data-lang="${l.category}">
-                ${l.category} <small>(${l.count})</small>
+            <button class="category-btn ${state.filters.languages.includes(l.category) ? 'active' : ''}" data-lang="${escapeHtml(l.category)}">
+                ${escapeHtml(l.category)} <small>(${l.count})</small>
             </button>
         `).join('');
 
@@ -6864,7 +6903,7 @@ document.addEventListener('DOMContentLoaded', () => {
             icon = lowerMsg.includes('fail') || lowerMsg.includes('error') ? '❌' : 'ℹ️';
         }
 
-        toast.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+        toast.innerHTML = `<span>${escapeHtml(icon)}</span> <span>${escapeHtml(msg)}</span>`;
 
         // Move toast into fullscreen element if active
         if (document.fullscreenElement) {
@@ -8629,9 +8668,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateNavActiveStates();
                 performSearch();
             } else {
+                // Disk Usage is a global view. Do not carry over a search or a
+                // directory left behind by an earlier DU session, otherwise the
+                // first screen can be an empty filtered subdirectory.
                 state.page = 'du';
+                state.currentPage = 1;
+                state.duPath = '';
+                state.filters.search = '';
+                if (searchInput) (searchInput as HTMLInputElement).value = '';
                 updateNavActiveStates();
-                fetchDU(state.duPath);
+                fetchDU('');
             }
         };
     }

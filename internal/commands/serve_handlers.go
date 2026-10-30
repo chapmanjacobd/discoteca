@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os/exec"
 	"sort"
@@ -26,6 +28,23 @@ func (c *ServeCmd) HandleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("OK"))
 }
 
+// isClientDisconnect reports whether an error is just an aborted HTTP request
+// (user navigated, typed another search character, closed a tab, ...). Those
+// are normal and should not be logged as server errors.
+func isClientDisconnect(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "context canceled") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "client disconnected")
+}
+
 // HandleQuery handles media searching and filtering.
 // GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
 func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +52,9 @@ func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	if rejectInvalidFlags(w, flags) {
 		return
 	}
+	// The media grid should not show sidecar subtitle files as playable cards.
+	// Explicit CLI path/ext queries can still opt in; HTTP grid queries cannot.
+	flags.HideSubtitles = true
 	q := r.URL.Query()
 
 	ctx, cancel := context.WithTimeout(r.Context(), c.searchTimeout())
@@ -300,7 +322,11 @@ func (c *ServeCmd) handleQueryMediaGrid(
 
 	totalCount, err := query.MediaQueryCount(ctx, dbs, flags)
 	if err != nil {
-		models.Log.Error("Count query failed", "dbs", dbs, "error", err)
+		if isClientDisconnect(err) {
+			models.Log.Debug("Count query canceled", "dbs", dbs, "error", err)
+		} else {
+			models.Log.Error("Count query failed", "dbs", dbs, "error", err)
+		}
 	}
 
 	if c.hasFfmpeg {
@@ -403,11 +429,19 @@ func (c *ServeCmd) encodeQueryResponse(
 			"counts": filterCounts,
 		}
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			models.Log.Warn("Failed to encode response", "error", err)
+			if isClientDisconnect(err) {
+				models.Log.Debug("Client disconnected while encoding response", "error", err)
+			} else {
+				models.Log.Warn("Failed to encode response", "error", err)
+			}
 		}
 	} else {
 		if err := json.NewEncoder(w).Encode(items); err != nil {
-			models.Log.Warn("Failed to encode response", "error", err)
+			if isClientDisconnect(err) {
+				models.Log.Debug("Client disconnected while encoding response", "error", err)
+			} else {
+				models.Log.Warn("Failed to encode response", "error", err)
+			}
 		}
 	}
 }
@@ -1050,7 +1084,11 @@ func (c *ServeCmd) HandleDU(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		models.Log.Warn("Failed to encode response", "error", err)
+		if isClientDisconnect(err) {
+			models.Log.Debug("Client disconnected while encoding response", "error", err)
+		} else {
+			models.Log.Warn("Failed to encode response", "error", err)
+		}
 	}
 }
 

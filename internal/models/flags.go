@@ -357,6 +357,11 @@ type GlobalFlags struct {
 	// ValidationError is set by the HTTP request parser when a query parameter
 	// would otherwise reach SQL. Handlers turn it into a 400 response.
 	ValidationError string `json:"-" kong:"-"`
+
+	// HideSubtitles excludes sidecar subtitle files (.srt, .vtt, ...) from
+	// media results. The HTTP media grid sets this; the CLI leaves it off so
+	// explicit path/ext queries can still inspect subtitles.
+	HideSubtitles bool `json:"-" kong:"-"`
 }
 
 // ControlFlags are a subset of flags for simple control commands

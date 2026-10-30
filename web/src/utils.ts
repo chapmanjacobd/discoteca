@@ -1,3 +1,17 @@
+/**
+ * Escape a value for safe interpolation into HTML text or a quoted attribute.
+ * Use this anywhere user-controlled data (paths, titles, search terms, tags)
+ * is placed into an innerHTML template.
+ */
+export function escapeHtml(value: unknown): string {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export function formatRelativeDate(timestamp: number | null): string {
     if (!timestamp || timestamp === 0) return '-';
     const now = Math.floor(Date.now() / 1000);

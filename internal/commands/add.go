@@ -216,6 +216,13 @@ func (c *AddCmd) collectFilesToProbe(
 
 		c.printScanProgress(absRoot, res)
 
+		// Sidecar subtitles are captured as captions by --scan-subtitles;
+		// they are not standalone media and should not become grid cards.
+		// An explicit --ext .vtt/.srt still opts in.
+		if len(c.Ext) == 0 && utils.IsSubtitlePath(res.Path) {
+			continue
+		}
+
 		if !c.matchesFilters(res.Path, res.Info, flags) {
 			continue
 		}

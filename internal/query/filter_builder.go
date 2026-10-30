@@ -59,6 +59,19 @@ func (fb *FilterBuilder) buildBasicFilters(whereClauses *[]string, args *[]any) 
 		*whereClauses = append(*whereClauses, fmt.Sprintf("COALESCE(%s, 0) = 0", fb.col("time_deleted")))
 	}
 
+	// Sidecar subtitles are captions, not media. The web grid opts into this;
+	// explicit CLI path/extension filters still allow inspecting them.
+	if fb.Flags.HideSubtitles && len(fb.Flags.Ext) == 0 && len(fb.Flags.Paths) == 0 {
+		subtitleClauses := make([]string, 0, len(utils.SubtitleExtensions))
+		for _, ext := range utils.SubtitleExtensions {
+			subtitleClauses = append(
+				subtitleClauses,
+				fmt.Sprintf("LOWER(%s) NOT LIKE '%%%s'", fb.col("path"), ext),
+			)
+		}
+		*whereClauses = append(*whereClauses, "("+strings.Join(subtitleClauses, " AND ")+")")
+	}
+
 	// Content type filters (indexed column - should come before expensive searches)
 	var typeClauses []string
 	if fb.Flags.VideoOnly {

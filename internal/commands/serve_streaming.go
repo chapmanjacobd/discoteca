@@ -644,8 +644,13 @@ func (c *ServeCmd) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	switch ext {
 	case ".pdf":
 		thumb, contentType, err := c.generatePDFThumbnail(r.Context(), path)
-		if err != nil || len(thumb) == 0 {
+		if err != nil {
 			models.Log.Warn("PDF thumbnail generation failed", "path", path, "error", err)
+			http.NotFound(w, r)
+			return
+		}
+		if len(thumb) == 0 {
+			models.Log.Debug("PDF has no thumbnail", "path", path)
 			http.NotFound(w, r)
 			return
 		}
@@ -654,8 +659,13 @@ func (c *ServeCmd) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	case ".epub":
 		thumb, contentType, err := c.generateEpubThumbnail(path)
-		if err != nil || len(thumb) == 0 {
+		if err != nil {
 			models.Log.Warn("EPUB thumbnail generation failed", "path", path, "error", err)
+			http.NotFound(w, r)
+			return
+		}
+		if len(thumb) == 0 {
+			models.Log.Debug("EPUB has no thumbnail", "path", path)
 			http.NotFound(w, r)
 			return
 		}
@@ -835,5 +845,21 @@ func serveFileWithMimeType(w http.ResponseWriter, r *http.Request, filePath stri
 		w.Header().Set("Content-Type", mimeType)
 	}
 
-	http.ServeFile(w, r, filePath)
+	// Do not use http.ServeFile here: it redirects URLs ending in
+	// "/index.html" to the directory, which makes the EPUB/text TOC wrapper
+	// request itself recursively. ServeContent serves the actual file.
+	f, err := os.Open(filePath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }
