@@ -53,9 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const duBtn = document.getElementById('du-btn');
     const captionsBtn = document.getElementById('captions-btn') as HTMLInputElement;
-    const curationBtn = document.getElementById('curation-btn');
+    const historyBtn = document.getElementById('history-btn');
     const channelSurfBtn = document.getElementById('channel-surf-btn');
-    const filterCaptions = document.getElementById('filter-captions') as HTMLInputElement;
 
     const pipPlayer = document.getElementById('pip-player') as HTMLVideoElement;
     const pipLoading = document.getElementById('pip-loading');
@@ -85,10 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const pipSpeedBtn = document.getElementById('pip-speed');
     const pipSpeedMenu = document.getElementById('pip-speed-menu');
-
-    const filterBrowseCol = document.getElementById('filter-browse-col') as HTMLSelectElement;
-    const filterBrowseVal = document.getElementById('filter-browse-val') as HTMLSelectElement;
-    const filterBrowseValContainer = document.getElementById('filter-browse-val-container');
 
     const settingSearchType = document.getElementById('setting-search-type') as HTMLInputElement;
     const settingShowLanguages = document.getElementById('setting-show-languages') as HTMLInputElement;
@@ -179,16 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (limitInput) limitInput.value = state.filters.limit.toString();
     if (limitAll) limitAll.checked = state.filters.all;
-    const initialUnplayedEl = document.getElementById('filter-unplayed') as HTMLInputElement;
-    if (initialUnplayedEl) initialUnplayedEl.checked = state.filters.unplayed;
-    if (filterCaptions) {
-        filterCaptions.checked = state.filters.captions;
-        filterCaptions.onchange = (e) => {
-            state.filters.captions = (e.target as HTMLInputElement).checked;
-            localStorage.setItem('disco-captions', String(state.filters.captions.toString()));
-            performSearch();
-        };
-    }
 
     // Search type toggle (FTS vs Substring)
     if (settingSearchType) {
@@ -384,51 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchFilterBins(params) {
-        try {
-            const url = params ? `/api/filter-bins?${params.toString()}` : '/api/filter-bins';
-            const resp = await fetchAPI(url);
-            if (!resp.ok) throw new Error('Failed to fetch filter bins');
-            const data = await resp.json();
-            state.filterBins = {
-                // Actual min/max values from the full dataset
-                episodes_min_val: data.episodes_min_val || 0,
-                episodes_max_val: data.episodes_max_val || 0,
-                size_min_val: data.size_min_val || 0,
-                size_max_val: data.size_max_val || 0,
-                duration_min_val: data.duration_min_val || 0,
-                duration_max_val: data.duration_max_val || 0,
-                modified_min_val: data.modified_min_val || 0,
-                modified_max_val: data.modified_max_val || 0,
-                created_min_val: data.created_min_val || 0,
-                created_max_val: data.created_max_val || 0,
-                downloaded_min_val: data.downloaded_min_val || 0,
-                downloaded_max_val: data.downloaded_max_val || 0,
-                // Percentiles for slider calculations
-                episodes_percentiles: data.episodes_percentiles || [],
-                size_percentiles: data.size_percentiles || [],
-                duration_percentiles: data.duration_percentiles || [],
-                modified_percentiles: data.modified_percentiles || [],
-                created_percentiles: data.created_percentiles || [],
-                downloaded_percentiles: data.downloaded_percentiles || [],
-                // Type counts (special case)
-                media_type: data.media_type || []
-            };
-
-            updateSlidersFromAbsolute('episodes', 'episodes');
-            updateSlidersFromAbsolute('size', 'sizes');
-            updateSlidersFromAbsolute('duration', 'durations');
-            updateSlidersFromAbsolute('modified', 'modified');
-            updateSlidersFromAbsolute('created', 'created');
-            updateSlidersFromAbsolute('downloaded', 'downloaded');
-
-            renderFilterBins();
-            updateSliderLabels();
-        } catch (err) {
-            console.error('Failed to fetch filter bins', err);
-        }
-    }
-
     function renderMediaTypeList() {
         const container = document.getElementById('media-type-list');
         if (!container) return;
@@ -461,10 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 performSearch();
             };
         });
-    }
-
-    function renderFilterBins() {
-        // Sliders are static in index.html, no need to render bins here.
     }
 
     function resetSidebar() {
@@ -501,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetSliders();
     }
 
-    function resetFilters() {
+    function resetFilters(skipFetch = false) {
         // Clear all filter-related state
         state.filters.categories = [];
         state.filters.genre = '';
@@ -530,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearAllFilters();
 
         updateNavActiveStates();
-        performSearch();
+        if (!skipFetch) performSearch();
     }
 
     // --- Modal Management ---
@@ -611,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {boolean} keepFullscreen - Whether to stay in fullscreen if active
      * @returns {boolean} true if a player was closed, false if none was open
      */
-    async function closeActivePlayer(skipSync = false, keepFullscreen = false) {
+    async function closeActivePlayer(skipSync = false, keepFullscreen = false, preserveMode = false) {
         let closed = false;
 
         // Close PiP if open
@@ -638,12 +574,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 (media as HTMLMediaElement).pause();
                 media.removeAttribute('src');
                 (media as HTMLMediaElement).load();
-
-                // Cleanup cursor auto-hide handler
-                if ((media as any)._cleanupCursor) {
-                    (media as any)._cleanupCursor();
-                }
             }
+            (pipViewer as any)._resetDragging?.();
             pipViewer.innerHTML = '';
             pipViewer.style.cursor = 'default'; // Reset cursor style
             pipPlayer.classList.add('hidden');
@@ -656,8 +588,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Reset mode to default preference
-            state.playerMode = state.defaultView;
+            // Reset mode to default preference only on an explicit close, not
+            // when closing the previous track before opening the next one.
+            if (!preserveMode) {
+                state.playerMode = state.defaultView;
+            }
             closed = true;
         }
 
@@ -725,19 +660,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if it's a document or an HTML folder (folder with index.html)
         const isDocument = type === 'text' || type.includes('pdf') || type.includes('epub') || type.includes('mobi') || type.includes('oeb') || type.includes('opf') || type.includes('xhtml');
         const isHTMLFolder = item.count !== undefined && item.count > 0 && type === 'text';
+        const previousItem = state.playback.item;
 
-        // Close any existing player before opening new one
-        closeActivePlayer(true, keepFullscreen);
-
-        state.playback.item = item;
-        state.playback.queueIndex = queueIndex;
+        // Close any existing player before opening new one, preserving the
+        // user's theatre/PiP choice while switching tracks.
+        closeActivePlayer(true, keepFullscreen, true);
 
         // Open in appropriate viewer
         if (isDocument || isHTMLFolder) {
+            state.playback.item = item;
+            state.playback.queueIndex = queueIndex;
             state.activeModal = 'document-modal';
             openInDocumentViewer(item);
         } else {
-            openInPiP(item, isNewSession);
+            openInPiP(item, isNewSession, previousItem, queueIndex);
         }
 
         if (!skipSync) {
@@ -799,129 +735,204 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isMobileOrFullscreen = () => window.innerWidth <= 768 || !!document.fullscreenElement;
 
-    function syncUrl() {
+    // Sort keys implemented by the /api/du backend (folders and direct files).
+    const DU_SORT_FIELDS = ['default', 'path', 'size', 'duration'];
+
+    let pendingIncludedDbs: string[] | null = null;
+
+    function getIncludedDatabases() {
+        if (!state.databases || state.databases.length === 0) return [];
+        return state.databases.filter(db => !state.filters.excludedDbs.includes(db));
+    }
+
+    function setIncludedDatabases(included: string[]) {
+        if (!state.databases || state.databases.length === 0) return;
+        if (included.length === 1 && included[0] === '__none__') {
+            state.filters.excludedDbs = [...state.databases];
+            return;
+        }
+        state.filters.excludedDbs = state.databases.filter(db => !included.includes(db));
+        localStorage.setItem('disco-excluded-dbs', String(JSON.stringify(state.filters.excludedDbs)));
+    }
+
+    function allDatabasesExcluded() {
+        return state.databases.length > 0 && getIncludedDatabases().length === 0;
+    }
+
+    function syncUrl(options: { navigation?: boolean } = {}) {
         const params = new URLSearchParams();
-        if (state.page === 'trash') {
-            params.set('mode', String('trash'));
-        } else if (state.page === 'history') {
-            params.set('mode', String('history'));
-        } else if (state.page === 'playlist' && state.filters.playlist) {
-            params.set('mode', String('playlist'));
+        params.set('mode', String(state.page));
+
+        if (state.page === 'playlist' && state.filters.playlist) {
             params.set('title', String(state.filters.playlist));
-        } else if (state.page === 'du') {
-            params.set('mode', String('du'));
-            if (state.duPath) params.set('path', String(state.duPath));
-        } else if (state.page === 'curation') {
-            params.set('mode', String('curation'));
-        } else if (state.page === 'captions') {
-            params.set('mode', String('captions'));
+        }
+        if (state.page === 'du' && state.duPath) {
+            params.set('path', String(state.duPath));
         }
 
-        // History filters apply across all modes (like Media Type filters)
-        if (state.filters.unplayed || state.filters.unfinished || state.filters.completed) {
-            if (state.filters.unfinished) params.set('history', String('in-progress'));
-            else if (state.filters.unplayed) params.set('history', String('unplayed'));
-            else if (state.filters.completed) params.set('history', String('completed'));
+        // History filters apply across all modes.
+        if (state.filters.unfinished) params.set('history', 'in-progress');
+        else if (state.filters.unplayed) params.set('history', 'unplayed');
+        else if (state.filters.completed) params.set('history', 'completed');
+
+        if (state.filters.search) params.set('search', String(state.filters.search));
+        state.filters.categories.forEach(c => params.append('category', String(c)));
+        if (state.filters.genre) params.set('genre', String(state.filters.genre));
+        state.filters.languages.forEach(l => params.append('language', String(l)));
+        state.filters.ratings.forEach(r => params.append('rating', String(r)));
+        if (state.filters.min_score) params.set('min_score', String(state.filters.min_score));
+        if (state.filters.max_score) params.set('max_score', String(state.filters.max_score));
+        if (state.filters.searchType && state.filters.searchType !== 'fts') {
+            params.set('search_type', String(state.filters.searchType));
         }
 
-        if (state.page !== 'curation') {
-            // Include search and sidebar filters for non-curation modes
-            if (state.page !== 'history') {
-                // Categories, genre, ratings don't apply in history mode
-                state.filters.categories.forEach(c => params.append('category', String(c)));
-                if (state.filters.genre) params.set('genre', String(state.filters.genre));
-                state.filters.ratings.forEach(r => params.append('rating', String(r)));
+        state.filters.episodes.forEach(b => params.append('episodes', String(getBinQueryParam(b))));
+        state.filters.sizes.forEach(b => params.append('size', String(getBinQueryParam(b))));
+        state.filters.durations.forEach(b => params.append('duration', String(getBinQueryParam(b))));
+        state.filters.media_types.forEach(t => params.append('media_type', String(t)));
+
+        if (state.filters.sort && state.filters.sort !== 'default') {
+            if (state.filters.sort === 'custom' && state.filters.customSortFields) {
+                params.set('sort_fields', state.filters.customSortFields);
+            } else {
+                params.set('sort', String(state.filters.sort));
             }
-            if (state.filters.search) params.set('search', String(state.filters.search));
-            if (state.filters.min_score) params.set('min_score', String(state.filters.min_score));
-            if (state.filters.max_score) params.set('max_score', String(state.filters.max_score));
-            if (state.filters.searchType && state.filters.searchType !== 'fts') {
-                params.set('search_type', String(state.filters.searchType));
-            }
-
-            state.filters.episodes.forEach(b => params.append('episodes', String(getBinQueryParam(b))));
-            state.filters.sizes.forEach(b => params.append('size', String(getBinQueryParam(b))));
-            state.filters.durations.forEach(b => params.append('duration', String(getBinQueryParam(b))));
         }
-
-        // Media Type filters apply across all modes except DU, trash, and playlist
-        if (state.page !== 'du' && state.page !== 'trash' && state.page !== 'playlist') {
-            state.filters.media_types.forEach(t => params.append('media_type', String(t)));
-        }
-
-        if (state.currentPage > 1) {
-            params.set('p', String(state.currentPage.toString()));
-        }
-
-        // Include limit in URL if not default
-        if (state.filters.limit !== 99 && !state.filters.all) {
+        if (state.filters.reverse) params.set('reverse', 'true');
+        if (state.filters.all) {
+            params.set('all', 'true');
+        } else if (state.filters.limit !== 99) {
             params.set('limit', String(state.filters.limit));
         }
+        if (state.currentPage > 1) params.set('page', String(state.currentPage));
+        if (state.view) params.set('view', String(state.view));
 
-        // Modal and playback states in URL (primarily for mobile back button)
-        if (isMobileOrFullscreen()) {
-            if (state.activeModal) {
-                params.set('modal', String(state.activeModal));
-            }
-            if (state.playback.item) {
-                params.set('playing', String(state.playback.item.path));
-            }
-        }
-
-        const paramString = params.toString();
-        const newHash = paramString ? `#${paramString}` : '';
-
-        if (window.location.hash !== newHash) {
-            // Use pushState for DU navigation, page changes, modals, and playback to support back button
-            // Use replaceState for filter changes to avoid history spam
-            const isDUPathChange = state.page === 'du' && !window.location.hash.includes('path=');
-            const isPageChange = !window.location.hash.includes(`mode=${state.page}`);
-            const isModalChange = params.has('modal') !== window.location.hash.includes('modal=');
-            const isPlayingChange = params.has('playing') !== window.location.hash.includes('playing=');
-
-            if (isPageChange || isDUPathChange || isModalChange || isPlayingChange) {
-                window.history.pushState(state.filters, '', window.location.pathname + newHash);
+        // Database selection: send included DBs, or an explicit sentinel when none remain.
+        if (state.databases.length > 0) {
+            const included = getIncludedDatabases();
+            if (included.length === 0) {
+                params.set('db', '__none__');
             } else {
-                window.history.replaceState(state.filters, '', window.location.pathname + newHash);
+                included.forEach(db => params.append('db', String(db)));
             }
-            lastHandledHash = window.location.hash;
         }
+
+        // Modal and playback states in URL (primarily for mobile back button).
+        if (isMobileOrFullscreen()) {
+            if (state.activeModal) params.set('modal', String(state.activeModal));
+            if (state.playback.item) params.set('playing', String(state.playback.item.path));
+        }
+
+        const newHash = `#${params.toString()}`;
+
+        if (window.location.hash === newHash) return;
+
+        const oldParams = new URLSearchParams(window.location.hash.substring(1));
+        const withoutPage = (p: URLSearchParams) => {
+            const copy = new URLSearchParams(p);
+            copy.delete('page');
+            copy.delete('p');
+            return copy.toString();
+        };
+
+        const modeChanged =
+            oldParams.get('mode') !== params.get('mode') ||
+            oldParams.get('path') !== params.get('path') ||
+            oldParams.get('title') !== params.get('title') ||
+            oldParams.get('modal') !== params.get('modal') ||
+            oldParams.get('playing') !== params.get('playing');
+        const filtersUnchanged = withoutPage(oldParams) === withoutPage(params);
+        const pageChanged = (oldParams.get('page') || '1') !== (params.get('page') || '1');
+        const isInitialUrl = window.location.hash === '';
+
+        if (options.navigation || modeChanged || (filtersUnchanged && pageChanged)) {
+            if (isInitialUrl) {
+                window.history.replaceState(state.filters, '', window.location.pathname + newHash);
+            } else {
+                window.history.pushState(state.filters, '', window.location.pathname + newHash);
+            }
+        } else {
+            window.history.replaceState(state.filters, '', window.location.pathname + newHash);
+        }
+        lastHandledHash = window.location.hash;
     }
 
     function readUrl(openSections = false) {
-        // Support both hash and search params, preferring hash for the new system
+        // Support both hash and search params, preferring hash for the new system.
         const hash = window.location.hash.substring(1);
         const params = hash ? new URLSearchParams(hash) : new URLSearchParams(window.location.search);
-        const mode = params.get('mode');
+        const modeParam = params.get('mode');
+        const mode = modeParam || 'search';
+        const hasExplicitState = params.has('mode');
 
-        const pageParam = params.get('p');
-        state.currentPage = pageParam ? parseInt(pageParam) : 1;
+        // Page
+        const pageParam = params.get('page') || params.get('p');
+        const parsedPage = pageParam ? parseInt(pageParam) : 1;
+        state.currentPage = !isNaN(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
-        // Read limit from URL
+        // Search and filters are restored for every mode from the same schema.
+        state.filters.search = params.get('search') || '';
+        state.filters.categories = params.getAll('category');
+        state.filters.genre = params.get('genre') || '';
+        state.filters.languages = params.getAll('language');
+        state.filters.ratings = params.getAll('rating');
+        state.filters.min_score = params.get('min_score') || '';
+        state.filters.max_score = params.get('max_score') || '';
+        state.filters.searchType = (params.get('search_type') || 'fts') as 'fts' | 'substring';
+        state.filters.media_types = params.getAll('media_type');
+        if (state.filters.media_types.length === 0 && !hasExplicitState) {
+            // Initial load with no URL state keeps the last selected types.
+            state.filters.media_types = JSON.parse(localStorage.getItem('disco-types') || '[]');
+        }
+
+        state.filters.sort = params.get('sort') || 'default';
+        if (params.get('sort_fields')) {
+            state.filters.sort = 'custom';
+            state.filters.customSortFields = params.get('sort_fields') || '';
+        } else if (hasExplicitState) {
+            state.filters.customSortFields = '';
+        }
+        state.filters.reverse = params.get('reverse') === 'true';
+        state.filters.all = params.get('all') === 'true';
         const limitParam = params.get('limit');
         if (limitParam) {
             const limit = parseInt(limitParam);
-            if (!isNaN(limit) && limit > 0) {
-                state.filters.limit = limit;
-                state.filters.all = false;
-                const limitInput = document.getElementById('limit') as HTMLInputElement;
-                const limitAll = document.getElementById('limit-all') as HTMLInputElement;
-                if (limitInput) limitInput.value = limit.toString();
-                if (limitAll) limitAll.checked = false;
-            }
+            if (!isNaN(limit) && limit > 0) state.filters.limit = limit;
+            state.filters.all = false;
+        } else if (hasExplicitState && !state.filters.all) {
+            state.filters.limit = 99;
         }
 
-        // Read history filter from URL - applies across all modes
         const historyFilter = params.get('history');
         state.filters.unfinished = historyFilter === 'in-progress';
         state.filters.unplayed = historyFilter === 'unplayed';
         state.filters.completed = historyFilter === 'completed';
 
+        state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
+        state.filters.sizes = params.getAll('size').map(parseFilterBin);
+        state.filters.durations = params.getAll('duration').map(parseFilterBin);
+
+        const viewParam = params.get('view');
+        if (viewParam === 'grid' || viewParam === 'group' || viewParam === 'details') {
+            state.view = viewParam;
+            localStorage.setItem('disco-view', viewParam);
+        }
+
+        const dbParams = params.getAll('db');
+        if (dbParams.length > 0) {
+            if (state.databases.length > 0) {
+                setIncludedDatabases(dbParams);
+            } else {
+                pendingIncludedDbs = dbParams;
+            }
+        } else if (hasExplicitState) {
+            state.filters.excludedDbs = [];
+        }
+
         // Modals and Playback
         const modalParam = params.get('modal');
         const playingParam = params.get('playing');
 
-        // Close sidebar if it's open but not in URL
         if (state.activeModal === 'mobile-sidebar' && modalParam !== 'mobile-sidebar') {
             sidebar.classList.remove('mobile-open');
             sidebarOverlay.classList.add('hidden');
@@ -947,7 +958,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (playingParam) {
             if (!state.playback.item || state.playback.item.path !== playingParam) {
-                // If we're already playing something, close it first
                 const mediaItem = currentMedia.find(m => m.path === playingParam) || { path: playingParam };
                 openActivePlayer(mediaItem, true, true);
             }
@@ -955,103 +965,54 @@ document.addEventListener('DOMContentLoaded', () => {
             closeActivePlayer(true);
         }
 
-        if (mode === 'trash') {
-            state.page = 'trash';
-            state.filters.categories = [];
-            state.filters.languages = [];
-            state.filters.ratings = [];
-            // Read filter bins for trash mode
-            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
-            state.filters.sizes = params.getAll('size').map(parseFilterBin);
-            state.filters.durations = params.getAll('duration').map(parseFilterBin);
-        } else if (mode === 'history') {
-            state.page = 'history';
-            state.filters.categories = [];
-            state.filters.languages = [];
-            state.filters.ratings = [];
-        } else if (mode === 'playlist') {
-            state.page = 'playlist';
-            state.filters.playlist = params.get('title');
-            state.filters.categories = [];
-            state.filters.languages = [];
-            state.filters.ratings = [];
-        } else if (mode === 'du') {
-            state.page = 'du';
-            state.duPath = params.get('path') || '';
-            state.filters.categories = [];
-            state.filters.languages = [];
-            state.filters.ratings = [];
-            // Read filter bins for DU mode
-            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
-            state.filters.sizes = params.getAll('size').map(parseFilterBin);
-            state.filters.durations = params.getAll('duration').map(parseFilterBin);
-        } else if (mode === 'curation') {
-            state.page = 'curation';
-            state.filters.categories = [];
-            state.filters.languages = [];
-            state.filters.ratings = [];
-        } else if (mode === 'captions') {
-            state.page = 'captions';
-            state.filters.categories = [];
-            state.filters.languages = [];
-            state.filters.ratings = [];
-            // Read filter bins for captions mode
-            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
-            state.filters.sizes = params.getAll('size').map(parseFilterBin);
-            state.filters.durations = params.getAll('duration').map(parseFilterBin);
-        } else {
-            state.page = 'search';
-            state.filters.media_types = params.getAll('media_type');
-            if (state.filters.media_types.length === 0) {
-                // Default fallback if not in URL
-                state.filters.media_types = JSON.parse(localStorage.getItem('disco-types') || '[]');
+        // Mode-specific state.
+        state.filters.playlist = null;
+        state.duPath = '';
+        switch (mode) {
+            case 'trash':
+            case 'history':
+            case 'curation':
+            case 'captions':
+                state.page = mode;
+                break;
+            case 'du':
+                state.page = 'du';
+                state.duPath = params.get('path') || '';
+                break;
+            case 'playlist': {
+                const title = params.get('title');
+                if (title) {
+                    state.page = 'playlist';
+                    state.filters.playlist = title;
+                } else {
+                    state.page = 'search';
+                }
+                break;
             }
-            state.filters.categories = params.getAll('category');
-            state.filters.genre = params.get('genre') || '';
-            state.filters.languages = params.getAll('language');
-            state.filters.ratings = params.getAll('rating');
-            state.filters.search = params.get('search') || '';
-            state.filters.all = params.get('all') === 'true';
-            state.filters.min_score = params.get('min_score') || '';
-            state.filters.max_score = params.get('max_score') || '';
-            state.filters.searchType = (params.get('search_type') || 'fts') as 'fts' | 'substring';
-
-            state.filters.episodes = params.getAll('episodes').map(parseFilterBin);
-            state.filters.sizes = params.getAll('size').map(parseFilterBin);
-            state.filters.durations = params.getAll('duration').map(parseFilterBin);
-
-            if (openSections) {
-                if (state.filters.categories.length > 0) state.sidebarState['details-categories'] = true;
-                if (state.filters.genre) state.sidebarState['details-browse'] = true;
-                if (state.filters.languages.length > 0) state.sidebarState['details-languages'] = true;
-                if (state.filters.ratings.length > 0) state.sidebarState['details-ratings'] = true;
-                if (state.filters.episodes.length > 0) state.sidebarState['details-episodes'] = true;
-                if (state.filters.sizes.length > 0) state.sidebarState['details-size'] = true;
-                if (state.filters.durations.length > 0) state.sidebarState['details-duration'] = true;
-            }
-
-            // Restoration of complex filters from URL is tricky since we only have labels in bins
-            // For now, we rely on state persistence in localStorage which is already happening
-            // But we can try to parse them if we want to support sharing URLs
-
-            // Update search type toggle UI
-            if (settingSearchType) {
-                settingSearchType.checked = state.filters.searchType === 'fts';
-            }
-
-            if (searchInput) (searchInput as HTMLInputElement).value = state.filters.search;
-
-            if (state.filters.genre && filterBrowseCol) {
-                filterBrowseCol.value = 'genre';
-                filterBrowseCol.onchange(new Event('change'));
-            } else if (state.filters.categories.length > 0 && filterBrowseCol) {
-                filterBrowseCol.value = 'category';
-                filterBrowseCol.onchange(new Event('change'));
-            } else if (filterBrowseCol) {
-                filterBrowseCol.value = '';
-                filterBrowseValContainer.classList.add('hidden');
-            }
+            default:
+                state.page = 'search';
+                break;
         }
+
+        if (openSections) {
+            if (state.filters.categories.length > 0) state.sidebarState['details-categories'] = true;
+            if (state.filters.languages.length > 0) state.sidebarState['details-languages'] = true;
+            if (state.filters.ratings.length > 0) state.sidebarState['details-ratings'] = true;
+            if (state.filters.episodes.length > 0) state.sidebarState['details-episodes'] = true;
+            if (state.filters.sizes.length > 0) state.sidebarState['details-size'] = true;
+            if (state.filters.durations.length > 0) state.sidebarState['details-duration'] = true;
+        }
+
+        // Update controls from the restored state.
+        if (settingSearchType) settingSearchType.checked = state.filters.searchType === 'fts';
+        if (searchInput) (searchInput as HTMLInputElement).value = state.filters.search;
+        if (limitInput) limitInput.value = String(state.filters.limit);
+        if (limitAll) limitAll.checked = state.filters.all;
+        if (sortBy) sortBy.value = state.filters.sort === 'custom' ? 'custom' : state.filters.sort;
+        if (sortReverseBtn) sortReverseBtn.classList.toggle('active', state.filters.reverse);
+        if (viewGrid) viewGrid.classList.toggle('active', state.view === 'grid');
+        if (viewGroup) viewGroup.classList.toggle('active', state.view === 'group');
+        if (viewDetails) viewDetails.classList.toggle('active', state.view === 'details');
 
         updateSlidersFromAbsolute('episodes', 'episodes');
         updateSlidersFromAbsolute('size', 'sizes');
@@ -1089,8 +1050,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchPlaylistItems(state.filters.playlist);
         } else if (state.page === 'du') {
             fetchDU(state.duPath);
-        } else if (state.page === 'episodes') {
-            fetchEpisodes();
         } else if (state.page === 'curation') {
             fetchCuration();
         } else {
@@ -1439,21 +1398,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function playlistFilteredItems() {
+        let items = [...(state.playlistItems || [])];
+        const query = (state.filters.search || '').trim().toLowerCase();
+
+        if (query) {
+            items = items.filter(item =>
+                (item.path || '').toLowerCase().includes(query) ||
+                (item.title || '').toLowerCase().includes(query)
+            );
+        }
+        if (state.filters.media_types.length > 0) {
+            items = items.filter(item =>
+                state.filters.media_types.some(type => (item.media_type || '').includes(type))
+            );
+        }
+        if (state.filters.categories.length > 0) {
+            items = items.filter(item =>
+                (item.categories || []).some(cat => state.filters.categories.includes(cat))
+            );
+        }
+        if (state.filters.languages.length > 0) {
+            items = items.filter(item =>
+                (item.languages || []).some(lang => state.filters.languages.includes(lang))
+            );
+        }
+        if (state.filters.ratings.length > 0) {
+            items = items.filter(item => state.filters.ratings.includes(String(item.rating)));
+        }
+        if (state.filters.unplayed) items = items.filter(item => getPlayCount(item) === 0);
+        if (state.filters.completed) items = items.filter(item => getPlayCount(item) > 0);
+
+        return items;
+    }
+
     function filterPlaylistItems() {
         if (!state.playlistItems) return;
 
-        // Server returns playlist items - no need for client-side filtering
-        // Playlists are typically small, user-curated collections
-        currentMedia = state.playlistItems;
+        if (allDatabasesExcluded()) {
+            renderDatabaseEmptyState();
+            return;
+        }
+
+        // Playlists are client-side collections: filter, sort, then paginate.
+        currentMedia = playlistFilteredItems();
         sortPlaylistItems();
+        state.totalCount = currentMedia.length;
+
+        if (!state.filters.all) {
+            const start = (state.currentPage - 1) * state.filters.limit;
+            currentMedia = currentMedia.slice(start, start + state.filters.limit);
+        }
+
         renderResults();
         syncUrl();
     }
 
     async function fetchPlaylistItems(title) {
+        const isNewPlaylist = state.filters.playlist !== title;
         state.page = 'playlist';
         state.filters.playlist = title;
         state.filters.genre = '';
+        if (isNewPlaylist) state.currentPage = 1;
         syncUrl();
 
         const skeletonTimeout = setTimeout(() => {
@@ -1711,8 +1717,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchDU(path = '', isAutoSkip = false) {
         const prevPath = state.duPath;
-        const isForwardNav = prevPath && path.startsWith(prevPath);
-        const isBackwardNav = prevPath && prevPath.startsWith(path);
         // Detect first visit by checking if we haven't loaded any DU data yet AND sort hasn't been set
         const hasLoadedDuData = state.duData && state.duData.length > 0;
         const isFirstDUVisit = !hasLoadedDuData && state.page !== 'du';
@@ -1732,13 +1736,14 @@ document.addEventListener('DOMContentLoaded', () => {
             state.filters.sort = 'default';
             state.filters.reverse = false;
             state.view = 'grid'; // Default to grid view in DU
-            const sortBy = document.getElementById('sort-by');
-            const sortReverseBtn = document.getElementById('sort-reverse-btn');
-            if (sortBy) (sortBy as HTMLSelectElement).value = 'default';
-            if (sortReverseBtn) sortReverseBtn.classList.remove('active');
         }
 
         syncUrl();
+
+        if (allDatabasesExcluded()) {
+            renderDatabaseEmptyState();
+            return;
+        }
 
         const skeletonTimeout = setTimeout(() => {
             if (state.view === 'grid') showSkeletons();
@@ -1749,9 +1754,21 @@ document.addEventListener('DOMContentLoaded', () => {
             params.append('path', String(path));
             appendFilterParams(params);
 
-            // Add pagination parameters
-            params.append('limit', String(state.filters.limit));
-            params.append('offset', String((state.currentPage - 1) * state.filters.limit));
+            // DU supports only default/path/size/duration sorting. Never send
+            // custom sort fields or search-only sort keys to the DU endpoint.
+            params.delete('sort');
+            params.delete('sort_fields');
+            params.delete('reverse');
+            const duSort = DU_SORT_FIELDS.includes(state.filters.sort) ? state.filters.sort : 'default';
+            if (duSort !== 'default') params.append('sort', duSort);
+            if (state.filters.reverse) params.append('reverse', 'true');
+
+            if (state.filters.all) {
+                params.append('all', String('true'));
+            } else {
+                params.append('limit', String(state.filters.limit));
+                params.append('offset', String((state.currentPage - 1) * state.filters.limit));
+            }
 
             // Request filter bins to update slider ranges
             params.append('include_counts', String('true'));
@@ -1787,9 +1804,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration_percentiles: response.counts.duration_percentiles || [],
                     modified_percentiles: response.counts.modified_percentiles || [],
                     created_percentiles: response.counts.created_percentiles || [],
-                    downloaded_percentiles: response.counts.downloaded_percentiles || [],
-                    // Type counts (special case)
-                    media_type: response.counts.media_type || []
+                    downloaded_percentiles: response.counts.downloaded_percentiles || []
                 };
 
                 updateSlidersFromAbsolute('episodes', 'episodes');
@@ -1799,7 +1814,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateSlidersFromAbsolute('created', 'created');
                 updateSlidersFromAbsolute('downloaded', 'downloaded');
 
-                renderFilterBins();
                 updateSliderLabels();
             }
 
@@ -1880,8 +1894,9 @@ document.addEventListener('DOMContentLoaded', () => {
             renderDUBreadcrumbs(duBreadcrumbs);
         }
 
-        // Show folder/file count in results-info (from backend aggregates)
-        resultsCount.textContent = `${totalFolders} folders, ${totalFiles} files`;
+        // Show the total separately from the counts in the current page.
+        const shownCount = (data && data.length) || 0;
+        resultsCount.textContent = `${totalCount} total • showing ${shownCount} (${totalFolders} folders, ${totalFiles} files)`;
 
         // Build mediaItems array for navigation (direct files only in new API format)
         let mediaItems = [];
@@ -2143,7 +2158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 card.innerHTML = `
                     <div class="media-thumb">
-                        <img data-src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')" onerror="const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;const dataUrl=generateClientThumbnail(canvas,'${filename.replace(/'/g, "\\'")}','${mediaItem.media_type || ''}');this.src=dataUrl;this.classList.add('loaded');this.onerror=null">
+                        <img data-src="${thumbUrl}" loading="lazy" onload="this.classList.add('loaded')">
                         <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:var(--sidebar-bg); font-size:3rem;">${icon}</div>
                         <span class="media-duration">${duration}</span>
                         <div class="media-actions">
@@ -2158,9 +2173,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
                 
-                // Setup lazy loading for the thumbnail
+                // Setup lazy loading and the client-side thumbnail fallback.
                 const imgEl = card.querySelector('img');
-                if (imgEl) setupLazyThumbnail(imgEl as HTMLImageElement);
+                if (imgEl) {
+                    imgEl.addEventListener('error', () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 320;
+                        canvas.height = 240;
+                        imgEl.src = generateClientThumbnail(canvas, filename, mediaItem.media_type || '');
+                        imgEl.classList.add('loaded');
+                    }, { once: true });
+                    setupLazyThumbnail(imgEl as HTMLImageElement);
+                }
             } else {
                 // Render as folder card with is-folder class
                 card.className = 'media-card is-folder';
@@ -2272,11 +2296,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams();
             appendFilterParams(params);
 
-            if (state.filters.all) {
-                params.append('all', String('true'));
-            } else {
-                params.append('limit', String(state.filters.limit.toString()));
-            }
+            // Group view renders every group; there is no group pagination.
+            params.delete('limit');
+            params.delete('offset');
+            params.append('all', String('true'));
 
             if (state.page === 'trash') {
                 params.append('trash', String('true'));
@@ -2390,7 +2413,8 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMedia.push(...group.files);
         });
 
-        resultsCount.textContent = `${filtered.length} folders found`;
+        state.totalCount = filtered.length;
+        resultsCount.textContent = `${filtered.length} folders found (${currentMedia.length} files)`;
         resultsContainer.className = 'similarity-view';
         resultsContainer.innerHTML = '';
 
@@ -2915,20 +2939,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function performSearch() {
+        if (state.page !== 'trash' && state.page !== 'history' && state.page !== 'playlist' && state.page !== 'du' && state.page !== 'curation' && state.page !== 'captions') {
+            state.page = 'search';
+        }
+        state.filters.search = searchInput ? (searchInput as HTMLInputElement).value : '';
+        // A sort restored from a URL may not have a visible toolbar option;
+        // keep the state value instead of overwriting it with an empty select.
+        const selectedSort = sortBy ? sortBy.value : 'default';
+        if (selectedSort) state.filters.sort = selectedSort;
+        state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
+        state.filters.all = limitAll ? limitAll.checked : false;
+
         if (state.page === 'playlist' && state.filters.playlist) {
             filterPlaylistItems();
             return;
         }
 
-        if (state.page !== 'trash' && state.page !== 'history' && state.page !== 'playlist' && state.page !== 'du' && state.page !== 'curation' && state.page !== 'captions') {
-            state.page = 'search';
-        }
-        state.filters.search = searchInput ? (searchInput as HTMLInputElement).value : '';
-        state.filters.sort = sortBy ? sortBy.value : 'default';
-        state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
-        state.filters.all = limitAll ? limitAll.checked : false;
-
         syncUrl();
+
+        if (allDatabasesExcluded()) {
+            renderDatabaseEmptyState();
+            return;
+        }
 
         if (state.page === 'du') {
             fetchDU(state.duPath || '');
@@ -2973,11 +3005,6 @@ document.addEventListener('DOMContentLoaded', () => {
             appendFilterParams(params);
 
             // Sidebar captions filter (when not in full captions mode)
-            if (state.filters.captions && state.page !== 'captions') {
-                params.append('captions', String('true'));
-                params.append('aggregate', String('true'));
-            }
-
             // Add sort parameters
             if (state.filters.sort === 'custom' && state.filters.customSortFields) {
                 params.append('sort_fields', state.filters.customSortFields);
@@ -3024,7 +3051,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data && typeof data === 'object' && !Array.isArray(data) && data.items && data.counts) {
                 state.filterBins = data.counts;
                 data = data.items;
-                renderFilterBins();
             }
             if (!Array.isArray(data)) {
                 console.error('Expected array of media items but got:', data);
@@ -3131,37 +3157,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     async function fetchTrash() {
         state.page = 'trash';
-        state.filters.sort = 'time_deleted';
-        state.filters.reverse = true;
-        if (sortBy) sortBy.value = 'time_deleted';
+        if (!state.filters.sort || state.filters.sort === 'default') {
+            state.filters.sort = 'time_deleted';
+            state.filters.reverse = true;
+        }
+        if (sortBy) sortBy.value = state.filters.sort;
         performSearch();
     }
 
     async function fetchHistory() {
         state.page = 'history';
-        state.filters.genre = '';
-        state.filters.sort = 'time_last_played';
-        state.filters.reverse = true;
-        if (sortBy) sortBy.value = 'time_last_played';
+        if (!state.filters.sort || state.filters.sort === 'default') {
+            state.filters.sort = 'time_last_played';
+            state.filters.reverse = true;
+        }
+        if (sortBy) sortBy.value = state.filters.sort;
         performSearch();
     }
 
     async function emptyBin() {
-        if (currentMedia.length === 0) return;
-        const count = currentMedia.length;
+        // "Empty Bin" means the whole bin, not just the visible page. The
+        // backend treats an empty paths array as "all trash entries".
+        const count = state.totalCount || currentMedia.length;
+        if (count === 0) return;
         const unit = count === 1 ? 'file' : 'files';
-        if (!confirm(`Are you sure you want to permanently delete these ${count} ${unit}?`)) return;
+        if (!confirm(`Are you sure you want to permanently delete all ${count} ${unit} in the trash?`)) return;
 
         try {
-            const paths = currentMedia.map(m => m.path);
             const resp = await fetchAPI('/api/empty-bin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paths })
+                body: JSON.stringify({ paths: [] })
             });
             if (!resp.ok) throw new Error('Failed to empty bin');
             const msg = await resp.text();
             showToast(msg, '🔥');
+            state.currentPage = 1;
             fetchTrash();
         } catch (err) {
             console.error('Empty bin failed:', err);
@@ -4018,60 +4049,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const VTT_TIMESTAMP = /(?:(\d{2,}):)?(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(?:(\d{2,}):)?(\d{2}):(\d{2})[.,](\d{3})/;
+
     function parseWebVTT(vttText) {
         const cues = [];
-        const lines = vttText.split(/\r?\n/);
-        let currentTimeRange = null;
 
-        for (const line of lines) {
-            const trimmed = line.trim();
+        // Cue blocks are separated by blank lines. Splitting first handles
+        // multi-line cue text and cues that are not terminated by a trailing
+        // blank line, and keeps cue identifiers out of the text.
+        const blocks = String(vttText || '').replace(/\r\n?/g, '\n').split(/\n{2,}/);
 
-            // Skip WEBVTT header and empty lines
-            if (trimmed.startsWith('WEBVTT') || trimmed === '' || trimmed.startsWith('NOTE')) {
+        for (const block of blocks) {
+            const lines = block.split('\n').map(line => line.trim());
+            const firstNonEmpty = lines.findIndex(line => line !== '');
+            if (firstNonEmpty === -1) continue;
+
+            const first = lines[firstNonEmpty];
+            if (first.startsWith('WEBVTT') || first.startsWith('NOTE') || first.startsWith('STYLE') || first.startsWith('REGION')) {
                 continue;
             }
 
-            // Parse timestamp line (e.g., "00:00:01.000 --> 00:00:04.000")
-            const timestampMatch = trimmed.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/);
-            if (timestampMatch) {
-                currentTimeRange = {
-                    start: parseVTTTime(timestampMatch[1]),
-                    end: parseVTTTime(timestampMatch[2]),
-                    text: ''
-                };
-                continue;
-            }
+            const timestampLineIndex = lines.findIndex(line => VTT_TIMESTAMP.test(line));
+            if (timestampLineIndex === -1) continue;
 
-            // Collect text for current cue
-            if (currentTimeRange && trimmed) {
-                if (currentTimeRange.text) {
-                    currentTimeRange.text += ' ' + trimmed;
-                } else {
-                    currentTimeRange.text = trimmed;
-                }
-            }
+            const timestampMatch = lines[timestampLineIndex].match(VTT_TIMESTAMP);
+            if (!timestampMatch) continue;
 
-            // Empty line marks end of cue
-            if (trimmed === '' && currentTimeRange) {
-                cues.push(currentTimeRange);
-                currentTimeRange = null;
-            }
-        }
+            const start = (timestampMatch[1] ? parseInt(timestampMatch[1], 10) * 3600 : 0) +
+                parseInt(timestampMatch[2], 10) * 60 +
+                parseInt(timestampMatch[3], 10) +
+                parseInt(timestampMatch[4], 10) / 1000;
+            const end = (timestampMatch[5] ? parseInt(timestampMatch[5], 10) * 3600 : 0) +
+                parseInt(timestampMatch[6], 10) * 60 +
+                parseInt(timestampMatch[7], 10) +
+                parseInt(timestampMatch[8], 10) / 1000;
 
-        // Don't forget the last cue if file doesn't end with empty line
-        if (currentTimeRange) {
-            cues.push(currentTimeRange);
+            const text = lines
+                .slice(timestampLineIndex + 1)
+                .filter(line => line !== '')
+                .join('\n');
+
+            if (text) {
+                cues.push({ start, end, text });
+            }
         }
 
         return cues;
-    }
-
-    function parseVTTTime(timeStr) {
-        const parts = timeStr.split(':');
-        const seconds = parseFloat(parts[2]);
-        const minutes = parseInt(parts[1], 10);
-        const hours = parseInt(parts[0], 10);
-        return hours * 3600 + minutes * 60 + seconds;
     }
 
     function seekToSubtitleCue(reverse = false) {
@@ -4194,9 +4217,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function playRSVP(item) {
         const originalPlayer = state.player;
         state.player = 'browser';
-        const rsvpItem = { ...item, rsvp: true, type: 'video/webm' };
-        await openActivePlayer(rsvpItem, true);
-        state.player = originalPlayer;
+        // Route through the video player even when the source document is a PDF/text item.
+        const rsvpItem = { ...item, rsvp: true, media_type: 'video' };
+        try {
+            await openActivePlayer(rsvpItem, true);
+        } finally {
+            state.player = originalPlayer;
+        }
     }
 
     async function handleMediaError(item, el) {
@@ -4605,7 +4632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function openInPiP(item, isNewSession = false) {
+    async function openInPiP(item, isNewSession = false, prevItem = null, queueIndex = -1) {
         updatePipVisibility();
 
         if (state.playback.slideshowTimer) {
@@ -4619,9 +4646,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const type = item.media_type || "";
+        const previousItem = prevItem || null;
+        const isItemChange = !previousItem || previousItem.path !== item.path;
 
-        // Reset playback rate to default for new media if not currently playing something
-        if (!state.playback.item) {
+        // Apply the media-type default rate before the new item replaces the
+        // previous one, otherwise the previous item is always still set here.
+        if (isItemChange) {
             if (type.includes('video')) {
                 state.playbackRate = state.defaultVideoRate;
             } else if (type.includes('audio')) {
@@ -4633,9 +4663,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (speedBtn) speedBtn.textContent = `${state.playbackRate}x`;
         }
 
-        const prevItem = state.playback.item;
-        const wasPlayed = state.playback.hasMarkedComplete || (prevItem && getPlayCount(prevItem) > 0);
+        const wasPlayed = state.playback.hasMarkedComplete || (previousItem && getPlayCount(previousItem) > 0);
 
+        state.playback.queueIndex = queueIndex;
+        if (isItemChange) {
+            state.playback.seekHistory = [];
+            state.playback.markedPosition = null;
+        }
         state.playback.item = item;
         state.playback.startTime = Date.now();
         state.playback.lastUpdate = 0;
@@ -4661,7 +4695,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let count = 0;
             for (let i = state.playback.lastPlayedIndex + 1; i < currentMedia.length && count < 2; i++) {
                 const nextItem = currentMedia[i];
-                if (nextItem.type && nextItem.type.includes('image')) {
+                if (nextItem.media_type && nextItem.media_type.includes('image')) {
                     const img = new Image();
                     img.src = appUrl(`/api/raw?path=${encodeURIComponent(nextItem.path)}`);
                     count++;
@@ -4669,7 +4703,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        if (prevItem && prevItem.path !== item.path && state.filters.unplayed && wasPlayed) {
+        if (previousItem && previousItem.path !== item.path && state.filters.unplayed && wasPlayed) {
             if (state.playback.pendingUpdate) await state.playback.pendingUpdate;
             performSearch();
         }
@@ -4849,7 +4883,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     hls.on(Hls.Events.MANIFEST_PARSED, () => {
                         seekToProgress(el, localPos);
                         el.playbackRate = state.playbackRate;
-                        el.play().catch(e => console.log("Auto-play blocked:", e));
+                        el.play().catch(() => {
+                            // Auto-play can be blocked by the browser; the controls remain available.
+                        });
                     });
                     hls.on(Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
@@ -4945,8 +4981,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 addTrack(appUrl(`/api/subtitles?path=${encodeURIComponent(path)}`), 'External', 'auto');
             }
 
-            // Setup cursor auto-hide for video in fullscreen mode
-            setupCursorAutoHide(el as HTMLVideoElement);
+            // Per-element media listeners are safe: the element is discarded
+            // with the viewer content. Shared container listeners are
+            // registered once at startup.
+            el.addEventListener('play', () => {
+                if (document.fullscreenElement) (pipViewer as any)._scheduleCursorHide?.();
+            });
+            el.addEventListener('pause', () => (pipViewer as any)._showCursor?.());
 
         } else if (type.includes('audio')) {
             el = document.createElement('audio');
@@ -5059,7 +5100,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, 250); // Double-click threshold
             };
-            setupViewerZoomPan();
         } else {
             showToast('Unsupported media format');
             return;
@@ -5068,107 +5108,39 @@ document.addEventListener('DOMContentLoaded', () => {
         pipViewer.appendChild(el);
     }
 
-    // Document reading progress tracking
+    // Document reading progress tracking. Document progress uses its own key
+    // so a scroll percentage can never be interpreted as media seconds.
     let documentProgressTimer: number | null = null;
     const DOCUMENT_PROGRESS_INTERVAL = 5000; // Save progress every 5 seconds
+    const DOCUMENT_PROGRESS_KEY = 'disco-document-progress';
 
     function saveDocumentProgress(path: string, scrollPercent: number, chapter?: string) {
         if (!state.localResume) return;
 
-        const progress = getLocalStorageItem('disco-progress', {});
-        const now = Date.now();
-
-        // Store document-specific progress with scroll position and optional chapter
+        const progress = getLocalStorageItem(DOCUMENT_PROGRESS_KEY, {});
         progress[path] = {
-            pos: Math.floor(scrollPercent * 100), // Store as percentage (0-100)
+            scrollPercent: Math.max(0, Math.min(1, scrollPercent)),
             chapter: chapter || '',
-            last: now
+            last: Date.now()
         };
 
-        setLocalStorageItem('disco-progress', progress);
+        setLocalStorageItem(DOCUMENT_PROGRESS_KEY, progress);
     }
 
     function restoreDocumentProgress(path: string): { scrollPercent: number; chapter: string } | null {
         if (!state.localResume) return null;
 
-        const progress = getLocalStorageItem('disco-progress', {});
+        const progress = getLocalStorageItem(DOCUMENT_PROGRESS_KEY, {});
         const entry = progress[path];
 
         if (!entry || typeof entry !== 'object') return null;
 
-        const scrollPercent = (entry.pos || 0) / 100;
+        const scrollPercent = typeof entry.scrollPercent === 'number'
+            ? entry.scrollPercent
+            : (entry.pos || 0) / 100;
         const chapter = entry.chapter || '';
 
         return { scrollPercent, chapter };
-    }
-
-    // Track progress for reader div (non-iframe)
-    function trackReaderProgress(reader: HTMLElement, path: string) {
-        const scrollable = reader;
-
-        const tryTrackScroll = () => {
-            try {
-                const scrollTop = scrollable.scrollTop;
-                const scrollHeight = scrollable.scrollHeight;
-                const clientHeight = scrollable.clientHeight;
-
-                if (scrollHeight > clientHeight) {
-                    const scrollPercent = scrollTop / (scrollHeight - clientHeight);
-                    saveDocumentProgress(path, scrollPercent);
-                }
-            } catch (e) {
-                console.error('Error tracking reader progress:', e);
-            }
-        };
-
-        // Track periodically while reading
-        if (documentProgressTimer !== null) {
-            window.clearInterval(documentProgressTimer);
-        }
-        documentProgressTimer = window.setInterval(tryTrackScroll, DOCUMENT_PROGRESS_INTERVAL);
-
-        // Also track on scroll (throttled)
-        let lastTrack = 0;
-        scrollable.addEventListener('scroll', () => {
-            const now = Date.now();
-            if (now - lastTrack > 2000) { // Throttle to every 2 seconds
-                tryTrackScroll();
-                lastTrack = now;
-            }
-        });
-
-        // Save on close
-        reader.addEventListener('remove', () => {
-            tryTrackScroll();
-        });
-    }
-
-    function applyReaderProgress(reader: HTMLElement, path: string) {
-        const saved = restoreDocumentProgress(path);
-        if (!saved) return;
-
-        const { scrollPercent } = saved;
-
-        // Wait a bit for layout to stabilize
-        setTimeout(() => {
-            try {
-                const scrollHeight = reader.scrollHeight;
-                const clientHeight = reader.clientHeight;
-
-                if (scrollHeight > clientHeight) {
-                    const targetScroll = scrollPercent * (scrollHeight - clientHeight);
-                    reader.scrollTop = targetScroll;
-
-                    // Show toast with resume position
-                    if (scrollPercent > 0.05) {
-                        const percent = Math.round(scrollPercent * 100);
-                        showToast(`Resumed at ${percent}%`, '📖');
-                    }
-                }
-            } catch (e) {
-                console.error('Error applying reader progress:', e);
-            }
-        }, 500);
     }
 
     function trackDocumentProgress(iframe: HTMLIFrameElement, path: string) {
@@ -5262,6 +5234,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         trackDocumentProgress(iframe, item.path);
         applyDocumentProgress(iframe, item.path);
+        iframe.addEventListener('load', () => applyDocumentViewSettings());
+        applyDocumentViewSettings();
     }
 
     async function openInDocumentViewer(item) {
@@ -5320,8 +5294,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     await renderHTMLFolder(item, container, normalizedPath);
                     return;
                 }
-            } catch (error) {
-                console.log('Not an HTML folder, falling back to normal handling:', error);
+            } catch {
+                // Not an HTML folder; fall back to normal handling.
             }
         }
 
@@ -5395,6 +5369,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Try to restore progress
             applyDocumentProgress(iframe, item.path);
         }
+
+        const iframe = container.querySelector('iframe');
+        if (iframe) iframe.addEventListener('load', () => applyDocumentViewSettings());
+        applyDocumentViewSettings();
     }
 
     function showMetadata(item) {
@@ -5483,10 +5461,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Setup cursor auto-hide for video elements in fullscreen mode
-    function setupCursorAutoHide(video: HTMLVideoElement) {
+    // Setup cursor auto-hide for the viewer in fullscreen mode. Shared
+    // container/document listeners are registered exactly once.
+    function setupCursorAutoHide() {
         let cursorHideTimer: number | null = null;
         const CURSOR_HIDE_DELAY = 1000; // 1 second
+
+        const currentVideo = () => pipViewer.querySelector('video') as HTMLVideoElement | null;
 
         const showCursor = () => {
             pipViewer.style.cursor = 'default';
@@ -5497,8 +5478,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const hideCursor = () => {
+            const video = currentVideo();
             // Only hide if video is playing and in fullscreen
-            if (!video.paused && document.fullscreenElement) {
+            if (video && !video.paused && document.fullscreenElement) {
                 pipViewer.style.cursor = 'none';
             }
         };
@@ -5513,32 +5495,18 @@ document.addEventListener('DOMContentLoaded', () => {
         pipViewer.addEventListener('mousedown', showCursor, { passive: true });
 
         // Also listen to fullscreen changes to update cursor state
-        const fullscreenHandler = () => {
+        document.addEventListener('fullscreenchange', () => {
+            const video = currentVideo();
             if (!document.fullscreenElement) {
                 showCursor();
-            } else if (!video.paused) {
-                scheduleCursorHide();
-            }
-        };
-
-        document.addEventListener('fullscreenchange', fullscreenHandler);
-
-        // Listen to play/pause to manage cursor state
-        video.addEventListener('play', () => {
-            if (document.fullscreenElement) {
+            } else if (video && !video.paused) {
                 scheduleCursorHide();
             }
         });
 
-        video.addEventListener('pause', showCursor);
-
-        // Store cleanup function
-        (video as any)._cleanupCursor = () => {
-            if (cursorHideTimer) {
-                clearTimeout(cursorHideTimer);
-            }
-            document.removeEventListener('fullscreenchange', fullscreenHandler);
-        };
+        // Exposed for the per-video play/pause listeners in openInPiP.
+        (pipViewer as any)._scheduleCursorHide = scheduleCursorHide;
+        (pipViewer as any)._showCursor = showCursor;
     }
 
     // Setup zoom/pan functionality for the viewer container
@@ -5779,7 +5747,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Replace video with img in the viewer
         pipViewer.innerHTML = '';
         pipViewer.appendChild(imgEl);
-        setupViewerZoomPan();
     }
 
     async function closePiP() {
@@ -6082,6 +6049,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Rendering ---
+    function renderDatabaseEmptyState() {
+        currentMedia = [];
+        state.totalCount = 0;
+        resultsCount.textContent = '0 results';
+        resultsContainer.className = 'no-results-container';
+        resultsContainer.innerHTML = `
+            <div class="no-results" style="
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 2rem;
+                text-align: center;
+                color: var(--text-muted);
+                max-width: 500px;
+                margin: 0 auto;
+            ">
+                <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;">🗂️</div>
+                <h2 style="margin: 0 0 0.5rem 0; color: var(--text);">No databases selected</h2>
+                <p style="margin: 0; max-width: 400px;">
+                    Every database is excluded. Enable at least one database in Settings to see media.
+                </p>
+            </div>
+        `;
+        paginationContainer.classList.add('hidden');
+    }
+
     function renderResults() {
         if (!currentMedia) currentMedia = [];
 
@@ -6098,8 +6092,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (state.page === 'trash') {
-            const unit = currentMedia.length === 1 ? 'file' : 'files';
-            resultsCount.innerHTML = `<span>${currentMedia.length} ${unit} in trash</span> <button id="empty-bin-btn" class="category-btn" style="margin-left: 1rem; background: #e74c3c; color: white;">Empty Bin</button>`;
+            const trashCount = state.totalCount || currentMedia.length;
+            const unit = trashCount === 1 ? 'file' : 'files';
+            resultsCount.innerHTML = `<span>${trashCount} ${unit} in trash</span> <button id="empty-bin-btn" class="category-btn" style="margin-left: 1rem; background: #e74c3c; color: white;">Empty Bin</button>`;
             const emptyBtn = document.getElementById('empty-bin-btn');
             if (emptyBtn) emptyBtn.onclick = emptyBin;
         } else if (state.page === 'history') {
@@ -6153,15 +6148,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (state.view === 'details') {
-            renderDetailsTable();
-            renderPagination();
+        if (state.page === 'captions') {
+            renderCaptionsList();
             resultsContainer.style.minHeight = '';
             return;
         }
 
-        if (state.page === 'captions') {
-            renderCaptionsList();
+        if (state.view === 'details') {
+            renderDetailsTable();
+            renderPagination();
             resultsContainer.style.minHeight = '';
             return;
         }
@@ -6410,7 +6405,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tr.innerHTML = `
                 <td>${path}</td>
-                <td>${firstCap.type || 'unknown'}</td>
+                <td>${firstCap.media_type || 'unknown'}</td>
                 <td>${size}</td>
                 <td>${duration}</td>
                 <td>${captions.length}</td>
@@ -6838,7 +6833,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showToast(msg, customEmoji = null) {
-        console.log('showToast:', msg, customEmoji);
         if (state.playback.toastTimer) {
             clearTimeout(state.playback.toastTimer);
         }
@@ -6886,31 +6880,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
-        };
-    }
-
-    // Throttle: ensures function is called at most once per wait period
-    // Unlike debounce, it executes immediately then waits
-    function throttle(func, wait) {
-        let timeout;
-        let previous = 0;
-        return function executedFunction(...args) {
-            const now = Date.now();
-            const remaining = wait - (now - previous);
-            if (remaining <= 0 || remaining > wait) {
-                if (timeout) {
-                    clearTimeout(timeout);
-                    timeout = null;
-                }
-                previous = now;
-                func(...args);
-            } else if (!timeout) {
-                timeout = setTimeout(() => {
-                    previous = Date.now();
-                    timeout = null;
-                    func(...args);
-                }, remaining);
-            }
         };
     }
 
@@ -7574,7 +7543,7 @@ document.addEventListener('DOMContentLoaded', () => {
         events.onmessage = (event) => {
             const startTime = event.data;
             if (state.applicationStartTime && state.applicationStartTime !== startTime) {
-                console.log('Server restarted, reloading...');
+                // Server restart detected; reload below.
                 location.reload();
             }
             state.applicationStartTime = startTime;
@@ -7635,20 +7604,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    searchInput.oninput = (e) => {
-        let val = (e.target as any).value;
+    function onSearchInput() {
+        let val = (searchInput as HTMLInputElement).value;
         if (val.includes('\\')) {
             val = val.replace(/\\/g, '/');
-            (e.target as any).value = val;
+            (searchInput as HTMLInputElement).value = val;
         }
 
         if (val.startsWith('/') || val.startsWith('./')) {
-            // Path browsing
             fetchSuggestions(val);
         } else {
             searchSuggestions.classList.add('hidden');
             debouncedSearch();
         }
+    }
+
+    searchInput.oninput = onSearchInput;
+    searchInput.onkeypress = (e) => {
+        if (e.key === 'Enter') performSearch();
     };
 
     searchInput.onfocus = () => {
@@ -7768,48 +7741,62 @@ document.addEventListener('DOMContentLoaded', () => {
     // -----------------------------------------------------------------------
     function applyDocumentViewSettings() {
         const s = state.documentView;
-        // Apply theme to the document viewer container/reader
         const container = document.getElementById('document-container');
-        if (container) {
-            const reader = container.querySelector('#document-reader');
-            if (reader) {
-                let theme = s.theme;
-                if (theme === 'auto') {
-                    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                }
-                (reader as HTMLElement).setAttribute('data-doc-theme', theme);
-                // Update CSS custom properties
-                const content = reader.querySelector('.reader-content');
-                if (content) {
-                    (content as HTMLElement).style.setProperty('--doc-font-size', s.fontSize + 'px');
-                    (content as HTMLElement).style.setProperty('--doc-line-height', String(s.lineHeight));
-                    (content as HTMLElement).style.setProperty('--doc-letter-spacing', s.letterSpacing + 'px');
-                    (content as HTMLElement).style.setProperty('--doc-max-width', s.maxWidth + 'px');
-                    (content as HTMLElement).style.setProperty('--doc-font-family', s.fontFamily);
-                    (content as HTMLElement).style.setProperty('--doc-text-align', s.textAlign);
-                    (content as HTMLElement).style.setProperty('font-family', s.fontFamily);
-                    (content as HTMLElement).style.setProperty('font-size', s.fontSize + 'px');
-                    (content as HTMLElement).style.setProperty('line-height', String(s.lineHeight));
-                    (content as HTMLElement).style.setProperty('letter-spacing', s.letterSpacing + 'px');
-                    (content as HTMLElement).style.setProperty('max-width', s.maxWidth + 'px');
-                    (content as HTMLElement).style.setProperty('text-align', s.textAlign);
+        if (!container) return;
 
-                    // Column spread
-                    if (s.columnSpread === 2) {
-                        content.classList.add('columns-2');
-                    } else {
-                        content.classList.remove('columns-2');
-                    }
-
-                    // Text reflow
-                    if (s.textReflow) {
-                        reader.classList.add('reflow');
-                    } else {
-                        reader.classList.remove('reflow');
-                    }
-                }
-            }
+        let theme = s.theme;
+        if (theme === 'auto') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
+
+        const themeColors: Record<string, { background: string; color: string }> = {
+            light: { background: '#ffffff', color: '#1a1a1a' },
+            dark: { background: '#1a1a1a', color: '#e6e6e6' },
+            sepia: { background: '#f4ecd8', color: '#4b3b2b' },
+            solarized: { background: '#002b36', color: '#839496' }
+        };
+        const colors = themeColors[theme] || themeColors.light;
+
+        container.setAttribute('data-doc-theme', theme);
+
+        const css = `
+            html, body {
+                background: ${colors.background} !important;
+                color: ${colors.color} !important;
+                font-family: ${s.fontFamily} !important;
+                font-size: ${s.fontSize}px !important;
+                line-height: ${s.lineHeight} !important;
+                letter-spacing: ${s.letterSpacing}px !important;
+                text-align: ${s.textAlign} !important;
+            }
+            body {
+                max-width: ${s.maxWidth}px;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                padding: 1rem !important;
+                ${s.columnSpread === 2 ? 'column-count: 2 !important; column-gap: 2rem !important;' : ''}
+                ${s.textReflow ? '' : 'white-space: pre !important;'}
+            }
+            img, svg, video { max-width: 100% !important; height: auto !important; }
+        `;
+
+        // Apply to same-origin document iframes. PDFs rendered by the browser
+        // plugin are opaque; the container theme still applies around them.
+        container.querySelectorAll('iframe').forEach((frame: HTMLIFrameElement) => {
+            try {
+                const doc = frame.contentDocument || frame.contentWindow?.document;
+                if (!doc) return;
+                let styleEl = doc.getElementById('disco-reader-style') as HTMLStyleElement | null;
+                if (!styleEl) {
+                    styleEl = doc.createElement('style');
+                    styleEl.id = 'disco-reader-style';
+                    (doc.head || doc.documentElement).appendChild(styleEl);
+                }
+                styleEl.textContent = css;
+            } catch {
+                // Cross-origin documents cannot be styled.
+            }
+        });
     }
 
     function saveDocumentViewSetting(key: string, value: any) {
@@ -8037,37 +8024,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closePipBtn) (closePipBtn as HTMLElement).onclick = closePiP;
 
 
-
-    if (filterBrowseCol) {
-        filterBrowseCol.onchange = async () => {
-            const col = filterBrowseCol.value;
-            if (!col) {
-                filterBrowseValContainer.classList.add('hidden');
-                return;
-            }
-
-            filterBrowseValContainer.classList.remove('hidden');
-            filterBrowseVal.innerHTML = '<option value="">Loading...</option>';
-
-            let options = [];
-            if (col === 'genre') {
-                if (state.genres.length === 0) await fetchGenres();
-                options = state.genres.map(g => ({ val: g.genre, label: `${g.genre} (${g.count})` }));
-            } else if (col === 'category') {
-                if (state.categories.length === 0) await fetchCategories();
-                options = state.categories.map(c => ({ val: c.category, label: `${c.category} (${c.count})` }));
-            } else if (col === 'db') {
-                options = allDatabases.map(db => ({ val: db, label: db }));
-            }
-
-            filterBrowseVal.innerHTML = '<option value="">All</option>' +
-                options.map(o => `<option value="${o.val}">${o.label}</option>`).join('');
-
-            // Try to restore selection from state
-            if (col === 'genre') filterBrowseVal.value = state.filters.genre;
-            else if (col === 'category') filterBrowseVal.value = state.filters.categories[0] || '';
-        };
-    }
 
     const pipSlideshowBtn = document.getElementById('pip-slideshow');
     if (pipSlideshowBtn) {
@@ -8404,21 +8360,36 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Close modal on outside click
+    // Close modal on outside click through the same path as the close button.
     window.onclick = (event) => {
-        if (event.target.classList.contains('modal')) {
-            event.target.classList.add('hidden');
+        const target = event.target as HTMLElement;
+        if (target.classList.contains('modal')) {
+            if (target.id === 'document-modal') {
+                closeActivePlayer();
+            } else {
+                closeModal(target.id);
+            }
         }
     };
 
-    if (searchInput) {
-        // Throttle search to 300ms to avoid excessive API calls while typing
-        const throttledPerformSearch = throttle(performSearch, 300);
-        searchInput.oninput = throttledPerformSearch;
-        searchInput.onkeypress = (e) => { if (e.key === 'Enter') performSearch(); };
+    function syncSortOptionsForMode() {
+        if (!sortBy) return;
+
+        Array.from(sortBy.options).forEach(option => {
+            option.hidden = state.page === 'du' && !DU_SORT_FIELDS.includes(option.value);
+        });
+
+        const sortComplexBtn = document.getElementById('sort-complex-btn');
+        if (sortComplexBtn) sortComplexBtn.classList.toggle('hidden', state.page === 'du');
+
+        const effectiveSort = state.page === 'du' && !DU_SORT_FIELDS.includes(state.filters.sort)
+            ? 'default'
+            : state.filters.sort;
+        if (sortBy.value !== effectiveSort) sortBy.value = effectiveSort;
     }
 
     function updateNavActiveStates() {
+        syncSortOptionsForMode();
         const toolbar = document.getElementById('toolbar');
         const searchContainer = document.getElementById('search-container');
         if (state.page === 'curation') {
@@ -8462,6 +8433,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (allMediaBtn) allMediaBtn.classList.toggle('active', state.page === 'search' && state.filters.categories.length === 0 && state.filters.genre === '' && state.filters.languages.length === 0 && state.filters.ratings.length === 0 && !state.filters.playlist && !state.filters.unplayed && !state.filters.unfinished && !state.filters.completed && state.filters.sizes.length === 0 && state.filters.durations.length === 0 && state.filters.episodes.length === 0 && state.filters.media_types.length === 0);
         if (trashBtn) trashBtn.classList.toggle('active', state.page === 'trash');
+        if (historyBtn) historyBtn.classList.toggle('active', state.page === 'history');
         if (duBtn) duBtn.classList.toggle('active', state.page === 'du');
         if (captionsBtn) captionsBtn.classList.toggle('active', state.page === 'captions');
 
@@ -8480,7 +8452,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Handle playlists and categories in the sidebar lists
         document.querySelectorAll('#sidebar .category-btn').forEach(btn => {
-            if (btn === allMediaBtn || btn === trashBtn || btn === duBtn || btn === captionsBtn || btn === historyInProgressBtn || btn === historyUnplayedBtn || btn === historyCompletedBtn) return;
+            if (btn === allMediaBtn || btn === trashBtn || btn === historyBtn || btn === duBtn || btn === captionsBtn || btn === historyInProgressBtn || btn === historyUnplayedBtn || btn === historyCompletedBtn) return;
             if (btn.closest('#media-type-list')) return;
             if (btn.closest('#episodes-list') || btn.closest('#size-list') || btn.closest('#duration-list')) return;
 
@@ -8518,6 +8490,19 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    if (historyBtn) {
+        historyBtn.onclick = () => {
+            if (state.page === 'history') {
+                state.page = 'search';
+                updateNavActiveStates();
+                performSearch();
+                return;
+            }
+            state.currentPage = 1;
+            fetchHistory();
+        };
+    }
+
     if (trashBtn) {
         trashBtn.onclick = () => {
             if (state.page === 'trash') {
@@ -8528,14 +8513,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Reset ALL filters when entering trash mode for safety
-            // This prevents dangerous situations where filters could show untrashed files in trash view
-            resetFilters();
+            // Reset ALL filters when entering trash mode for safety.
+            // This prevents dangerous situations where filters could show untrashed files in trash view.
+            resetFilters(true);
 
             // Save to localStorage
             clearAllFilters();
 
             state.page = 'trash';
+            state.filters.sort = 'time_deleted';
+            state.filters.reverse = true;
             updateNavActiveStates();
             fetchTrash();
         };
@@ -8711,8 +8698,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (state.page === 'playlist') {
-            sortPlaylistItems();
-            renderResults();
+            filterPlaylistItems();
         } else if (state.page === 'du') {
             state.currentPage = 1;
             fetchDU(state.duPath);
@@ -8727,8 +8713,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('disco-reverse', String(state.filters.reverse));
         sortReverseBtn.classList.toggle('active');
         if (state.page === 'playlist') {
-            sortPlaylistItems();
-            renderResults();
+            filterPlaylistItems();
         } else if (state.page === 'du') {
             state.currentPage = 1;
             fetchDU(state.duPath);
@@ -8781,8 +8766,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     valB = b.path.split('.').pop().toLowerCase();
                     break;
                 case 'media_type':
-                    valA = a.type || '';
-                    valB = b.type || '';
+                    valA = a.media_type || '';
+                    valB = b.media_type || '';
                     break;
                 case 'random': return Math.random() - 0.5;
                 default: return 0;
@@ -8935,23 +8920,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initial load
-    readUrl(true);
-    fetchDatabases();
+    // Shared viewer listeners are registered once, not per opened item.
+    setupCursorAutoHide();
+    setupViewerZoomPan();
 
-    fetchCategories();
-    fetchLanguages();
-    fetchGenres();
-    fetchRatings();
-    fetchPlaylists();
-    // Filter bins are now fetched with search results via include_counts=true
-    renderMediaTypeList(); // Render media type buttons on initial load
-    renderCategoryList();
-    initSidebarPersistence();
-    initQueueControls();
-    updateQueueVisibility();
-    onUrlChange();
+    // Initial load: database state (including read-only mode) must be known
+    // before the first query or any delete controls are rendered.
+    async function initialize() {
+        await fetchDatabases();
+        if (pendingIncludedDbs) {
+            setIncludedDatabases(pendingIncludedDbs);
+            pendingIncludedDbs = null;
+        }
+
+        readUrl(true);
+        renderDbSettingsList(state.databases);
+        renderMediaTypeList();
+        initSidebarPersistence();
+        initQueueControls();
+        updateQueueVisibility();
+
+        await Promise.all([
+            fetchCategories(),
+            fetchLanguages(),
+            fetchGenres(),
+            fetchRatings(),
+            fetchPlaylists()
+        ]);
+
+        renderCategoryList();
+        onUrlChange();
+    }
+
     applyTheme();
+    initialize();
 
     document.addEventListener('fullscreenchange', () => {
         const fsBtn = document.getElementById('doc-fullscreen');
@@ -9023,6 +9025,19 @@ document.addEventListener('DOMContentLoaded', () => {
         startSlideshow,
         stopSlideshow,
         fetchDU,
+        playRSVP,
+        parseWebVTT,
+        seekToSubtitleCue,
+        emptyBin,
+        fetchPlaylistItems,
+        filterPlaylistItems,
+        fetchEpisodes,
+        generateClientThumbnail,
+        saveDocumentProgress,
+        restoreDocumentProgress,
+        getLocalProgress,
+        setupCursorAutoHide,
+        setupViewerZoomPan,
         openDocumentSettings,
         applyDocumentViewSettings,
         state

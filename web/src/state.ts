@@ -43,10 +43,7 @@ export const state: State = {
         unplayed: getLocalStorageItem('disco-unplayed') === 'true',
         unfinished: false,
         completed: false,
-        captions: false,
         searchType: (getLocalStorageItem('disco-search-type', 'fts') as 'fts' | 'substring'),
-        browseCol: '',
-        browseVal: '',
         customSortFields: getLocalStorageItem('disco-custom-sort-fields', '')
     },
     activeModal: null,
@@ -107,8 +104,7 @@ export const state: State = {
         duration_percentiles: [],
         modified_percentiles: [],
         created_percentiles: [],
-        downloaded_percentiles: [],
-        media_type: []
+        downloaded_percentiles: []
     },
     playlists: [],
     newCategories: [],

@@ -1,6 +1,7 @@
 export interface MediaItem {
     path: string;
     name: string;
+    title?: string;
     media_type: string;
     is_dir: boolean;
     size?: number;
@@ -51,9 +52,6 @@ export interface FilterBins {
     modified_percentiles: number[];
     created_percentiles: number[];
     downloaded_percentiles: number[];
-
-    // MediaType counts (special case - not a percentile distribution)
-    media_type: FilterBin[];
 }
 
 export interface PlaybackState {
@@ -94,7 +92,7 @@ export interface DocumentViewSettings {
 
 export interface State {
     view: string;
-    page: 'search' | 'trash' | 'history' | 'playlist' | 'du' | 'curation' | 'captions' | 'episodes';
+    page: 'search' | 'trash' | 'history' | 'playlist' | 'du' | 'curation' | 'captions';
     currentPage: number;
     totalCount: number;
     filters: {
@@ -121,10 +119,7 @@ export interface State {
         unplayed: boolean;
         unfinished: boolean;
         completed: boolean;
-        captions: boolean;
         searchType: 'fts' | 'substring';
-        browseCol: string;
-        browseVal: string;
         customSortFields?: string;
     };
     activeModal: string | null;

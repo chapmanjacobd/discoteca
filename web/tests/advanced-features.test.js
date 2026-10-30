@@ -39,60 +39,42 @@ describe('Playlists', () => {
     });
 
     it('creates a new playlist', async () => {
+        const createBtn = document.getElementById('new-playlist-btn');
+        expect(createBtn).not.toBeNull();
+
+        window.prompt = vi.fn().mockReturnValue('Test Playlist');
+        createBtn.click();
+
         await vi.waitFor(() => {
-            const createBtn = document.getElementById('create-playlist-btn');
-            return createBtn !== null;
-        });
-
-        const createBtn = document.getElementById('create-playlist-btn');
-        if (createBtn) {
-            createBtn.click();
-
-            // Mock prompt for playlist name
-            window.prompt = vi.fn().mockReturnValue('Test Playlist');
-            window.confirm = vi.fn().mockReturnValue(true);
-
-            const submitBtn = document.querySelector('#playlist-modal button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.click();
-            }
-
-            await vi.waitFor(() => {
-                expect(global.fetch).toHaveBeenCalledWith(
-                    '/api/playlists',
-                    expect.objectContaining({
-                        method: 'POST',
-                        body: expect.stringContaining('Test Playlist')
-                    })
-                );
-            }, 2000);
-        } else {
-            expect(true).toBe(true);
-        }
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/api/playlists'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: expect.stringContaining('Test Playlist')
+                })
+            );
+        }, 2000);
     });
 
     it('deletes a playlist', async () => {
         await vi.waitFor(() => {
-            const deleteBtn = document.querySelector('#playlist-list .delete-playlist');
+            const deleteBtn = document.querySelector('#playlist-list .delete-playlist-btn');
             return deleteBtn !== null;
         });
 
-        const deleteBtn = document.querySelector('#playlist-list .delete-playlist');
-        if (deleteBtn) {
-            window.confirm = vi.fn().mockReturnValue(true);
-            deleteBtn.click();
+        const deleteBtn = document.querySelector('#playlist-list .delete-playlist-btn');
+        expect(deleteBtn).not.toBeNull();
+        window.confirm = vi.fn().mockReturnValue(true);
+        deleteBtn.click();
 
-            await vi.waitFor(() => {
-                expect(global.fetch).toHaveBeenCalledWith(
-                    expect.stringContaining('/api/playlists/'),
-                    expect.objectContaining({
-                        method: 'DELETE'
-                    })
-                );
-            });
-        } else {
-            expect(true).toBe(true);
-        }
+        await vi.waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/api/playlists?title='),
+                expect.objectContaining({
+                    method: 'DELETE'
+                })
+            );
+        });
     });
 });
 
@@ -139,55 +121,42 @@ describe('Trash Functionality', () => {
     it('empties the trash bin', async () => {
         const trashBtn = document.getElementById('trash-btn');
         trashBtn.click();
-
-        await vi.waitFor(() => {
-            const emptyBtn = document.getElementById('empty-bin-btn');
-            return emptyBtn !== null;
-        });
+        await new Promise(r => setTimeout(r, 100));
 
         const emptyBtn = document.getElementById('empty-bin-btn');
-        if (emptyBtn) {
-            window.confirm = vi.fn().mockReturnValue(true);
-            emptyBtn.click();
+        expect(emptyBtn).not.toBeNull();
+        window.confirm = vi.fn().mockReturnValue(true);
+        emptyBtn.click();
 
-            await vi.waitFor(() => {
-                expect(global.fetch).toHaveBeenCalledWith(
-                    '/api/empty-bin',
-                    expect.objectContaining({
-                        method: 'POST'
-                    })
-                );
-            });
-        } else {
-            expect(true).toBe(true);
-        }
+        await vi.waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/api/empty-bin'),
+                expect.objectContaining({
+                    method: 'POST'
+                })
+            );
+        });
     });
 
     it('permanently deletes an item from trash', async () => {
         const trashBtn = document.getElementById('trash-btn');
         trashBtn.click();
 
-        await vi.waitFor(() => {
-            const permDeleteBtn = document.querySelector('.media-action-btn.delete-permanent');
-            return permDeleteBtn !== null;
-        });
+        await new Promise(r => setTimeout(r, 100));
 
         const permDeleteBtn = document.querySelector('.media-action-btn.delete-permanent');
-        if (permDeleteBtn) {
-            window.confirm = vi.fn().mockReturnValue(true);
-            permDeleteBtn.click();
+        expect(permDeleteBtn).not.toBeNull();
+        window.confirm = vi.fn().mockReturnValue(true);
+        permDeleteBtn.click();
 
-            await vi.waitFor(() => {
-                expect(global.fetch).toHaveBeenCalledWith(
-                    '/api/empty-bin',
-                    expect.objectContaining({
-                        method: 'POST'
-                    })
-                );
-            });
-        } else {
-            expect(true).toBe(true);
-        }
+        await vi.waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/api/empty-bin'),
+                expect.objectContaining({
+                    method: 'POST'
+                })
+            );
+        });
     });
 });
 
@@ -323,17 +292,5 @@ describe('Search Functionality', () => {
             );
             expect(hasSearchWithFilter).toBe(true);
         });
-    });
-
-    it('clears search when x button is clicked', async () => {
-        const searchInput = document.getElementById('search-input');
-        searchInput.value = 'test search';
-
-        const clearBtn = document.getElementById('clear-search-btn');
-        if (clearBtn) {
-            clearBtn.click();
-
-            expect(searchInput.value).toBe('');
-        }
     });
 });

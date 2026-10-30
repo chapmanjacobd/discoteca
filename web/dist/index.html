@@ -44,6 +44,13 @@
                         🗂️ All Media
                     </button>
                     <button
+                        id="history-btn"
+                        class="category-btn"
+                        style="width: 100%; margin-bottom: 0.2rem"
+                    >
+                        🕘 History
+                    </button>
+                    <button
                         id="captions-btn"
                         class="category-btn"
                         style="width: 100%; margin-bottom: 0.2rem"
@@ -384,6 +391,8 @@
                             <option value="bitrate">Bitrate</option>
                             <option value="extension">Extension</option>
                             <option value="random">Random</option>
+                            <option value="time_deleted" hidden>Deleted</option>
+                            <option value="media_type" hidden>Type</option>
                             <option value="custom">Custom</option>
                         </select>
                         <button id="sort-reverse-btn" title="Reverse Sort">⇅</button>

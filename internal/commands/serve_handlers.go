@@ -1128,14 +1128,15 @@ func (c *ServeCmd) convertDUFolderResults(folderResults []query.DUQueryResult) [
 	return folders
 }
 
-// parseDUSortParams extracts sort and reverse parameters from request
+// parseDUSortParams extracts sort and reverse parameters from request.
+// The default DU order is itself a meaningful sort, so reverse is preserved
+// even when no explicit sort key is requested.
 func (c *ServeCmd) parseDUSortParams(r *http.Request) (sortBy string, reverse bool) {
 	sortBy = r.URL.Query().Get("sort")
 	reverse = r.URL.Query().Get("reverse") == "true"
 
-	if sortBy == "" || sortBy == "default" {
+	if sortBy == "default" {
 		sortBy = ""
-		reverse = false
 	}
 	return sortBy, reverse
 }
@@ -1188,10 +1189,15 @@ func (c *ServeCmd) sortDUFiles(directFiles []models.MediaWithDB, sortBy string, 
 	sort.SliceStable(directFiles, less)
 }
 
-// parseDUPagination extracts limit and offset from request
+// parseDUPagination extracts limit and offset from request.
+// all=true (or a missing/zero limit from the caller) disables pagination.
 func (c *ServeCmd) parseDUPagination(r *http.Request) (limit, offset int) {
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
+
+	if r.URL.Query().Get("all") == "true" {
+		return 0, 0
+	}
 
 	limit = 100
 	offset = 0
@@ -1216,6 +1222,9 @@ func (c *ServeCmd) applyDUPagination(
 	offset int,
 	limit int,
 ) ([]models.FolderStats, []models.MediaWithDB) {
+	if limit <= 0 {
+		return folders, directFiles
+	}
 	if offset >= len(folders) {
 		fileStart := offset - len(folders)
 		fileEnd := fileStart + limit
