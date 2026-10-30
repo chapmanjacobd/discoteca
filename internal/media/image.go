@@ -3,7 +3,6 @@ package media
 import (
 	"bytes"
 	"image"
-	// Register image decoders for GIF, JPEG, and PNG formats
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"

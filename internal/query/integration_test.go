@@ -451,7 +451,6 @@ func TestHasAnyFilterCoversEveryPredicate(t *testing.T) {
 		{"where", models.GlobalFlags{FilterFlags: models.FilterFlags{Where: []string{"1=1"}}}},
 		{"duration from size", models.GlobalFlags{FilterFlags: models.FilterFlags{DurationFromSize: ">1MB"}}},
 		{"file counts", models.GlobalFlags{AggregateFlags: models.AggregateFlags{FileCounts: ">1"}}},
-		{"folder counts", models.GlobalFlags{AggregateFlags: models.AggregateFlags{FolderCounts: ">1"}}},
 		{"folder sizes", models.GlobalFlags{AggregateFlags: models.AggregateFlags{FolderSizes: []string{">1MB"}}}},
 	}
 	if query.HasAnyFilter(base) {

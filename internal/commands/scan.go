@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
 	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
@@ -121,10 +122,37 @@ func filterScannedMedia(media []models.MediaWithDB, flags models.GlobalFlags) []
 		if flags.Portrait && (m.Width == nil || m.Height == nil || *m.Width >= *m.Height) {
 			continue
 		}
+		if !matchesScannedTimeFilters(m, flags) {
+			continue
+		}
 
 		filtered = append(filtered, m)
 	}
 	return filtered
+}
+
+func matchesScannedTimeFilters(m models.MediaWithDB, flags models.GlobalFlags) bool {
+	after := func(raw string, value *int64) bool {
+		if raw == "" {
+			return true
+		}
+		ts := formatutil.ParseDateOrRelative(raw)
+		return ts == 0 || (value != nil && *value >= ts)
+	}
+	before := func(raw string, value *int64) bool {
+		if raw == "" {
+			return true
+		}
+		ts := formatutil.ParseDateOrRelative(raw)
+		return ts == 0 || (value != nil && *value <= ts)
+	}
+
+	return after(flags.CreatedAfter, m.TimeCreated) &&
+		before(flags.CreatedBefore, m.TimeCreated) &&
+		after(flags.ModifiedAfter, m.TimeModified) &&
+		before(flags.ModifiedBefore, m.TimeModified) &&
+		after(flags.DownloadedAfter, m.TimeDownloaded) &&
+		before(flags.DownloadedBefore, m.TimeDownloaded)
 }
 
 // scanOptionsForFlags derives metadata extraction options from the shared flags.

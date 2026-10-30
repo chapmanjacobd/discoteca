@@ -71,7 +71,7 @@ const (
 // needsFolderBackfiltering reports whether folder-level aggregates must be
 // computed before the result set can be filtered.
 func needsFolderBackfiltering(flags models.GlobalFlags) bool {
-	return flags.FileCounts != "" || flags.FolderCounts != "" || len(flags.FolderSizes) > 0
+	return flags.FileCounts != "" || len(flags.FolderSizes) > 0
 }
 
 // HasAnyFilter reports whether any media filter is active. It must stay in
@@ -126,7 +126,7 @@ func hasMiscFilter(flags models.GlobalFlags) bool {
 }
 
 func hasFolderAggregateFilter(flags models.GlobalFlags) bool {
-	return flags.FileCounts != "" || flags.FolderCounts != "" || len(flags.FolderSizes) > 0
+	return flags.FileCounts != "" || len(flags.FolderSizes) > 0
 }
 
 // hasBasicFilters is kept for internal callers which want to know whether the
@@ -171,10 +171,6 @@ func matchesFolderStatsFilters(f models.FolderStats, flags models.GlobalFlags) b
 		return false
 	}
 
-	if !matchesFolderCountFilter(f, flags) {
-		return false
-	}
-
 	return true
 }
 
@@ -206,24 +202,8 @@ func matchesFileCountFilter(f models.FolderStats, flags models.GlobalFlags) bool
 	return true
 }
 
-func matchesFolderCountFilter(f models.FolderStats, flags models.GlobalFlags) bool {
-	if flags.FolderCounts == "" {
-		return true
-	}
-	if r, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
-		return strconv.ParseInt(s, 10, 64)
-	}); err == nil {
-		if !r.Matches(int64(f.Count)) {
-			return false
-		}
-	}
-	return true
-}
-
 func applyFolderStatsFilters(stats []models.FolderStats, flags models.GlobalFlags) []models.FolderStats {
-	if !flags.FoldersOnly && !flags.FilesOnly && flags.FolderSizes == nil && flags.FileCounts == "" &&
-		flags.FolderCounts == "" {
-
+	if !flags.FoldersOnly && !flags.FilesOnly && flags.FolderSizes == nil && flags.FileCounts == "" {
 		return stats
 	}
 
@@ -550,7 +530,6 @@ func getMatchingParentDirs(
 		`
 	} else {
 		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 		query = `
 			SELECT` + duSubdirPathSQL + ` as parent_dir,
@@ -563,14 +542,14 @@ func getMatchingParentDirs(
 		args = append(args,
 			normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
 			normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-			normalizedPrefix, escapedPrefix, targetDepth,
+			normalizedPrefix, normalizedPrefix, targetDepth,
 		)
 	}
 
-	// Add basic filters (size, duration, media_type, etc.) - but NOT FileCounts/FolderCounts
+	// Add basic filters (size, duration, media_type, etc.) - but not the
+	// folder-level FileCounts/FolderSizes filters.
 	basicFlags := flags
 	basicFlags.FileCounts = ""
-	basicFlags.FolderCounts = ""
 	basicFlags.FolderSizes = nil
 
 	fb := NewFilterBuilder(basicFlags)
@@ -603,7 +582,7 @@ func getMatchingParentDirs(
 	return parentCounts, rows.Err()
 }
 
-// filterParentsByCounts filters parent directories based on FileCounts/FolderCounts/FolderSizes
+// filterParentsByCounts filters parent directories based on FileCounts/FolderSizes
 func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFlags) map[string]struct{} {
 	matchingParents := make(map[string]struct{})
 
@@ -621,10 +600,7 @@ func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFla
 			}
 		}
 
-		// Apply FolderCounts filter - will be applied post-aggregation
-		// FolderCounts applies to folder count within a parent, not file count
-
-		// Apply FolderSizes filter - will be applied post-aggregation
+		// FolderSizes is applied post-aggregation, when total size is known.
 		// FolderSizes applies to total size, which we don't have at this stage
 
 		if keep {
@@ -637,8 +613,8 @@ func filterParentsByCounts(parentCounts map[string]int64, flags models.GlobalFla
 
 // AggregateDUByPathWithFilters performs SQL-level aggregation with filter support
 // Uses two-path approach:
-// - Fast path: no FileCounts/FolderCounts/FolderSizes filters - direct SQL aggregation
-// - Slow path: folder backfiltering for FileCounts/FolderCounts/FolderSizes
+// - Fast path: no FileCounts/FolderSizes filters - direct SQL aggregation
+// - Slow path: folder backfiltering for FileCounts/FolderSizes
 func AggregateDUByPathWithFilters(
 	ctx context.Context,
 	dbPath, pathPrefix string,
@@ -666,7 +642,7 @@ func AggregateDUByPathWithFilters(
 		return nil, err
 	}
 
-	// Phase 2: Filter parents by FileCounts/FolderCounts/FolderSizes
+	// Phase 2: Filter parents by FileCounts/FolderSizes
 	matchingParents := filterParentsByCounts(parentCounts, flags)
 
 	if len(matchingParents) == 0 {
@@ -706,7 +682,6 @@ func aggregateDUWithBasicFilters(
 		`
 	} else {
 		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 		query = `
 			SELECT` + duSubdirPathSQL + ` as agg_path,
@@ -721,14 +696,13 @@ func aggregateDUWithBasicFilters(
 		args = append(args,
 			normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
 			normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-			normalizedPrefix, escapedPrefix, targetDepth,
+			normalizedPrefix, normalizedPrefix, targetDepth,
 		)
 	}
 
-	// Add only basic filters (skip FileCounts, FolderCounts, FolderSizes which require post-aggregation)
+	// Add only basic filters (skip FileCounts/FolderSizes which require post-aggregation)
 	basicFlags := flags
 	basicFlags.FileCounts = ""
-	basicFlags.FolderCounts = ""
 	basicFlags.FolderSizes = nil
 
 	if hasBasicFilters(basicFlags) {
@@ -758,7 +732,7 @@ func aggregateDUWithBasicFilters(
 		results = append(results, r)
 	}
 
-	// Apply post-aggregation filters (FolderCounts, FolderSizes)
+	// Apply post-aggregation filters (FolderSizes)
 	results = applyPostAggregationFilters(results, flags)
 
 	return results, rows.Err()
@@ -798,7 +772,7 @@ func aggregateDUWithParentFilter(ctx context.Context, opts DUAggregationOptions)
 		results = append(results, r)
 	}
 
-	// Apply post-aggregation filters (FolderCounts, FolderSizes)
+	// Apply post-aggregation filters (FolderSizes)
 	results = applyPostAggregationFilters(results, opts.flags)
 
 	return results, rows.Err()
@@ -862,7 +836,6 @@ func buildRootDUQuery(parentList []string) (string, []any) {
 
 func buildSubdirDUQuery(pathPrefix string, targetDepth int, parentList []string) (string, []any) {
 	normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-	escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 	query := `
 		SELECT` + duSubdirPathSQL + ` as agg_path,
@@ -874,7 +847,7 @@ func buildSubdirDUQuery(pathPrefix string, targetDepth int, parentList []string)
 			AND replace(path, '\\', '/') LIKE ? || '/%'
 			AND (length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))) > ?
 	`
-	args := subdirBaseArgs(normalizedPrefix, escapedPrefix, targetDepth)
+	args := subdirBaseArgs(normalizedPrefix, targetDepth)
 
 	if len(parentList) > 0 {
 		query, args = appendSubdirParentFilter(query, args, normalizedPrefix, parentList)
@@ -882,11 +855,11 @@ func buildSubdirDUQuery(pathPrefix string, targetDepth int, parentList []string)
 	return query, args
 }
 
-func subdirBaseArgs(normalizedPrefix, escapedPrefix string, targetDepth int) []any {
+func subdirBaseArgs(normalizedPrefix string, targetDepth int) []any {
 	return []any{
 		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
 		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
-		normalizedPrefix, escapedPrefix, targetDepth,
+		normalizedPrefix, normalizedPrefix, targetDepth,
 	}
 }
 
@@ -908,7 +881,6 @@ func appendSubdirParentFilter(query string, args []any, normalizedPrefix string,
 func appendDUFilterClauses(ctx context.Context, flags models.GlobalFlags, query string, args []any) (string, []any) {
 	basicFlags := flags
 	basicFlags.FileCounts = ""
-	basicFlags.FolderCounts = ""
 	basicFlags.FolderSizes = nil
 
 	if hasBasicFilters(basicFlags) {
@@ -922,26 +894,15 @@ func appendDUFilterClauses(ctx context.Context, flags models.GlobalFlags, query 
 	return query, args
 }
 
-// applyPostAggregationFilters applies filters that require aggregated data (FolderCounts, FolderSizes)
+// applyPostAggregationFilters applies filters that require aggregated data (FolderSizes)
 func applyPostAggregationFilters(results []DUQueryResult, flags models.GlobalFlags) []DUQueryResult {
-	if flags.FolderCounts == "" && len(flags.FolderSizes) == 0 {
+	if len(flags.FolderSizes) == 0 {
 		return results
 	}
 
 	var filtered []DUQueryResult
 	for _, r := range results {
 		keep := true
-
-		// Apply FolderCounts filter
-		if keep && flags.FolderCounts != "" {
-			if rCount, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
-				return strconv.ParseInt(s, 10, 64)
-			}); err == nil {
-				if !rCount.Matches(int64(r.Count)) {
-					keep = false
-				}
-			}
-		}
 
 		// Apply FolderSizes filter
 		if keep && len(flags.FolderSizes) > 0 {
@@ -1003,7 +964,6 @@ func FetchDUDirectFilesWithFilters(
 			`
 			} else {
 				normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-				escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 				isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
 				separatorCount := targetDepth
@@ -1024,7 +984,7 @@ func FetchDUDirectFilesWithFilters(
 					length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))
 				  ) = ?
 			`
-				args = append(args, escapedPrefix, separatorCount)
+				args = append(args, normalizedPrefix, separatorCount)
 			}
 
 			// Only add filter clauses if filters are active

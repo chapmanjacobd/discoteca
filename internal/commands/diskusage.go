@@ -12,7 +12,8 @@ type DiskUsageCmd struct {
 func (c *DiskUsageCmd) Run(ctx context.Context) error {
 	// Disk usage is essentially Print with aggregation by default if no
 	// explicit aggregation mode was requested.
-	if !c.BigDirs && !c.GroupByExtensions && !c.GroupBySize && c.Depth == 0 && !c.Parents {
+	if !c.BigDirs && !c.GroupByExtensions && !c.GroupBySize && !c.GroupByParent &&
+		!c.FilesOnly && c.Depth == 0 && !c.Parents {
 		c.BigDirs = true
 	}
 	return c.PrintCmd.Run(ctx)

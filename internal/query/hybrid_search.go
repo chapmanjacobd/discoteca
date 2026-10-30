@@ -74,32 +74,68 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 // BuildFTSQuery constructs the FTS MATCH query from terms
 // For trigram + detail=none, we use first 3 chars of each word for filtering
 // This is a loose filter - actual matching is done by LIKE for phrases
-func (h *HybridSearchQuery) BuildFTSQuery(_ string) string {
+func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
 	if len(h.FTSTerms) == 0 {
 		return ""
 	}
 
-	var trigrams []string
+	join := strings.ToUpper(strings.TrimSpace(joinOp))
+	if join != "OR" {
+		join = "AND"
+	}
+
+	var parts []string
+	hasExplicitOperator := false
 	for _, term := range h.FTSTerms {
-		// Pass through boolean operators
-		if term == "OR" || term == "AND" || term == "NOT" {
+		upper := strings.ToUpper(term)
+		if upper == "OR" || upper == "AND" || upper == "NOT" {
+			hasExplicitOperator = true
+			parts = append(parts, upper)
 			continue
 		}
 
-		// Use first 3 chars as trigram filter
-		if len(term) >= 3 {
-			trigrams = append(trigrams, term[:3])
-		} else if len(term) > 0 {
-			trigrams = append(trigrams, term)
+		// Use the first 3 characters as a trigram prefilter. The SQL layer
+		// still applies the normal field predicates, so this is intentionally
+		// a loose candidate filter.
+		if len(term) > 3 {
+			term = term[:3]
+		}
+		if term != "" {
+			parts = append(parts, term)
 		}
 	}
 
-	if len(trigrams) == 0 {
+	parts = cleanFTSOperators(parts)
+	if len(parts) == 0 {
 		return ""
 	}
+	if hasExplicitOperator {
+		// Explicit boolean operators already carry their own joining semantics.
+		return strings.Join(parts, " ")
+	}
+	return strings.Join(parts, " "+join+" ")
+}
 
-	// OR between trigrams for broader filtering
-	return strings.Join(trigrams, " OR ")
+func cleanFTSOperators(parts []string) []string {
+	isOperator := func(s string) bool {
+		return s == "OR" || s == "AND" || s == "NOT"
+	}
+
+	cleaned := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if isOperator(part) {
+			// Leading/trailing or repeated operators would make the MATCH
+			// expression invalid. Drop them rather than failing the request.
+			if len(cleaned) == 0 || isOperator(cleaned[len(cleaned)-1]) {
+				continue
+			}
+		}
+		cleaned = append(cleaned, part)
+	}
+	for len(cleaned) > 0 && isOperator(cleaned[len(cleaned)-1]) {
+		cleaned = cleaned[:len(cleaned)-1]
+	}
+	return cleaned
 }
 
 // HasFTSTerms returns true if the query contains FTS term searches

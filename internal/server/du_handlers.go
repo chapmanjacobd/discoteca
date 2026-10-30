@@ -20,6 +20,11 @@ func (c *Server) HandleDU(w http.ResponseWriter, r *http.Request) {
 	if rejectInvalidFlags(w, flags) {
 		return
 	}
+	// DU aggregation uses custom SQL without an FTS join, so it must use the
+	// substring path even when the client asks for FTS.
+	flags.FTS = false
+	flags.NoFTS = true
+	flags.SearchModeExplicit = true
 	path := r.URL.Query().Get("path")
 	includeCounts := r.URL.Query().Get("include_counts") == "true"
 
@@ -40,7 +45,7 @@ func (c *Server) HandleDU(w http.ResponseWriter, r *http.Request) {
 
 	folderResults, err := query.AggregateDUByPathMultiDBWithFilters(
 		r.Context(),
-		c.Databases,
+		dbs,
 		cleanPath,
 		targetDepth,
 		resolvedFlags,
@@ -53,7 +58,7 @@ func (c *Server) HandleDU(w http.ResponseWriter, r *http.Request) {
 
 	directFiles, err := query.FetchDUDirectFilesWithFilters(
 		r.Context(),
-		c.Databases,
+		dbs,
 		cleanPath,
 		targetDepth,
 		resolvedFlags,
@@ -87,7 +92,7 @@ func (c *Server) HandleDU(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if includeCounts {
-		response.Counts = c.calculateFilterCounts(r.Context(), flags, dbs)
+		response.Counts = c.calculateFilterCounts(r.Context(), resolvedFlags, dbs)
 	}
 
 	w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
@@ -216,6 +221,9 @@ func (c *Server) parseDUPagination(r *http.Request) (limit, offset int) {
 
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if c.MaxLimit > 0 && l > c.MaxLimit {
+				l = c.MaxLimit
+			}
 			limit = l
 		}
 	}
@@ -265,21 +273,32 @@ func (c *Server) HandleEpisodes(w http.ResponseWriter, r *http.Request) {
 	// Group view renders playable media cards, so sidecar subtitle files belong
 	// in captions, not as media cards or folder counts.
 	flags.HideSubtitles = true
-	if flags.Limit <= 0 {
-		flags.All = true
-		flags.Limit = 1000000
-	}
 
-	allMedia, err := query.MediaQuery(r.Context(), c.Databases, flags)
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+	c.applySearchMode(r.Context(), &flags, dbs)
+
+	// Grouping happens after the media query, so fetch the complete filtered
+	// set and paginate the resulting folder groups below. Paginating media
+	// rows first would drop whole groups or split their counts.
+	fetchFlags := flags
+	fetchFlags.All = true
+	fetchFlags.Limit = 0
+	fetchFlags.Offset = 0
+
+	allMedia, err := query.MediaQuery(r.Context(), dbs, fetchFlags)
 	if err != nil {
 		logging.Log.Error("Failed to fetch media for episodes", "error", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
 		return
 	}
 
-	results := aggregate.GroupByParent(allMedia)
+	results := aggregate.GroupMediaByParent(allMedia)
 
-	// GroupByParent sorts folders by path. Apply the selected sort to the
+	// GroupMediaByParent sorts folders by path. Apply the selected sort to the
 	// folder sequence as well as to the files inside each folder.
 	switch flags.SortBy {
 	case "size", "duration":
@@ -316,8 +335,18 @@ func (c *Server) HandleEpisodes(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Set total count header for pagination
-	w.Header().Set("X-Total-Count", strconv.Itoa(len(results)))
+	totalCount := len(results)
+	if !flags.All && flags.Limit > 0 {
+		start := flags.Offset
+		if start > len(results) {
+			results = []models.FolderStats{}
+		} else {
+			end := min(start+flags.Limit, len(results))
+			results = results[start:end]
+		}
+	}
+
+	w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(results); err != nil {
 		logging.Log.Warn("Failed to encode results", "error", err)

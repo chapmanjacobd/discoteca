@@ -16,7 +16,8 @@ type FilesInfoCmd struct {
 	models.FilterFlags      `embed:""`
 	models.TimeFilterFlags  `embed:""`
 	models.MediaFilterFlags `embed:""`
-	models.DisplayFlags     `embed:""`
+
+	JSON bool `help:"Output results as JSON" short:"j" group:"Display"`
 
 	Args []string `help:"Database file(s) or files/directories to scan" required:"true" arg:""`
 
@@ -48,7 +49,6 @@ func (c *FilesInfoCmd) Run(ctx context.Context) error {
 		FilterFlags:      c.FilterFlags,
 		TimeFilterFlags:  c.TimeFilterFlags,
 		MediaFilterFlags: c.MediaFilterFlags,
-		DisplayFlags:     c.DisplayFlags,
 	}
 
 	var allMedia []models.MediaWithDB

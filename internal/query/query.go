@@ -288,22 +288,23 @@ func folderLess(a, b models.FolderStats, sortBy string) bool {
 	}
 }
 
-// lessDiskUsage orders folders by average file size, then size, count,
-// folder count, and finally reverse path.
+// lessDiskUsage orders folders largest-first by average file size, then size,
+// count, folder count, and finally reverse path. Reversing the sort therefore
+// produces the ascending disk-usage order used by the reverse-sort toggle.
 func lessDiskUsage(a, b models.FolderStats) bool {
 	aPerFile := float64(a.TotalSize) / float64(utils.Max(1, a.Count))
 	bPerFile := float64(b.TotalSize) / float64(utils.Max(1, b.Count))
 	if aPerFile != bPerFile {
-		return aPerFile < bPerFile
+		return aPerFile > bPerFile
 	}
 	if a.TotalSize != b.TotalSize {
-		return a.TotalSize < b.TotalSize
+		return a.TotalSize > b.TotalSize
 	}
 	if a.Count != b.Count {
-		return a.Count < b.Count
+		return a.Count > b.Count
 	}
 	if a.FolderCount != b.FolderCount {
-		return a.FolderCount < b.FolderCount
+		return a.FolderCount > b.FolderCount
 	}
 	return a.Path > b.Path // reverse path
 }

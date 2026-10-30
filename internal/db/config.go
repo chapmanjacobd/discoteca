@@ -1,27 +1,10 @@
 package db
 
-import (
-	"sync"
-	"sync/atomic"
-)
+// InitFtsConfig is retained as a startup hook for callers. FTS support is
+// determined at build time by the fts5 build tag; there is no runtime toggle.
+func InitFtsConfig() {}
 
-// ftsEnabledConfig is a runtime configuration to enable/disable FTS.
-// FTS is enabled by default; opt-out is reserved for non-FTS builds and tests.
-var (
-	ftsEnabledConfig  = func() *atomic.Bool { var b atomic.Bool; b.Store(true); return &b }()
-	ftsConfigInitOnce sync.Once
-)
-
-// InitFtsConfig initializes the FTS configuration.
-// This should be called early in the application lifecycle. FTS is enabled by
-// default, so the call is idempotent and only guarantees a deterministic state.
-func InitFtsConfig() {
-	ftsConfigInitOnce.Do(func() {
-		ftsEnabledConfig.Store(true)
-	})
-}
-
-// IsFtsEnabled returns true if FTS is enabled both at compile time AND runtime
+// IsFtsEnabled reports whether this binary was built with FTS5 support.
 func IsFtsEnabled() bool {
-	return FtsEnabled && ftsEnabledConfig.Load()
+	return FtsEnabled
 }

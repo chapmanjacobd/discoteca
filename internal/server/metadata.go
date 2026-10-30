@@ -119,8 +119,13 @@ func (c *Server) processCustomCategories(
 	}
 }
 
-func (c *Server) fetchCategoryCounts(ctx context.Context, counts map[string]int64, isCustom map[string]bool) {
-	for _, dbPath := range c.Databases {
+func (c *Server) fetchCategoryCounts(
+	ctx context.Context,
+	dbs []string,
+	counts map[string]int64,
+	isCustom map[string]bool,
+) {
+	for _, dbPath := range dbs {
 		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
 
@@ -137,9 +142,9 @@ func (c *Server) fetchCategoryCounts(ctx context.Context, counts map[string]int6
 	}
 }
 
-func (c *Server) fetchUncategorizedCount(ctx context.Context) int64 {
+func (c *Server) fetchUncategorizedCount(ctx context.Context, dbs []string) int64 {
 	var totalCount int64
-	for _, dbPath := range c.Databases {
+	for _, dbPath := range dbs {
 		_ = c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			var count int64
 			err := sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND "+database.SubtitlePathExclusion+" AND (categories IS NULL OR categories = '')").
@@ -154,11 +159,21 @@ func (c *Server) fetchUncategorizedCount(ctx context.Context) int64 {
 }
 
 func (c *Server) HandleCategories(w http.ResponseWriter, r *http.Request) {
+	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	counts := make(map[string]int64)
 	isCustom := make(map[string]bool)
 
-	c.fetchCategoryCounts(r.Context(), counts, isCustom)
-	counts["Uncategorized"] = c.fetchUncategorizedCount(r.Context())
+	c.fetchCategoryCounts(r.Context(), dbs, counts, isCustom)
+	counts["Uncategorized"] = c.fetchUncategorizedCount(r.Context(), dbs)
 
 	res := make([]models.CatStat, 0, len(counts))
 	for k, v := range counts {
@@ -187,9 +202,19 @@ func (c *Server) handleCommonStats(
 	fetch func(context.Context, *database.Queries) ([]models.CatStat, error),
 	errorMsg string,
 ) {
+	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	counts := make(map[string]int64)
 
-	for _, dbPath := range c.Databases {
+	for _, dbPath := range dbs {
 		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
 			stats, err := fetch(ctx, queries)
@@ -245,9 +270,19 @@ func (c *Server) HandleGenres(w http.ResponseWriter, r *http.Request) {
 // HandleRatings returns rating statistics.
 // GET /api/ratings
 func (c *Server) HandleRatings(w http.ResponseWriter, r *http.Request) {
+	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	counts := make(map[int64]int64)
 
-	for _, dbPath := range c.Databases {
+	for _, dbPath := range dbs {
 		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			queries := database.New(sqlDB)
 			stats, err := queries.GetRatingStats(ctx)
@@ -307,6 +342,7 @@ type CaptionsQueryParams struct {
 	AudioOnly bool
 	ImageOnly bool
 	TextOnly  bool
+	UseFTS    bool
 }
 
 func (c *Server) fetchAllCaptionsForPaths(
@@ -375,15 +411,22 @@ func (c *Server) getCaptionsWithContext(
 	queries *database.Queries,
 	params CaptionsQueryParams,
 ) ([]database.SearchCaptionsRow, error) {
-	// First, get the matching captions with media type filters
-	matches, err := queries.SearchCaptions(ctx, database.SearchCaptionsParams{
+	// First, get the matching captions with media type filters.
+	captionParams := database.SearchCaptionsParams{
 		Query:     params.QueryStr,
 		VideoOnly: params.VideoOnly,
 		AudioOnly: params.AudioOnly,
 		ImageOnly: params.ImageOnly,
 		TextOnly:  params.TextOnly,
 		Limit:     params.Limit,
-	})
+	}
+	var matches []database.SearchCaptionsRow
+	var err error
+	if params.UseFTS {
+		matches, err = queries.SearchCaptions(ctx, captionParams)
+	} else {
+		matches, err = queries.SearchCaptionsSubstring(ctx, captionParams)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -87,7 +87,11 @@ type ListenCmd struct {
 
 func (c *ListenCmd) Run(ctx context.Context) error {
 	logging.SetupLogging(c.Verbose)
-	return runPlayback(ctx, c, playbackOptions{audioOnly: true})
+	return runPlayback(ctx, c, playbackOptions{
+		audioOnly:    true,
+		fullscreen:   true,
+		savePlayhead: true,
+	})
 }
 
 func (c *ListenCmd) flagSets() playbackFlagSets {
@@ -189,7 +193,11 @@ func runPlayback(ctx context.Context, cmd playbackCommand, opts playbackOptions)
 	return nil
 }
 
-func queryPlaybackMedia(ctx context.Context, databases []string, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
+func queryPlaybackMedia(
+	ctx context.Context,
+	databases []string,
+	flags models.GlobalFlags,
+) ([]models.MediaWithDB, error) {
 	media, err := query.MediaQuery(ctx, databases, flags)
 	if err != nil {
 		return nil, err
@@ -221,6 +229,10 @@ func playMedia(
 
 	startTime := time.Now()
 	exitCode, err := runPlayer(ctx, args)
+	if exitCode < 0 {
+		logging.Log.Error("Failed to start player", "path", m.Path, "error", err)
+		return false, err
+	}
 
 	if flags.TrackHistory {
 		if historyErr := updatePlaybackHistory(ctx, flags, m, startTime); historyErr != nil {
@@ -347,12 +359,15 @@ func runPlayer(ctx context.Context, args []string) (exitCode int, err error) {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
+	exitCode = -1
 	err = cmd.Run()
 	if err != nil {
 		exitError := &exec.ExitError{}
 		if errors.As(err, &exitError) {
 			exitCode = exitError.ExitCode()
 		}
+	} else {
+		exitCode = 0
 	}
 	return exitCode, err
 }
@@ -365,6 +380,9 @@ func handlePlayerExit(
 	m models.MediaWithDB,
 ) bool {
 	if exitCode == 4 {
+		if err := RunExitCommand(ctx, flags, exitCode, m.Path); err != nil {
+			logging.Log.Error("Exit command failed", "code", exitCode, "error", err)
+		}
 		return true
 	}
 

@@ -61,6 +61,7 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 	var totalSize int64 = 0
 	count := 0
 	simulate := flags.Simulate
+	var failures []error
 
 	for _, m := range media {
 		if flags.ActionLimit > 0 && count >= flags.ActionLimit {
@@ -100,6 +101,7 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 
 		if err != nil {
 			logging.Log.Error("Post-action failed", "path", m.Path, "error", err)
+			failures = append(failures, fmt.Errorf("%s: %w", m.Path, err))
 		} else {
 			count++
 			totalSize += size
@@ -114,7 +116,7 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 		}
 	}
 
-	return nil
+	return errors.Join(failures...)
 }
 
 func printPostActionPlan(action string, flags models.GlobalFlags, m models.MediaWithDB) {

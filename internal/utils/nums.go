@@ -364,6 +364,9 @@ func FloatFromPercent(s string) (float64, error) {
 }
 
 func PercentageDifference(v1, v2 float64) float64 {
+	if v1 == v2 {
+		return 0
+	}
 	if v1+v2 == 0 {
 		return 100.0
 	}
@@ -489,9 +492,3 @@ func BoolToInt64(b bool) int64 {
 	}
 	return 0
 }
-
-// ParsePercentOrBytes parses a string like "5%" or "100MB" into a float64 ratio or bytes
-
-// ParseSize parses a human-readable size string to int64 bytes
-
-// ParseBitrate parses a human-readable bitrate string to int64 bits per second

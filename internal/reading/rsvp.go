@@ -1413,8 +1413,6 @@ p > .calibre3:not(:only-of-type) {
 	_ = os.WriteFile(cssPath, []byte(css), 0o644)
 }
 
-// SanitizeFilename replaces special characters with underscores for calibre compatibility
-
 // cleanupOldCacheFiles removes files and directories older than the specified duration
 func cleanupOldCacheFiles(cacheDir string, maxAge time.Duration) {
 	now := time.Now()

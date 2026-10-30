@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -22,12 +23,12 @@ type SearchCaptionsCmd struct {
 	models.CaptionFilterFlags `embed:""`
 	models.PlaybackFlags      `embed:""`
 
-	Database string   `help:"SQLite database file"                 required:"true" arg:"" type:"existingfile"`
-	Search   []string `help:"Search terms"                         required:"true" arg:""`
+	Database string   `help:"SQLite database file"                    required:"true" arg:"" type:"existingfile"`
+	Search   []string `help:"Search terms"                            required:"true" arg:""`
 	Open     bool     `help:"Open results in media player"`
-	Overlap  int      `help:"Overlap in seconds for merging captions" default:"8"`
-	Limit    int      `help:"Limit results"                           short:"L"                 default:"100"`
-	All      bool     `help:"Return all results (no limit)"           short:"a"`
+	Overlap  int      `help:"Overlap in seconds for merging captions"                                            default:"8"`
+	Limit    int      `help:"Limit results"                                                                      default:"100" short:"L"`
+	All      bool     `help:"Return all results (no limit)"                                                                    short:"a"`
 	Offset   int      `help:"Skip N merged captions"`
 }
 
@@ -68,14 +69,20 @@ func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
 		}
 	}
 
-	rows, err := queries.SearchCaptions(ctx, db.SearchCaptionsParams{
+	captionParams := db.SearchCaptionsParams{
 		Query:     queryStr,
 		VideoOnly: c.VideoOnly,
 		AudioOnly: c.AudioOnly,
 		ImageOnly: c.ImageOnly,
 		TextOnly:  c.TextOnly,
 		Limit:     limit,
-	})
+	}
+	var rows []db.SearchCaptionsRow
+	if c.NoFTS {
+		rows, err = queries.SearchCaptionsSubstring(ctx, captionParams)
+	} else {
+		rows, err = queries.SearchCaptions(ctx, captionParams)
+	}
 	if err != nil {
 		return err
 	}
@@ -112,10 +119,41 @@ func (c *SearchCaptionsCmd) mergeCaptions(rows []db.SearchCaptionsRow) []MergedC
 		return nil
 	}
 
+	// FTS returns rows in rank order, so matches from the same file are not
+	// necessarily adjacent. Group by path first, then merge each file's hits in
+	// timestamp order while preserving the rank order of files.
+	order := make([]string, 0)
+	byPath := make(map[string][]db.SearchCaptionsRow)
+	for _, row := range rows {
+		if _, ok := byPath[row.MediaPath]; !ok {
+			order = append(order, row.MediaPath)
+		}
+		byPath[row.MediaPath] = append(byPath[row.MediaPath], row)
+	}
+
+	var merged []MergedCaption
+	for _, path := range order {
+		merged = append(merged, c.mergeCaptionGroup(byPath[path])...)
+	}
+
+	return merged
+}
+
+func (c *SearchCaptionsCmd) mergeCaptionGroup(group []db.SearchCaptionsRow) []MergedCaption {
+	sort.SliceStable(group, func(i, j int) bool {
+		left, right := 0.0, 0.0
+		if group[i].Time.Valid {
+			left = group[i].Time.Float64
+		}
+		if group[j].Time.Valid {
+			right = group[j].Time.Float64
+		}
+		return left < right
+	})
+
 	var merged []MergedCaption
 	var current *MergedCaption
-
-	for _, row := range rows {
+	for _, row := range group {
 		timeVal := 0.0
 		if row.Time.Valid {
 			timeVal = row.Time.Float64
@@ -142,11 +180,10 @@ func (c *SearchCaptionsCmd) mergeCaptions(rows []db.SearchCaptionsRow) []MergedC
 			continue
 		}
 
-		if current.Path == row.MediaPath &&
-			(math.Abs(timeVal-current.End) <= float64(c.Overlap) ||
-				math.Abs(timeVal-current.Time) <= float64(c.Overlap)) {
+		if math.Abs(timeVal-current.End) <= float64(c.Overlap) ||
+			math.Abs(timeVal-current.Time) <= float64(c.Overlap) {
 
-			current.End = end
+			current.End = max(current.End, end)
 			if !strings.Contains(current.Text, textVal) {
 				current.Text += ". " + textVal
 			}
@@ -161,11 +198,9 @@ func (c *SearchCaptionsCmd) mergeCaptions(rows []db.SearchCaptionsRow) []MergedC
 			}
 		}
 	}
-
 	if current != nil {
 		merged = append(merged, *current)
 	}
-
 	return merged
 }
 

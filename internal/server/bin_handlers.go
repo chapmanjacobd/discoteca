@@ -110,21 +110,44 @@ func (c *Server) HandleRaw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Server) HandleTrash(w http.ResponseWriter, r *http.Request) {
-	flags := c.GetGlobalFlags()
+	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
 	flags.OnlyDeleted = true
 	flags.HideDeleted = false
-	flags.All = true
-	flags.SortBy = "time_deleted"
-	flags.Reverse = true
+	if sortBy := r.URL.Query().Get("sort"); sortBy == "" || sortBy == "default" {
+		flags.SortBy = "time_deleted"
+		flags.Reverse = true
+	}
 
-	media, err := query.MediaQuery(r.Context(), c.Databases, flags)
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+	c.applySearchMode(r.Context(), &flags, dbs)
+
+	totalFlags := flags
+	totalFlags.All = true
+	totalFlags.Limit = 0
+	totalFlags.Offset = 0
+	total, countErr := query.MediaQueryCount(r.Context(), dbs, totalFlags)
+	if countErr != nil {
+		logging.Log.Error("Trash count query failed", "error", countErr)
+	}
+
+	media, err := query.MediaQuery(r.Context(), dbs, flags)
 	if err != nil {
 		logging.Log.Error("Trash query failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if countErr != nil {
+		total = int64(len(media))
+	}
 
-	w.Header().Set("X-Total-Count", strconv.Itoa(len(media)))
+	w.Header().Set("X-Total-Count", strconv.FormatInt(total, 10))
 	sendJSON(w, http.StatusOK, media)
 }
 

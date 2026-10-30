@@ -17,10 +17,10 @@ type ClusterSortCmd struct {
 	models.CoreFlags            `embed:""`
 	models.DuplicateFilterFlags `embed:""`
 
-	InputPath  string `help:"Input file path (default stdin)"   default:"-" arg:"" optional:""`
+	InputPath  string `help:"Input file path (default stdin)"                     default:"-" arg:"" optional:""`
 	OutputPath string `help:"Output file path (default stdout)"`
 	Clusters   int    `help:"Number of clusters (default: sqrt(number of lines))"`
-	JSON       bool   `help:"Output results as JSON"                                 short:"j"`
+	JSON       bool   `help:"Output results as JSON"                                                             short:"j"`
 }
 
 func (c *ClusterSortCmd) Run(ctx context.Context) error {

@@ -446,7 +446,8 @@ Discoteca handles paths correctly on all platforms, but be aware:
 
 ## Docker Installation
 
-Coming soon. See GitHub issues for containerization progress.
+There is currently no official Docker image. Use the native binaries or build
+from source; containerization is tracked separately from the released CLI.
 
 ---
 

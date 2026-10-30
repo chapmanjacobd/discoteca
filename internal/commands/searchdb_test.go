@@ -62,10 +62,10 @@ func TestSearchDBCmd_Run(t *testing.T) {
 
 	t.Run("FuzzyTableMatching", func(t *testing.T) {
 		cmd := &commands.SearchDBCmd{
-			DisplayFlags: models.DisplayFlags{JSON: true},
-			Database:     dbPath,
-			Table:        "tes", // fuzzy match for 'test'
-			Terms:        []string{"apple"},
+			JSON:     true,
+			Database: dbPath,
+			Table:    "tes", // fuzzy match for 'test'
+			Terms:    []string{"apple"},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("commands.SearchDBCmd failed: %v", err)
@@ -74,12 +74,10 @@ func TestSearchDBCmd_Run(t *testing.T) {
 
 	t.Run("DeleteRows", func(t *testing.T) {
 		cmd := &commands.SearchDBCmd{
-			PostActionFlags: models.PostActionFlags{
-				DeleteRows: true,
-			},
-			Database: dbPath,
-			Table:    "test",
-			Terms:    []string{"carrot"},
+			DeleteRows: true,
+			Database:   dbPath,
+			Table:      "test",
+			Terms:      []string{"carrot"},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("commands.SearchDBCmd failed: %v", err)
@@ -99,12 +97,10 @@ func TestSearchDBCmd_MarkDeletedRows(t *testing.T) {
 	)
 
 	cmd := &commands.SearchDBCmd{
-		PostActionFlags: models.PostActionFlags{
-			MarkDeleted: true,
-		},
-		Database: dbPath,
-		Table:    "test",
-		Terms:    []string{"banana"},
+		MarkDeleted: true,
+		Database:    dbPath,
+		Table:       "test",
+		Terms:       []string{"banana"},
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.SearchDBCmd failed: %v", err)
@@ -130,11 +126,11 @@ func TestSearchDBCmd_WhereLimitsDelete(t *testing.T) {
 	)
 
 	cmd := &commands.SearchDBCmd{
-		PostActionFlags: models.PostActionFlags{DeleteRows: true},
-		FilterFlags:     models.FilterFlags{Where: []string{"val = 'fruit'"}},
-		Database:        dbPath,
-		Table:           "test",
-		Terms:           []string{"apple"},
+		DeleteRows: true,
+		Where:      []string{"val = 'fruit'"},
+		Database:   dbPath,
+		Table:      "test",
+		Terms:      []string{"apple"},
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.SearchDBCmd failed: %v", err)
@@ -150,9 +146,9 @@ func TestSearchDBCmd_NoPredicateRefusesDelete(t *testing.T) {
 	dbPath := newSearchDB(t, schema, "INSERT INTO numbers VALUES (1), (2)")
 
 	cmd := &commands.SearchDBCmd{
-		PostActionFlags: models.PostActionFlags{DeleteRows: true},
-		Database:        dbPath,
-		Table:           "numbers",
+		DeleteRows: true,
+		Database:   dbPath,
+		Table:      "numbers",
 	}
 	if err := cmd.Run(context.Background()); err == nil {
 		t.Fatal("expected delete without predicate to be refused")
@@ -178,11 +174,11 @@ func TestSearchDBCmd_SimulateLeavesRows(t *testing.T) {
 	)
 
 	cmd := &commands.SearchDBCmd{
-		CoreFlags:       models.CoreFlags{Simulate: true},
-		PostActionFlags: models.PostActionFlags{DeleteRows: true},
-		Database:        dbPath,
-		Table:           "test",
-		Terms:           []string{"apple"},
+		CoreFlags:  models.CoreFlags{Simulate: true},
+		DeleteRows: true,
+		Database:   dbPath,
+		Table:      "test",
+		Terms:      []string{"apple"},
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.SearchDBCmd failed: %v", err)
@@ -192,11 +188,11 @@ func TestSearchDBCmd_SimulateLeavesRows(t *testing.T) {
 	}
 
 	markCmd := &commands.SearchDBCmd{
-		CoreFlags:       models.CoreFlags{Simulate: true},
-		PostActionFlags: models.PostActionFlags{MarkDeleted: true},
-		Database:        dbPath,
-		Table:           "test",
-		Terms:           []string{"apple"},
+		CoreFlags:   models.CoreFlags{Simulate: true},
+		MarkDeleted: true,
+		Database:    dbPath,
+		Table:       "test",
+		Terms:       []string{"apple"},
 	}
 	if err := markCmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.SearchDBCmd mark-deleted simulate failed: %v", err)
@@ -222,10 +218,10 @@ func TestSearchDBCmd_SearchFlagIsApplied(t *testing.T) {
 	)
 
 	cmd := &commands.SearchDBCmd{
-		PostActionFlags: models.PostActionFlags{DeleteRows: true},
-		FilterFlags:     models.FilterFlags{Search: []string{"apple"}},
-		Database:        dbPath,
-		Table:           "test",
+		DeleteRows: true,
+		Search:     []string{"apple"},
+		Database:   dbPath,
+		Table:      "test",
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.SearchDBCmd failed: %v", err)

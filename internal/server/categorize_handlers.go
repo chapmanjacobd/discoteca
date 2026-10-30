@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -292,9 +293,16 @@ func (c *Server) HandleCategorizeSuggest(w http.ResponseWriter, r *http.Request)
 	sendJSON(w, http.StatusOK, freqs[:limit])
 }
 
-func (c *Server) findMatchedCategories(m models.MediaWithDB, compiled map[string][]*regexp.Regexp) []string {
+func (c *Server) findMatchedCategories(
+	m models.MediaWithDB,
+	compiled map[string][]*regexp.Regexp,
+	fullPath bool,
+) []string {
 	foundCategories := []string{}
 	pathAndTitle := m.Path
+	if !fullPath {
+		pathAndTitle = filepath.Base(m.Path)
+	}
 	if m.Title != nil {
 		pathAndTitle += " " + *m.Title
 	}
@@ -341,6 +349,8 @@ func (c *Server) HandleCategorizeApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fullPath := r.URL.Query().Get("full_path") == "true"
+
 	allMedia := c.fetchAllMedia(r.Context(), "categorize apply")
 
 	compiled := categorize.CompileRegexes(r.Context(), c.Databases)
@@ -354,7 +364,7 @@ func (c *Server) HandleCategorizeApply(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	failed := 0
 	for _, m := range allMedia {
-		foundCategories := c.findMatchedCategories(m, compiled)
+		foundCategories := c.findMatchedCategories(m, compiled, fullPath)
 
 		if len(foundCategories) > 0 {
 			newCategories := c.mergeAndFormatCategories(m.Categories, foundCategories)

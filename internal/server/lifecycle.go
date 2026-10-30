@@ -122,16 +122,6 @@ func (c *Server) Close() error {
 	return nil
 }
 
-// initDatabases connects to all databases and caches the connections
-func (c *Server) initDatabases(ctx context.Context) {
-	for _, dbPath := range c.Databases {
-		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	}
-}
-
 // setupAPIToken sets the API token from the environment or generates one. A
 // generated token is printed once to stderr; it is never embedded in a static
 // response.
@@ -221,7 +211,7 @@ func (c *Server) checkFfmpeg() {
 }
 
 // openBrowser opens the default browser to the server URL
-func (c *Server) openBrowser(ctx context.Context, baseURL string) {
+func (c *Server) openBrowser(baseURL string) {
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		var openCmd string
@@ -239,12 +229,12 @@ func (c *Server) openBrowser(ctx context.Context, baseURL string) {
 
 		if openCmd != "" {
 			openArgs = append(openArgs, baseURL)
-			browserCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			cmd := exec.CommandContext(browserCtx, openCmd, openArgs...)
+			cmd := exec.Command(openCmd, openArgs...)
 			if err := cmd.Start(); err != nil {
 				logging.Log.Debug("Failed to open browser", "error", err)
+				return
 			}
+			go func() { _ = cmd.Wait() }()
 		}
 	}()
 }
@@ -265,9 +255,6 @@ func (c *Server) Run(ctx context.Context) error {
 
 	// Initialize MIME types
 	initMimeTypes()
-
-	// Pre-warm database connections
-	c.initDatabases(ctx)
 
 	c.ApplicationStartTime = time.Now().UnixNano()
 
@@ -292,7 +279,7 @@ func (c *Server) Run(ctx context.Context) error {
 
 	// Open browser unless --no-browser is passed
 	if !c.NoBrowser {
-		c.openBrowser(ctx, baseURL)
+		c.openBrowser(baseURL)
 	}
 
 	server := &http.Server{

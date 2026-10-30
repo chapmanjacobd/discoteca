@@ -18,19 +18,3 @@ func TestMaybeUpdate_ReturnsBool(t *testing.T) {
 		// This test verifies the function signature returns bool
 	})
 }
-
-func TestDoUpdate_ReturnsBool(t *testing.T) {
-	t.Run("selfupdate.DoUpdate returns false for invalid URL", func(t *testing.T) {
-		result := selfupdate.DoUpdate(context.Background(), "")
-		if result {
-			t.Errorf("selfupdate.DoUpdate(context.Background(), \"\") = %v, want false", result)
-		}
-	})
-
-	t.Run("selfupdate.DoUpdate returns false for malformed URL", func(t *testing.T) {
-		result := selfupdate.DoUpdate(context.Background(), "not-a-valid-url")
-		if result {
-			t.Errorf("selfupdate.DoUpdate(context.Background(), malformed) = %v, want false", result)
-		}
-	})
-}

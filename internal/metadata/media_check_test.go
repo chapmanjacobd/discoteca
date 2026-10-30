@@ -92,7 +92,11 @@ func TestDecodeFullScan_Failures(t *testing.T) {
 		{name: "not found", noTool: true},
 		{name: "invalid json", tool: "ffprobe", content: `not json`},
 		{name: "zero streams", tool: "ffprobe", content: `{"streams":[],"format":{"duration":"100.0"}}`},
-		{name: "zero duration", tool: "ffprobe", content: `{"streams":[{"r_frame_rate":"30/1","nb_read_frames":"10"}],"format":{"duration":"0"}}`},
+		{
+			name:    "zero duration",
+			tool:    "ffprobe",
+			content: `{"streams":[{"r_frame_rate":"30/1","nb_read_frames":"10"}],"format":{"duration":"0"}}`,
+		},
 	}
 
 	for _, tt := range tests {

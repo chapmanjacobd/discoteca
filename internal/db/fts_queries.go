@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"sort"
 	"strings"
+
+	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // SearchCaptionsParams are parameters for caption search
@@ -85,6 +87,57 @@ ORDER BY fts.rank
 		results = append(results, r)
 	}
 
+	return results, rows.Err()
+}
+
+// SearchCaptionsSubstring searches caption text without the FTS index. It is
+// used when the caller explicitly requests substring search or when captions
+// FTS is unavailable.
+func (q *Queries) SearchCaptionsSubstring(
+	ctx context.Context,
+	arg SearchCaptionsParams,
+) ([]SearchCaptionsRow, error) {
+	if arg.Query == "" {
+		return nil, nil
+	}
+
+	const query = `
+SELECT c.media_path, c.time, c.text, m.title, m.media_type, m.size, m.duration
+FROM captions c
+JOIN media m ON c.media_path = m.path
+WHERE m.time_deleted = 0
+AND c.text LIKE ? ESCAPE '\'
+AND (? = 0 OR m.media_type = 'video')
+AND (? = 0 OR m.media_type IN ('audio', 'audiobook'))
+AND (? = 0 OR m.media_type = 'image')
+AND (? = 0 OR m.media_type = 'text')
+ORDER BY c.media_path, c.time
+LIMIT ?
+`
+	pattern := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(arg.Query)
+	rows, err := q.db.QueryContext(
+		ctx,
+		query,
+		"%"+pattern+"%",
+		utils.BoolToInt64(arg.VideoOnly),
+		utils.BoolToInt64(arg.AudioOnly),
+		utils.BoolToInt64(arg.ImageOnly),
+		utils.BoolToInt64(arg.TextOnly),
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []SearchCaptionsRow
+	for rows.Next() {
+		var r SearchCaptionsRow
+		if err := rows.Scan(&r.MediaPath, &r.Time, &r.Text, &r.Title, &r.MediaType, &r.Size, &r.Duration); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
 	return results, rows.Err()
 }
 

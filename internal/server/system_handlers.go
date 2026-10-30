@@ -27,10 +27,8 @@ func (c *Server) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, ": keep-alive\n\n")
 	flusher.Flush()
 
-	if c.Dev {
-		fmt.Fprintf(w, "data: %d\n\n", c.ApplicationStartTime)
-		flusher.Flush()
-	}
+	fmt.Fprintf(w, "data: %d\n\n", c.ApplicationStartTime)
+	flusher.Flush()
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()

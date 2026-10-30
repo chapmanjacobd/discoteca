@@ -25,7 +25,10 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 	logging.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
 		if c.Simulate {
-			fmt.Printf("[Simulate] would VACUUM, ANALYZE, optimize media_fts, and backfill NULL media types in %s\n", dbPath)
+			fmt.Printf(
+				"[Simulate] would VACUUM, ANALYZE, optimize media_fts, and backfill NULL media types in %s\n",
+				dbPath,
+			)
 			continue
 		}
 
@@ -46,10 +49,13 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 			return fmt.Errorf("ANALYZE failed on %s: %w", dbPath, err)
 		}
 
-		logging.Log.Info("Optimizing FTS index...")
-		// FTS5 optimize command
+		logging.Log.Info("Optimizing FTS indexes...")
+		// FTS5 optimize commands
 		if _, err := sqlDB.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('optimize')"); err != nil {
-			logging.Log.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
+			logging.Log.Warn("media_fts optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
+		}
+		if _, err := sqlDB.ExecContext(ctx, "INSERT INTO captions_fts(captions_fts) VALUES('optimize')"); err != nil {
+			logging.Log.Warn("captions_fts optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
 		}
 
 		if err := c.BackfillMediaTypes(ctx, sqlDB); err != nil {
@@ -94,7 +100,7 @@ func (c *OptimizeCmd) BackfillMediaTypes(ctx context.Context, sqlDB *sql.DB) err
 			mtype = "audio"
 		} else if media.ImageExtensionMap[ext] {
 			mtype = "image"
-		} else if media.TextExtensionMap[ext] {
+		} else if media.TextExtensionMap[ext] || media.ComicExtensionMap[ext] {
 			mtype = "text"
 		}
 
@@ -128,7 +134,8 @@ func (c *OptimizeCmd) BackfillMediaTypes(ctx context.Context, sqlDB *sql.DB) err
 type SampleHashCmd struct {
 	models.CoreFlags    `embed:""`
 	models.HashingFlags `embed:""`
-	models.DisplayFlags `embed:""`
+
+	JSON bool `help:"Output results as JSON" short:"j" group:"Display"`
 
 	Paths []string `help:"Files to hash" required:"true" arg:"" type:"existingfile"`
 }

@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -16,32 +18,91 @@ import (
 // GetGlobalFlags returns all embedded flag structs
 func (c *Server) GetGlobalFlags() models.GlobalFlags {
 	return models.GlobalFlags{
-		CoreFlags:        c.CoreFlags,
-		QueryFlags:       c.QueryFlags,
-		PathFilterFlags:  c.PathFilterFlags,
-		FilterFlags:      c.FilterFlags,
-		MediaFilterFlags: c.MediaFilterFlags,
-		TimeFilterFlags:  c.TimeFilterFlags,
-		DeletedFlags:     c.DeletedFlags,
-		SortFlags:        c.SortFlags,
-		DisplayFlags:     c.DisplayFlags,
-		AggregateFlags:   c.AggregateFlags,
-		PlaybackFlags:    c.PlaybackFlags,
-		PostActionFlags:  c.PostActionFlags,
-		FTSFlags:         c.FTSFlags,
+		CoreFlags:          c.CoreFlags,
+		QueryFlags:         c.QueryFlags,
+		PathFilterFlags:    c.PathFilterFlags,
+		FilterFlags:        c.FilterFlags,
+		MediaFilterFlags:   c.MediaFilterFlags,
+		TimeFilterFlags:    c.TimeFilterFlags,
+		DeletedFlags:       c.DeletedFlags,
+		SortFlags:          c.SortFlags,
+		DisplayFlags:       c.DisplayFlags,
+		AggregateFlags:     c.AggregateFlags,
+		PlaybackFlags:      c.PlaybackFlags,
+		PostActionFlags:    c.PostActionFlags,
+		FTSFlags:           c.FTSFlags,
+		SearchModeExplicit: c.FTS,
+	}
+}
+
+// applySearchMode chooses FTS automatically when the request did not specify
+// a search mode and every selected database has an FTS index. Mixed or
+// non-FTS databases fall back to substring search.
+func (c *Server) applySearchMode(ctx context.Context, flags *models.GlobalFlags, dbs []string) {
+	if flags.SearchModeExplicit || len(flags.Search) == 0 {
+		return
+	}
+	if query.DatabasesHaveFTS(ctx, dbs) {
+		flags.FTS = true
+		flags.NoFTS = false
 	}
 }
 
 // parseSearchFlags extracts search-related flags from query parameters
 func (c *Server) parseSearchFlags(flags *models.GlobalFlags, q url.Values) {
 	if search := q.Get("search"); search != "" {
-		flags.Search = strings.Fields(search)
+		flags.Search = splitSearchTerms(search)
 	}
-	if searchType := q.Get("search_type"); searchType == "substring" {
-		flags.FTS = false
-	} else if searchType == "fts" {
-		flags.FTS = true
+	if searchType := q.Get("search_type"); searchType != "" {
+		flags.SearchModeExplicit = true
+		switch searchType {
+		case "substring":
+			flags.FTS = false
+		case "fts":
+			flags.FTS = true
+		}
 	}
+}
+
+// splitSearchTerms behaves like [strings.Fields] but keeps quoted phrases
+// together so the FTS parser can recognize them.
+func splitSearchTerms(search string) []string {
+	var terms []string
+	var current strings.Builder
+	var quote rune
+	inQuote := false
+
+	flush := func() {
+		if current.Len() > 0 {
+			terms = append(terms, current.String())
+			current.Reset()
+		}
+	}
+
+	for _, r := range search {
+		if inQuote {
+			current.WriteRune(r)
+			if r == quote {
+				inQuote = false
+				flush()
+			}
+			continue
+		}
+		if r == '"' || r == '\'' {
+			flush()
+			quote = r
+			inQuote = true
+			current.WriteRune(r)
+			continue
+		}
+		if r == ' ' || r == '\t' || r == '\n' {
+			flush()
+			continue
+		}
+		current.WriteRune(r)
+	}
+	flush()
+	return terms
 }
 
 // parseCategoryFlags extracts category and genre flags
@@ -65,6 +126,16 @@ func (c *Server) parseLanguageFlags(flags *models.GlobalFlags, q url.Values) {
 func (c *Server) parsePathFlags(flags *models.GlobalFlags, q url.Values) {
 	if paths := q.Get("paths"); paths != "" {
 		flags.Paths = strings.Split(paths, ",")
+	}
+	flags.Include = append(flags.Include, q["include"]...)
+	flags.Exclude = append(flags.Exclude, q["exclude"]...)
+	flags.PathContains = append(flags.PathContains, q["path_contains"]...)
+	if regex := q.Get("regex"); regex != "" {
+		if _, err := regexp.Compile(regex); err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid regex: %w", err))
+		} else {
+			flags.Regex = regex
+		}
 	}
 }
 
@@ -196,6 +267,15 @@ func (c *Server) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
 	if reverse := q.Get("reverse"); reverse == "true" {
 		flags.Reverse = true
 	}
+	if q.Get("random") == "true" {
+		flags.Random = true
+	}
+	if q.Get("nat_sort") == "true" || q.Get("natsort") == "true" {
+		flags.NatSort = true
+	}
+	if rerank := q.Get("rerank"); rerank != "" {
+		flags.ReRank = rerank
+	}
 }
 
 // parsePaginationFlags extracts limit and offset flags
@@ -217,11 +297,18 @@ func (c *Server) parsePaginationFlags(flags *models.GlobalFlags, q url.Values) {
 
 // parseSizeFlags extracts size filter flags
 func (c *Server) parseSizeFlags(flags *models.GlobalFlags, q url.Values) {
+	withDefaultUnit := func(raw string) string {
+		raw = strings.TrimSpace(raw)
+		if _, err := strconv.ParseFloat(raw, 64); err == nil {
+			return raw + "MB"
+		}
+		return raw
+	}
 	if minSize := q.Get("min_size"); minSize != "" {
-		flags.Size = append(flags.Size, ">"+minSize+"MB")
+		flags.Size = append(flags.Size, ">"+withDefaultUnit(minSize))
 	}
 	if maxSize := q.Get("max_size"); maxSize != "" {
-		flags.Size = append(flags.Size, "<"+maxSize+"MB")
+		flags.Size = append(flags.Size, "<"+withDefaultUnit(maxSize))
 	}
 	if sizes := q["size"]; len(sizes) > 0 {
 		flags.Size = append(flags.Size, sizes...)
@@ -260,6 +347,18 @@ func (c *Server) parseTimeFlags(flags *models.GlobalFlags, q url.Values) {
 	}
 	if maxDownloaded := q.Get("max_downloaded"); maxDownloaded != "" {
 		flags.DownloadedBefore = maxDownloaded
+	}
+	if deletedAfter := q.Get("deleted_after"); deletedAfter != "" {
+		flags.DeletedAfter = deletedAfter
+	}
+	if deletedBefore := q.Get("deleted_before"); deletedBefore != "" {
+		flags.DeletedBefore = deletedBefore
+	}
+	if playedAfter := q.Get("played_after"); playedAfter != "" {
+		flags.PlayedAfter = playedAfter
+	}
+	if playedBefore := q.Get("played_before"); playedBefore != "" {
+		flags.PlayedBefore = playedBefore
 	}
 
 	if modified := q["modified"]; len(modified) > 0 {
@@ -301,8 +400,14 @@ func (c *Server) parseTimeFlags(flags *models.GlobalFlags, q url.Values) {
 	}
 }
 
-// parseMediaFlags extracts media type filter flags
+// parseMediaFlags extracts media type and status filter flags.
 func (c *Server) parseMediaFlags(flags *models.GlobalFlags, q url.Values) {
+	c.parseMediaTypeFlags(flags, q)
+	c.parseMediaStatusFlags(flags, q)
+	c.parseMediaExtraFlags(flags, q)
+}
+
+func (c *Server) parseMediaTypeFlags(flags *models.GlobalFlags, q url.Values) {
 	mediaTypes := q["media_type"]
 	if len(mediaTypes) == 0 {
 		mediaTypes = q["type"]
@@ -320,30 +425,92 @@ func (c *Server) parseMediaFlags(flags *models.GlobalFlags, q url.Values) {
 		}
 	}
 
-	if video := q.Get("video"); video == "true" {
+	if q.Get("video") == "true" {
 		flags.VideoOnly = true
 	}
-	if audio := q.Get("audio"); audio == "true" {
+	if q.Get("audio") == "true" {
 		flags.AudioOnly = true
 	}
-	if image := q.Get("image"); image == "true" {
+	if q.Get("image") == "true" {
 		flags.ImageOnly = true
 	}
-	if text := q.Get("text"); text == "true" {
+	if q.Get("text") == "true" {
 		flags.TextOnly = true
 	}
-	if q.Get("captions") == "true" || q.Get("view") == "captions" {
-		flags.WithCaptions = true
-	}
-	if watched := q.Get("watched"); watched == "true" {
-		w := true
-		flags.Watched = &w
-	}
-	if unfinished := q.Get("unfinished"); unfinished == "true" {
+}
+
+func (c *Server) parseMediaStatusFlags(flags *models.GlobalFlags, q url.Values) {
+	if q.Get("unfinished") == "true" {
 		flags.Unfinished = true
 	}
-	if completed := q.Get("completed"); completed == "true" {
+	if q.Get("in_progress") == "true" || q.Get("in-progress") == "true" {
+		flags.InProgress = true
+	}
+	if q.Get("completed") == "true" {
 		flags.Completed = true
+	}
+	if partial := q.Get("partial"); partial != "" {
+		flags.Partial = partial
+	}
+	if raw := q.Get("watched"); raw != "" {
+		watched, err := strconv.ParseBool(raw)
+		if err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid watched value %q", raw))
+		} else {
+			flags.Watched = &watched
+		}
+	}
+	if raw := q.Get("play_count_min"); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil {
+			flags.PlayCountMin = &value
+		} else {
+			setFlagValidationError(flags, fmt.Errorf("invalid play_count_min value %q", raw))
+		}
+	}
+	if raw := q.Get("play_count_max"); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil {
+			flags.PlayCountMax = &value
+		} else {
+			setFlagValidationError(flags, fmt.Errorf("invalid play_count_max value %q", raw))
+		}
+	}
+}
+
+func (c *Server) parseMediaExtraFlags(flags *models.GlobalFlags, q url.Values) {
+	if q.Get("portrait") == "true" {
+		flags.Portrait = true
+	}
+	if q.Get("online_media_only") == "true" || q.Get("online-only") == "true" {
+		flags.OnlineMediaOnly = true
+	}
+	if q.Get("local_media_only") == "true" || q.Get("local-only") == "true" {
+		flags.LocalMediaOnly = true
+	}
+	if q.Get("captions") == "true" || q.Get("view") == "captions" || q.Get("with_captions") == "true" {
+		flags.WithCaptions = true
+	}
+	if q.Get("exists") == "true" {
+		flags.Exists = true
+	}
+	if q.Get("flexible_search") == "true" || q.Get("flexible-search") == "true" {
+		flags.FlexibleSearch = true
+	}
+	if q.Get("exact") == "true" {
+		flags.Exact = true
+	}
+	if siblings := q.Get("fetch_siblings"); siblings != "" {
+		flags.FetchSiblings = siblings
+	}
+	if raw := q.Get("fetch_siblings_max"); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil {
+			flags.FetchSiblingsMax = value
+		}
+	}
+	if durationFromSize := q.Get("duration_from_size"); durationFromSize != "" {
+		flags.DurationFromSize = durationFromSize
+	}
+	if ext := q["ext"]; len(ext) > 0 {
+		flags.Ext = append(flags.Ext, ext...)
 	}
 }
 
@@ -352,8 +519,11 @@ func (c *Server) parseStatusFlags(flags *models.GlobalFlags, q url.Values) {
 	if all := q.Get("all"); all == "true" {
 		flags.All = true
 	}
-	if q.Get("trash") == "true" {
+	if q.Get("trash") == "true" || q.Get("only_deleted") == "true" {
 		flags.OnlyDeleted = true
+		flags.HideDeleted = false
+	}
+	if q.Get("hide_deleted") == "false" {
 		flags.HideDeleted = false
 	}
 	if episodes := q["episodes"]; len(episodes) > 0 {
@@ -401,9 +571,13 @@ func (c *Server) ParseFlags(r *http.Request) models.GlobalFlags {
 // filterDatabases validates and filters the requested databases against the server's allowed list
 // Returns an error if any requested database is not in the allowed list
 func (c *Server) filterDatabases(requested []string) ([]string, error) {
-	// If no specific databases requested, use all configured databases
+	// If no specific databases requested, use all configured databases.
 	if len(requested) == 0 {
 		return c.Databases, nil
+	}
+	// The web client uses this sentinel when the user excludes every database.
+	if len(requested) == 1 && requested[0] == "__none__" {
+		return []string{}, nil
 	}
 
 	// Build a set of allowed databases for quick lookup

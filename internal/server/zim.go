@@ -119,7 +119,7 @@ func (c *Server) HandleZimView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	basePath := BasePathFromContext(r.Context())
-	contentURL, err := c.getKiwixContentURL(r.Context(), basePath)
+	contentURL, err := c.getKiwixContentURL(r.Context(), basePath, path)
 	if err != nil {
 		logging.Log.Warn("kiwix-serve is not reachable", "error", err)
 		http.Error(w, "kiwix-serve is not reachable", http.StatusServiceUnavailable)
@@ -149,8 +149,9 @@ func (c *Server) HandleZimView(w http.ResponseWriter, r *http.Request) {
 }
 
 // getKiwixContentURL reads the external kiwix-serve catalog and returns the
-// viewer URL for the single ZIM it exposes.
-func (c *Server) getKiwixContentURL(ctx context.Context, basePath string) (string, error) {
+// viewer URL for the requested ZIM. If the catalog does not expose a matching
+// title or path, it falls back to the first usable entry.
+func (c *Server) getKiwixContentURL(ctx context.Context, basePath, zimPath string) (string, error) {
 	urlRoot := kiwixRootPath(basePath)
 	catalogURL := fmt.Sprintf("http://%s%s/catalog/v2/entries", c.kiwixAddress(), urlRoot)
 
@@ -173,14 +174,27 @@ func (c *Server) getKiwixContentURL(ctx context.Context, basePath string) (strin
 		return "", err
 	}
 
-	if len(feed.Entries) == 1 {
-		for _, link := range feed.Entries[0].Link {
-			if link.Type == "text/html" {
-				contentPath := strings.TrimPrefix(link.Href, urlRoot+"/content/")
-				return fmt.Sprintf("%s/viewer#%s", urlRoot, contentPath), nil
+	target := strings.TrimSuffix(strings.ToLower(filepath.Base(zimPath)), ".zim")
+	fallback := ""
+	for _, entry := range feed.Entries {
+		for _, link := range entry.Link {
+			if link.Type != "text/html" {
+				continue
+			}
+			contentPath := strings.TrimPrefix(link.Href, urlRoot+"/content/")
+			candidate := fmt.Sprintf("%s/viewer#%s", urlRoot, contentPath)
+			if fallback == "" {
+				fallback = candidate
+			}
+			if strings.Contains(strings.ToLower(entry.Title), target) ||
+				strings.Contains(strings.ToLower(contentPath), target) {
+				return candidate, nil
 			}
 		}
 	}
 
+	if fallback != "" {
+		return fallback, nil
+	}
 	return urlRoot + "/", nil
 }

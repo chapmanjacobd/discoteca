@@ -42,15 +42,20 @@ func (c *Server) HandlePlay(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Trigger local playback
+	// Trigger local playback. The process must outlive this HTTP request:
+	// using r.Context() here would kill mpv as soon as the handler returns.
 	logging.Log.Info("Playing", "path", req.Path)
-	cmd := exec.CommandContext(r.Context(), "mpv", req.Path)
-	// We run it in background and don't wait for it
+	cmd := exec.CommandContext(context.WithoutCancel(r.Context()), "mpv", req.Path)
 	if err := cmd.Start(); err != nil {
 		logging.Log.Error("Failed to start mpv", "error", err)
 		sendError(w, http.StatusInternalServerError, "Failed to start playback: "+err.Error())
 		return
 	}
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			logging.Log.Debug("mpv exited with error", "path", req.Path, "error", err)
+		}
+	}()
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -135,7 +140,10 @@ func (c *Server) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			res, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET time_last_played = ?,
-			    time_first_played = COALESCE(time_first_played, ?),
+			    time_first_played = CASE
+			        WHEN COALESCE(time_first_played, 0) = 0 THEN ?
+			        ELSE time_first_played
+			    END,
 			    playhead = ?,
 			    play_count = COALESCE(play_count, 0) + ?
 			WHERE path = ?`,
@@ -177,7 +185,8 @@ func (c *Server) HandleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 			UPDATE media
 			SET play_count = 0,
 			    playhead = 0,
-			    time_last_played = 0
+			    time_last_played = 0,
+			    time_first_played = 0
 			WHERE path = ?`,
 				req.Path)
 			if err != nil {
@@ -217,7 +226,10 @@ func (c *Server) HandleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 			res, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET time_last_played = ?,
-			    time_first_played = COALESCE(time_first_played, ?),
+			    time_first_played = CASE
+			        WHEN COALESCE(time_first_played, 0) = 0 THEN ?
+			        ELSE time_first_played
+			    END,
 			    play_count = COALESCE(play_count, 0) + 1,
 			    playhead = 0
 			WHERE path = ?`,

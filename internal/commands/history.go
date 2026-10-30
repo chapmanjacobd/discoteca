@@ -23,7 +23,8 @@ type HistoryCmd struct {
 	models.DeletedFlags     `embed:""`
 	models.SortFlags        `embed:""`
 	models.DisplayFlags     `embed:""`
-	models.PostActionFlags  `embed:""`
+
+	DeleteRows bool `help:"Delete matching history rows" group:"PostAction"`
 
 	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
 }
@@ -40,15 +41,14 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 	flags := c.buildFlags()
 
 	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
-		HideRedundantFirstPlayed(media)
-
 		if flags.JSON {
+			HideRedundantFirstPlayed(media)
 			return fileutil.PrintJSON(media)
 		}
 
 		c.printHeader(flags)
 
-		if flags.DeleteRows {
+		if c.DeleteRows {
 			if flags.Simulate {
 				fmt.Printf("[Dry-run] would delete history rows for %d items\n", len(media))
 				return nil
@@ -62,6 +62,7 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 		} else {
 			query.SortMedia(media, flags)
 		}
+		HideRedundantFirstPlayed(media)
 		return PrintMedia(flags.DisplayFlags, flags.Columns, media)
 	})
 }
@@ -79,7 +80,6 @@ func (c *HistoryCmd) buildFlags() models.GlobalFlags {
 		Display:     c.DisplayFlags,
 		FTS:         models.FTSFlags{},
 	})
-	flags.PostActionFlags = c.PostActionFlags
 	// --sort default (or no flag) means history order. Any explicit non-default
 	// value, including `path`, is preserved.
 	if !c.SortExplicit && (flags.SortBy == "" || flags.SortBy == "default") {

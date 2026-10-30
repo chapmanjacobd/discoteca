@@ -1,6 +1,6 @@
 import './style.css';
 import Hls from 'hls.js';
-import { fetchAPI, getCookie, initSessionFromURL } from './api';
+import { fetchAPI, initSessionFromURL } from './api';
 import { appUrl } from './base';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
@@ -699,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function appendFilterParams(params) {
         if (state.filters.search) params.append('search', String(state.filters.search));
+        params.append('search_type', String(state.filters.searchType || 'fts'));
         state.filters.categories.forEach(c => params.append('category', String(c)));
         if (state.filters.genre) params.append('genre', String(state.filters.genre));
         state.filters.languages.forEach(l => params.append('language', String(l)));
@@ -804,9 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.ratings.forEach(r => params.append('rating', String(r)));
         if (state.filters.min_score) params.set('min_score', String(state.filters.min_score));
         if (state.filters.max_score) params.set('max_score', String(state.filters.max_score));
-        if (state.filters.searchType && state.filters.searchType !== 'fts') {
-            params.set('search_type', String(state.filters.searchType));
-        }
+        params.set('search_type', String(state.filters.searchType || 'fts'));
 
         state.filters.episodes.forEach(b => params.append('episodes', String(getBinQueryParam(b))));
         state.filters.sizes.forEach(b => params.append('size', String(getBinQueryParam(b))));
@@ -3108,10 +3107,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('offset', String(((state.currentPage - 1)) * state.filters.limit).toString());
             }
 
-            // Add search type parameter
-            if (state.filters.searchType === 'substring') {
-                params.append('search_type', String('substring'));
-            }
+            // Always send the selected search mode. Omitting it used to make
+            // the server default to substring even when the UI said FTS.
+            params.append('search_type', String(state.filters.searchType || 'fts'));
 
             // Request filter counts for sidebar bins (eliminates separate /api/filter-bins call)
             params.append('include_counts', String('true'));
@@ -6247,6 +6245,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (state.page === 'captions') {
             renderCaptionsList();
+            renderPagination();
             resultsContainer.style.minHeight = '';
             return;
         }

@@ -195,36 +195,6 @@ func (q *Queries) GetMediaByPath(ctx context.Context, arg GetMediaByPathParams) 
 	return items, nil
 }
 
-// GetMediaByPathPrefixParams are parameters for GetMediaByPathPrefix
-type GetMediaByPathPrefixParams struct {
-	PathPrefix string
-	PathNot    string
-	Limit      int64
-}
-
-// GetMediaByPathPrefix retrieves media with path starting with prefix but not matching exclusion
-func (q *Queries) GetMediaByPathPrefix(ctx context.Context, arg GetMediaByPathPrefixParams) ([]Media, error) {
-	const query = `SELECT ` + mediaColumns + ` FROM media WHERE time_deleted = 0 AND path LIKE ? AND path NOT LIKE ? ORDER BY path LIMIT ?`
-	rows, err := q.db.QueryContext(ctx, query, arg.PathPrefix, arg.PathNot, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var items []Media
-	for rows.Next() {
-		i, err := scanMedia(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 // GetMediaByPathRange retrieves non-deleted media whose path sorts within
 // [lower, upper). It is used for indexed sibling lookups by path prefix.
 func (q *Queries) GetMediaByPathRange(ctx context.Context, lower, upper string, limit int64) ([]Media, error) {

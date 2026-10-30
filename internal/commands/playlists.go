@@ -15,7 +15,7 @@ type PlaylistsCmd struct {
 	models.CoreFlags `embed:""`
 
 	JSON      bool     `help:"Output results as JSON" short:"j"`
-	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
+	Databases []string `help:"SQLite database files"            required:"true" arg:"" type:"existingfile"`
 }
 
 type PlaylistEntry struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -12,6 +13,16 @@ import (
 )
 
 func (c *Server) HandleLs(w http.ResponseWriter, r *http.Request) {
+	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
+	dbs, err := c.getDBs(flags)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		path = "/"
@@ -22,7 +33,7 @@ func (c *Server) HandleLs(w http.ResponseWriter, r *http.Request) {
 	resultsMap := make(map[string]LsEntry)
 	counts := make(map[string]int)
 
-	for _, dbPath := range c.Databases {
+	for _, dbPath := range dbs {
 		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			rows, err := c.queryLsRows(ctx, lsQueryParams{
 				SQLDB:      sqlDB,

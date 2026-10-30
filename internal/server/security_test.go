@@ -27,6 +27,8 @@ func TestSecurity_Blocklist(t *testing.T) {
 		{"/etc/passwd", http.StatusForbidden},
 		{"/home/user/.ssh/id_rsa", http.StatusForbidden},
 		{"/media/video.mp4", http.StatusNotFound},
+		{"/home/user/root/video.mp4", http.StatusNotFound},
+		{"/home/user/.config/video.mp4", http.StatusForbidden},
 
 		// Windows paths (should also be blocked)
 		{"\\etc\\passwd", http.StatusForbidden},

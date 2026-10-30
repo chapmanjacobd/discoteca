@@ -436,11 +436,13 @@ func (fb *FilterBuilder) buildLikeSearchClauses(
 		} else {
 			searchParts = append(searchParts,
 				fmt.Sprintf(
-					"(%s LIKE ? OR %s LIKE ? OR %s LIKE ?)",
+					"(%s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\')",
 					fb.col("path"), fb.col("title"), fb.col("path_tokenized"),
 				),
 			)
-			pattern := "%" + strings.ReplaceAll(term, " ", "%") + "%"
+			literal := strings.Trim(term, `"'`)
+			literal = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(literal)
+			pattern := "%" + strings.ReplaceAll(literal, " ", "%") + "%"
 			*args = append(*args, pattern, pattern, pattern)
 		}
 	}
@@ -823,14 +825,25 @@ func (fb *FilterBuilder) matchesPathFilters(m models.MediaWithDB, regex *regexp.
 func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 	// Pre-compile regex if needed
 	var regex *regexp.Regexp
+	invalidRegex := false
 	if fb.Flags.Regex != "" {
-		regex = regexp.MustCompile(fb.Flags.Regex)
+		compiled, err := regexp.Compile(fb.Flags.Regex)
+		if err == nil {
+			regex = compiled
+		} else {
+			// Keep in-memory filtering from panicking on user input. The SQL
+			// path reports the same invalid pattern as a query error.
+			invalidRegex = true
+		}
 	}
 
 	sizeRanges := fb.parseSizeRanges()
 	durationRanges := fb.parseDurationRanges()
 
 	return func(m models.MediaWithDB) bool {
+		if invalidRegex {
+			return false
+		}
 		if !fb.matchesPathFilters(m, regex) {
 			return false
 		}
@@ -843,7 +856,10 @@ func (fb *FilterBuilder) CreateInMemoryFilter() func(models.MediaWithDB) bool {
 	}
 }
 
-// FilterMedia applies in-memory filtering to a slice of media
+// FilterMedia applies the in-memory-evaluable subset of filters (path patterns,
+// extension, size, duration, and existence). SQL-backed predicates such as
+// media type, categories, dates, and playback state must be applied by the
+// query that produced media.
 func (fb *FilterBuilder) FilterMedia(media []models.MediaWithDB) []models.MediaWithDB {
 	filter := fb.CreateInMemoryFilter()
 	filtered := make([]models.MediaWithDB, 0, len(media))
@@ -2231,7 +2247,6 @@ func (qe *QueryExecutor) GroupByParent(allMedia []models.MediaWithDB, flags mode
 		EpisodeCount            int64   `json:"episode_count"`
 		TotalSize               int64   `json:"total_size"`
 		TotalDuration           int64   `json:"total_duration"`
-		LatestEpisodeTime       *string `json:"latest_episode_time,omitempty"`
 		RepresentativePath      string  `json:"representative_path"`
 		RepresentativeMediaType *string `json:"media_type,omitempty"`
 		DB                      string  `json:"db"`
@@ -2258,9 +2273,6 @@ func (qe *QueryExecutor) GroupByParent(allMedia []models.MediaWithDB, flags mode
 		}
 		if m.Duration != nil {
 			g.TotalDuration += *m.Duration
-		}
-		if g.LatestEpisodeTime == nil || m.Path > *g.LatestEpisodeTime {
-			g.LatestEpisodeTime = &m.Path
 		}
 	}
 

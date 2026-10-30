@@ -105,19 +105,6 @@ func FullHashFile(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// FilterDeleted returns only the paths that currently exist on the filesystem
-
-type FileStats struct {
-	Size         int64
-	TimeCreated  int64
-	TimeModified int64
-}
-
-// GetFileStats returns size and timestamps for a file
-
-// DetectMimeType returns the mimetype of a file based on extension
-// Used only for HTTP Content-Type headers in streaming
-
 // GetContentTypeFromExt returns the content type based on file extension
 func GetContentTypeFromExt(ext string) string {
 	ext = strings.ToLower(ext)
@@ -144,8 +131,6 @@ func GetContentTypeFromExt(ext string) string {
 		return "application/octet-stream"
 	}
 }
-
-// GetMountPoint returns the mount point for a given path
 
 // MoveFile moves a file from source to destination, handling cross-filesystem moves
 func MoveFile(src, dst string) error {
@@ -203,14 +188,6 @@ func MoveFile(src, dst string) error {
 
 	return os.Remove(src)
 }
-
-// Rename renames a file, respecting simulation mode
-
-// Unlink deletes a file, respecting simulation mode
-
-// Rmtree deletes a directory tree, respecting simulation mode
-
-// AltName returns an alternative filename if the given path already exists
 
 // CommonPath returns the longest common path prefix
 // Always returns forward slashes for cross-platform consistency

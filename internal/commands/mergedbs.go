@@ -246,7 +246,9 @@ func (c *MergeDBsCmd) buildInsertQuery(
 	if upsertQuery == "" {
 		return "", fmt.Errorf(
 			"--upsert cannot build a conflict clause for table %s: primary key columns %v are not all in the selected columns %v",
-			table, pks, selectedCols,
+			table,
+			pks,
+			selectedCols,
 		)
 	}
 	return upsertQuery, nil

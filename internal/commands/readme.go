@@ -36,6 +36,7 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 
 	writeIntro(&sb)
 	writeScreenshots(&sb)
+	writeRequirements(&sb)
 	writeDependencies(&sb)
 	writeBinaries(&sb)
 	writeBuildFromSource(&sb)
@@ -58,14 +59,26 @@ func writeIntro(sb *strings.Builder) {
 	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
 	sb.WriteString("## CLI changes\n\n")
-	sb.WriteString("- `--timeout`, `--threads`, and `--ignore-errors` were removed; they were accepted but never applied.\n")
+	sb.WriteString(
+		"- `--timeout`, `--threads`, and `--ignore-errors` were removed; they were accepted but never applied.\n",
+	)
 	sb.WriteString("- `--frequency` is only exposed by `stats`. `--facet` requires `--frequency`.\n")
 	sb.WriteString("- `print` and `du` now scan files and directories passed on the command line.\n")
-	sb.WriteString("- `check` applies path/media filters to database rows before marking files deleted; scan roots are still walked fully.\n")
-	sb.WriteString("- `dedupe` applies path/search/time/deleted/media filters while selecting candidates and only supports `--trash` as a post-action.\n")
-	sb.WriteString("- `add` only exposes filters that can be evaluated before a row exists: path, size, and extension.\n")
-	sb.WriteString("- `merge-dbs` applies `--where` to `media` only; use `--where-table TABLE=CLAUSE` for other tables.\n")
-	sb.WriteString("- `similar-files` and `similar-folders` no longer expose sort flags; `cluster-sort` emits JSON with `--json`.\n")
+	sb.WriteString(
+		"- `check` applies path/media filters to database rows before marking files deleted; scan roots are still walked fully.\n",
+	)
+	sb.WriteString(
+		"- `dedupe` applies path/search/time/deleted/media filters while selecting candidates and only supports `--trash` as a post-action.\n",
+	)
+	sb.WriteString(
+		"- `add` exposes path/media filters, but not database-only filters such as playback state or search history.\n",
+	)
+	sb.WriteString(
+		"- `merge-dbs` applies `--where` to `media` only; use `--where-table TABLE=CLAUSE` for other tables.\n",
+	)
+	sb.WriteString(
+		"- `similar-files` and `similar-folders` no longer expose sort flags; `cluster-sort` emits JSON with `--json`.\n",
+	)
 	sb.WriteString("- Unknown `--columns` values are rejected instead of printing blank cells.\n\n")
 }
 
@@ -85,6 +98,13 @@ func writeScreenshots(sb *strings.Builder) {
 		fmt.Fprintf(sb, "### %s\n\n", s.title)
 		fmt.Fprintf(sb, "![%s](%s)\n\n", s.title, s.path)
 	}
+}
+
+func writeRequirements(sb *strings.Builder) {
+	sb.WriteString("## Requirements\n\n")
+	sb.WriteString("- Go 1.26 or newer to build from source\n")
+	sb.WriteString("- SQLite **3.37.0 or newer** (the schema uses STRICT tables)\n")
+	sb.WriteString("- A SQLite build with FTS5 enabled (`-tags fts5`)\n\n")
 }
 
 func writeDependencies(sb *strings.Builder) {

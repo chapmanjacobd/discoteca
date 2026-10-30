@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -26,8 +27,8 @@ func (c *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	if rejectInvalidFlags(w, flags) {
 		return
 	}
-	// The media grid should not show sidecar subtitle files as playable cards.
-	// Explicit CLI path/ext queries can still opt in; HTTP grid queries cannot.
+	// The media grid should not show sidecar subtitle files as playable cards,
+	// unless the request explicitly asks for a path or extension.
 	flags.HideSubtitles = true
 	q := r.URL.Query()
 
@@ -46,6 +47,7 @@ func (c *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
 		return
 	}
+	c.applySearchMode(ctx, &flags, dbs)
 
 	resolvedFlags, err := query.ResolvePercentileFlags(ctx, dbs, flags)
 	if err == nil {
@@ -94,6 +96,7 @@ func (c *Server) fetchCaptionsFromDB(ctx context.Context, params fetchCaptionsPa
 					AudioOnly: params.flags.AudioOnly,
 					ImageOnly: params.flags.ImageOnly,
 					TextOnly:  params.flags.TextOnly,
+					UseFTS:    params.flags.FTS && !params.flags.NoFTS,
 				},
 			)
 		} else {
@@ -161,6 +164,25 @@ func (c *Server) handleQueryCaptionsView(
 
 	aggregate := q.Get("aggregate") == "true"
 
+	var allowedOrder map[string]int
+	if filterFlags, active := captionMediaFilterFlags(flags); active {
+		mediaFlags := filterFlags
+		mediaFlags.All = true
+		mediaFlags.Limit = 0
+		mediaFlags.Offset = 0
+		mediaFlags.FTS = false
+		mediaFlags.NoFTS = true
+		allowedMedia, err := query.MediaQuery(ctx, dbs, mediaFlags)
+		if err == nil {
+			allowedOrder = make(map[string]int, len(allowedMedia))
+			for i, item := range allowedMedia {
+				allowedOrder[item.Path] = i
+			}
+		} else {
+			logging.Log.Warn("Caption media filters failed; showing unfiltered captions", "error", err)
+		}
+	}
+
 	for _, dbPath := range dbs {
 		params := fetchCaptionsParams{
 			dbPath:    dbPath,
@@ -173,6 +195,23 @@ func (c *Server) handleQueryCaptionsView(
 		if err := c.fetchCaptionsFromDB(ctx, params); err != nil {
 			logging.Log.Error("Caption fetch failed", "db", dbPath, "error", err)
 		}
+	}
+
+	if allowedOrder != nil {
+		filtered := make([]models.MediaWithDB, 0, len(media))
+		for _, item := range media {
+			if _, ok := allowedOrder[item.Path]; ok {
+				filtered = append(filtered, item)
+			}
+		}
+		sort.SliceStable(filtered, func(i, j int) bool {
+			left, right := allowedOrder[filtered[i].Path], allowedOrder[filtered[j].Path]
+			if left != right {
+				return left < right
+			}
+			return filtered[i].CaptionTime < filtered[j].CaptionTime
+		})
+		media = filtered
 	}
 
 	totalCount := len(media)
@@ -191,6 +230,25 @@ func (c *Server) handleQueryCaptionsView(
 	w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
 	w.Header().Set("Content-Type", "application/json")
 	c.encodeQueryResponse(w, media, filterCounts, includeCounts)
+}
+
+// captionMediaFilterFlags removes filters already handled by the caption SQL
+// (search text, deleted rows, media type) and reports whether any remaining
+// media-column filter needs a path lookup.
+func captionMediaFilterFlags(flags models.GlobalFlags) (models.GlobalFlags, bool) {
+	filtered := flags
+	filtered.Search = nil
+	filtered.VideoOnly = false
+	filtered.AudioOnly = false
+	filtered.ImageOnly = false
+	filtered.TextOnly = false
+	filtered.HideDeleted = false
+	filtered.OnlyDeleted = false
+	filtered.WithCaptions = false
+	filtered.HideSubtitles = false
+	filtered.FTS = false
+	filtered.NoFTS = true
+	return filtered, query.HasAnyFilter(filtered)
 }
 
 // appendCaptionRows appends caption rows to the media slice, optionally aggregating
@@ -301,6 +359,7 @@ func (c *Server) handleQueryMediaGrid(
 		} else {
 			logging.Log.Error("Count query failed", "dbs", dbs, "error", err)
 		}
+		totalCount = int64(len(media))
 	}
 
 	if c.hasFfmpeg {

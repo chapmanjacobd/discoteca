@@ -19,6 +19,19 @@ import (
 
 // IsSameGroup checks if two media items are similar enough to be grouped
 func IsSameGroup(flags models.GlobalFlags, m0, m models.MediaWithDB) bool {
+	if flags.FilterNames {
+		name0 := filepath.Base(m0.Path)
+		name := filepath.Base(m.Path)
+		if flags.NameFullPath {
+			name0 = m0.Path
+			name = m.Path
+		}
+		metric := metrics.NewSorensenDice()
+		if strutil.Similarity(name0, name, metric) <= 0.8 {
+			return false
+		}
+	}
+
 	if flags.FilterSizes {
 		s0 := utils.Int64Value(m0.Size)
 		s := utils.Int64Value(m.Size)

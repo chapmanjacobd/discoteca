@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
-	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestFilesInfoCmd_Run(t *testing.T) {
@@ -26,8 +25,8 @@ func TestFilesInfoCmd_Run(t *testing.T) {
 	os.Stdout = w
 
 	cmd := &commands.FilesInfoCmd{
-		DisplayFlags: models.DisplayFlags{JSON: true},
-		Args:         []string{f.Name()},
+		JSON: true,
+		Args: []string{f.Name()},
 	}
 	if err := cmd.AfterApply(); err != nil {
 		t.Fatalf("AfterApply failed: %v", err)

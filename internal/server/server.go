@@ -157,28 +157,43 @@ func (c *Server) HandleSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// isPathBlocklisted checks if a path should be denied access
+// isPathBlocklisted checks if a path should be denied access. It matches path
+// components and well-known sensitive suffixes rather than arbitrary
+// substrings, so a legitimate media tree named "root" is not rejected.
 func (c *Server) isPathBlocklisted(path string) bool {
-	// Normalize path separators to forward slashes for consistent matching
 	p := strings.ToLower(strings.ReplaceAll(path, "\\", "/"))
-	blocked := []string{
-		"etc/passwd",
-		"etc/shadow",
-		".ssh/",
-		".aws/",
-		".config/",
-		".gnupg/",
-		"root/",
-		"id_rsa",
-		"id_ed25519",
-		// Windows-specific sensitive paths
-		"windows/system32/config/sam",
-		"windows/system32/config/security",
-		"windows/system32/config/software",
-		"windows/system32/config/system",
+	parts := strings.FieldsFunc(p, func(r rune) bool { return r == '/' })
+	if len(parts) == 0 {
+		return false
 	}
-	for _, b := range blocked {
-		if strings.Contains(p, b) {
+
+	for _, part := range parts {
+		switch part {
+		case ".ssh", ".aws", ".config", ".gnupg":
+			return true
+		}
+	}
+
+	base := parts[len(parts)-1]
+	if base == "id_rsa" || base == "id_ed25519" {
+		return true
+	}
+
+	joined := "/" + strings.Join(parts, "/")
+	if joined == "/root" || strings.HasPrefix(joined, "/root/") {
+		return true
+	}
+
+	sensitiveSuffixes := []string{
+		"/etc/passwd",
+		"/etc/shadow",
+		"/windows/system32/config/sam",
+		"/windows/system32/config/security",
+		"/windows/system32/config/software",
+		"/windows/system32/config/system",
+	}
+	for _, suffix := range sensitiveSuffixes {
+		if joined == suffix || strings.HasSuffix(joined, suffix) {
 			return true
 		}
 	}

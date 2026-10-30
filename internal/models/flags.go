@@ -179,7 +179,6 @@ type AggregateFlags struct {
 	FoldersOnly       bool     `help:"Only show folders"                                                 group:"Aggregate"`
 	FilesOnly         bool     `help:"Only show files"                                                   group:"Aggregate"`
 	FolderSizes       []string `help:"Filter folders by total size"                                      group:"Aggregate"`
-	FolderCounts      string   `help:"Filter folders by number of files"                                 group:"Aggregate"`
 }
 
 type TextFlags struct {
@@ -355,6 +354,10 @@ type GlobalFlags struct {
 	// ValidationError is set by the HTTP request parser when a query parameter
 	// would otherwise reach SQL. Handlers turn it into a 400 response.
 	ValidationError string `json:"-" kong:"-"`
+
+	// SearchModeExplicit reports whether FTS/substring mode was chosen
+	// explicitly. HTTP handlers may auto-detect FTS only when it was not.
+	SearchModeExplicit bool `json:"-" kong:"-"`
 
 	// HideSubtitles excludes sidecar subtitle files (.srt, .vtt, ...) from
 	// media results. The HTTP media grid sets this; the CLI leaves it off so

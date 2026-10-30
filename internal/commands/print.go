@@ -65,11 +65,11 @@ func (c *PrintCmd) Run(ctx context.Context) error {
 func renderPrint(media []models.MediaWithDB, flags models.GlobalFlags) error {
 	HideRedundantFirstPlayed(media)
 
-	isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize || flags.Depth > 0 ||
-		flags.Parents ||
-		flags.FoldersOnly ||
-		len(flags.FolderSizes) > 0 ||
-		flags.FolderCounts != ""
+	isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize ||
+		flags.GroupByParent || flags.Depth > 0 || flags.Parents ||
+		flags.FoldersOnly || flags.FilesOnly ||
+		flags.FileCounts != "" ||
+		len(flags.FolderSizes) > 0
 
 	if flags.JSON {
 		if isAggregated {

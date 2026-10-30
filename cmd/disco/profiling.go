@@ -3,11 +3,11 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 )
 
@@ -15,21 +15,32 @@ import (
 // Build with: go build -tags pyroscope -o disco ./cmd/disco
 // Run with: ./disco --cpuprof=cpu.prof --memprof=mem.prof server [...]
 
-var (
-	cpuProfile      = flag.String("cpuprof", "", "Write CPU profile to file")
-	memProfile      = flag.String("memprof", "", "Write memory profile to file")
-	traceFile       = flag.String("trace", "", "Write execution trace to file")
-	profileDuration = flag.Duration("profile-duration", 30*time.Second, "Duration for profiling")
+const (
+	profileCPUFlag      = "--cpuprof"
+	profileMemFlag      = "--memprof"
+	profileTraceFlag    = "--trace"
+	profileDurationFlag = "--profile-duration"
 )
 
-// setupProfiling sets up profiling based on command-line flags
-// Call this early in main() after flag.Parse()
+// setupProfiling extracts profiling flags before Kong parses the command line,
+// then configures the requested profilers.
 func setupProfiling() func() {
+	values, remaining := extractProfilingArgs(os.Args[1:])
+	os.Args = append([]string{os.Args[0]}, remaining...)
+
+	profileDuration := 30 * time.Second
+	if value := values[profileDurationFlag]; value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
+			profileDuration = parsed
+		} else {
+			log.Printf("invalid %s value %q: %v", profileDurationFlag, value, err)
+		}
+	}
+
 	var cleanupFuncs []func()
 
-	// CPU profiling
-	if *cpuProfile != "" {
-		f, err := os.Create(*cpuProfile)
+	if cpuProfile := values[profileCPUFlag]; cpuProfile != "" {
+		f, err := os.Create(cpuProfile)
 		if err != nil {
 			log.Fatal("could not create CPU profile: ", err)
 		}
@@ -38,14 +49,13 @@ func setupProfiling() func() {
 			log.Fatal("could not start CPU profile: ", err)
 		}
 
-		log.Printf("CPU profiling started, will run for %v", *profileDuration)
+		log.Printf("CPU profiling started, will run for %v", profileDuration)
 
-		// Schedule automatic stop after duration
 		go func() {
-			time.Sleep(*profileDuration)
+			time.Sleep(profileDuration)
 			pprof.StopCPUProfile()
 			f.Close()
-			log.Printf("CPU profiling completed, saved to %s", *cpuProfile)
+			log.Printf("CPU profiling completed, saved to %s", cpuProfile)
 		}()
 
 		cleanupFuncs = append(cleanupFuncs, func() {
@@ -54,50 +64,83 @@ func setupProfiling() func() {
 		})
 	}
 
-	// Memory profiling
-	if *memProfile != "" {
+	if memProfile := values[profileMemFlag]; memProfile != "" {
 		cleanupFuncs = append(cleanupFuncs, func() {
-			f, err := os.Create(*memProfile)
+			f, err := os.Create(memProfile)
 			if err != nil {
 				log.Fatal("could not create memory profile: ", err)
 			}
 			defer f.Close()
 
-			// Force GC to get accurate stats
 			runtime.GC()
 
 			if err := pprof.WriteHeapProfile(f); err != nil {
 				log.Fatal("could not write memory profile: ", err)
 			}
 
-			log.Printf("Memory profile saved to %s", *memProfile)
+			log.Printf("Memory profile saved to %s", memProfile)
 		})
 	}
 
-	// Execution tracing
-	if *traceFile != "" {
-		f, err := os.Create(*traceFile)
+	if traceFile := values[profileTraceFlag]; traceFile != "" {
+		f, err := os.Create(traceFile)
 		if err != nil {
 			log.Fatal("could not create trace file: ", err)
 		}
 
-		if err := runtime.StartTrace(f); err != nil {
+		if err := runtime.StartTrace(); err != nil {
 			log.Fatal("could not start trace: ", err)
 		}
 
-		log.Printf("Execution tracing started, will run for %v", *profileDuration)
+		log.Printf("Execution tracing started, will run for %v", profileDuration)
 
 		cleanupFuncs = append(cleanupFuncs, func() {
 			runtime.StopTrace()
 			f.Close()
-			log.Printf("Execution trace saved to %s", *traceFile)
+			log.Printf("Execution trace saved to %s", traceFile)
 		})
 	}
 
 	return func() {
-		// Run cleanup functions in reverse order
 		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
 			cleanupFuncs[i]()
 		}
 	}
+}
+
+func extractProfilingArgs(args []string) (map[string]string, []string) {
+	values := make(map[string]string)
+	remaining := make([]string, 0, len(args))
+	known := map[string]bool{
+		profileCPUFlag:      true,
+		profileMemFlag:      true,
+		profileTraceFlag:    true,
+		profileDurationFlag: true,
+	}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		matched := false
+		for flag := range known {
+			if arg == flag {
+				if i+1 < len(args) {
+					values[flag] = args[i+1]
+					i++
+				}
+				matched = true
+				break
+			}
+			if value, ok := strings.CutPrefix(arg, flag+"="); ok {
+				values[flag] = value
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			remaining = append(remaining, arg)
+		}
+	}
+
+	return values, remaining
 }

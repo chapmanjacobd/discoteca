@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -41,6 +40,7 @@ func (c *Server) prepareFilterFlags(flags models.GlobalFlags, filterToIgnore str
 		tempFlags.Duration = nil
 	case "episodes":
 		tempFlags.FileCounts = ""
+		tempFlags.FolderSizes = nil
 	case "media_type":
 		tempFlags.VideoOnly = false
 		tempFlags.AudioOnly = false
@@ -321,71 +321,48 @@ func (c *Server) HandleFilterBins(w http.ResponseWriter, r *http.Request) {
 	// Filter bins describe the media grid, which does not include sidecar
 	// subtitle files.
 	flags.HideSubtitles = true
-	q := r.URL.Query()
 
-	// Validate and filter databases
 	dbs, err := c.getDBs(flags)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
 		return
 	}
+	c.applySearchMode(r.Context(), &flags, dbs)
 
-	// Set flags to get all data for bin calculation
-	flags.All = true
-	flags.Limit = 0
+	sendJSON(w, http.StatusOK, c.buildFilterBinsResponse(r.Context(), flags, dbs))
+}
 
-	resp := models.FilterBinsResponse{}
+// buildFilterBinsResponse computes each filter dimension independently so a
+// selected value in one dimension does not shrink its own available range.
+func (c *Server) buildFilterBinsResponse(
+	ctx context.Context,
+	flags models.GlobalFlags,
+	dbs []string,
+) *models.FilterBinsResponse {
+	resp := &models.FilterBinsResponse{}
 
-	// Collect data for each filter type, ignoring that filter to get full distribution
-	episodesOnly := q.Has("episodes")
-	sizeOnly := q.Has("size") || q.Has("min_size") || q.Has("max_size")
-	durationOnly := q.Has("duration") || q.Has("min_duration") || q.Has("max_duration")
-	modifiedOnly := q.Has("min_modified") || q.Has("max_modified")
-	createdOnly := q.Has("min_created") || q.Has("max_created")
-	downloadedOnly := q.Has("min_downloaded") || q.Has("max_downloaded")
-
-	// Get episode data - store min/max and percentiles
-	epData := c.computeFilterBinsData(r.Context(), flags, "episodes", dbs)
+	epData := c.computeFilterBinsData(ctx, flags, "episodes", dbs)
 	resp.EpisodesMinVal, resp.EpisodesMaxVal, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
 
-	// Get size data - store min/max and percentiles
-	sizeData := c.computeFilterBinsData(r.Context(), flags, "size", dbs)
+	sizeData := c.computeFilterBinsData(ctx, flags, "size", dbs)
 	resp.SizeMinVal, resp.SizeMaxVal, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
 
-	// Get duration data - store min/max and percentiles
-	durData := c.computeFilterBinsData(r.Context(), flags, "duration", dbs)
+	durData := c.computeFilterBinsData(ctx, flags, "duration", dbs)
 	resp.DurationMinVal, resp.DurationMaxVal, resp.DurationPercentiles = buildDurationBins(durData.durations)
 
-	// Get modified data - store min/max and percentiles
-	modData := c.computeFilterBinsData(r.Context(), flags, "modified", dbs)
+	modData := c.computeFilterBinsData(ctx, flags, "modified", dbs)
 	resp.ModifiedMinVal, resp.ModifiedMaxVal, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
 
-	// Get created data - store min/max and percentiles
-	creData := c.computeFilterBinsData(r.Context(), flags, "created", dbs)
+	creData := c.computeFilterBinsData(ctx, flags, "created", dbs)
 	resp.CreatedMinVal, resp.CreatedMaxVal, resp.CreatedPercentiles = buildTimeBins(creData.created)
 
-	// Get downloaded data - store min/max and percentiles
-	dlData := c.computeFilterBinsData(r.Context(), flags, "downloaded", dbs)
+	dlData := c.computeFilterBinsData(ctx, flags, "downloaded", dbs)
 	resp.DownloadedMinVal, resp.DownloadedMaxVal, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
 
-	// Get type data - keep as bins (special case, not percentile-based)
-	typeData := c.computeFilterBinsData(r.Context(), flags, "media_type", dbs)
+	typeData := c.computeFilterBinsData(ctx, flags, "media_type", dbs)
 	resp.MediaType = buildTypeBins(typeData.typeCounts)
 
-	// Log query info for debugging
-	logging.Log.Info("FilterBins computed",
-		"episodesOnly", episodesOnly,
-		"sizeOnly", sizeOnly,
-		"durationOnly", durationOnly,
-		"modifiedOnly", modifiedOnly,
-		"createdOnly", createdOnly,
-		"downloadedOnly", downloadedOnly,
-		"databases", len(dbs),
-		"sizeCount", len(sizeData.sizes),
-		"durationCount", len(durData.durations),
-		"parentCount", len(epData.parentCounts))
-
-	sendJSON(w, http.StatusOK, resp)
+	return resp
 }
 
 // calculateFilterCounts computes filter bin counts for the current query
@@ -396,248 +373,5 @@ func (c *Server) calculateFilterCounts(
 	flags models.GlobalFlags,
 	dbs []string,
 ) *models.FilterBinsResponse {
-	// Use optimized version that uses SQL aggregation instead of fetching all rows
-	return c.calculateFilterCountsOptimized(ctx, flags, dbs)
-}
-
-// calculateFilterCountsOptimized computes filter bin counts using optimized SQL queries
-// This is MUCH faster than the original version for large libraries
-func (c *Server) calculateFilterCountsOptimized(
-	ctx context.Context,
-	flags models.GlobalFlags,
-	dbs []string,
-) *models.FilterBinsResponse {
-	resp := &models.FilterBinsResponse{}
-
-	// Collect data for each filter type, ignoring that filter to get full distribution
-	// This prevents recursive constraints where filtering by duration would shrink the duration range itself
-	epData := c.computeFilterBinsDataOptimized(ctx, flags, "episodes", dbs)
-	resp.EpisodesMinVal, resp.EpisodesMaxVal, resp.EpisodesPercentiles = buildEpisodeBins(epData.parentCounts)
-
-	sizeData := c.computeFilterBinsDataOptimized(ctx, flags, "size", dbs)
-	resp.SizeMinVal, resp.SizeMaxVal, resp.SizePercentiles = buildSizeBins(sizeData.sizes)
-
-	durData := c.computeFilterBinsDataOptimized(ctx, flags, "duration", dbs)
-	resp.DurationMinVal, resp.DurationMaxVal, resp.DurationPercentiles = buildDurationBins(durData.durations)
-
-	modData := c.computeFilterBinsDataOptimized(ctx, flags, "modified", dbs)
-	resp.ModifiedMinVal, resp.ModifiedMaxVal, resp.ModifiedPercentiles = buildTimeBins(modData.modified)
-
-	creData := c.computeFilterBinsDataOptimized(ctx, flags, "created", dbs)
-	resp.CreatedMinVal, resp.CreatedMaxVal, resp.CreatedPercentiles = buildTimeBins(creData.created)
-
-	dlData := c.computeFilterBinsDataOptimized(ctx, flags, "downloaded", dbs)
-	resp.DownloadedMinVal, resp.DownloadedMaxVal, resp.DownloadedPercentiles = buildTimeBins(dlData.downloaded)
-
-	typeData := c.computeFilterBinsDataOptimized(ctx, flags, "media_type", dbs)
-	resp.MediaType = buildTypeBins(typeData.typeCounts)
-
-	return resp
-}
-
-func (c *Server) fetchParentCounts(
-	ctx context.Context,
-	sqlDB *sql.DB,
-	allParentCounts map[string]int64,
-	mu *sync.Mutex,
-) {
-	parentCountQuery := `
-		SELECT parent, file_count
-		FROM folder_stats
-	`
-	rows, err := sqlDB.QueryContext(ctx, parentCountQuery)
-	hasData := false
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			hasData = true
-			var parent string
-			var cnt int64
-			if scanErr := rows.Scan(&parent, &cnt); scanErr == nil {
-				mu.Lock()
-				allParentCounts[parent] += cnt
-				mu.Unlock()
-			}
-		}
-		if err := rows.Err(); err != nil {
-			logging.Log.Debug("Parent count query error", "error", err)
-		}
-	}
-
-	if !hasData {
-		c.fetchParentCountsFallback(ctx, sqlDB, allParentCounts, mu)
-	}
-}
-
-func (c *Server) fetchParentCountsFallback(
-	ctx context.Context,
-	sqlDB *sql.DB,
-	allParentCounts map[string]int64,
-	mu *sync.Mutex,
-) {
-	parentCountQuery := `
-		SELECT path
-		FROM media
-		WHERE COALESCE(time_deleted, 0) = 0
-	`
-	rows, err := sqlDB.QueryContext(ctx, parentCountQuery)
-	if err == nil {
-		defer rows.Close()
-		localParentCounts := make(map[string]int64)
-		for rows.Next() {
-			var path string
-			if err := rows.Scan(&path); err == nil {
-				parent := filepath.Dir(path)
-				localParentCounts[parent]++
-			}
-		}
-		if err := rows.Err(); err != nil {
-			logging.Log.Debug("Fallback parent count query error", "error", err)
-		}
-		mu.Lock()
-		for p, cnt := range localParentCounts {
-			allParentCounts[p] += cnt
-		}
-		mu.Unlock()
-	}
-}
-
-func (c *Server) fetchTypeCounts(ctx context.Context, sqlDB *sql.DB, allTypeCounts map[string]int64, mu *sync.Mutex) {
-	typeCountQuery := `
-		SELECT COALESCE(NULLIF(media_type, ''), 'unknown') as t, COUNT(*) as cnt
-		FROM media
-		WHERE COALESCE(time_deleted, 0) = 0
-		GROUP BY media_type
-	`
-	rows, err := sqlDB.QueryContext(ctx, typeCountQuery)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var t string
-			var cnt int64
-			if scanErr := rows.Scan(&t, &cnt); scanErr == nil {
-				mu.Lock()
-				allTypeCounts[t] += cnt
-				mu.Unlock()
-			}
-		}
-		if err := rows.Err(); err != nil {
-			logging.Log.Debug("Type count query error", "error", err)
-		}
-	}
-}
-
-type histogramData struct {
-	sizes      []int64
-	durations  []int64
-	modified   []int64
-	created    []int64
-	downloaded []int64
-}
-
-func (c *Server) scanHistogramRow(rows *sql.Rows, h *histogramData) {
-	var s, d, tm, tc, td sql.NullInt64
-	if err := rows.Scan(&s, &d, &tm, &tc, &td); err == nil {
-		if s.Valid && s.Int64 > 0 && s.Int64 < 100*1024*1024*1024*1024 {
-			h.sizes = append(h.sizes, s.Int64)
-		}
-		if d.Valid && d.Int64 > 0 && d.Int64 < 2678400 {
-			h.durations = append(h.durations, d.Int64)
-		}
-		if tm.Valid && tm.Int64 > 0 {
-			h.modified = append(h.modified, tm.Int64)
-		}
-		if tc.Valid && tc.Int64 > 0 {
-			h.created = append(h.created, tc.Int64)
-		}
-		if td.Valid && td.Int64 > 0 {
-			h.downloaded = append(h.downloaded, td.Int64)
-		}
-	}
-}
-
-func (c *Server) fetchSampleHistogram(
-	ctx context.Context,
-	sqlDB *sql.DB,
-	allHistogram *histogramData,
-	mu *sync.Mutex,
-) {
-	sampleQuery := `
-		SELECT size, duration, time_modified, time_created, time_downloaded
-		FROM media
-		WHERE COALESCE(time_deleted, 0) = 0
-		ORDER BY random()
-		LIMIT 1000
-	`
-	rows, err := sqlDB.QueryContext(ctx, sampleQuery)
-	if err == nil {
-		defer rows.Close()
-		var local histogramData
-		for rows.Next() {
-			c.scanHistogramRow(rows, &local)
-		}
-		if err := rows.Err(); err != nil {
-			logging.Log.Debug("Sample query error", "error", err)
-		}
-		mu.Lock()
-		allHistogram.sizes = append(allHistogram.sizes, local.sizes...)
-		allHistogram.durations = append(allHistogram.durations, local.durations...)
-		allHistogram.modified = append(allHistogram.modified, local.modified...)
-		allHistogram.created = append(allHistogram.created, local.created...)
-		allHistogram.downloaded = append(allHistogram.downloaded, local.downloaded...)
-		mu.Unlock()
-	}
-}
-
-func (c *Server) computeFilterBinsDataOptimized(
-	ctx context.Context,
-	flags models.GlobalFlags,
-	filterToIgnore string,
-	dbs []string,
-) filterBinsData {
-	var mu sync.Mutex
-	allParentCounts := make(map[string]int64)
-	allTypeCounts := make(map[string]int64)
-	var allHistogram histogramData
-
-	var wg sync.WaitGroup
-	for _, dbPath := range dbs {
-		wg.Add(1)
-		go func(path string) {
-			defer wg.Done()
-			_ = c.execDB(ctx, path, func(ctx context.Context, sqlDB *sql.DB) error {
-				if filterToIgnore == "episodes" {
-					c.fetchParentCounts(ctx, sqlDB, allParentCounts, &mu)
-				}
-				c.fetchTypeCounts(ctx, sqlDB, allTypeCounts, &mu)
-				c.fetchSampleHistogram(ctx, sqlDB, &allHistogram, &mu)
-				return nil
-			})
-		}(dbPath)
-	}
-	wg.Wait()
-
-	if filterToIgnore != "episodes" && flags.FileCounts != "" {
-		if r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
-			return strconv.ParseInt(s, 10, 64)
-		}); err == nil {
-			filteredParentCounts := make(map[string]int64)
-			for parent, count := range allParentCounts {
-				if r.Matches(count) {
-					filteredParentCounts[parent] = count
-				}
-			}
-			allParentCounts = filteredParentCounts
-		}
-	}
-
-	return filterBinsData{
-		sizes:        allHistogram.sizes,
-		durations:    allHistogram.durations,
-		modified:     allHistogram.modified,
-		created:      allHistogram.created,
-		downloaded:   allHistogram.downloaded,
-		parentCounts: allParentCounts,
-		typeCounts:   allTypeCounts,
-	}
+	return c.buildFilterBinsResponse(ctx, flags, dbs)
 }

@@ -76,7 +76,7 @@ func (c *Server) HandleRandomClip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item := playable[utils.RandomInt(0, len(playable)-1)]
+	item := playable[utils.RandomInt(0, len(playable))]
 
 	// Play full content (no duration clipping)
 	start := 0

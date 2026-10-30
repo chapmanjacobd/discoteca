@@ -22,7 +22,8 @@ type MpvWatchlaterCmd struct {
 	models.PathFilterFlags  `embed:""`
 	models.TimeFilterFlags  `embed:""`
 	models.DeletedFlags     `embed:""`
-	models.PlaybackFlags    `embed:""`
+
+	WatchLaterDir string `help:"Mpv watch_later directory" group:"Playback"`
 
 	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
 }
@@ -35,7 +36,6 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 		PathFilterFlags:  c.PathFilterFlags,
 		TimeFilterFlags:  c.TimeFilterFlags,
 		DeletedFlags:     c.DeletedFlags,
-		PlaybackFlags:    c.PlaybackFlags,
 	}
 
 	watchLaterDir := c.WatchLaterDir
@@ -93,8 +93,12 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 				continue
 			}
 
-			// We use mtime as time_played
+			// We use mtime as time_played. If the database already has a
+			// newer session, this watch-later file was imported before.
 			timePlayed := info.ModTime().Unix()
+			if m.TimeLastPlayed != nil && *m.TimeLastPlayed >= timePlayed {
+				continue
+			}
 
 			if err := history.UpdateHistoryWithTime(
 				ctx,

@@ -90,16 +90,6 @@ func MpvCall(ctx context.Context, socketPath string, args ...any) (*MpvResponse,
 	return nil, scanner.Err()
 }
 
-// MpvSetProperty sets a property in mpv
-
-// MpvGetProperty gets a property from mpv
-
-// MpvPause pauses or unpauses playback
-
-// MpvSeek seeks to a specific position
-
-// MpvLoadFile loads a file into mpv
-
 // PathToMpvWatchLaterMD5 returns the MD5 hash of the absolute path, which mpv uses for filenames
 func PathToMpvWatchLaterMD5(path string) string {
 	abs := path

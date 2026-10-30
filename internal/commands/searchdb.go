@@ -14,19 +14,25 @@ import (
 )
 
 type SearchDBCmd struct {
-	models.CoreFlags        `embed:""`
-	models.QueryFlags       `embed:""`
-	models.PathFilterFlags  `embed:""`
-	models.FilterFlags      `embed:""`
-	models.MediaFilterFlags `embed:""`
-	models.TimeFilterFlags  `embed:""`
-	models.DeletedFlags     `embed:""`
-	models.DisplayFlags     `embed:""`
-	models.PostActionFlags  `embed:""`
+	models.CoreFlags `embed:""`
+
+	Search  []string `help:"Search terms (space-separated for AND)" group:"Filter"`
+	Include []string `help:"Include rows matching pattern"          group:"Filter" short:"s"`
+	Exclude []string `help:"Exclude rows matching pattern"          group:"Filter" short:"E"`
+	Exact   bool     `help:"Exact match for search"                 group:"Filter"`
+	Where   []string `help:"SQL where clause(s)"                    group:"Filter" short:"w"`
+
+	Limit  int  `help:"Limit printed rows (does not affect destructive actions)" short:"L" group:"Display" default:"100"`
+	All    bool `help:"Print all rows (no limit)"                                short:"a" group:"Display"`
+	Offset int  `help:"Skip N printed rows"                                                group:"Display"`
+	JSON   bool `help:"Output results as JSON"                                   short:"j" group:"Display"`
+
+	DeleteRows  bool `help:"Delete matching rows"          group:"PostAction"`
+	MarkDeleted bool `help:"Mark matching rows as deleted" group:"PostAction"`
 
 	Database string   `help:"SQLite database file"                  required:"true" arg:"" type:"existingfile"`
 	Table    string   `help:"Table name (fuzzy matching supported)" required:"true" arg:""`
-	Terms    []string `help:"Search terms"                          arg:"" name:"terms"`
+	Terms    []string `help:"Search terms"                                          arg:""                     name:"terms"`
 
 	// AllRows explicitly opts a destructive action into affecting the whole
 	// table when no predicate was supplied.
@@ -140,7 +146,7 @@ func (c *SearchDBCmd) buildSearchFilters(columns []string) ([]string, []any) {
 	var whereClauses []string
 	var args []any
 
-	// Positional terms plus --search (FilterFlags.Search) are both applied.
+	// Positional terms plus --search are both applied.
 	terms := make([]string, 0, len(c.Terms)+len(c.Search))
 	terms = append(terms, c.Terms...)
 	terms = append(terms, c.Search...)
@@ -338,6 +344,11 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 	}
 	if !c.All && c.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", c.Limit)
+		if c.Offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", c.Offset)
+		}
+	} else if c.Offset > 0 {
+		query += fmt.Sprintf(" LIMIT -1 OFFSET %d", c.Offset)
 	}
 
 	results, err := sqlDB.QueryContext(ctx, query, args...)
@@ -381,10 +392,10 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 	}
 
 	if len(allResults) > 0 {
-		// Basic table print
+		// Basic table print in schema column order (map iteration is random).
 		for _, res := range allResults {
-			for k, v := range res {
-				fmt.Printf("%s: %v\t", k, v)
+			for _, col := range cols {
+				fmt.Printf("%s: %v\t", col, res[col])
 			}
 			fmt.Println()
 		}

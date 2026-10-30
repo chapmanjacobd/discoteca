@@ -7,8 +7,10 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
-// GroupByParent groups media items by their parent directory
-func GroupByParent(media []models.MediaWithDB) []models.FolderStats {
+// GroupMediaByParent groups media items into FolderStats by parent directory.
+// The query package has a separate GroupByParent method that returns synthetic
+// MediaWithDB rows for the API's group-by-parent query mode.
+func GroupMediaByParent(media []models.MediaWithDB) []models.FolderStats {
 	groups := make(map[string]*models.FolderStats)
 
 	for _, m := range media {
@@ -21,13 +23,17 @@ func GroupByParent(media []models.MediaWithDB) []models.FolderStats {
 		stats.Files = append(stats.Files, m)
 		stats.Count++
 
-		if m.Size != nil {
-			stats.TotalSize += *m.Size
+		if m.TimeDeleted != nil && *m.TimeDeleted > 0 {
+			stats.DeletedCount++
+		} else {
+			stats.ExistsCount++
+			if m.Size != nil {
+				stats.TotalSize += *m.Size
+			}
+			if m.Duration != nil {
+				stats.TotalDuration += *m.Duration
+			}
 		}
-		if m.Duration != nil {
-			stats.TotalDuration += *m.Duration
-		}
-		stats.ExistsCount++ // Assuming exist if they came from query
 
 		if m.PlayCount != nil && *m.PlayCount > 0 {
 			stats.PlayedCount++

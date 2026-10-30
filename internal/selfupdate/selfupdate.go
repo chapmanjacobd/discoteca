@@ -27,12 +27,26 @@ import (
 // MaybeUpdate will check for an update and install it immediately.
 // Returns true if an update was successfully installed and the process should restart.
 func MaybeUpdate(ctx context.Context) bool {
+	updated, _ := MaybeUpdateE(ctx)
+	return updated
+}
+
+// MaybeUpdateE is MaybeUpdate with the download/install error exposed.
+func MaybeUpdateE(ctx context.Context) (bool, error) {
 	url := checkUpdate(ctx)
 	if url == "" {
-		return false
+		return false, nil
 	}
 
-	return DoUpdate(ctx, url)
+	curp, err := os.Executable()
+	if err != nil {
+		return false, fmt.Errorf("could not locate current executable: %w", err)
+	}
+	if err := doUpdateAt(ctx, curp, url); err != nil {
+		return false, err
+	}
+	fmt.Fprintln(fileutil.Stderr, "new version downloaded, exiting to get restarted")
+	return true, nil
 }
 
 // AutoUpdate will periodically check for an update and install it.
@@ -97,31 +111,32 @@ func shouldCheckProbabilistically() bool {
 }
 
 func whichFilename() string {
-	switch {
-	case runtime.GOARCH == "amd64" && runtime.GOOS == "linux":
-		return "disco.xz"
-	case runtime.GOARCH == "arm64" && runtime.GOOS == "linux":
-		return "disco.arm64.xz"
-	case runtime.GOARCH == "amd64" && runtime.GOOS == "windows":
-		return "disco.exe.xz"
-	default:
-		return ""
+	switch runtime.GOOS {
+	case "linux":
+		switch runtime.GOARCH {
+		case "amd64":
+			return "disco-linux-amd64"
+		case "arm64":
+			return "disco-linux-arm64"
+		case "arm":
+			return "disco-linux-armv7"
+		}
+	case "darwin":
+		switch runtime.GOARCH {
+		case "amd64":
+			return "disco-darwin-amd64"
+		case "arm64":
+			return "disco-darwin-arm64"
+		}
+	case "windows":
+		switch runtime.GOARCH {
+		case "amd64":
+			return "disco-windows-amd64.exe"
+		case "arm64":
+			return "disco-windows-arm64.exe"
+		}
 	}
-}
-
-func DoUpdate(ctx context.Context, url string) bool {
-	curp, err := os.Executable()
-	if err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't get os.Executable:", err)
-		return false
-	}
-	if DoUpdateAt(ctx, curp, url) {
-		fmt.Fprintln(fileutil.Stderr,
-			"new version downloaded, exiting to get restarted")
-		return true
-	}
-	return false
+	return ""
 }
 
 func verifyChecksum(ctx context.Context, url string, data []byte) error {
@@ -139,9 +154,7 @@ func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// If checksum file not found, we'll just skip verification for now
-		// unless we want it to be mandatory.
-		return nil
+		return fmt.Errorf("checksum file unavailable: %s returned %s", checksumURL, resp.Status)
 	}
 
 	expectedHex, err := io.ReadAll(resp.Body)
@@ -159,7 +172,7 @@ func verifyChecksum(ctx context.Context, url string, data []byte) error {
 	return nil
 }
 
-func DoUpdateAt(ctx context.Context, curp, url string) bool {
+func doUpdateAt(ctx context.Context, curp, url string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
@@ -168,78 +181,64 @@ func DoUpdateAt(ctx context.Context, curp, url string) bool {
 
 	f, err := os.Create(newp)
 	if err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't make file to update:", err)
-		return false
+		return fmt.Errorf("couldn't make file to update: %w", err)
 	}
 	defer f.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"error creating request:", err)
-		return false
+		return fmt.Errorf("error creating request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't download update:", err)
-		return false
+		return fmt.Errorf("couldn't download update: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download returned %s", resp.Status)
+	}
 
-	// 1. Read the update into a buffer so we can checksum it
+	// Read the update into a buffer so it can be checksummed before install.
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't read update:", err)
-		return false
+		return fmt.Errorf("couldn't read update: %w", err)
 	}
 
-	// 2. Download checksum if available
-	if err2 := verifyChecksum(ctx, url, data); err2 != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"checksum verification failed:", err2)
-		return false
+	if checksumErr := verifyChecksum(ctx, url, data); checksumErr != nil {
+		return fmt.Errorf("checksum verification failed: %w", checksumErr)
 	}
 
-	// 3. Decompress and write
-	xzr, err := xz.NewReader(bytes.NewReader(data))
-	if err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't decompress update:", err)
-		return false
-	}
-
-	if _, err = io.Copy(f, xzr); err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't write update:", err)
-		return false
+	// Release assets are raw binaries; older/third-party assets may be xz
+	// compressed. Accept both so self-update matches the actual release names.
+	if strings.HasSuffix(strings.ToLower(url), ".xz") {
+		xzr, readerErr := xz.NewReader(bytes.NewReader(data))
+		if readerErr != nil {
+			return fmt.Errorf("couldn't decompress update: %w", readerErr)
+		}
+		if _, copyErr := io.Copy(f, xzr); copyErr != nil {
+			return fmt.Errorf("couldn't write update: %w", copyErr)
+		}
+	} else if _, writeErr := f.Write(data); writeErr != nil {
+		return fmt.Errorf("couldn't write update: %w", writeErr)
 	}
 
 	if err := os.Chmod(newp, 0o755); err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't chmod update:", err)
-		return false
+		return fmt.Errorf("couldn't chmod update: %w", err)
 	}
 
 	if err := os.Rename(curp, oldp); err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't rename original file:", err)
-		return false
+		return fmt.Errorf("couldn't rename original file: %w", err)
 	}
 
 	if err := os.Rename(newp, curp); err != nil {
-		fmt.Fprintln(fileutil.Stderr,
-			"couldn't rename new file:", err)
 		if rbErr := os.Rename(oldp, curp); rbErr != nil {
-			fmt.Fprintln(fileutil.Stderr, "couldn't rollback rename:", rbErr)
+			return fmt.Errorf("couldn't rename new file: %w; rollback failed: %w", err, rbErr)
 		}
-		return false
+		return fmt.Errorf("couldn't rename new file: %w", err)
 	}
 
-	return true
+	return nil
 }
 
 var githubAPIURL = "https://api.github.com/repos/chapmanjacobd/discoteca/releases/latest"

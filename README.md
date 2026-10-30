@@ -19,7 +19,7 @@ disco serve library.db
 - `print` and `du` now scan files and directories passed on the command line.
 - `check` applies path/media filters to database rows before marking files deleted; scan roots are still walked fully.
 - `dedupe` applies path/search/time/deleted/media filters while selecting candidates and only supports `--trash` as a post-action.
-- `add` only exposes filters that can be evaluated before a row exists: path, size, and extension.
+- `add` exposes path/media filters, but not database-only filters such as playback state or search history.
 - `merge-dbs` applies `--where` to `media` only; use `--where-table TABLE=CLAUSE` for other tables.
 - `similar-files` and `similar-folders` no longer expose sort flags; `cluster-sort` emits JSON with `--json`.
 - Unknown `--columns` values are rejected instead of printing blank cells.
@@ -103,7 +103,7 @@ disco serve library.db
 
 ### Web & Proxy
 
-- `kiwix-serve` - externally managed ZIM file server (Wikipedia offline)
+- `kiwix-serve` - ZIM file serving (Wikipedia offline)
 
 See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.
 See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, nginx, and URL-prefix setup.
@@ -148,8 +148,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -160,48 +158,8 @@ Flags:
         Path must contain all these strings
   --paths
         Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
   -S, --size
         Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
   --category
         Filter by category
   --genre
@@ -260,8 +218,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -328,8 +284,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -456,8 +410,6 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   -B, --big-dirs
         Aggregate by parent directory
   --file-counts
@@ -482,8 +434,6 @@ Flags:
         Only show files
   --folder-sizes
         Filter folders by total size
-  --folder-counts
-        Filter folders by number of files
   --regex-sort
         Sort by splitting lines and sorting words
   --regexs
@@ -492,8 +442,6 @@ Flags:
         Word sorting strategies
   --line-sorts
         Line sorting strategies
-  --compat
-        Use natsort compat mode
   --preprocess
         Remove junk common to filenames and URLs
   --stop-words
@@ -521,8 +469,8 @@ Search media using FTS
 Examples:
 
 ```bash
-$ disco search my_videos.db 'matrix'
-$ disco search my_videos.db 'cyberpunk' --video-only
+$ disco search my_videos.db --search matrix
+$ disco search my_videos.db --search cyberpunk --video-only
 ```
 
 <details><summary>All Options</summary>
@@ -537,8 +485,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -665,8 +611,6 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -695,16 +639,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  -q, --query
-        Raw SQL query (overrides all query building)
-  -L, --limit
-        Limit results per database
-  -a, --all
-        Return all results (no limit)
-  --offset
-        Skip N results
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -713,32 +647,14 @@ Flags:
         Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
   --video-only
-        Only video files
+        Only search video captions
   --audio-only
-        Only audio files
+        Only search audio captions
   --image-only
-        Only image files
+        Only search image captions
   --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
+        Only search text captions
   -O, --play-in-order
         Play media in order
   --no-play-in-order
@@ -785,6 +701,12 @@ Flags:
         Open results in media player
   --overlap
         Overlap in seconds for merging captions
+  -L, --limit
+        Limit results
+  -a, --all
+        Return all results (no limit)
+  --offset
+        Skip N merged captions
 ```
 
 </details>
@@ -805,16 +727,8 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  -c, --columns
-        Columns to display
   -j, --json
         Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
 ```
 
 </details>
@@ -835,146 +749,30 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  -q, --query
-        Raw SQL query (overrides all query building)
-  -L, --limit
-        Limit results per database
-  -a, --all
-        Return all results (no limit)
-  --offset
-        Skip N results
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
   --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
+        Search terms (space-separated for AND)
+  -s, --include
+        Include rows matching pattern
+  -E, --exclude
+        Exclude rows matching pattern
   --exact
         Exact match for search
   -w, --where
         SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  -c, --columns
-        Columns to display
+  -L, --limit
+        Limit printed rows (does not affect destructive actions)
+  -a, --all
+        Print all rows (no limit)
+  --offset
+        Skip N printed rows
   -j, --json
         Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
-  --trash
-        Trash files after action
-  --post-action
-        Post-action: none, delete, mark-deleted, move, copy
-  --delete-files
-        Delete files after action
   --delete-rows
-        Delete rows from database
+        Delete matching rows
   --mark-deleted
-        Mark as deleted in database
-  --move-to
-        Move files to directory
-  --copy-to
-        Copy files to directory
-  --action-limit
-        Stop after N files
-  --action-size
-        Stop after N bytes (e.g., 10GB)
-  --track-history
-        Track playback history
+        Mark matching rows as deleted
+  --all-rows
+        Allow --delete-rows/--mark-deleted without a predicate (whole table)
 ```
 
 </details>
@@ -995,8 +793,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -1084,13 +880,11 @@ Flags:
   --gap
         Width between chunks to skip. Values greater than 1 are treated as number of seconds
   --delete-corrupt
-        Delete media that is more corrupt or equal to this threshold. Values greater than 1 are treated as number of seconds
+        Delete media whose corruption ratio is >= this value (e.g. 0.5 or 50%)
   --full-scan-if-corrupt
-        Full scan as second pass if initial scan result more corruption or equal to this threshold. Values greater than 1 are treated as number of seconds
+        Full scan as a second pass when the quick-scan corruption ratio is >= this value (e.g. 0.2 or 20%)
   --full-scan
         Decode the full media file
-  --audio-scan
-        Count errors in audio track only
 ```
 
 </details>
@@ -1111,8 +905,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   --search
         Search terms (space-separated for AND, | for OR)
   -S, --size
@@ -1201,14 +993,8 @@ Flags:
         Exclude online media
   --probe-images
         Run ffprobe on image files (default: skip)
-  -c, --columns
-        Columns to display
   -j, --json
         Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
 ```
 
 </details>
@@ -1236,8 +1022,14 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
+  -q, --query
+        Raw SQL query (overrides all query building)
+  -L, --limit
+        Limit results per database
+  -a, --all
+        Return all results (no limit)
+  --offset
+        Skip N results
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -1356,8 +1148,6 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   -B, --big-dirs
         Aggregate by parent directory
   --file-counts
@@ -1382,8 +1172,22 @@ Flags:
         Only show files
   --folder-sizes
         Filter folders by total size
-  --folder-counts
-        Filter folders by number of files
+  --regex-sort
+        Sort by splitting lines and sorting words
+  --regexs
+        Regex patterns for line splitting
+  --word-sorts
+        Word sorting strategies
+  --line-sorts
+        Line sorting strategies
+  --preprocess
+        Remove junk common to filenames and URLs
+  --stop-words
+        List of words to ignore
+  --duplicates
+        Filter for duplicate words (true/false)
+  --unique-only
+        Filter for unique words (true/false)
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -1412,8 +1216,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -1517,17 +1319,17 @@ Flags:
   --only-deleted
         Include only deleted files in results
   --audio
-        Dedupe database by artist + album + title
+        Group by title + artist + album
   --extractor-id
-        Dedupe database by extractor_id
+        Group by webpath (extractor ID)
   --title-only
-        Dedupe database by title
+        Group by title
   --duration-only
-        Dedupe database by duration
+        Group by duration
   --filesystem
-        Dedupe filesystem database (hash)
+        Group by size, then sample hash, then sha256
   --compare-dirs
-        Compare directories
+        Require matching parent directories before grouping
   --basename
         Match by basename similarity
   --dirname
@@ -1536,32 +1338,14 @@ Flags:
         Filter out matches with less than this ratio (0.7-0.9)
   --dedupe-cmd
         Command to run for deduplication (rmlint-style: cmd duplicate keep)
-  --trash
-        Trash files after action
-  --post-action
-        Post-action: none, delete, mark-deleted, move, copy
-  --delete-files
-        Delete files after action
-  --delete-rows
-        Delete rows from database
-  --mark-deleted
-        Mark as deleted in database
-  --move-to
-        Move files to directory
-  --copy-to
-        Copy files to directory
-  --action-limit
-        Stop after N files
-  --action-size
-        Stop after N bytes (e.g., 10GB)
-  --track-history
-        Track playback history
   --hash-gap
         Gap between segments (0.0-1.0 as percentage of file size, or absolute bytes if >1)
   --hash-chunk-size
         Size of each segment to hash
   --hash-threads
         Number of threads to use for hashing a single file
+  --trash
+        Trash duplicates instead of deleting them
 ```
 
 </details>
@@ -1582,8 +1366,14 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
+  -q, --query
+        Raw SQL query (overrides all query building)
+  -L, --limit
+        Limit results per database
+  -a, --all
+        Return all results (no limit)
+  --offset
+        Skip N results
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -1686,6 +1476,22 @@ Flags:
         Exclude deleted files from results
   --only-deleted
         Include only deleted files in results
+  -u, --sort-by
+        Sort by field (default, path, or a column)
+  -V, --reverse
+        Reverse sort order
+  -n, --nat-sort
+        Use natural sorting
+  -r, --random
+        Random order
+  -k, --re-rank
+        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
+  -c, --columns
+        Columns to display
+  -j, --json
+        Output results as JSON
+  --summarize
+        Print aggregate statistics
   -B, --big-dirs
         Aggregate by parent directory
   --file-counts
@@ -1710,26 +1516,30 @@ Flags:
         Only show files
   --folder-sizes
         Filter folders by total size
-  --folder-counts
-        Filter folders by number of files
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  -c, --columns
-        Columns to display
-  -j, --json
-        Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
+  --regex-sort
+        Sort by splitting lines and sorting words
+  --regexs
+        Regex patterns for line splitting
+  --word-sorts
+        Word sorting strategies
+  --line-sorts
+        Line sorting strategies
+  --preprocess
+        Remove junk common to filenames and URLs
+  --stop-words
+        List of words to ignore
+  --duplicates
+        Filter for duplicate words (true/false)
+  --unique-only
+        Filter for unique words (true/false)
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --no-fts
+        Disable full-text search, use substring search only
+  -R, --related
+        Find media related to the first result
 ```
 
 </details>
@@ -1750,8 +1560,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -1906,8 +1714,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -2006,24 +1812,12 @@ Flags:
         Last played after date (YYYY-MM-DD)
   --played-before
         Last played before date (YYYY-MM-DD)
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
   -c, --columns
         Columns to display
   -j, --json
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   --similar
         Find similar files or folders
   --sizes-delta
@@ -2044,20 +1838,12 @@ Flags:
         Compare total sizes (folders only)
   --total-durations
         Compare total durations (folders only)
+  --name-full-path
+        Match folder names using full paths
   --only-duplicates
         Only show duplicate items
   --only-originals
         Only show original items
-  -C, --cluster-sort
-        Group items by similarity
-  --clusters
-        Number of clusters
-  --tfidf
-        Use TF-IDF for clustering
-  --move-groups
-        Move grouped files into separate directories
-  --print-groups
-        Print clusters as JSON
 ```
 
 </details>
@@ -2078,8 +1864,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -2178,24 +1962,12 @@ Flags:
         Last played after date (YYYY-MM-DD)
   --played-before
         Last played before date (YYYY-MM-DD)
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
   -c, --columns
         Columns to display
   -j, --json
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   --similar
         Find similar files or folders
   --sizes-delta
@@ -2216,20 +1988,12 @@ Flags:
         Compare total sizes (folders only)
   --total-durations
         Compare total durations (folders only)
+  --name-full-path
+        Match folder names using full paths
   --only-duplicates
         Only show duplicate items
   --only-originals
         Only show original items
-  -C, --cluster-sort
-        Group items by similarity
-  --clusters
-        Number of clusters
-  --tfidf
-        Use TF-IDF for clustering
-  --move-groups
-        Move grouped files into separate directories
-  --print-groups
-        Print clusters as JSON
 ```
 
 </details>
@@ -2258,8 +2022,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -2386,8 +2148,6 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -2523,8 +2283,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -2651,8 +2409,6 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -2781,8 +2537,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -2885,14 +2639,12 @@ Flags:
         Exclude deleted files from results
   --only-deleted
         Include only deleted files in results
-  -c, --columns
-        Columns to display
+  --facet
+        Time facet for --frequency (watched, deleted, created, modified); requires --frequency
+  -f, --frequency
+        Group statistics by time frequency (daily, weekly, monthly, quarterly, yearly, decadally, hourly, minutely)
   -j, --json
         Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
 ```
 
 </details>
@@ -2905,7 +2657,7 @@ Examples:
 
 ```bash
 $ disco history my_videos.db
-$ disco history my_videos.db --inprogress
+$ disco history my_videos.db --in-progress
 ```
 
 <details><summary>All Options</summary>
@@ -2920,355 +2672,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  -c, --columns
-        Columns to display
-  -j, --json
-        Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
-  --trash
-        Trash files after action
-  --post-action
-        Post-action: none, delete, mark-deleted, move, copy
-  --delete-files
-        Delete files after action
-  --delete-rows
-        Delete rows from database
-  --mark-deleted
-        Mark as deleted in database
-  --move-to
-        Move files to directory
-  --copy-to
-        Copy files to directory
-  --action-limit
-        Stop after N files
-  --action-size
-        Stop after N bytes (e.g., 10GB)
-  --track-history
-        Track playback history
-```
-
-</details>
-
-### history-add
-
-Add paths to playback history
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco history-add --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  --done
-        Mark as done
-```
-
-</details>
-
-### mpv-watchlater
-
-Import mpv watchlater files to history
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco mpv-watchlater --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  -O, --play-in-order
-        Play media in order
-  --no-play-in-order
-        Don't play media in order
-  --loop
-        Loop playback
-  -M, --mute
-        Start playback muted
-  --override-player
-        Override default player (e.g. --player 'vlc')
-  --start
-        Start playback at specific time/percentage
-  --end
-        Stop playback at specific time/percentage
-  --volume
-        Set initial volume (0-100)
-  --fullscreen
-        Start in fullscreen
-  --no-subtitles
-        Disable subtitles
-  --subtitle-mix
-        Probability to play no-subtitle content
-  -4, --interdimensional-cable
-        Duration to play (in seconds) while changing the channel
-  --speed
-        Playback speed
-  --save-playhead
-        Save playback position on quit
-  --mpv-socket
-        Mpv socket path
-  --watch-later-dir
-        Mpv watch_later directory
-  --player-args-sub
-        Player arguments for videos with subtitles
-  --player-args-no-sub
-        Player arguments for videos without subtitles
-  --cast
-        Cast to chromecast groups
-  --cast-device
-        Chromecast device name
-  --cast-with-local
-        Play music locally at the same time as chromecast
-```
-
-</details>
-
-### serve
-
-Start Web UI server
-
-The server binds to `127.0.0.1` by default. Remote deployments should keep that
-bind and put a reverse proxy in front; binding to a non-loopback interface
-requires `DISCO_API_TOKEN`.
-
-Authentication uses an `HttpOnly`, `SameSite=Strict` session cookie. Open the
-web UI with `?token=<token>` once, or enter the token when prompted, and the
-client exchanges it for a cookie via `POST /api/session`. Scripts may send
-`X-Disco-Token: <token>` or `Authorization: Bearer <token>` directly.
-
-If `DISCO_API_TOKEN` is unset, a token is generated at startup and printed once
-to stderr.
-
-ZIM support uses an externally managed `kiwix-serve`; discoteca does not start
-or stop it. Run it separately and point discoteca at its port:
-
-```bash
-# Terminal 1
-kiwix-serve --port=8181 \
-  --urlRootLocation=/api/zim/proxy/ \
-  /path/to/library.zim
-
-# Terminal 2
-disco serve --kiwix-port 8181 library.db
-```
-
-The ZIM file must also be present in one of the discoteca databases, and the
-external server must use the same `--urlRootLocation` as the proxy route
-(add the app's `--base-path` before `/api/zim/proxy/` if you use one).
-Use `--kiwix-port 0` to disable ZIM support.
-
-Examples:
-
-```bash
-$ disco serve my_videos.db my_music.db
-$ disco serve --readonly my_videos.db
-```
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco serve --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -3395,8 +2798,265 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
+  --delete-rows
+        Delete matching history rows
+```
+
+</details>
+
+### history-add
+
+Add paths to playback history
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco history-add --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --done
+        Mark as done
+```
+
+</details>
+
+### mpv-watchlater
+
+Import mpv watchlater files to history
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco mpv-watchlater --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  --watch-later-dir
+        Mpv watch_later directory
+```
+
+</details>
+
+### serve
+
+Start Web UI server
+
+Examples:
+
+```bash
+$ disco serve my_videos.db my_music.db
+$ disco serve --read-only my_videos.db
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco serve --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -q, --query
+        Raw SQL query (overrides all query building)
+  -L, --limit
+        Limit results per database
+  -a, --all
+        Return all results (no limit)
+  --offset
+        Skip N results
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  -u, --sort-by
+        Sort by field (default, path, or a column)
+  -V, --reverse
+        Reverse sort order
+  -n, --nat-sort
+        Use natural sorting
+  -r, --random
+        Random order
+  -k, --re-rank
+        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
+  -c, --columns
+        Columns to display
+  -j, --json
+        Output results as JSON
+  --summarize
+        Print aggregate statistics
   -B, --big-dirs
         Aggregate by parent directory
   --file-counts
@@ -3421,8 +3081,6 @@ Flags:
         Only show files
   --folder-sizes
         Filter folders by total size
-  --folder-counts
-        Filter folders by number of files
   -O, --play-in-order
         Play media in order
   --no-play-in-order
@@ -3493,10 +3151,10 @@ Flags:
         Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
-  -p, --port
-        Port to listen on
   --host
         Address to listen on (loopback by default)
+  -p, --port
+        Port to listen on
   --kiwix-host
         Host of the externally managed kiwix-serve
   --kiwix-port
@@ -3547,8 +3205,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
 ```
 
 </details>
@@ -3569,15 +3225,13 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
 ```
 
 </details>
 
 ### readme
 
-Generate README.md content
+Print README content
 
 <details><summary>All Options</summary>
 
@@ -3591,8 +3245,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -q, --query
         Raw SQL query (overrides all query building)
   -L, --limit
@@ -3719,8 +3371,6 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
   -B, --big-dirs
         Aggregate by parent directory
   --file-counts
@@ -3745,8 +3395,6 @@ Flags:
         Only show files
   --folder-sizes
         Filter folders by total size
-  --folder-counts
-        Filter folders by number of files
   --regex-sort
         Sort by splitting lines and sorting words
   --regexs
@@ -3755,8 +3403,6 @@ Flags:
         Word sorting strategies
   --line-sorts
         Line sorting strategies
-  --compat
-        Use natsort compat mode
   --preprocess
         Remove junk common to filenames and URLs
   --stop-words
@@ -3785,32 +3431,24 @@ Flags:
         Compare total sizes (folders only)
   --total-durations
         Compare total durations (folders only)
+  --name-full-path
+        Match folder names using full paths
   --only-duplicates
         Only show duplicate items
   --only-originals
         Only show original items
-  -C, --cluster-sort
-        Group items by similarity
-  --clusters
-        Number of clusters
-  --tfidf
-        Use TF-IDF for clustering
-  --move-groups
-        Move grouped files into separate directories
-  --print-groups
-        Print clusters as JSON
   --audio
-        Dedupe database by artist + album + title
+        Group by title + artist + album
   --extractor-id
-        Dedupe database by extractor_id
+        Group by webpath (extractor ID)
   --title-only
-        Dedupe database by title
+        Group by title
   --duration-only
-        Dedupe database by duration
+        Group by duration
   --filesystem
-        Dedupe filesystem database (hash)
+        Group by size, then sample hash, then sha256
   --compare-dirs
-        Compare directories
+        Require matching parent directories before grouping
   --basename
         Match by basename similarity
   --dirname
@@ -3933,20 +3571,6 @@ Flags:
         Size of each segment to hash
   --hash-threads
         Number of threads to use for hashing a single file
-  -t, --only-tables
-        Comma separated specific table(s)
-  --primary-keys
-        Comma separated primary keys
-  --business-keys
-        Comma separated business keys
-  --upsert
-        Upsert rows on conflict
-  --ignore
-        Ignore rows on conflict (only-new-rows)
-  --only-target-columns
-        Only copy columns that exist in target
-  --skip-columns
-        Columns to skip during merge
   --databases
         Specific database paths to query (must be in server's allowed list). Can be specified multiple times.
 ```
@@ -3969,28 +3593,12 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  --regex-sort
-        Sort by splitting lines and sorting words
   --regexs
         Regex patterns for line splitting
   --word-sorts
         Word sorting strategies
   --line-sorts
         Line sorting strategies
-  --compat
-        Use natsort compat mode
   --preprocess
         Remove junk common to filenames and URLs
   --stop-words
@@ -4021,62 +3629,16 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  --similar
-        Find similar files or folders
-  --sizes-delta
-        Size difference threshold (%)
-  --counts-delta
-        File count difference threshold (%)
-  --durations-delta
-        Duration difference threshold (%)
-  --filter-names
-        Cluster by name similarity
-  --filter-sizes
-        Cluster by size similarity
-  --filter-counts
-        Cluster by count similarity
-  --filter-durations
-        Cluster by duration similarity
-  --total-sizes
-        Compare total sizes (folders only)
-  --total-durations
-        Compare total durations (folders only)
-  --only-duplicates
-        Only show duplicate items
-  --only-originals
-        Only show original items
-  -C, --cluster-sort
-        Group items by similarity
-  --clusters
-        Number of clusters
-  --tfidf
-        Use TF-IDF for clustering
-  --move-groups
-        Move grouped files into separate directories
-  --print-groups
-        Print clusters as JSON
-  --regex-sort
-        Sort by splitting lines and sorting words
-  --regexs
-        Regex patterns for line splitting
-  --word-sorts
-        Word sorting strategies
-  --line-sorts
-        Line sorting strategies
-  --compat
-        Use natsort compat mode
-  --preprocess
-        Remove junk common to filenames and URLs
-  --stop-words
-        List of words to ignore
   --duplicates
         Filter for duplicate words (true/false)
   --unique-only
         Filter for unique words (true/false)
   --output-path
         Output file path (default stdout)
+  --clusters
+        Number of clusters (default: sqrt(number of lines))
+  -j, --json
+        Output results as JSON
 ```
 
 </details>
@@ -4097,22 +3659,14 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   --hash-gap
         Gap between segments (0.0-1.0 as percentage of file size, or absolute bytes if >1)
   --hash-chunk-size
         Size of each segment to hash
   --hash-threads
         Number of threads to use for hashing a single file
-  -c, --columns
-        Columns to display
   -j, --json
         Output results as JSON
-  --summarize
-        Print aggregate statistics
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, yearly)
 ```
 
 </details>
@@ -4133,8 +3687,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -4263,8 +3815,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
   -s, --include
         Include paths matching pattern
   -E, --exclude
@@ -4475,50 +4025,6 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -T, --timeout
-        Quit after N minutes/seconds
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
   -t, --only-tables
         Comma separated specific table(s)
   --primary-keys
@@ -4533,6 +4039,10 @@ Flags:
         Only copy columns that exist in target
   --skip-columns
         Columns to skip during merge
+  -w, --where
+        SQL where clause(s) applied to the media table
+  --where-table
+        Per-table WHERE clause TABLE=CLAUSE (repeatable)
 ```
 
 </details>

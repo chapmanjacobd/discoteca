@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"os"
@@ -399,19 +400,46 @@ func (c *Server) generatePDFThumbnail(ctx context.Context, path string) ([]byte,
 	n, _ := f.Read(buf)
 	text := string(buf[:n])
 
-	// Try to extract readable text (skip PDF headers)
-	lines := strings.Split(text, "\n")
-	_ = lines // Available but not currently used
-	for _, line := range lines {
+	// Fallback: render a text card when poppler is unavailable. This is not
+	// a page image, but it is more useful than an empty response.
+	title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	subtitle := ""
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSpace(line)
 		if len(line) > 3 && !strings.HasPrefix(line, "%") && !strings.HasPrefix(line, "/") {
-			_ = line // Found but not used
+			subtitle = line
 			break
 		}
 	}
 
-	// SVG thumbnails disabled, returning placeholder
-	return []byte{}, "image/svg+xml", nil
+	return renderTextThumbnail(title, subtitle), "image/svg+xml", nil
+}
+
+func renderTextThumbnail(title, subtitle string) []byte {
+	truncate := func(s string, limit int) string {
+		runes := []rune(strings.TrimSpace(s))
+		if len(runes) > limit {
+			return string(runes[:limit-1]) + "…"
+		}
+		return string(runes)
+	}
+
+	title = truncate(title, 34)
+	subtitle = truncate(subtitle, 44)
+	subtitleSVG := ""
+	if subtitle != "" {
+		subtitleSVG = fmt.Sprintf(
+			`<text x="160" y="118" text-anchor="middle" fill="#a9b4c0" font-size="13" font-family="sans-serif">%s</text>`,
+			html.EscapeString(subtitle),
+		)
+	}
+
+	return []byte(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+<rect width="320" height="180" fill="#24313f"/>
+<rect x="24" y="24" width="272" height="132" rx="8" fill="#2f4052" stroke="#4b6077"/>
+<text x="160" y="82" text-anchor="middle" fill="#f2f5f8" font-size="18" font-weight="600" font-family="sans-serif">%s</text>
+%s
+</svg>`, html.EscapeString(title), subtitleSVG))
 }
 
 // extractEpubCover extracts the cover image from an EPUB file
@@ -490,8 +518,7 @@ func (c *Server) generateEpubThumbnail(path string) ([]byte, string, error) {
 	// Fallback: extract title/author from metadata and render as SVG
 	r, err := zip.OpenReader(path)
 	if err != nil {
-		// SVG thumbnails disabled, returning placeholder
-		return []byte{}, "image/svg+xml", nil
+		return nil, "", err
 	}
 	defer r.Close()
 
@@ -504,26 +531,24 @@ func (c *Server) generateEpubThumbnail(path string) ([]byte, string, error) {
 		}
 	}
 
-	_ = opfFile // Available but not currently used
+	title := ""
 	if opfFile != nil {
 		rc, err := opfFile.Open()
 		if err == nil {
 			content, _ := io.ReadAll(rc)
 			rc.Close()
-			// Simple XML parsing for dc:title
 			contentStr := string(content)
 			if idx := strings.Index(contentStr, "<dc:title"); idx != -1 {
 				start := strings.Index(contentStr[idx:], ">")
 				end := strings.Index(contentStr[idx:], "</dc:title>")
 				if start != -1 && end != -1 && end > start {
-					_ = strings.TrimSpace(contentStr[idx+start+1 : idx+end]) // Title extracted but not used
+					title = strings.TrimSpace(contentStr[idx+start+1 : idx+end])
 				}
 			}
 		}
 	}
 
-	// SVG thumbnails disabled, returning placeholder
-	return []byte{}, "image/svg+xml", nil
+	return renderTextThumbnail(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), title), "image/svg+xml", nil
 }
 
 // getMediaTypeFromDB looks up the media type for a given path across all databases

@@ -90,32 +90,37 @@ func (c *CategorizeCmd) applyCategories(
 	return nil
 }
 
+func matchedCategories(
+	m models.MediaWithDB,
+	compiled map[string][]*regexp.Regexp,
+	fullPath bool,
+) []string {
+	pathAndTitle := m.Path
+	if !fullPath {
+		pathAndTitle = filepath.Base(m.Path)
+	}
+	if m.Title != nil {
+		pathAndTitle += " " + *m.Title
+	}
+
+	var found []string
+	for cat, res := range compiled {
+		for _, re := range res {
+			if re.MatchString(pathAndTitle) {
+				found = append(found, cat)
+				break
+			}
+		}
+	}
+	return found
+}
+
 func (c *CategorizeCmd) categorizeSingleMedia(
 	ctx context.Context,
 	m models.MediaWithDB,
 	compiled map[string][]*regexp.Regexp,
 ) (string, error) {
-	foundCategories := []string{}
-	var pathAndTitle string
-	if c.FullPath {
-		pathAndTitle = m.Path
-	} else {
-		pathAndTitle = filepath.Base(m.Path)
-	}
-
-	if m.Title != nil {
-		pathAndTitle += " " + *m.Title
-	}
-
-	for cat, res := range compiled {
-		for _, re := range res {
-			if re.MatchString(pathAndTitle) {
-				foundCategories = append(foundCategories, cat)
-				break
-			}
-		}
-	}
-
+	foundCategories := matchedCategories(m, compiled, c.FullPath)
 	if len(foundCategories) == 0 {
 		return "", nil
 	}
@@ -174,41 +179,24 @@ func (c *CategorizeCmd) collectUnmatchedWords(
 	unmatchedCount := 0
 
 	for _, m := range media {
-		matched := false
-		pathAndTitle := m.Path
+		if len(matchedCategories(m, compiled, c.FullPath)) > 0 {
+			continue
+		}
+
+		unmatchedCount++
+		var sentence string
+		if c.FullPath {
+			sentence = textutil.PathToTokenized(m.Path)
+		} else {
+			sentence = textutil.PathToSentence(m.Path)
+		}
+		words := textutil.ExtractWords(sentence)
 		if m.Title != nil {
-			pathAndTitle += " " + *m.Title
+			words = append(words, textutil.ExtractWords(*m.Title)...)
 		}
 
-		for _, res := range compiled {
-			for _, re := range res {
-				if re.MatchString(pathAndTitle) {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				break
-			}
-		}
-
-		if !matched {
-			unmatchedCount++
-			var sentence string
-			if c.FullPath {
-				sentence = textutil.PathToTokenized(m.Path)
-			} else {
-				sentence = textutil.PathToSentence(m.Path)
-			}
-			words := textutil.ExtractWords(sentence)
-			if m.Title != nil {
-				words = append(words, textutil.ExtractWords(*m.Title)...)
-			}
-
-			for _, word := range words {
-				if len(word) < 4 {
-					continue
-				}
+		for _, word := range words {
+			if len(word) >= 4 {
 				wordCounts[word]++
 			}
 		}

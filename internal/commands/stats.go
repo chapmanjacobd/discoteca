@@ -22,10 +22,10 @@ type StatsCmd struct {
 	models.TimeFilterFlags  `embed:""`
 	models.DeletedFlags     `embed:""`
 
-	Facet     string   `help:"Time facet for --frequency (watched, deleted, created, modified); requires --frequency" group:"Display"`
-	Frequency string   `help:"Group statistics by time frequency (daily, weekly, monthly, quarterly, yearly, decadally, hourly, minutely)" short:"f" group:"Display"`
-	JSON      bool     `help:"Output results as JSON" short:"j" group:"Display"`
-	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
+	Facet     string   `help:"Time facet for --frequency (watched, deleted, created, modified); requires --frequency"                      group:"Display"`
+	Frequency string   `help:"Group statistics by time frequency (daily, weekly, monthly, quarterly, yearly, decadally, hourly, minutely)" group:"Display" short:"f"`
+	JSON      bool     `help:"Output results as JSON"                                                                                      group:"Display" short:"j"`
+	Databases []string `help:"SQLite database files"                                                                                                                 required:"true" arg:"" type:"existingfile"`
 }
 
 func (c *StatsCmd) Run(ctx context.Context) error {

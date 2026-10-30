@@ -23,8 +23,8 @@ type MediaCheckCmd struct {
 
 	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
 
-	ChunkSize         float64 `help:"Chunk size in seconds. If set, recommended to use >0.1 seconds"                                                                                     default:"0.5"`
-	Gap               string  `help:"Width between chunks to skip. Values greater than 1 are treated as number of seconds"                                                               default:"5%"`
+	ChunkSize         float64 `help:"Chunk size in seconds. If set, recommended to use >0.1 seconds"                                     default:"0.5"`
+	Gap               string  `help:"Width between chunks to skip. Values greater than 1 are treated as number of seconds"               default:"5%"`
 	DeleteCorrupt     string  `help:"Delete media whose corruption ratio is >= this value (e.g. 0.5 or 50%)"`
 	FullScanIfCorrupt string  `help:"Full scan as a second pass when the quick-scan corruption ratio is >= this value (e.g. 0.2 or 20%)"`
 	FullScan          bool    `help:"Decode the full media file"`

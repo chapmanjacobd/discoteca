@@ -187,8 +187,8 @@ func TestPercentageDifference(t *testing.T) {
 	if got := utils.PercentageDifference(10, 10); got != 0 {
 		t.Errorf("utils.PercentageDifference(10, 10) = %v, want 0", got)
 	}
-	if got := utils.PercentageDifference(0, 0); got != 100.0 {
-		t.Errorf("utils.PercentageDifference(0, 0) = %v, want 100.0", got)
+	if got := utils.PercentageDifference(0, 0); got != 0 {
+		t.Errorf("utils.PercentageDifference(0, 0) = %v, want 0", got)
 	}
 }
 

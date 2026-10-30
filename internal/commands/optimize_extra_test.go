@@ -74,7 +74,8 @@ func TestOptimizeCmd_BackfillOnlyFillsNullMediaTypes(t *testing.T) {
 		dbConn.Close()
 		t.Fatal(err)
 	}
-	if err := dbConn.QueryRow("SELECT media_type FROM media WHERE path = '/existing.mp4'").Scan(&existingType); err != nil {
+	if err := dbConn.QueryRow("SELECT media_type FROM media WHERE path = '/existing.mp4'").
+		Scan(&existingType); err != nil {
 		dbConn.Close()
 		t.Fatal(err)
 	}

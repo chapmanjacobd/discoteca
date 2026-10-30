@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
-	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -40,10 +39,8 @@ func TestHistoryCmd_Run(t *testing.T) {
 
 	t.Run("DeleteHistory", func(t *testing.T) {
 		cmd := &commands.HistoryCmd{
-			PostActionFlags: models.PostActionFlags{
-				DeleteRows: true,
-			},
-			Databases: []string{fixture.DBPath},
+			DeleteRows: true,
+			Databases:  []string{fixture.DBPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("commands.HistoryCmd failed: %v", err)
