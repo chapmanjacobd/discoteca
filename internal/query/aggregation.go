@@ -11,9 +11,11 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/pathutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
-	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
 )
 
 // DUQueryResult holds the result of a DU aggregation query
@@ -292,11 +294,11 @@ func AggregateSizeBuckets(media []models.MediaWithDB, fastMode ...bool) []models
 			if size >= binEdges[i] && size < binEdges[i+1] {
 				label = fmt.Sprintf(
 					"%s-%s",
-					utils.FormatSize(int64(binEdges[i])),
-					utils.FormatSize(int64(binEdges[i+1])),
+					formatutil.FormatSize(int64(binEdges[i])),
+					formatutil.FormatSize(int64(binEdges[i+1])),
 				)
 				if binEdges[i+1] == math.Inf(1) {
-					label = fmt.Sprintf(">%s", utils.FormatSize(int64(binEdges[i])))
+					label = fmt.Sprintf(">%s", formatutil.FormatSize(int64(binEdges[i])))
 				}
 				break
 			}
@@ -583,7 +585,7 @@ func getMatchingParentDirs(
 
 	rows, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		models.Log.Error("Parent directory query failed", "error", err)
+		logging.Log.Error("Parent directory query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -742,7 +744,7 @@ func aggregateDUWithBasicFilters(
 
 	rows, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		models.Log.Error("DU aggregation query failed", "error", err)
+		logging.Log.Error("DU aggregation query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -782,7 +784,7 @@ func aggregateDUWithParentFilter(ctx context.Context, opts DUAggregationOptions)
 
 	rows, err := opts.sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		models.Log.Error("DU aggregation with parent filter failed", "error", err)
+		logging.Log.Error("DU aggregation with parent filter failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()

@@ -7,9 +7,10 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type OpenCmd struct {
@@ -24,7 +25,7 @@ type OpenCmd struct {
 }
 
 func (c *OpenCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -41,7 +42,7 @@ func (c *OpenCmd) Run(ctx context.Context) error {
 	media = query.FilterMedia(media, flags)
 
 	for _, m := range media {
-		if !utils.FileExists(m.Path) {
+		if !fileutil.FileExists(m.Path) {
 			continue
 		}
 
@@ -75,7 +76,7 @@ type BrowseCmd struct {
 }
 
 func (c *BrowseCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
@@ -92,7 +93,7 @@ func (c *BrowseCmd) Run(ctx context.Context) error {
 
 	browser := c.Browser
 	if browser == "" {
-		browser = utils.GetDefaultBrowser()
+		browser = fileutil.GetDefaultBrowser()
 	}
 
 	var urls []string

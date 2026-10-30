@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type FilesInfoCmd struct {
@@ -31,7 +32,7 @@ func (c *FilesInfoCmd) AfterApply() error {
 		return err
 	}
 	for _, arg := range c.Args {
-		if strings.HasSuffix(arg, ".db") && utils.IsSQLite(arg) {
+		if strings.HasSuffix(arg, ".db") && fileutil.IsSQLite(arg) {
 			c.Databases = append(c.Databases, arg)
 		} else {
 			c.ScanPaths = append(c.ScanPaths, arg)
@@ -41,7 +42,7 @@ func (c *FilesInfoCmd) AfterApply() error {
 }
 
 func (c *FilesInfoCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		FilterFlags:      c.FilterFlags,
@@ -69,7 +70,7 @@ func (c *FilesInfoCmd) Run(ctx context.Context) error {
 	allMedia = append(allMedia, filterScannedMedia(scanned, flags)...)
 
 	if c.JSON {
-		return utils.PrintJSON(allMedia)
+		return fileutil.PrintJSON(allMedia)
 	}
 
 	// Basic print if not JSON

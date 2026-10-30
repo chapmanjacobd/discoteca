@@ -8,7 +8,7 @@ import (
 
 	"github.com/charlievieth/fastwalk"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 )
 
 type FindMediaResult struct {
@@ -49,7 +49,7 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 
 	return fastwalk.Walk(&conf, root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			models.Log.Warn("Skipping unreadable path during scan", "path", path, "error", err)
+			logging.Log.Warn("Skipping unreadable path during scan", "path", path, "error", err)
 			return nil
 		}
 		if d.IsDir() {
@@ -66,7 +66,7 @@ func FindMediaChan(root string, filter map[string]bool, ch chan<- FindMediaResul
 
 		i, err := d.Info()
 		if err != nil {
-			models.Log.Warn("Skipping path with unreadable file info", "path", path, "error", err)
+			logging.Log.Warn("Skipping path with unreadable file info", "path", path, "error", err)
 			return nil
 		}
 

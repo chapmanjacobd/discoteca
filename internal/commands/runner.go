@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 )
@@ -14,7 +15,7 @@ func RunQuery(
 	flags models.GlobalFlags,
 	process func([]models.MediaWithDB) error,
 ) error {
-	models.SetupLogging(flags.Verbose)
+	logging.SetupLogging(flags.Verbose)
 
 	media, err := query.MediaQuery(ctx, dbs, flags)
 	if err != nil {

@@ -15,7 +15,10 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/fs"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -58,17 +61,17 @@ func (c *AddCmd) getMediaFilter() map[string]bool {
 	if c.VideoOnly || c.AudioOnly || c.ImageOnly || c.TextOnly {
 		filter = make(map[string]bool)
 		if c.VideoOnly {
-			maps.Copy(filter, utils.VideoExtensionMap)
+			maps.Copy(filter, media.VideoExtensionMap)
 		}
 		if c.AudioOnly {
-			maps.Copy(filter, utils.AudioExtensionMap)
+			maps.Copy(filter, media.AudioExtensionMap)
 		}
 		if c.ImageOnly {
-			maps.Copy(filter, utils.ImageExtensionMap)
+			maps.Copy(filter, media.ImageExtensionMap)
 		}
 		if c.TextOnly {
-			maps.Copy(filter, utils.TextExtensionMap)
-			maps.Copy(filter, utils.ComicExtensionMap)
+			maps.Copy(filter, media.TextExtensionMap)
+			maps.Copy(filter, media.ComicExtensionMap)
 		}
 	}
 	return filter
@@ -143,7 +146,7 @@ func (c *AddCmd) loadMetadataCache(ctx context.Context, queries *db.Queries, dbE
 			deleted: m.TimeDeleted.Int64 > 0,
 		}
 	}
-	models.Log.Info("Loaded metadata cache from database", "count", len(metaCache))
+	logging.Log.Info("Loaded metadata cache from database", "count", len(metaCache))
 	return metaCache, nil
 }
 
@@ -161,7 +164,7 @@ func (c *AddCmd) printScanProgress(absRoot string, res fs.FindMediaResult) {
 
 func (c *AddCmd) matchesFilters(path string, stat os.FileInfo, flags models.GlobalFlags) bool {
 	// Apply PathFilterFlags
-	if !utils.FilterPath(path, flags.PathFilterFlags) {
+	if !fileutil.FilterPath(path, flags.PathFilterFlags) {
 		return false
 	}
 
@@ -219,7 +222,7 @@ func (c *AddCmd) collectFilesToProbe(
 		// Sidecar subtitles are captured as captions by --scan-subtitles;
 		// they are not standalone media and should not become grid cards.
 		// An explicit --ext .vtt/.srt still opts in.
-		if len(c.Ext) == 0 && utils.IsSubtitlePath(res.Path) {
+		if len(c.Ext) == 0 && media.IsSubtitlePath(res.Path) {
 			continue
 		}
 
@@ -402,7 +405,7 @@ func (c *AddCmd) startExtractionWorkers(
 					ProbeImages:       c.ProbeImages,
 				})
 				if extErr != nil {
-					models.Log.Error("\n  Metadata extraction failed", "path", path, "error", extErr)
+					logging.Log.Error("\n  Metadata extraction failed", "path", path, "error", extErr)
 				} else if res != nil {
 					params.Results <- res
 				}
@@ -442,7 +445,7 @@ func (c *AddCmd) writeResultsToDB(
 
 		if len(currentBatch) >= batchSize {
 			if err := c.flushBatch(ctx, opts, currentBatch); err != nil {
-				models.Log.Error("\n  Failed to commit batch", "error", err)
+				logging.Log.Error("\n  Failed to commit batch", "error", err)
 			}
 			for i := range currentBatch {
 				currentBatch[i] = nil
@@ -457,7 +460,7 @@ func (c *AddCmd) writeResultsToDB(
 	// Final flush
 	if len(currentBatch) > 0 {
 		if err := c.flushBatch(ctx, opts, currentBatch); err != nil {
-			models.Log.Error("  Failed to commit final batch", "error", err)
+			logging.Log.Error("  Failed to commit final batch", "error", err)
 		}
 	}
 }
@@ -467,7 +470,7 @@ func (c *AddCmd) processMediaType(ctx context.Context, opts processMediaTypeOpti
 		return 0
 	}
 
-	models.Log.Debug("  Processing media type", "mediaType", opts.mediaType.name, "count", len(opts.mediaType.files))
+	logging.Log.Debug("  Processing media type", "mediaType", opts.mediaType.name, "count", len(opts.mediaType.files))
 
 	startTime := time.Now()
 
@@ -519,11 +522,11 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 
 	absRoot, err := filepath.Abs(opts.root)
 	if err != nil {
-		models.Log.Error("Failed to get absolute path", "path", opts.root, "error", err)
+		logging.Log.Error("Failed to get absolute path", "path", opts.root, "error", err)
 		return false, nil
 	}
 	if _, statErr := os.Stat(absRoot); statErr != nil {
-		models.Log.Warn("Failed to stat scan root, skipping", "path", absRoot, "error", statErr)
+		logging.Log.Warn("Failed to stat scan root, skipping", "path", absRoot, "error", statErr)
 		return false, nil
 	}
 
@@ -533,7 +536,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 		if pl.Path.Valid {
 			plPathSlash := filepath.ToSlash(pl.Path.String)
 			if strings.HasPrefix(absRootSlash, plPathSlash+"/") {
-				models.Log.Info(
+				logging.Log.Info(
 					"Path is child of existing scan root, skipping",
 					"path",
 					absRoot,
@@ -551,7 +554,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 			Path:         sql.NullString{String: absRoot, Valid: true},
 			ExtractorKey: sql.NullString{String: "Local", Valid: true},
 		}); playlistErr != nil {
-			models.Log.Warn("Failed to insert playlist root", "path", absRoot, "error", playlistErr)
+			logging.Log.Warn("Failed to insert playlist root", "path", absRoot, "error", playlistErr)
 		}
 	}
 
@@ -573,7 +576,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 	// Print scanning summary
 	fmt.Printf("\rScan of %s found %d files in %d folders%s\n", absRoot, totalFiles, totalDirs, utils.ClearSeq)
 	if skipped > 0 {
-		models.Log.Info("  Skipped unchanged files", "count", skipped)
+		logging.Log.Info("  Skipped unchanged files", "count", skipped)
 	}
 
 	if len(toProbe) == 0 {
@@ -585,7 +588,7 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 		return newFilesFound, nil
 	}
 
-	models.Log.Info("  Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel)
+	logging.Log.Info("  Extracting metadata", "count", len(toProbe), "initial_parallelism", c.Parallel)
 
 	// Group files by media type for separate processing with accurate ETA per media type
 	mediaTypes := groupFilesByMediaType(toProbe)
@@ -621,7 +624,7 @@ func (c *AddCmd) AfterApply() error {
 	// Smart DB detection: first arg MUST be a database for 'add'
 	fileInfo, err := os.Stat(c.Args[0])
 	isEmpty := err == nil && fileInfo.Size() == 0
-	isDB := strings.HasSuffix(c.Args[0], ".db") && (utils.IsSQLite(c.Args[0]) || os.IsNotExist(err) || isEmpty)
+	isDB := strings.HasSuffix(c.Args[0], ".db") && (fileutil.IsSQLite(c.Args[0]) || os.IsNotExist(err) || isEmpty)
 	if !isDB {
 		return fmt.Errorf("first argument must be a database file (e.g. .db): %s", c.Args[0])
 	}
@@ -635,13 +638,13 @@ func (c *AddCmd) AfterApply() error {
 }
 
 func (c *AddCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	db.InitFtsConfig()
 
 	dbPath := c.Database
-	c.ScanPaths = utils.ExpandStdin(c.ScanPaths)
+	c.ScanPaths = fileutil.ExpandStdin(c.ScanPaths)
 
-	dbExists := utils.FileExists(dbPath)
+	dbExists := fileutil.FileExists(dbPath)
 	sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
 		return err
@@ -690,23 +693,23 @@ func (c *AddCmd) Run(ctx context.Context) error {
 
 	fmt.Println()
 	if c.Simulate {
-		models.Log.Info("Simulation complete; skipping FTS and folder_stats refresh")
+		logging.Log.Info("Simulation complete; skipping FTS and folder_stats refresh")
 		return nil
 	}
 
 	// Refresh FTS after adding new media (always needed for search)
 	if err := db.RebuildFTS(ctx, sqlDB, dbPath); err != nil {
-		models.Log.Error("Failed to rebuild FTS", "error", err)
+		logging.Log.Error("Failed to rebuild FTS", "error", err)
 	}
 
 	// Only refresh folder_stats if new files were added
 	if newFilesAdded {
-		models.Log.Info("Refreshing folder_stats after adding new files...")
+		logging.Log.Info("Refreshing folder_stats after adding new files...")
 		if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
-			models.Log.Error("Failed to refresh folder_stats", "error", err)
+			logging.Log.Error("Failed to refresh folder_stats", "error", err)
 		}
 	} else {
-		models.Log.Debug("No new files added, skipping folder_stats refresh")
+		logging.Log.Debug("No new files added, skipping folder_stats refresh")
 	}
 
 	return nil
@@ -731,13 +734,13 @@ func groupFilesByMediaType(paths []string) []fileMediaType {
 	for _, path := range paths {
 		ext := strings.ToLower(filepath.Ext(path))
 		switch {
-		case utils.TextExtensionMap[ext] || utils.ComicExtensionMap[ext]:
+		case media.TextExtensionMap[ext] || media.ComicExtensionMap[ext]:
 			mediaTypes[1].files = append(mediaTypes[1].files, path)
-		case utils.ImageExtensionMap[ext]:
+		case media.ImageExtensionMap[ext]:
 			mediaTypes[2].files = append(mediaTypes[2].files, path)
-		case utils.VideoExtensionMap[ext]:
+		case media.VideoExtensionMap[ext]:
 			mediaTypes[3].files = append(mediaTypes[3].files, path)
-		case utils.AudioExtensionMap[ext]:
+		case media.AudioExtensionMap[ext]:
 			mediaTypes[4].files = append(mediaTypes[4].files, path)
 		default:
 			mediaTypes[0].files = append(mediaTypes[0].files, path)

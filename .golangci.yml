@@ -482,7 +482,7 @@ linters:
       - path: web/
         linters:
           - gochecknoglobals
-      # Exclude gochecknoinits for utils/consts.go (map initialization)
-      - path: internal/utils/consts.go
+      # Exclude gochecknoinits for media/extensions.go (extension map initialization)
+      - path: internal/media/extensions.go
         linters:
           - gochecknoinits

@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -38,7 +40,7 @@ type MergedCaption struct {
 }
 
 func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	sqlDB, err := db.Connect(ctx, c.Database)
 	if err != nil {
@@ -187,13 +189,13 @@ func (c *SearchCaptionsCmd) printCaptions(captions []MergedCaption) {
 			fmt.Printf("%s\n", displayTitle)
 			lastPath = caption.Path
 		}
-		fmt.Printf("%s %s\n", utils.FormatDuration(int(caption.Time)), caption.Text)
+		fmt.Printf("%s %s\n", formatutil.FormatDuration(int(caption.Time)), caption.Text)
 	}
 }
 
 func (c *SearchCaptionsCmd) playCaptions(ctx context.Context, captions []MergedCaption) {
 	for _, caption := range captions {
-		fmt.Printf("Playing: %s at %s\n", caption.Path, utils.FormatDuration(int(caption.Time)))
+		fmt.Printf("Playing: %s at %s\n", caption.Path, formatutil.FormatDuration(int(caption.Time)))
 		fmt.Printf("Text: %s\n", caption.Text)
 
 		args := c.buildPlayerArgs(caption)

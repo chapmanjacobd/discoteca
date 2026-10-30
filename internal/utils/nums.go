@@ -1,3 +1,5 @@
+// Package utils contains small generic helpers for numbers, ranges, and
+// nullable SQL values.
 package utils
 
 import (

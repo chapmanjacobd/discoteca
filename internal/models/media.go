@@ -5,8 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
-	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
+	"github.com/chapmanjacobd/discoteca/internal/pathutil"
 )
 
 type Media struct {
@@ -166,46 +165,6 @@ type DUResponse struct {
 	FolderCount int                 `json:"folder_count"`     // Number of folders
 	FileCount   int                 `json:"file_count"`       // Number of direct files
 	Counts      *FilterBinsResponse `json:"counts,omitempty"` // Filter bins data (when include_counts=true)
-}
-
-// Helper functions for mapping from sql.Null types
-
-func FromDB(m db.Media) Media {
-	return Media{
-		Path:            m.Path,
-		PathTokenized:   NullStringPtr(m.PathTokenized),
-		Title:           NullStringPtr(m.Title),
-		Duration:        NullInt64Ptr(m.Duration),
-		Size:            NullInt64Ptr(m.Size),
-		TimeCreated:     NullInt64Ptr(m.TimeCreated),
-		TimeModified:    NullInt64Ptr(m.TimeModified),
-		TimeDeleted:     NullInt64Ptr(m.TimeDeleted),
-		TimeFirstPlayed: NullInt64Ptr(m.TimeFirstPlayed),
-		TimeLastPlayed:  NullInt64Ptr(m.TimeLastPlayed),
-		PlayCount:       NullInt64Ptr(m.PlayCount),
-		Playhead:        NullInt64Ptr(m.Playhead),
-		MediaType:       NullStringPtr(m.MediaType),
-		Width:           NullInt64Ptr(m.Width),
-		Height:          NullInt64Ptr(m.Height),
-		Fps:             NullFloat64Ptr(m.Fps),
-		VideoCodecs:     NullStringPtr(m.VideoCodecs),
-		AudioCodecs:     NullStringPtr(m.AudioCodecs),
-		SubtitleCodecs:  NullStringPtr(m.SubtitleCodecs),
-		VideoCount:      NullInt64Ptr(m.VideoCount),
-		AudioCount:      NullInt64Ptr(m.AudioCount),
-		SubtitleCount:   NullInt64Ptr(m.SubtitleCount),
-		Album:           NullStringPtr(m.Album),
-		Artist:          NullStringPtr(m.Artist),
-		Genre:           NullStringPtr(m.Genre),
-		Categories:      NullStringPtr(m.Categories),
-		Description:     NullStringPtr(m.Description),
-		Language:        NullStringPtr(m.Language),
-		TimeDownloaded:  NullInt64Ptr(m.TimeDownloaded),
-		Score:           NullFloat64Ptr(m.Score),
-		Fasthash:        NullStringPtr(m.Fasthash),
-		Sha256:          NullStringPtr(m.Sha256),
-		IsDeduped:       NullInt64Ptr(m.IsDeduped),
-	}
 }
 
 func NullStringPtr(ns sql.NullString) *string {

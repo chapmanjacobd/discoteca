@@ -6,7 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/chapmanjacobd/discoteca/internal/config"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/history"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	mediautil "github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -24,7 +28,7 @@ type MpvWatchlaterCmd struct {
 }
 
 func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		MediaFilterFlags: c.MediaFilterFlags,
@@ -36,10 +40,10 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 
 	watchLaterDir := c.WatchLaterDir
 	if watchLaterDir == "" {
-		watchLaterDir = utils.GetMpvWatchLaterDir()
+		watchLaterDir = config.GetMpvWatchLaterDir()
 	}
 
-	if !utils.DirExists(watchLaterDir) {
+	if !fileutil.DirExists(watchLaterDir) {
 		return fmt.Errorf("mpv watch_later directory not found: %s", watchLaterDir)
 	}
 
@@ -52,7 +56,7 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 	// 2. Map MD5 hashes to media items
 	md5Map := make(map[string]models.MediaWithDB)
 	for _, m := range media {
-		hash := utils.PathToMpvWatchLaterMD5(m.Path)
+		hash := mediautil.PathToMpvWatchLaterMD5(m.Path)
 		md5Map[hash] = m
 	}
 
@@ -73,7 +77,7 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 			metadataPath := filepath.Join(watchLaterDir, hash)
 
 			// Get playhead
-			val, err := utils.MpvWatchLaterValue(metadataPath, "start")
+			val, err := mediautil.MpvWatchLaterValue(metadataPath, "start")
 			if err != nil || val == "" {
 				continue
 			}
@@ -102,10 +106,10 @@ func (c *MpvWatchlaterCmd) Run(ctx context.Context) error {
 					MarkDone:   false,
 				},
 			); err != nil {
-				models.Log.Error("Failed to import watchlater", "path", m.Path, "error", err)
+				logging.Log.Error("Failed to import watchlater", "path", m.Path, "error", err)
 			} else {
 				count++
-				models.Log.Debug("Imported watchlater", "path", m.Path, "playhead", playhead)
+				logging.Log.Debug("Imported watchlater", "path", m.Path, "playhead", playhead)
 			}
 		}
 	}

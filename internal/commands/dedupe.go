@@ -16,10 +16,12 @@ import (
 	"github.com/adrg/strutil/metrics"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type DedupeCmd struct {
@@ -71,7 +73,7 @@ func (f dedupeFilter) appendTo(where string, args []any) (string, []any) {
 }
 
 func (c *DedupeCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	// Dedupe only considers live rows unless the caller explicitly asks for a
 	// different deleted-row policy.
@@ -98,7 +100,7 @@ func (c *DedupeCmd) Run(ctx context.Context) error {
 
 	finalCandidates := c.filterDuplicates(duplicates)
 	if len(finalCandidates) == 0 {
-		models.Log.Info("No duplicates found")
+		logging.Log.Info("No duplicates found")
 		return nil
 	}
 
@@ -189,10 +191,10 @@ func (c *DedupeCmd) filterDuplicates(duplicates []DedupeDuplicate) []DedupeDupli
 		}
 
 		// Check if keep path still exists
-		if !utils.FileExists(d.KeepPath) {
+		if !fileutil.FileExists(d.KeepPath) {
 			continue
 		}
-		if c.Exists && !utils.FileExists(d.DuplicatePath) {
+		if c.Exists && !fileutil.FileExists(d.DuplicatePath) {
 			continue
 		}
 
@@ -206,9 +208,9 @@ func (c *DedupeCmd) printSummary(finalCandidates []DedupeDuplicate) {
 	var totalSavings int64
 	for _, d := range finalCandidates {
 		totalSavings += d.DuplicateSize
-		fmt.Printf("Keep: %s\n  Dup: %s (%s)\n", d.KeepPath, d.DuplicatePath, utils.FormatSize(d.DuplicateSize))
+		fmt.Printf("Keep: %s\n  Dup: %s (%s)\n", d.KeepPath, d.DuplicatePath, formatutil.FormatSize(d.DuplicateSize))
 	}
-	fmt.Printf("\nApprox. space savings: %s (%d files)\n", utils.FormatSize(totalSavings), len(finalCandidates))
+	fmt.Printf("\nApprox. space savings: %s (%d files)\n", formatutil.FormatSize(totalSavings), len(finalCandidates))
 }
 
 func (c *DedupeCmd) confirmDeletion() bool {
@@ -223,13 +225,13 @@ func (c *DedupeCmd) processDuplicates(
 	finalCandidates []DedupeDuplicate,
 	flags models.GlobalFlags,
 ) error {
-	models.Log.Info("Deleting duplicates...")
+	logging.Log.Info("Deleting duplicates...")
 	removed := 0
 	var failures []error
 	for _, d := range finalCandidates {
 		if err := c.removeDuplicate(ctx, d, flags); err != nil {
 			failures = append(failures, fmt.Errorf("failed to remove %s: %w", d.DuplicatePath, err))
-			models.Log.Error("Failed to remove duplicate", "path", d.DuplicatePath, "error", err)
+			logging.Log.Error("Failed to remove duplicate", "path", d.DuplicatePath, "error", err)
 			continue
 		}
 
@@ -267,7 +269,7 @@ func (c *DedupeCmd) removeDuplicate(
 			return err
 		}
 	case c.Trash:
-		if err := utils.Trash(ctx, flags, d.DuplicatePath); err != nil {
+		if err := fileutil.Trash(ctx, flags, d.DuplicatePath); err != nil {
 			return err
 		}
 		// Trash is started asynchronously. A successful start means the file
@@ -280,7 +282,7 @@ func (c *DedupeCmd) removeDuplicate(
 		}
 	}
 
-	if verifyGone && utils.FileExists(d.DuplicatePath) {
+	if verifyGone && fileutil.FileExists(d.DuplicatePath) {
 		return fmt.Errorf("removal reported success but %s still exists", d.DuplicatePath)
 	}
 	return nil
@@ -342,7 +344,7 @@ func (c *DedupeCmd) updateDatabase(
 
 	// Update hash if not already set
 	if d.DuplicateSize > 0 {
-		h, err2 := utils.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
+		h, err2 := fileutil.SampleHashFile(d.KeepPath, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 		if err2 == nil && h != "" {
 			if _, err := tx.ExecContext(
 				ctx,
@@ -353,7 +355,7 @@ func (c *DedupeCmd) updateDatabase(
 				dbErrs = append(dbErrs, fmt.Sprintf("failed to update fasthash: %v", err))
 			}
 		}
-		h, err2 = utils.FullHashFile(d.KeepPath)
+		h, err2 = fileutil.FullHashFile(d.KeepPath)
 		if err2 == nil && h != "" {
 			if _, err := tx.ExecContext(
 				ctx,
@@ -557,7 +559,7 @@ func (c *DedupeCmd) getFSDuplicates(
 		if err := rows.Scan(&size, &count); err != nil {
 			return nil, err
 		}
-		models.Log.Debug("Found potential duplicates by size", "size", size, "count", count)
+		logging.Log.Debug("Found potential duplicates by size", "size", size, "count", count)
 
 		groupDups := c.processFSSizeGroup(ctx, sqlDB, size, flags, filter)
 		dups = append(dups, groupDups...)
@@ -622,7 +624,7 @@ func (c *DedupeCmd) groupByFastHash(
 	fastHashGroups := make(map[string][]pathInfo)
 	for _, p := range paths {
 		if p.fasthash == "" {
-			h, err := utils.SampleHashFile(p.path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
+			h, err := fileutil.SampleHashFile(p.path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 			if err != nil || h == "" {
 				continue
 			}
@@ -637,7 +639,7 @@ func (c *DedupeCmd) groupBySHA256(fhPaths []pathInfo) map[string][]pathInfo {
 	sha256Groups := make(map[string][]pathInfo)
 	for _, p := range fhPaths {
 		if p.sha256 == "" {
-			h, err := utils.FullHashFile(p.path)
+			h, err := fileutil.FullHashFile(p.path)
 			if err != nil || h == "" {
 				continue
 			}

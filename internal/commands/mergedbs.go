@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -21,12 +22,12 @@ type MergeDBsCmd struct {
 }
 
 func (c *MergeDBsCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	if err := c.MergeFlags.AfterApply(); err != nil {
 		return err
 	}
 	if len(c.WhereMedia) > 0 && c.Simulate {
-		models.Log.Info("Simulating merge with --where applied to the media table only")
+		logging.Log.Info("Simulating merge with --where applied to the media table only")
 	}
 
 	var (
@@ -34,7 +35,7 @@ func (c *MergeDBsCmd) Run(ctx context.Context) error {
 		err        error
 	)
 	if c.Simulate {
-		models.Log.Info("Simulating merge; target database will not be modified", "target", c.TargetDB)
+		logging.Log.Info("Simulating merge; target database will not be modified", "target", c.TargetDB)
 	} else {
 		targetConn, err = db.Connect(ctx, c.TargetDB)
 		if err != nil {
@@ -44,7 +45,7 @@ func (c *MergeDBsCmd) Run(ctx context.Context) error {
 
 		// Ensure target schema is initialized (if it's a new file)
 		if err := db.InitDB(ctx, targetConn); err != nil {
-			models.Log.Warn(
+			logging.Log.Warn(
 				"Target DB initialization might have partially failed or it was already initialized",
 				"error",
 				err,
@@ -54,7 +55,7 @@ func (c *MergeDBsCmd) Run(ctx context.Context) error {
 
 	var failures []error
 	for _, srcPath := range c.SourceDBs {
-		models.Log.Info("Merging database", "src", srcPath)
+		logging.Log.Info("Merging database", "src", srcPath)
 		if err := c.mergeDatabase(ctx, srcPath, targetConn); err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", srcPath, err))
 		}
@@ -83,9 +84,9 @@ func (c *MergeDBsCmd) mergeDatabase(ctx context.Context, srcPath string, targetC
 		if !c.shouldProcessTable(table) {
 			continue
 		}
-		models.Log.Info("Merging table", "table", table)
+		logging.Log.Info("Merging table", "table", table)
 		if err := c.mergeTable(ctx, srcConn, targetConn, table); err != nil {
-			models.Log.Error("Failed to merge table", "table", table, "error", err)
+			logging.Log.Error("Failed to merge table", "table", table, "error", err)
 			failures = append(failures, fmt.Errorf("table %s: %w", table, err))
 		}
 	}
@@ -337,7 +338,7 @@ func (c *MergeDBsCmd) copyRows(ctx context.Context, p copyRowsParams) error {
 		if err = rows.Err(); err != nil {
 			return err
 		}
-		models.Log.Info("Simulated merge", "table", p.table, "rows", count, "where", whereClause)
+		logging.Log.Info("Simulated merge", "table", p.table, "rows", count, "where", whereClause)
 		return nil
 	}
 
@@ -362,7 +363,7 @@ func (c *MergeDBsCmd) copyRows(ctx context.Context, p copyRowsParams) error {
 		return err
 	}
 
-	models.Log.Info("Merged rows", "table", p.table, "count", count)
+	logging.Log.Info("Merged rows", "table", p.table, "count", count)
 	return nil
 }
 

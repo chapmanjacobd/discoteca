@@ -11,7 +11,9 @@ import (
 	"github.com/muesli/clusters"
 	"github.com/muesli/kmeans"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -101,7 +103,7 @@ func ClusterByNumbers(flags models.GlobalFlags, media []models.MediaWithDB) []mo
 		for i, m := range group {
 			paths[i] = m.Path
 		}
-		common := utils.CommonPathFull(paths)
+		common := fileutil.CommonPathFull(paths)
 
 		stats := models.FolderStats{
 			Path:  common,
@@ -160,7 +162,7 @@ func groupToStats(flags models.GlobalFlags, groups [][]models.FolderStats) []mod
 		for i, f := range group {
 			paths[i] = f.Path
 		}
-		common := utils.CommonPathFull(paths)
+		common := fileutil.CommonPathFull(paths)
 
 		merged := models.FolderStats{
 			Path: common,
@@ -253,7 +255,7 @@ func FilterNearDuplicates(groups []models.FolderStats) []models.FolderStats {
 			for j, f := range groupFiles {
 				paths[j] = f.Path
 			}
-			common := utils.CommonPathFull(paths)
+			common := fileutil.CommonPathFull(paths)
 			if len(keys) > 1 {
 				common = fmt.Sprintf("%s#%d", group.Path, i)
 			}
@@ -285,7 +287,7 @@ func (p PathObservation) Distance(o clusters.Coordinates) float64 {
 // ClusterPaths groups lines of text using TF-IDF and KMeans.
 func ClusterPaths(lines []string, k int) []models.FolderStats {
 	if len(lines) < 2 {
-		return []models.FolderStats{{Path: utils.CommonPathFull(lines), Files: wrapLines(lines), Count: len(lines)}}
+		return []models.FolderStats{{Path: fileutil.CommonPathFull(lines), Files: wrapLines(lines), Count: len(lines)}}
 	}
 
 	if k <= 0 {
@@ -295,7 +297,7 @@ func ClusterPaths(lines []string, k int) []models.FolderStats {
 	// Simple TF-IDF Vectorization
 	corpus := make([][]string, len(lines))
 	for i, line := range lines {
-		corpus[i] = strings.Fields(utils.PathToSentence(line))
+		corpus[i] = strings.Fields(textutil.PathToSentence(line))
 	}
 
 	vocab := make(map[string]int)
@@ -336,7 +338,7 @@ func ClusterPaths(lines []string, k int) []models.FolderStats {
 	clusters, err := km.Partition(observations, k)
 	if err != nil {
 		// Fallback to single group on error
-		return []models.FolderStats{{Path: utils.CommonPathFull(lines), Files: wrapLines(lines), Count: len(lines)}}
+		return []models.FolderStats{{Path: fileutil.CommonPathFull(lines), Files: wrapLines(lines), Count: len(lines)}}
 	}
 
 	var result []models.FolderStats
@@ -349,7 +351,7 @@ func ClusterPaths(lines []string, k int) []models.FolderStats {
 		}
 		if len(groupLines) > 0 {
 			result = append(result, models.FolderStats{
-				Path:  utils.CommonPathFull(groupLines),
+				Path:  fileutil.CommonPathFull(groupLines),
 				Files: wrapLines(groupLines),
 				Count: len(groupLines),
 			})

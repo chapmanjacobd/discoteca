@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
@@ -110,10 +111,10 @@ func TestSetupLogging(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("verbosity", func(t *testing.T) {
-			models.SetupLogging(tt.verbosity)
-			// Just verify that models.Log is set (we can't easily test the level without access to the handler)
-			if models.Log == nil {
-				t.Errorf("models.Log is nil after models.SetupLogging")
+			logging.SetupLogging(tt.verbosity)
+			// Just verify that logging.Log is set (we can't easily test the level without access to the handler)
+			if logging.Log == nil {
+				t.Errorf("logging.Log is nil after logging.SetupLogging")
 			}
 		})
 	}

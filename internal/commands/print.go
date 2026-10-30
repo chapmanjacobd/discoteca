@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type PrintCmd struct {
@@ -36,7 +38,7 @@ func (c *PrintCmd) AfterApply() error {
 }
 
 func (c *PrintCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
 		Core:        c.CoreFlags,
 		Query:       c.QueryFlags,
@@ -77,7 +79,7 @@ func renderPrint(media []models.MediaWithDB, flags models.GlobalFlags) error {
 		}
 		if flags.Summarize {
 			summary := query.SummarizeMedia(media)
-			return utils.PrintJSON(summary)
+			return fileutil.PrintJSON(summary)
 		}
 		return PrintMedia(flags.DisplayFlags, flags.Columns, media)
 	}
@@ -86,7 +88,7 @@ func renderPrint(media []models.MediaWithDB, flags models.GlobalFlags) error {
 		summary := query.SummarizeMedia(media)
 		for _, s := range summary {
 			fmt.Printf("%s: %d files, %s, %s\n",
-				s.Label, s.Count, utils.FormatSize(s.TotalSize), utils.FormatDuration(int(s.TotalDuration)))
+				s.Label, s.Count, formatutil.FormatSize(s.TotalSize), formatutil.FormatDuration(int(s.TotalDuration)))
 		}
 		if !isAggregated {
 			fmt.Println()

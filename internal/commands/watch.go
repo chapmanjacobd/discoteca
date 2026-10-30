@@ -9,7 +9,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/chapmanjacobd/discoteca/internal/config"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/history"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -34,7 +38,7 @@ type WatchCmd struct {
 }
 
 func (c *WatchCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	return runPlayback(ctx, c, playbackOptions{
 		subtitles:    true,
 		fullscreen:   true,
@@ -82,7 +86,7 @@ type ListenCmd struct {
 }
 
 func (c *ListenCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	return runPlayback(ctx, c, playbackOptions{audioOnly: true})
 }
 
@@ -165,13 +169,13 @@ func runPlayback(ctx context.Context, cmd playbackCommand, opts playbackOptions)
 	}
 
 	for i, m := range media {
-		if !utils.FileExists(m.Path) {
+		if !fileutil.FileExists(m.Path) {
 			continue
 		}
 
 		stop, err := playMedia(ctx, flags, m, opts)
 		if err != nil {
-			models.Log.Error("Play media failed", "path", m.Path, "error", err)
+			logging.Log.Error("Play media failed", "path", m.Path, "error", err)
 		}
 		if stop {
 			return nil
@@ -210,7 +214,7 @@ func playMedia(
 
 	if flags.Cast {
 		if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, opts.audioOnly); err != nil {
-			models.Log.Error("Cast failed", "path", m.Path, "error", err)
+			logging.Log.Error("Cast failed", "path", m.Path, "error", err)
 		}
 		return false, nil
 	}
@@ -220,7 +224,7 @@ func playMedia(
 
 	if flags.TrackHistory {
 		if historyErr := updatePlaybackHistory(ctx, flags, m, startTime); historyErr != nil {
-			models.Log.Warn("Failed to update history", "path", m.Path, "error", historyErr)
+			logging.Log.Warn("Failed to update history", "path", m.Path, "error", historyErr)
 		}
 	}
 
@@ -229,7 +233,7 @@ func playMedia(
 	}
 
 	if postErr := ExecutePostAction(ctx, flags, []models.MediaWithDB{m}); postErr != nil {
-		models.Log.Error("Post action failed", "path", m.Path, "error", postErr)
+		logging.Log.Error("Post action failed", "path", m.Path, "error", postErr)
 	}
 
 	return false, err
@@ -267,7 +271,7 @@ func buildPlayerArgs(m models.MediaWithDB, playback models.PlaybackFlags, opts p
 
 		ipcSocket := playback.MpvSocket
 		if ipcSocket == "" {
-			ipcSocket = utils.GetMpvWatchSocket()
+			ipcSocket = config.GetMpvWatchSocket()
 		}
 		args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
 
@@ -324,7 +328,7 @@ func updatePlaybackHistory(
 ) error {
 	mediaDuration := mustInt(m.Duration)
 	existingPlayhead := mustInt(m.Playhead)
-	playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
+	playhead := media.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
 	return history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false)
 }
 
@@ -365,7 +369,7 @@ func handlePlayerExit(
 	}
 
 	if err := RunExitCommand(ctx, flags, exitCode, m.Path); err != nil {
-		models.Log.Error("Exit command failed", "code", exitCode, "error", err)
+		logging.Log.Error("Exit command failed", "code", exitCode, "error", err)
 	}
 
 	if flags.MpvActionFlags.Interactive {
@@ -373,7 +377,7 @@ func handlePlayerExit(
 			if errors.Is(err, ErrUserQuit) {
 				return true
 			}
-			models.Log.Error("Interactive decision failed", "error", err)
+			logging.Log.Error("Interactive decision failed", "error", err)
 		}
 	}
 

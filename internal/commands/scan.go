@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
@@ -41,7 +42,7 @@ func ScanMediaPaths(
 
 			meta, err := metadata.Extract(ctx, path, opts)
 			if err != nil {
-				models.Log.Warn("Failed to extract metadata; skipping file", "path", path, "error", err)
+				logging.Log.Warn("Failed to extract metadata; skipping file", "path", path, "error", err)
 				return nil
 			}
 			seen[path] = true

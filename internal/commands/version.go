@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"runtime/debug"
 
-	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/selfupdate"
 )
 
 type VersionCmd struct {
@@ -33,10 +33,10 @@ func (c *VersionCmd) Run(ctx context.Context) error {
 
 	// If no VCS info, use fallback
 	if version == "" {
-		version = utils.Version
+		version = selfupdate.Version
 	}
 	if when == "" {
-		when = utils.When
+		when = selfupdate.When
 	}
 
 	// Try to get git tag from build info settings

@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -22,7 +24,7 @@ type PlaylistEntry struct {
 }
 
 func (c *PlaylistsCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	var all []PlaylistEntry
 	for _, dbPath := range c.Databases {
@@ -56,7 +58,7 @@ func (c *PlaylistsCmd) Run(ctx context.Context) error {
 	}
 
 	if c.JSON {
-		return utils.PrintJSON(all)
+		return fileutil.PrintJSON(all)
 	}
 	return nil
 }

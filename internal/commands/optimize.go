@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type OptimizeCmd struct {
@@ -20,41 +22,41 @@ type OptimizeCmd struct {
 }
 
 func (c *OptimizeCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
 		if c.Simulate {
 			fmt.Printf("[Simulate] would VACUUM, ANALYZE, optimize media_fts, and backfill NULL media types in %s\n", dbPath)
 			continue
 		}
 
-		models.Log.Info("Optimizing database", "path", dbPath)
+		logging.Log.Info("Optimizing database", "path", dbPath)
 		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 		if err != nil {
 			return err
 		}
 		defer sqlDB.Close()
 
-		models.Log.Info("Running VACUUM...")
+		logging.Log.Info("Running VACUUM...")
 		if _, err := sqlDB.ExecContext(ctx, "VACUUM"); err != nil {
 			return fmt.Errorf("VACUUM failed on %s: %w", dbPath, err)
 		}
 
-		models.Log.Info("Running ANALYZE...")
+		logging.Log.Info("Running ANALYZE...")
 		if _, err := sqlDB.ExecContext(ctx, "ANALYZE"); err != nil {
 			return fmt.Errorf("ANALYZE failed on %s: %w", dbPath, err)
 		}
 
-		models.Log.Info("Optimizing FTS index...")
+		logging.Log.Info("Optimizing FTS index...")
 		// FTS5 optimize command
 		if _, err := sqlDB.ExecContext(ctx, "INSERT INTO media_fts(media_fts) VALUES('optimize')"); err != nil {
-			models.Log.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
+			logging.Log.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
 		}
 
 		if err := c.BackfillMediaTypes(ctx, sqlDB); err != nil {
-			models.Log.Warn("BackfillMediaTypes failed", "path", dbPath, "error", err)
+			logging.Log.Warn("BackfillMediaTypes failed", "path", dbPath, "error", err)
 		}
 
-		models.Log.Info("Optimization complete", "path", dbPath)
+		logging.Log.Info("Optimization complete", "path", dbPath)
 	}
 	return nil
 }
@@ -62,7 +64,7 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 // BackfillMediaTypes fills media_type for rows where it is NULL, based on the
 // file extension. It never overwrites an existing media_type.
 func (c *OptimizeCmd) BackfillMediaTypes(ctx context.Context, sqlDB *sql.DB) error {
-	models.Log.Info("Backfilling NULL media types...")
+	logging.Log.Info("Backfilling NULL media types...")
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -86,13 +88,13 @@ func (c *OptimizeCmd) BackfillMediaTypes(ctx context.Context, sqlDB *sql.DB) err
 		}
 		ext := strings.ToLower(filepath.Ext(path))
 		mtype := ""
-		if utils.VideoExtensionMap[ext] {
+		if media.VideoExtensionMap[ext] {
 			mtype = "video"
-		} else if utils.AudioExtensionMap[ext] {
+		} else if media.AudioExtensionMap[ext] {
 			mtype = "audio"
-		} else if utils.ImageExtensionMap[ext] {
+		} else if media.ImageExtensionMap[ext] {
 			mtype = "image"
-		} else if utils.TextExtensionMap[ext] {
+		} else if media.TextExtensionMap[ext] {
 			mtype = "text"
 		}
 
@@ -132,7 +134,7 @@ type SampleHashCmd struct {
 }
 
 func (c *SampleHashCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		HashingFlags: c.HashingFlags,
 	}
@@ -144,7 +146,7 @@ func (c *SampleHashCmd) Run(ctx context.Context) error {
 	var results []result
 
 	for _, path := range c.Paths {
-		h, err := utils.SampleHashFile(path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
+		h, err := fileutil.SampleHashFile(path, flags.HashThreads, flags.HashGap, flags.HashChunkSize)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error hashing %s: %v\n", path, err)
 			continue
@@ -157,7 +159,7 @@ func (c *SampleHashCmd) Run(ctx context.Context) error {
 	}
 
 	if c.JSON {
-		return utils.PrintJSON(results)
+		return fileutil.PrintJSON(results)
 	}
 	return nil
 }

@@ -9,9 +9,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/categorize"
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -32,7 +35,7 @@ type CategorizeCmd struct {
 }
 
 func (c *CategorizeCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
 		Core:        c.CoreFlags,
 		Query:       c.QueryFlags,
@@ -57,53 +60,13 @@ func (c *CategorizeCmd) Run(ctx context.Context) error {
 		return errors.New("no media found")
 	}
 
-	compiled := c.CompileRegexes(ctx)
+	compiled := categorize.CompileRegexes(ctx, c.Databases)
 
 	if c.Other {
 		return c.mineCategories(media, compiled)
 	}
 
 	return c.applyCategories(ctx, media, compiled)
-}
-
-func (c *CategorizeCmd) CompileRegexes(ctx context.Context) map[string][]*regexp.Regexp {
-	compiled := make(map[string][]*regexp.Regexp)
-
-	// Load custom keywords from databases
-	for _, dbPath := range c.Databases {
-		err := func() error {
-			sqlDB, err := db.Connect(ctx, dbPath)
-			if err != nil {
-				return err
-			}
-			defer sqlDB.Close()
-
-			rows, err := sqlDB.QueryContext(ctx, "SELECT category, keyword FROM custom_keywords")
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
-
-			for rows.Next() {
-				var cat, kw string
-				if err := rows.Scan(&cat, &kw); err != nil {
-					continue
-				}
-				// Use case-insensitive word boundary match for categorization
-				// This ensures "rock" matches "rock_concert" but not "brock"
-				re, err := regexp.Compile(`(?i)(?:^|[^a-zA-Z0-9])` + regexp.QuoteMeta(kw) + `(?:$|[^a-zA-Z0-9])`)
-				if err == nil {
-					compiled[cat] = append(compiled[cat], re)
-				}
-			}
-			return rows.Err()
-		}()
-		if err != nil {
-			models.Log.Error("failed processing keywords database", "db", dbPath, "error", err)
-		}
-	}
-
-	return compiled
 }
 
 func (c *CategorizeCmd) applyCategories(
@@ -115,7 +78,7 @@ func (c *CategorizeCmd) applyCategories(
 	for _, m := range media {
 		newCategories, err := c.categorizeSingleMedia(ctx, m, compiled)
 		if err != nil {
-			models.Log.Error("Failed to categorize media", "path", m.Path, "error", err)
+			logging.Log.Error("Failed to categorize media", "path", m.Path, "error", err)
 			continue
 		}
 		if newCategories != "" {
@@ -233,13 +196,13 @@ func (c *CategorizeCmd) collectUnmatchedWords(
 			unmatchedCount++
 			var sentence string
 			if c.FullPath {
-				sentence = utils.PathToTokenized(m.Path)
+				sentence = textutil.PathToTokenized(m.Path)
 			} else {
-				sentence = utils.PathToSentence(m.Path)
+				sentence = textutil.PathToSentence(m.Path)
 			}
-			words := utils.ExtractWords(sentence)
+			words := textutil.ExtractWords(sentence)
 			if m.Title != nil {
-				words = append(words, utils.ExtractWords(*m.Title)...)
+				words = append(words, textutil.ExtractWords(*m.Title)...)
 			}
 
 			for _, word := range words {

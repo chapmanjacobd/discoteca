@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type SimilarFilesCmd struct {
@@ -61,7 +62,7 @@ func (c *SimilarFoldersCmd) Run(ctx context.Context) error {
 }
 
 func runSimilar(ctx context.Context, flags models.GlobalFlags, dbs []string, folderMode bool) error {
-	models.SetupLogging(flags.Verbose)
+	logging.SetupLogging(flags.Verbose)
 
 	media, err := query.MediaQuery(ctx, dbs, flags)
 	if err != nil {
@@ -129,7 +130,7 @@ func runSimilarFiles(flags models.GlobalFlags, media []models.MediaWithDB) error
 	}
 
 	if flags.JSON {
-		return utils.PrintJSON(groups)
+		return fileutil.PrintJSON(groups)
 	}
 
 	printFileGroups(groups)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/chapmanjacobd/discoteca/internal/commands"
+	"github.com/chapmanjacobd/discoteca/internal/server"
 )
 
 // CLI defines the command-line interface
@@ -27,7 +28,7 @@ type CLI struct {
 	History        commands.HistoryCmd        `help:"Show playback history"                               cmd:""`
 	HistoryAdd     commands.HistoryAddCmd     `help:"Add paths to playback history"                       cmd:""`
 	MpvWatchlater  commands.MpvWatchlaterCmd  `help:"Import mpv watchlater files to history"              cmd:""                        name:"mpv-watchlater"`
-	Serve          commands.ServeCmd          `help:"Start Web UI server"                                 cmd:""`
+	Serve          server.Server              `help:"Start Web UI server"                                 cmd:""`
 	Optimize       commands.OptimizeCmd       `help:"Optimize database (VACUUM, ANALYZE, FTS optimize)"   cmd:""`
 	Repair         commands.RepairCmd         `help:"Repair malformed database using sqlite3"             cmd:""`
 	Readme         commands.ReadmeCmd         `help:"Print README content"                                  cmd:""`

@@ -3,12 +3,12 @@ package commands
 import (
 	"context"
 
-	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/selfupdate"
 )
 
 type UpdateCmd struct{}
 
 func (c *UpdateCmd) Run(ctx context.Context) error {
-	utils.MaybeUpdate(ctx)
+	selfupdate.MaybeUpdate(ctx)
 	return nil
 }

@@ -10,8 +10,8 @@ import (
 	"github.com/alecthomas/kong"
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/selfupdate"
 )
 
 func main() {
@@ -24,9 +24,9 @@ func run() int {
 	defer cleanup()
 
 	// Initialize version information
-	utils.InitVersionInfo()
+	selfupdate.InitVersionInfo()
 
-	utils.AutoUpdate()
+	selfupdate.AutoUpdate()
 	cli := &CLI{}
 	parser, err := kong.New(cli,
 		kong.Name("disco"),
@@ -61,11 +61,11 @@ func run() int {
 	}
 
 	// Configure default logger (Warn level by default)
-	models.SetupLogging(0)
+	logging.SetupLogging(0)
 
 	err = ctx.Run()
 	if err != nil {
-		models.Log.Error("Command failed", "error", err)
+		logging.Log.Error("Command failed", "error", err)
 		return 1
 	}
 

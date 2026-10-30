@@ -1,11 +1,12 @@
+// Package commands implements the discoteca command-line commands.
 package commands
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 // ParseDatabaseAndScanPaths separates .db files from scan paths
@@ -24,7 +25,7 @@ func ParseDatabaseAndScanPaths(
 
 	for _, arg := range args {
 		if strings.HasSuffix(arg, ".db") {
-			if !utils.IsSQLite(arg) {
+			if !fileutil.IsSQLite(arg) {
 				return nil, nil, fmt.Errorf("database file not found: %s", arg)
 			}
 			databases = append(databases, arg)

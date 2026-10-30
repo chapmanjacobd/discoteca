@@ -5,8 +5,12 @@ import (
 	"fmt"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -25,7 +29,7 @@ type StatsCmd struct {
 }
 
 func (c *StatsCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	if c.Facet != "" && c.Frequency == "" {
 		return fmt.Errorf("--facet %q requires --frequency", c.Facet)
@@ -106,10 +110,10 @@ func (c *StatsCmd) printFrequencyStats(
 	}
 
 	if c.JSON {
-		return utils.PrintJSON(stats)
+		return fileutil.PrintJSON(stats)
 	}
 
-	fmt.Printf("%s media (%s) for %s:\n", utils.Title(c.Frequency), c.Frequency, dbPath)
+	fmt.Printf("%s media (%s) for %s:\n", textutil.Title(c.Frequency), c.Frequency, dbPath)
 	return PrintFrequencyStats(stats)
 }
 
@@ -125,7 +129,7 @@ func (c *StatsCmd) printGeneralStats(ctx context.Context, dbPath string, flags m
 	}
 
 	if c.JSON {
-		return utils.PrintJSON(map[string]any{
+		return fileutil.PrintJSON(map[string]any{
 			"database":  dbPath,
 			"summary":   stats,
 			"breakdown": typeStats,
@@ -139,8 +143,8 @@ func (c *StatsCmd) printGeneralStats(ctx context.Context, dbPath string, flags m
 func printGeneralStatsOutput(dbPath string, stats db.GetStatsRow, typeStats []db.GetStatsByTypeRow) {
 	fmt.Printf("Statistics for %s:\n", dbPath)
 	fmt.Printf("  Total Files:      %d\n", stats.TotalCount)
-	fmt.Printf("  Total Size:       %s\n", utils.FormatSize(utils.GetInt64(stats.TotalSize)))
-	fmt.Printf("  Total Duration:   %s\n", utils.FormatDuration(int(utils.GetInt64(stats.TotalDuration))))
+	fmt.Printf("  Total Size:       %s\n", formatutil.FormatSize(utils.GetInt64(stats.TotalSize)))
+	fmt.Printf("  Total Duration:   %s\n", formatutil.FormatDuration(int(utils.GetInt64(stats.TotalDuration))))
 	fmt.Printf("  Watched Files:    %d\n", stats.WatchedCount)
 	fmt.Printf("  Unwatched Files:  %d\n", stats.UnwatchedCount)
 
@@ -159,8 +163,8 @@ func printTypeBreakdown(typeStats []db.GetStatsByTypeRow) {
 		}
 		fmt.Printf("    %-10s: %d files, %s, %s\n",
 			t, ts.Count,
-			utils.FormatSize(utils.GetInt64(ts.TotalSize)),
-			utils.FormatDuration(int(utils.GetInt64(ts.TotalDuration))))
+			formatutil.FormatSize(utils.GetInt64(ts.TotalSize)),
+			formatutil.FormatDuration(int(utils.GetInt64(ts.TotalDuration))))
 	}
 }
 
@@ -168,7 +172,7 @@ func PrintFrequencyStats(stats []query.FrequencyStats) error {
 	fmt.Printf("%-15s\t%-10s\t%-10s\t%-15s\n", "Period", "Count", "Size", "Duration")
 	for _, s := range stats {
 		fmt.Printf("%-15s\t%-10d\t%-10s\t%-15s\n",
-			s.Label, s.Count, utils.FormatSize(s.TotalSize), utils.FormatDuration(int(s.TotalDuration)))
+			s.Label, s.Count, formatutil.FormatSize(s.TotalSize), formatutil.FormatDuration(int(s.TotalDuration)))
 	}
 	return nil
 }

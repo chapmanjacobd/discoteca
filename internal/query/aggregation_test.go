@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/pathutil"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
 )
 
 func TestAggregateExtensions(t *testing.T) {

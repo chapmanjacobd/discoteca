@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -49,7 +51,7 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 	// Expand related media if requested
 	if strings.Contains(sortConfig, "_related_media") {
 		if err := ExpandRelatedMedia(ctx, sqlDB, media, flags); err != nil {
-			models.Log.Warn("Related media expansion failed", "error", err)
+			logging.Log.Warn("Related media expansion failed", "error", err)
 		}
 	}
 
@@ -242,12 +244,12 @@ func RegexSortMedia(media []models.MediaWithDB, flags models.GlobalFlags) []mode
 		if m.Title != nil {
 			parts = append(parts, *m.Title)
 		}
-		sentence := utils.PathToSentence(strings.Join(parts, " "))
+		sentence := textutil.PathToSentence(strings.Join(parts, " "))
 		sentenceStrings[i] = sentence
 		mapping[sentence] = append(mapping[sentence], m)
 	}
 
-	sortedSentences := utils.TextProcessor(flags, sentenceStrings)
+	sortedSentences := textutil.TextProcessor(flags, sentenceStrings)
 
 	result := make([]models.MediaWithDB, 0, len(media))
 	seenCount := make(map[string]int)

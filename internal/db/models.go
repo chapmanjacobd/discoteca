@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+
+	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 type Captions struct {
@@ -46,6 +48,45 @@ type Media struct {
 	Fasthash  sql.NullString `json:"fasthash"`
 	Sha256    sql.NullString `json:"sha256"`
 	IsDeduped sql.NullInt64  `json:"is_deduped"`
+}
+
+// ToModel converts the database row into the domain model used by callers.
+func (m Media) ToModel() models.Media {
+	return models.Media{
+		Path:            m.Path,
+		PathTokenized:   models.NullStringPtr(m.PathTokenized),
+		Title:           models.NullStringPtr(m.Title),
+		Duration:        models.NullInt64Ptr(m.Duration),
+		Size:            models.NullInt64Ptr(m.Size),
+		TimeCreated:     models.NullInt64Ptr(m.TimeCreated),
+		TimeModified:    models.NullInt64Ptr(m.TimeModified),
+		TimeDeleted:     models.NullInt64Ptr(m.TimeDeleted),
+		TimeFirstPlayed: models.NullInt64Ptr(m.TimeFirstPlayed),
+		TimeLastPlayed:  models.NullInt64Ptr(m.TimeLastPlayed),
+		PlayCount:       models.NullInt64Ptr(m.PlayCount),
+		Playhead:        models.NullInt64Ptr(m.Playhead),
+		MediaType:       models.NullStringPtr(m.MediaType),
+		Width:           models.NullInt64Ptr(m.Width),
+		Height:          models.NullInt64Ptr(m.Height),
+		Fps:             models.NullFloat64Ptr(m.Fps),
+		VideoCodecs:     models.NullStringPtr(m.VideoCodecs),
+		AudioCodecs:     models.NullStringPtr(m.AudioCodecs),
+		SubtitleCodecs:  models.NullStringPtr(m.SubtitleCodecs),
+		VideoCount:      models.NullInt64Ptr(m.VideoCount),
+		AudioCount:      models.NullInt64Ptr(m.AudioCount),
+		SubtitleCount:   models.NullInt64Ptr(m.SubtitleCount),
+		Album:           models.NullStringPtr(m.Album),
+		Artist:          models.NullStringPtr(m.Artist),
+		Genre:           models.NullStringPtr(m.Genre),
+		Categories:      models.NullStringPtr(m.Categories),
+		Description:     models.NullStringPtr(m.Description),
+		Language:        models.NullStringPtr(m.Language),
+		TimeDownloaded:  models.NullInt64Ptr(m.TimeDownloaded),
+		Score:           models.NullFloat64Ptr(m.Score),
+		Fasthash:        models.NullStringPtr(m.Fasthash),
+		Sha256:          models.NullStringPtr(m.Sha256),
+		IsDeduped:       models.NullInt64Ptr(m.IsDeduped),
+	}
 }
 
 type Playlists struct {

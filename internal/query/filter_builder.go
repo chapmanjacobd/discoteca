@@ -14,7 +14,12 @@ import (
 	"sync"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -62,8 +67,8 @@ func (fb *FilterBuilder) buildBasicFilters(whereClauses *[]string, args *[]any) 
 	// Sidecar subtitles are captions, not media. The web grid opts into this;
 	// explicit CLI path/extension filters still allow inspecting them.
 	if fb.Flags.HideSubtitles && len(fb.Flags.Ext) == 0 && len(fb.Flags.Paths) == 0 {
-		subtitleClauses := make([]string, 0, len(utils.SubtitleExtensions))
-		for _, ext := range utils.SubtitleExtensions {
+		subtitleClauses := make([]string, 0, len(media.SubtitleExtensions))
+		for _, ext := range media.SubtitleExtensions {
 			subtitleClauses = append(
 				subtitleClauses,
 				fmt.Sprintf("LOWER(%s) NOT LIKE '%%%s'", fb.col("path"), ext),
@@ -188,61 +193,61 @@ func (fb *FilterBuilder) buildRangeFilters(whereClauses *[]string, args *[]any) 
 
 func (fb *FilterBuilder) buildTimeFilters(whereClauses *[]string, args *[]any) {
 	if fb.Flags.DeletedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.DeletedAfter); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.DeletedAfter); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_deleted")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.DeletedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.DeletedBefore); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.DeletedBefore); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_deleted")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.CreatedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.CreatedAfter); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.CreatedAfter); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_created")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.CreatedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.CreatedBefore); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.CreatedBefore); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_created")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.ModifiedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.ModifiedAfter); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.ModifiedAfter); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_modified")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.ModifiedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.ModifiedBefore); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.ModifiedBefore); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_modified")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.DownloadedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.DownloadedAfter); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.DownloadedAfter); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_downloaded")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.DownloadedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.DownloadedBefore); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.DownloadedBefore); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_downloaded")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.PlayedAfter != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.PlayedAfter); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.PlayedAfter); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("time_last_played")))
 			*args = append(*args, ts)
 		}
 	}
 	if fb.Flags.PlayedBefore != "" {
-		if ts := utils.ParseDateOrRelative(fb.Flags.PlayedBefore); ts > 0 {
+		if ts := formatutil.ParseDateOrRelative(fb.Flags.PlayedBefore); ts > 0 {
 			*whereClauses = append(*whereClauses, fmt.Sprintf("%s <= ?", fb.col("time_last_played")))
 			*args = append(*args, ts)
 		}
@@ -392,7 +397,7 @@ func (fb *FilterBuilder) buildFTSSearchClauses(
 	args *[]any,
 ) {
 	queryStr := strings.Join(allInclude, " ")
-	hybrid := utils.ParseHybridSearchQuery(queryStr)
+	hybrid := ParseHybridSearchQuery(queryStr)
 
 	if hybrid.HasFTSTerms() {
 		ftsQuery := hybrid.BuildFTSQuery(joinOp)
@@ -443,20 +448,20 @@ func (fb *FilterBuilder) buildLikeSearchClauses(
 }
 
 // buildIncludeFilters applies path patterns using the same glob/prefix
-// semantics as utils.MatchesAny.
+// semantics as textutil.MatchesAny.
 func (fb *FilterBuilder) buildIncludeFilters(whereClauses *[]string, args *[]any) {
 	for _, inc := range fb.Flags.Include {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s LIKE ? ESCAPE '\\'", fb.col("path")))
-		*args = append(*args, utils.PathPatternLike(inc))
+		*args = append(*args, textutil.PathPatternLike(inc))
 	}
 }
 
 // buildExcludeFilters applies path patterns using the same glob/prefix
-// semantics as utils.MatchesAny.
+// semantics as textutil.MatchesAny.
 func (fb *FilterBuilder) buildExcludeFilters(whereClauses *[]string, args *[]any) {
 	for _, exc := range fb.Flags.Exclude {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s NOT LIKE ? ESCAPE '\\'", fb.col("path")))
-		*args = append(*args, utils.PathPatternLike(exc))
+		*args = append(*args, textutil.PathPatternLike(exc))
 	}
 }
 
@@ -772,15 +777,15 @@ func (fb *FilterBuilder) matchesRangeFilters(m models.MediaWithDB, sizeRanges, d
 
 func (fb *FilterBuilder) matchesPathFilters(m models.MediaWithDB, regex *regexp.Regexp) bool {
 	// Check existence
-	if fb.Flags.Exists && !utils.FileExists(m.Path) {
+	if fb.Flags.Exists && !fileutil.FileExists(m.Path) {
 		return false
 	}
 
 	// Include/exclude patterns
-	if len(fb.Flags.Include) > 0 && !utils.MatchesAny(m.Path, fb.Flags.Include) {
+	if len(fb.Flags.Include) > 0 && !textutil.MatchesAny(m.Path, fb.Flags.Include) {
 		return false
 	}
-	if len(fb.Flags.Exclude) > 0 && utils.MatchesAny(m.Path, fb.Flags.Exclude) {
+	if len(fb.Flags.Exclude) > 0 && textutil.MatchesAny(m.Path, fb.Flags.Exclude) {
 		return false
 	}
 
@@ -929,7 +934,7 @@ func (sb *SortBuilder) sortByConfig(media []models.MediaWithDB, config string, r
 func (sb *SortBuilder) sortPath(media []models.MediaWithDB, reverse bool) {
 	less := func(i, j int) bool {
 		if sb.Flags.NatSort {
-			return utils.NaturalLess(media[i].Path, media[j].Path)
+			return textutil.NaturalLess(media[i].Path, media[j].Path)
 		}
 		return media[i].Path < media[j].Path
 	}
@@ -945,8 +950,8 @@ func applyLess(media []models.MediaWithDB, less func(i, j int) bool, reverse boo
 }
 
 func warnUnsupportedSortField(field string) {
-	if models.Log != nil {
-		models.Log.Warn("Unsupported sort field; using default order", "field", field)
+	if logging.Log != nil {
+		logging.Log.Warn("Unsupported sort field; using default order", "field", field)
 	}
 }
 
@@ -1366,7 +1371,7 @@ func compareStringField(i, j models.MediaWithDB, field, alg string) int {
 	if alg == "python" {
 		less = valI < valJ
 	} else {
-		less = utils.NaturalLess(valI, valJ)
+		less = textutil.NaturalLess(valI, valJ)
 	}
 
 	if less {
@@ -1439,7 +1444,7 @@ func (sb *SortBuilder) sortAdvancedWithReverse(media []models.MediaWithDB, confi
 			if alg == "python" {
 				return valI < valJ
 			}
-			return utils.NaturalLess(valI, valJ)
+			return textutil.NaturalLess(valI, valJ)
 		}
 		applyLess(media, less, sortFields[0].Reverse != reverse)
 		return
@@ -1528,9 +1533,9 @@ func weightedRerank(media []models.MediaWithDB, fields []SortField, reverse bool
 			}
 			// Use natural comparison for strings
 			if field.Reverse {
-				return utils.NaturalLess(values[j].strValue, values[i].strValue)
+				return textutil.NaturalLess(values[j].strValue, values[i].strValue)
 			}
-			return utils.NaturalLess(values[i].strValue, values[j].strValue)
+			return textutil.NaturalLess(values[i].strValue, values[j].strValue)
 		})
 
 		// Assign ranks (normalized to 0-1 range)
@@ -1603,7 +1608,7 @@ func extractSearchWordsFromFlagsOrMedia(flags models.GlobalFlags, first models.M
 func extractWordsFromSearch(searchTerms []string) []string {
 	var words []string
 	queryStr := strings.Join(searchTerms, " ")
-	hybrid := utils.ParseHybridSearchQuery(queryStr)
+	hybrid := ParseHybridSearchQuery(queryStr)
 
 	words = append(words, hybrid.FTSTerms...)
 	for _, phrase := range hybrid.Phrases {
@@ -1627,7 +1632,7 @@ func topWordsByLength(words []string, maxCount int) []string {
 }
 
 func buildRelatedMediaQueryStr(words []string) string {
-	hybrid := &utils.HybridSearchQuery{FTSTerms: words}
+	hybrid := &HybridSearchQuery{FTSTerms: words}
 	return hybrid.BuildFTSQuery("OR")
 }
 
@@ -1858,7 +1863,7 @@ func ScanMedia(rows *sql.Rows, dbPath string) ([]models.MediaWithDB, error) {
 		}
 
 		allMedia = append(allMedia, models.MediaWithDB{
-			Media: models.FromDB(m),
+			Media: m.ToModel(),
 			DB:    dbPath,
 		})
 	}
@@ -2083,8 +2088,8 @@ func (qe *QueryExecutor) MediaQuery(ctx context.Context, dbs []string) ([]models
 	if flags.FetchSiblings != "" {
 		siblings, err := qe.FetchSiblings(ctx, page, flags)
 		if err != nil {
-			if models.Log != nil {
-				models.Log.Warn("Sibling fetch failed", "error", err)
+			if logging.Log != nil {
+				logging.Log.Warn("Sibling fetch failed", "error", err)
 			}
 		} else {
 			page = siblings
@@ -2310,7 +2315,7 @@ func (qe *QueryExecutor) determineSiblingLimit(filesInDir []models.MediaWithDB, 
 		}
 		return limit, true
 	default:
-		if utils.IsDigit(flags.FetchSiblings) {
+		if textutil.IsDigit(flags.FetchSiblings) {
 			if l, err := strconv.Atoi(flags.FetchSiblings); err == nil {
 				return l, true
 			}

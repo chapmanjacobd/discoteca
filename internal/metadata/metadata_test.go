@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
-	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func init() {
 	// Initialize logger to prevent nil pointer panics in tests
-	models.SetupLogging(0)
+	logging.SetupLogging(0)
 }
 
 func TestExtract_BasicInfo(t *testing.T) {

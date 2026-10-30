@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -121,24 +122,24 @@ func (c *MediaCheckCmd) checkSingleMedia(ctx context.Context, opts checkMediaOpt
 		var err error
 		corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 		if err != nil {
-			models.Log.Error("Full scan failed; skipping file", "path", m.Path, "error", err)
+			logging.Log.Error("Full scan failed; skipping file", "path", m.Path, "error", err)
 			return 0, false
 		}
 	} else {
 		if duration == 0 {
-			models.Log.Warn("Skipping media with unknown duration", "path", m.Path)
+			logging.Log.Warn("Skipping media with unknown duration", "path", m.Path)
 			return 0, false
 		}
 		scans := utils.CalculateSegments(duration, c.ChunkSize, opts.gap)
 		var err error
 		corruption, err = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
 		if err != nil {
-			models.Log.Error("Quick scan failed; skipping file", "path", m.Path, "error", err)
+			logging.Log.Error("Quick scan failed; skipping file", "path", m.Path, "error", err)
 			return 0, false
 		}
 
 		if opts.fullScanThreshold > 0 && corruption >= opts.fullScanThreshold {
-			models.Log.Info(
+			logging.Log.Info(
 				"Corruption threshold reached, performing full scan",
 				"path",
 				m.Path,
@@ -147,7 +148,7 @@ func (c *MediaCheckCmd) checkSingleMedia(ctx context.Context, opts checkMediaOpt
 			)
 			corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 			if err != nil {
-				models.Log.Error("Full scan failed; skipping file", "path", m.Path, "error", err)
+				logging.Log.Error("Full scan failed; skipping file", "path", m.Path, "error", err)
 				return 0, false
 			}
 		}
@@ -168,10 +169,10 @@ func (c *MediaCheckCmd) handleCorruptFile(
 		return
 	}
 
-	models.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
+	logging.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
 
 	if err := os.Remove(m.Path); err != nil {
-		models.Log.Error("Failed to delete corrupt file", "path", m.Path, "error", err)
+		logging.Log.Error("Failed to delete corrupt file", "path", m.Path, "error", err)
 		return
 	}
 
@@ -187,6 +188,6 @@ func (c *MediaCheckCmd) handleCorruptFile(
 		Path:        m.Path,
 		TimeDeleted: utils.ToNullInt64(time.Now().Unix()),
 	}); err != nil {
-		models.Log.Warn("Failed to mark deleted in DB", "path", m.Path, "error", err)
+		logging.Log.Warn("Failed to mark deleted in DB", "path", m.Path, "error", err)
 	}
 }

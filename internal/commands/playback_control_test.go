@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 func startMockMpvServer(t *testing.T) string {
@@ -32,7 +32,7 @@ func startMockMpvServer(t *testing.T) string {
 				scanner := bufio.NewScanner(c)
 				if scanner.Scan() {
 					line := scanner.Text()
-					resp := utils.MpvResponse{}
+					resp := media.MpvResponse{}
 					if strings.Contains(line, "time-pos") {
 						resp.Data = 10.5
 					} else if strings.Contains(line, "duration") {

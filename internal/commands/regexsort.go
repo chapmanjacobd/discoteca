@@ -8,8 +8,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 )
 
 type RegexSortCmd struct {
@@ -25,7 +26,7 @@ type RegexSortCmd struct {
 }
 
 func (c *RegexSortCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags: c.CoreFlags,
 		TextFlags: models.TextFlags{
@@ -71,12 +72,12 @@ func (c *RegexSortCmd) Run(ctx context.Context) error {
 		sentenceStrings := make([]string, len(lines))
 		mapping := make(map[string][]string, len(lines))
 		for i, line := range lines {
-			sentence := utils.PathToSentence(line)
+			sentence := textutil.PathToSentence(line)
 			sentenceStrings[i] = sentence
 			mapping[sentence] = append(mapping[sentence], line)
 		}
 
-		sortedSentences := utils.TextProcessor(flags, sentenceStrings)
+		sortedSentences := textutil.TextProcessor(flags, sentenceStrings)
 		seen := make(map[string]int, len(mapping))
 		for _, s := range sortedSentences {
 			idx := seen[s]
@@ -86,7 +87,7 @@ func (c *RegexSortCmd) Run(ctx context.Context) error {
 			}
 		}
 	} else {
-		processedLines = utils.TextProcessor(flags, lines)
+		processedLines = textutil.TextProcessor(flags, lines)
 	}
 
 	var writer *bufio.Writer

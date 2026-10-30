@@ -1,15 +1,9 @@
 package models
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"log/slog"
-	"os"
 	"sort"
 	"strings"
-
-	"github.com/chapmanjacobd/discoteca/internal/db"
 )
 
 // CoreFlags are essential flags shared across most binaries/commands
@@ -112,11 +106,11 @@ type SortFlags struct {
 	//   "default"  - xklb order for media, DU order for folders
 	//   "path"     - literal path order
 	//   other      - a single field or a comma-separated multi-field config
-	SortBy  string `help:"Sort by field (default, path, or a column)"                                default:"default" short:"u" group:"Sort"`
-	Reverse bool   `help:"Reverse sort order"                                                                        short:"V" group:"Sort"`
-	NatSort bool   `help:"Use natural sorting"                                                                       short:"n" group:"Sort"`
-	Random  bool   `help:"Random order"                                                                              short:"r" group:"Sort"`
-	ReRank  string `help:"Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)"                short:"k" group:"Sort" alias:"rerank"`
+	SortBy  string `help:"Sort by field (default, path, or a column)"                                 default:"default" short:"u" group:"Sort"`
+	Reverse bool   `help:"Reverse sort order"                                                                           short:"V" group:"Sort"`
+	NatSort bool   `help:"Use natural sorting"                                                                          short:"n" group:"Sort"`
+	Random  bool   `help:"Random order"                                                                                 short:"r" group:"Sort"`
+	ReRank  string `help:"Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)"                   short:"k" group:"Sort" alias:"rerank"`
 
 	// RandomSeed makes a random order stable across paginated requests. The web
 	// client generates and sends this value while the user has Random selected.
@@ -128,9 +122,9 @@ type SortFlags struct {
 }
 
 type DisplayFlags struct {
-	Columns   []string `help:"Columns to display"                                     short:"c" group:"Display"`
-	JSON      bool     `help:"Output results as JSON"                                 short:"j" group:"Display"`
-	Summarize bool     `help:"Print aggregate statistics"                                       group:"Display"`
+	Columns   []string `help:"Columns to display"         short:"c" group:"Display"`
+	JSON      bool     `help:"Output results as JSON"     short:"j" group:"Display"`
+	Summarize bool     `help:"Print aggregate statistics"           group:"Display"`
 }
 
 var validMediaColumns = map[string]bool{
@@ -202,13 +196,13 @@ type TextFlags struct {
 // TextProcessingFlags are the text-processor options exposed by regex-sort.
 // RegexSort itself is omitted because that command always regex-sorts.
 type TextProcessingFlags struct {
-	Regexs     []string `help:"Regex patterns for line splitting"         alias:"re" group:"Text"`
-	WordSorts  []string `help:"Word sorting strategies"                              group:"Text"`
-	LineSorts  []string `help:"Line sorting strategies"                              group:"Text"`
-	Preprocess bool     `help:"Remove junk common to filenames and URLs"             group:"Text" default:"true"`
-	StopWords  []string `help:"List of words to ignore"                              group:"Text"`
-	Duplicates *bool    `help:"Filter for duplicate words (true/false)"              group:"Text"`
-	UniqueOnly *bool    `help:"Filter for unique words (true/false)"                 group:"Text"`
+	Regexs     []string `help:"Regex patterns for line splitting"        alias:"re" group:"Text"`
+	WordSorts  []string `help:"Word sorting strategies"                             group:"Text"`
+	LineSorts  []string `help:"Line sorting strategies"                             group:"Text"`
+	Preprocess bool     `help:"Remove junk common to filenames and URLs"            group:"Text" default:"true"`
+	StopWords  []string `help:"List of words to ignore"                             group:"Text"`
+	Duplicates *bool    `help:"Filter for duplicate words (true/false)"             group:"Text"`
+	UniqueOnly *bool    `help:"Filter for unique words (true/false)"                group:"Text"`
 }
 
 // DuplicateFilterFlags are the corpus filters used by cluster-sort.
@@ -218,19 +212,19 @@ type DuplicateFilterFlags struct {
 }
 
 type SimilarityFlags struct {
-	Similar         bool    `help:"Find similar files or folders"                group:"Similarity"`
-	SizesDelta      float64 `help:"Size difference threshold (%)"                group:"Similarity" default:"10.0"`
-	CountsDelta     float64 `help:"File count difference threshold (%)"          group:"Similarity" default:"3.0"`
-	DurationsDelta  float64 `help:"Duration difference threshold (%)"            group:"Similarity" default:"5.0"`
-	FilterNames     bool    `help:"Cluster by name similarity"                   group:"Similarity"`
-	FilterSizes     bool    `help:"Cluster by size similarity"                   group:"Similarity"`
-	FilterCounts    bool    `help:"Cluster by count similarity"                  group:"Similarity"`
-	FilterDurations bool    `help:"Cluster by duration similarity"               group:"Similarity"`
-	TotalSizes      bool    `help:"Compare total sizes (folders only)"           group:"Similarity"`
-	TotalDurations  bool    `help:"Compare total durations (folders only)"       group:"Similarity"`
-	NameFullPath    bool    `help:"Match folder names using full paths"          group:"Similarity"`
-	OnlyDuplicates  bool    `help:"Only show duplicate items"                    group:"Similarity"`
-	OnlyOriginals   bool    `help:"Only show original items"                     group:"Similarity"`
+	Similar         bool    `help:"Find similar files or folders"          group:"Similarity"`
+	SizesDelta      float64 `help:"Size difference threshold (%)"          group:"Similarity" default:"10.0"`
+	CountsDelta     float64 `help:"File count difference threshold (%)"    group:"Similarity" default:"3.0"`
+	DurationsDelta  float64 `help:"Duration difference threshold (%)"      group:"Similarity" default:"5.0"`
+	FilterNames     bool    `help:"Cluster by name similarity"             group:"Similarity"`
+	FilterSizes     bool    `help:"Cluster by size similarity"             group:"Similarity"`
+	FilterCounts    bool    `help:"Cluster by count similarity"            group:"Similarity"`
+	FilterDurations bool    `help:"Cluster by duration similarity"         group:"Similarity"`
+	TotalSizes      bool    `help:"Compare total sizes (folders only)"     group:"Similarity"`
+	TotalDurations  bool    `help:"Compare total durations (folders only)" group:"Similarity"`
+	NameFullPath    bool    `help:"Match folder names using full paths"    group:"Similarity"`
+	OnlyDuplicates  bool    `help:"Only show duplicate items"              group:"Similarity"`
+	OnlyOriginals   bool    `help:"Only show original items"               group:"Similarity"`
 }
 
 type DedupeFlags struct {
@@ -319,16 +313,16 @@ type HashingFlags struct {
 }
 
 type MergeFlags struct {
-	OnlyTables        []string `help:"Comma separated specific table(s)"       short:"t" group:"Merge"`
-	PrimaryKeys       []string `help:"Comma separated primary keys"                      group:"Merge"`
-	BusinessKeys      []string `help:"Comma separated business keys"                     group:"Merge"`
-	Upsert            bool     `help:"Upsert rows on conflict"                           group:"Merge"`
-	Ignore            bool     `help:"Ignore rows on conflict (only-new-rows)"           group:"Merge"`
-	OnlyNewRows       bool     `                                                                       kong:"-"` // Derived from Ignore
-	OnlyTargetColumns bool     `help:"Only copy columns that exist in target"            group:"Merge"`
-	SkipColumns       []string `help:"Columns to skip during merge"                      group:"Merge"`
-	WhereMedia        []string `help:"SQL where clause(s) applied to the media table"   group:"Merge" short:"w" name:"where"`
-	WhereTable        []string `help:"Per-table WHERE clause TABLE=CLAUSE (repeatable)"  group:"Merge"`
+	OnlyTables        []string `help:"Comma separated specific table(s)"                short:"t" group:"Merge"`
+	PrimaryKeys       []string `help:"Comma separated primary keys"                               group:"Merge"`
+	BusinessKeys      []string `help:"Comma separated business keys"                              group:"Merge"`
+	Upsert            bool     `help:"Upsert rows on conflict"                                    group:"Merge"`
+	Ignore            bool     `help:"Ignore rows on conflict (only-new-rows)"                    group:"Merge"`
+	OnlyNewRows       bool     `                                                                                kong:"-"` // Derived from Ignore
+	OnlyTargetColumns bool     `help:"Only copy columns that exist in target"                     group:"Merge"`
+	SkipColumns       []string `help:"Columns to skip during merge"                               group:"Merge"`
+	WhereMedia        []string `help:"SQL where clause(s) applied to the media table"   short:"w" group:"Merge"          name:"where"`
+	WhereTable        []string `help:"Per-table WHERE clause TABLE=CLAUSE (repeatable)"           group:"Merge"`
 
 	whereByTable map[string]string
 }
@@ -436,101 +430,6 @@ func (m *MergeFlags) WhereTableNames() []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// Logger interface for structured logging
-type Logger interface {
-	Info(msg string, args ...any)
-	Debug(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-	With(args ...any) Logger
-}
-
-var Log Logger
-
-func SetupLogging(verbosity int) {
-	// Create handler with appropriate level
-	var level slog.Level
-	if verbosity >= 2 {
-		level = slog.LevelDebug
-		db.SetDebugMode(true)
-	} else if verbosity == 1 {
-		level = slog.LevelInfo
-	} else {
-		// Default to Warn (hides Info and Debug, shows Warn and Error)
-		level = slog.LevelWarn
-	}
-
-	// Use a simple slog logger as default
-	handler := &plainHandler{
-		level: level,
-		out:   os.Stderr,
-	}
-	logger := slog.New(handler)
-	Log = &slogLogger{logger}
-}
-
-// plainHandler implements [slog.Handler] with plain output
-type plainHandler struct {
-	level slog.Level
-	out   io.Writer
-	attrs []slog.Attr
-}
-
-func (h *plainHandler) Enabled(_ context.Context, level slog.Level) bool {
-	return level >= h.level
-}
-
-func (h *plainHandler) Handle(_ context.Context, r slog.Record) error {
-	var msg strings.Builder
-	msg.WriteString(r.Message)
-	for _, a := range h.attrs {
-		fmt.Fprintf(&msg, "\n    %s=%v", a.Key, a.Value.Any())
-	}
-	r.Attrs(func(a slog.Attr) bool {
-		fmt.Fprintf(&msg, "\n    %s=%v", a.Key, a.Value.Any())
-		return true
-	})
-	_, err := fmt.Fprintln(h.out, msg.String())
-	return err
-}
-
-func (h *plainHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &plainHandler{
-		level: h.level,
-		out:   h.out,
-		attrs: append(h.attrs, attrs...),
-	}
-}
-
-func (h *plainHandler) WithGroup(_ string) slog.Handler {
-	return h
-}
-
-// slogLogger wraps [slog.Logger] and implements Logger interface
-type slogLogger struct {
-	*slog.Logger
-}
-
-func (l *slogLogger) Info(msg string, args ...any) {
-	l.Logger.Info(msg, args...)
-}
-
-func (l *slogLogger) Debug(msg string, args ...any) {
-	l.Logger.Debug(msg, args...)
-}
-
-func (l *slogLogger) Warn(msg string, args ...any) {
-	l.Logger.Warn(msg, args...)
-}
-
-func (l *slogLogger) Error(msg string, args ...any) {
-	l.Logger.Error(msg, args...)
-}
-
-func (l *slogLogger) With(args ...any) Logger {
-	return &slogLogger{l.Logger.With(args...)}
 }
 
 // BuildQueryOptions contains all flags needed to build GlobalFlags

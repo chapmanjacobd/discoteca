@@ -1,0 +1,50 @@
+package server_test
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+
+	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/server"
+)
+
+func TestServeExtended_Filters(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_filters.db")
+
+	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	db.InitDB(context.Background(), sqlDB)
+	// Add diverse test data
+	sqlDB.Exec(`INSERT INTO media (path, media_type, size, time_deleted) VALUES ('/v1.mp4', 'video', 100, 0)`)
+	sqlDB.Exec(`INSERT INTO media (path, media_type, size, time_deleted) VALUES ('/a1.mp3', 'audio', 200, 0)`)
+	sqlDB.Close()
+
+	cmd := &server.Server{
+		Databases: []string{dbPath},
+	}
+	defer cmd.Close()
+	mux := cmd.Mux()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/filter-bins?db="+dbPath, nil)
+	req.Header.Set("X-Disco-Token", cmd.APIToken)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+	}
+
+	var bins map[string]any
+	json.NewDecoder(w.Body).Decode(&bins)
+
+	if bins["media_type"] == nil {
+		t.Error("Expected media_type bins to be present")
+	}
+}

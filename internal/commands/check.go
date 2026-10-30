@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type CheckCmd struct {
@@ -72,7 +73,7 @@ func (c *CheckCmd) buildPresenceSet(allowEmptyRoots bool) (map[string]bool, []st
 		}
 
 		absCheckPaths = append(absCheckPaths, absRoot)
-		models.Log.Info("Scanning filesystem for presence set", "path", absRoot)
+		logging.Log.Info("Scanning filesystem for presence set", "path", absRoot)
 		filesInRoot := 0
 		err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -124,7 +125,7 @@ func (c *CheckCmd) checkMedia(m models.MediaWithDB, presenceSet map[string]bool,
 	}
 
 	// No presence set, fallback to individual Stats
-	return !utils.FileExists(m.Path)
+	return !fileutil.FileExists(m.Path)
 }
 
 func (c *CheckCmd) checkDatabase(
@@ -152,7 +153,7 @@ func (c *CheckCmd) checkDatabase(
 		return err
 	}
 
-	models.Log.Info("Checking files", "count", len(allMedia), "database", dbPath)
+	logging.Log.Info("Checking files", "count", len(allMedia), "database", dbPath)
 
 	missingCount := 0
 	now := time.Now().Unix()
@@ -161,12 +162,12 @@ func (c *CheckCmd) checkDatabase(
 		if c.checkMedia(m, presenceSet, absCheckPaths) {
 			missingCount++
 			if !c.DryRun {
-				models.Log.Debug("Marking missing file as deleted", "path", m.Path)
+				logging.Log.Debug("Marking missing file as deleted", "path", m.Path)
 				if err := queries.MarkDeleted(ctx, db.MarkDeletedParams{
 					TimeDeleted: sql.NullInt64{Int64: now, Valid: true},
 					Path:        m.Path,
 				}); err != nil {
-					models.Log.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
+					logging.Log.Error("Failed to mark file as deleted", "path", m.Path, "error", err)
 				}
 			} else {
 				fmt.Printf("[Dry-run] Missing: %s\n", m.Path)
@@ -175,11 +176,11 @@ func (c *CheckCmd) checkDatabase(
 	}
 
 	if c.DryRun {
-		models.Log.Info("Check complete (dry-run)", "missing", missingCount)
+		logging.Log.Info("Check complete (dry-run)", "missing", missingCount)
 	} else {
-		models.Log.Info("Check complete", "marked_deleted", missingCount)
+		logging.Log.Info("Check complete", "marked_deleted", missingCount)
 		if missingCount > 0 {
-			models.Log.Info("Refreshing folder_stats and FTS after marking files deleted...")
+			logging.Log.Info("Refreshing folder_stats and FTS after marking files deleted...")
 			_ = db.RefreshFolderStats(ctx, sqlDB)
 			_ = db.RebuildFTS(ctx, sqlDB, dbPath)
 		}
@@ -188,8 +189,8 @@ func (c *CheckCmd) checkDatabase(
 }
 
 func (c *CheckCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
-	c.CheckPaths = utils.ExpandStdin(c.CheckPaths)
+	logging.SetupLogging(c.Verbose)
+	c.CheckPaths = fileutil.ExpandStdin(c.CheckPaths)
 
 	presenceSet, absCheckPaths, err := c.buildPresenceSet(false)
 	if err != nil {

@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type SearchDBCmd struct {
@@ -33,7 +34,7 @@ type SearchDBCmd struct {
 }
 
 func (c *SearchDBCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	sqlDB, _, err := db.ConnectWithInit(ctx, c.Database)
 	if err != nil {
@@ -376,7 +377,7 @@ func (c *SearchDBCmd) printRows(ctx context.Context, sqlDB *sql.DB, table string
 	}
 
 	if c.JSON {
-		return utils.PrintJSON(allResults)
+		return fileutil.PrintJSON(allResults)
 	}
 
 	if len(allResults) > 0 {

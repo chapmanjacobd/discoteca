@@ -12,10 +12,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chapmanjacobd/discoteca/internal/config"
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
 	"github.com/chapmanjacobd/discoteca/internal/history"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -58,11 +64,11 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 
 	for _, m := range media {
 		if flags.ActionLimit > 0 && count >= flags.ActionLimit {
-			models.Log.Info("Action limit reached", "limit", flags.ActionLimit)
+			logging.Log.Info("Action limit reached", "limit", flags.ActionLimit)
 			break
 		}
 		if sizeLimit > 0 && totalSize >= sizeLimit {
-			models.Log.Info("Action size limit reached", "limit", flags.ActionSize)
+			logging.Log.Info("Action size limit reached", "limit", flags.ActionSize)
 			break
 		}
 
@@ -89,11 +95,11 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 		case "copy":
 			err = CopyMediaItem(flags.CopyTo, m)
 		case "trash":
-			err = utils.Trash(ctx, flags, m.Path)
+			err = fileutil.Trash(ctx, flags, m.Path)
 		}
 
 		if err != nil {
-			models.Log.Error("Post-action failed", "path", m.Path, "error", err)
+			logging.Log.Error("Post-action failed", "path", m.Path, "error", err)
 		} else {
 			count++
 			totalSize += size
@@ -102,9 +108,9 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 
 	if count > 0 {
 		if simulate {
-			fmt.Printf("\n(dry run) would %s %d files (%s total)\n", action, count, utils.FormatSize(totalSize))
+			fmt.Printf("\n(dry run) would %s %d files (%s total)\n", action, count, formatutil.FormatSize(totalSize))
 		} else {
-			fmt.Printf("\n%s %d files (%s total)\n", action, count, utils.FormatSize(totalSize))
+			fmt.Printf("\n%s %d files (%s total)\n", action, count, formatutil.FormatSize(totalSize))
 		}
 	}
 
@@ -170,7 +176,7 @@ func RunExitCommand(ctx context.Context, flags models.GlobalFlags, exitCode int,
 	// Replace {} with path
 	cmdStr = strings.ReplaceAll(cmdStr, "{}", shellquote.ShellQuote(path))
 
-	models.Log.Info("Running exit command", "code", exitCode, "command", cmdStr)
+	logging.Log.Info("Running exit command", "code", exitCode, "command", cmdStr)
 	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -178,7 +184,7 @@ func RunExitCommand(ctx context.Context, flags models.GlobalFlags, exitCode int,
 }
 
 func DeleteMediaItem(m models.MediaWithDB) error {
-	if utils.FileExists(m.Path) {
+	if fileutil.FileExists(m.Path) {
 		if err := os.Remove(m.Path); err != nil {
 			return err
 		}
@@ -207,12 +213,12 @@ func MoveMediaItem(ctx context.Context, destDir string, m models.MediaWithDB) er
 		return err
 	}
 
-	if !utils.FileExists(m.Path) {
+	if !fileutil.FileExists(m.Path) {
 		return errors.New("file not found")
 	}
 
 	dest := filepath.Join(destDir, filepath.Base(m.Path))
-	if err := utils.MoveFile(m.Path, dest); err != nil {
+	if err := fileutil.MoveFile(m.Path, dest); err != nil {
 		return err
 	}
 
@@ -226,7 +232,7 @@ func MoveMediaItem(ctx context.Context, destDir string, m models.MediaWithDB) er
 		ctx,
 		"UPDATE media SET path = ?, path_tokenized = ? WHERE path = ?",
 		dest,
-		utils.PathToTokenized(dest),
+		textutil.PathToTokenized(dest),
 		m.Path,
 	)
 	if err == nil {
@@ -240,7 +246,7 @@ func CopyMediaItem(destDir string, m models.MediaWithDB) error {
 		return err
 	}
 
-	if !utils.FileExists(m.Path) {
+	if !fileutil.FileExists(m.Path) {
 		return errors.New("file not found")
 	}
 
@@ -271,21 +277,21 @@ func CopyMediaItem(destDir string, m models.MediaWithDB) error {
 func CastPlay(ctx context.Context, flags models.GlobalFlags, media []models.MediaWithDB, audioOnly bool) error {
 	for _, m := range media {
 		if err := castSingleMedia(ctx, flags, m, audioOnly); err != nil {
-			models.Log.Error("Failed to cast media", "path", m.Path, "error", err)
+			logging.Log.Error("Failed to cast media", "path", m.Path, "error", err)
 		}
 	}
-	os.Remove(utils.GetCattNowPlayingFile())
+	os.Remove(config.GetCattNowPlayingFile())
 	return nil
 }
 
 func castSingleMedia(ctx context.Context, flags models.GlobalFlags, m models.MediaWithDB, audioOnly bool) error {
-	if !utils.FileExists(m.Path) {
+	if !fileutil.FileExists(m.Path) {
 		return nil
 	}
 
-	models.Log.Info("Casting", "path", m.Path)
-	if err := os.WriteFile(utils.GetCattNowPlayingFile(), []byte(m.Path), 0o644); err != nil {
-		models.Log.Warn("Failed to write now-playing file", "error", err)
+	logging.Log.Info("Casting", "path", m.Path)
+	if err := os.WriteFile(config.GetCattNowPlayingFile(), []byte(m.Path), 0o644); err != nil {
+		logging.Log.Warn("Failed to write now-playing file", "error", err)
 	}
 
 	args := []string{"catt"}
@@ -300,7 +306,7 @@ func castSingleMedia(ctx context.Context, flags models.GlobalFlags, m models.Med
 		// Convert start time to seconds if needed
 		seconds := flags.Start
 		if strings.Contains(flags.Start, ":") {
-			seconds = strconv.FormatInt(int64(utils.FromTimestampSeconds(flags.Start)), 10)
+			seconds = strconv.FormatInt(int64(textutil.FromTimestampSeconds(flags.Start)), 10)
 		}
 		args = append(args, "--seek-to", seconds)
 	}
@@ -337,7 +343,7 @@ func castSingleMedia(ctx context.Context, flags models.GlobalFlags, m models.Med
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			models.Log.Error("catt failed", "error", err)
+			logging.Log.Error("catt failed", "error", err)
 		}
 	}
 
@@ -350,9 +356,9 @@ func castSingleMedia(ctx context.Context, flags models.GlobalFlags, m models.Med
 		if m.Playhead != nil {
 			existingPlayhead = int(*m.Playhead)
 		}
-		playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
+		playhead := media.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
 		if err := history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false); err != nil {
-			models.Log.Warn("Failed to update history", "error", err)
+			logging.Log.Warn("Failed to update history", "error", err)
 		}
 	}
 	return nil

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -28,7 +30,7 @@ func PrintMedia(flags models.DisplayFlags, columns []string, media []models.Medi
 		return err
 	}
 	if flags.JSON {
-		return utils.PrintJSON(media)
+		return fileutil.PrintJSON(media)
 	}
 
 	if len(columns) == 0 {
@@ -47,15 +49,15 @@ func PrintMedia(flags models.DisplayFlags, columns []string, media []models.Medi
 			case "title":
 				row = append(row, utils.StringValue(m.Title))
 			case "duration":
-				row = append(row, utils.FormatDuration(int(utils.Int64Value(m.Duration))))
+				row = append(row, formatutil.FormatDuration(int(utils.Int64Value(m.Duration))))
 			case "size":
-				row = append(row, utils.FormatSize(utils.Int64Value(m.Size)))
+				row = append(row, formatutil.FormatSize(utils.Int64Value(m.Size)))
 			case "play_count":
 				row = append(row, strconv.FormatInt(utils.Int64Value(m.PlayCount), 10))
 			case "playhead":
-				row = append(row, utils.FormatDuration(int(utils.Int64Value(m.Playhead))))
+				row = append(row, formatutil.FormatDuration(int(utils.Int64Value(m.Playhead))))
 			case "time_last_played":
-				row = append(row, utils.FormatTime(utils.Int64Value(m.TimeLastPlayed)))
+				row = append(row, formatutil.FormatTime(utils.Int64Value(m.TimeLastPlayed)))
 			case "db":
 				row = append(row, filepath.Base(m.DB))
 			}
@@ -72,7 +74,7 @@ func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.
 		return err
 	}
 	if flags.JSON {
-		return utils.PrintJSON(folders)
+		return fileutil.PrintJSON(folders)
 	}
 
 	if len(columns) == 0 {
@@ -96,17 +98,17 @@ func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.
 			case "played_count":
 				row = append(row, strconv.Itoa(f.PlayedCount))
 			case "size":
-				row = append(row, utils.FormatSize(f.TotalSize))
+				row = append(row, formatutil.FormatSize(f.TotalSize))
 			case "duration":
-				row = append(row, utils.FormatDuration(int(f.TotalDuration)))
+				row = append(row, formatutil.FormatDuration(int(f.TotalDuration)))
 			case "avg_size":
-				row = append(row, utils.FormatSize(f.AvgSize))
+				row = append(row, formatutil.FormatSize(f.AvgSize))
 			case "avg_duration":
-				row = append(row, utils.FormatDuration(int(f.AvgDuration)))
+				row = append(row, formatutil.FormatDuration(int(f.AvgDuration)))
 			case "median_size":
-				row = append(row, utils.FormatSize(f.MedianSize))
+				row = append(row, formatutil.FormatSize(f.MedianSize))
 			case "median_duration":
-				row = append(row, utils.FormatDuration(int(f.MedianDuration)))
+				row = append(row, formatutil.FormatDuration(int(f.MedianDuration)))
 			case "folder_count":
 				row = append(row, strconv.Itoa(f.FolderCount))
 			}
@@ -134,7 +136,7 @@ func InteractiveDecision(ctx context.Context, flags models.GlobalFlags, m models
 	case "d":
 		return DeleteMediaItem(m)
 	case "t":
-		return utils.Trash(ctx, flags, m.Path)
+		return fileutil.Trash(ctx, flags, m.Path)
 	case "m":
 		return MarkDeletedItem(ctx, m)
 	case "q":

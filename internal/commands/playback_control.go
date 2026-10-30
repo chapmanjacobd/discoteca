@@ -8,7 +8,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chapmanjacobd/discoteca/internal/config"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/media"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -21,18 +26,18 @@ type NowCmd struct {
 }
 
 func (c *NowCmd) Run(ctx context.Context) error {
-	cattFile := utils.GetCattNowPlayingFile()
-	if utils.FileExists(cattFile) {
+	cattFile := config.GetCattNowPlayingFile()
+	if fileutil.FileExists(cattFile) {
 		data, err := os.ReadFile(cattFile)
 		if err == nil {
 			fmt.Printf("Now Playing (Chromecast): %s\n", string(data))
 		}
 	}
 
-	socketPath := utils.GetMpvSocketPath(c.MpvSocket)
-	pathResp, err := utils.MpvCall(ctx, socketPath, "get_property", "path")
+	socketPath := media.GetMpvSocketPath(c.MpvSocket)
+	pathResp, err := media.MpvCall(ctx, socketPath, "get_property", "path")
 	if err != nil {
-		if !utils.FileExists(cattFile) {
+		if !fileutil.FileExists(cattFile) {
 			return errors.New("no playback detected (mpv or chromecast)")
 		}
 		return nil
@@ -41,22 +46,22 @@ func (c *NowCmd) Run(ctx context.Context) error {
 	path := utils.GetString(pathResp.Data)
 	fmt.Printf("Now Playing: %s\n", path)
 
-	posResp, err := utils.MpvCall(ctx, socketPath, "get_property", "time-pos")
+	posResp, err := media.MpvCall(ctx, socketPath, "get_property", "time-pos")
 	if err == nil && posResp.Data != nil {
 		pos := 0.0
 		if v, ok := posResp.Data.(float64); ok {
 			pos = v
 		}
-		fmt.Printf("    Playhead: %s\n", utils.SecondsToHHMMSS(int64(pos)))
+		fmt.Printf("    Playhead: %s\n", formatutil.SecondsToHHMMSS(int64(pos)))
 	}
 
-	durResp, err := utils.MpvCall(ctx, socketPath, "get_property", "duration")
+	durResp, err := media.MpvCall(ctx, socketPath, "get_property", "duration")
 	if err == nil && durResp.Data != nil {
 		dur := 0.0
 		if v, ok := durResp.Data.(float64); ok {
 			dur = v
 		}
-		fmt.Printf("    Duration: %s\n", utils.SecondsToHHMMSS(int64(dur)))
+		fmt.Printf("    Duration: %s\n", formatutil.SecondsToHHMMSS(int64(dur)))
 	}
 
 	return nil
@@ -121,7 +126,7 @@ func (c *SeekCmd) Run(ctx context.Context) error {
 
 	var seconds float64
 	if strings.Contains(s, ":") {
-		seconds = utils.FromTimestampSeconds(s)
+		seconds = textutil.FromTimestampSeconds(s)
 	} else {
 		f := utils.SafeFloat(s)
 		if f == nil {

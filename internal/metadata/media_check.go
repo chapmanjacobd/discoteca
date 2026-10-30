@@ -11,7 +11,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/chapmanjacobd/discoteca/internal/utils"
+	"github.com/chapmanjacobd/discoteca/internal/media"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 )
 
 func DecodeQuickScan(ctx context.Context, path string, scans []float64, scanDuration float64) (float64, error) {
@@ -97,7 +98,7 @@ type ffprobeCorruptionOutput struct {
 }
 
 func DecodeFullScan(ctx context.Context, path string) (float64, error) {
-	cmd := utils.FFProbeCountFrames(ctx, path)
+	cmd := media.FFProbeCountFrames(ctx, path)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -114,7 +115,7 @@ func DecodeFullScan(ctx context.Context, path string) (float64, error) {
 	}
 
 	stream := data.Streams[0]
-	fpsParts := utils.SplitAndTrim(stream.RFrameRate, "/")
+	fpsParts := textutil.SplitAndTrim(stream.RFrameRate, "/")
 	if len(fpsParts) != 2 {
 		return 0, fmt.Errorf("invalid frame rate: %s", stream.RFrameRate)
 	}

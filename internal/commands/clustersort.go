@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/aggregate"
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type ClusterSortCmd struct {
@@ -23,7 +24,7 @@ type ClusterSortCmd struct {
 }
 
 func (c *ClusterSortCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	var lines []string
 	var scanner *bufio.Scanner
@@ -69,7 +70,7 @@ func (c *ClusterSortCmd) Run(ctx context.Context) error {
 	}
 
 	if c.JSON {
-		return utils.PrintJSON(groups)
+		return fileutil.PrintJSON(groups)
 	}
 
 	var writer *bufio.Writer

@@ -19,7 +19,11 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
-	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/formatutil"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
+	"github.com/chapmanjacobd/discoteca/internal/media"
+	"github.com/chapmanjacobd/discoteca/internal/reading"
+	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -124,16 +128,16 @@ func Extract(ctx context.Context, path string, opts ExtractOptions) (*MediaMetad
 }
 
 func detectMediaType(ext string) string {
-	if utils.TextExtensionMap[ext] || utils.ComicExtensionMap[ext] || utils.ArchiveExtensionMap[ext] {
+	if media.TextExtensionMap[ext] || media.ComicExtensionMap[ext] || media.ArchiveExtensionMap[ext] {
 		return "text"
 	}
-	if utils.ImageExtensionMap[ext] {
+	if media.ImageExtensionMap[ext] {
 		return "image"
 	}
-	if utils.AudioExtensionMap[ext] {
+	if media.AudioExtensionMap[ext] {
 		return "audio"
 	}
-	if utils.VideoExtensionMap[ext] {
+	if media.VideoExtensionMap[ext] {
 		return "video"
 	}
 	return ""
@@ -142,7 +146,7 @@ func detectMediaType(ext string) string {
 func buildBasicParams(path string, stat os.FileInfo, mediaType string) db.UpsertMediaParams {
 	return db.UpsertMediaParams{
 		Path:           path,
-		PathTokenized:  utils.ToNullString(utils.PathToTokenized(path)),
+		PathTokenized:  utils.ToNullString(textutil.PathToTokenized(path)),
 		Size:           utils.ToNullInt64(stat.Size()),
 		TimeCreated:    utils.ToNullInt64(stat.ModTime().Unix()),
 		TimeModified:   utils.ToNullInt64(stat.ModTime().Unix()),
@@ -170,27 +174,27 @@ func handleTextFile(ctx context.Context, p textFileParams) {
 	}
 	p.result.Media = *p.params
 
-	if utils.ComicExtensionMap[p.ext] && p.opts.OCR {
+	if media.ComicExtensionMap[p.ext] && p.opts.OCR {
 		extractComicText(ctx, p.path, p.opts.OCREngine, p.result)
-	} else if p.opts.ExtractText && !utils.ComicExtensionMap[p.ext] {
+	} else if p.opts.ExtractText && !media.ComicExtensionMap[p.ext] {
 		extractDocumentTextToCaptions(ctx, p.path, p.result)
 	}
 }
 
 func setTextDuration(ctx context.Context, path string, stat os.FileInfo, params *db.UpsertMediaParams) {
-	wordCount, err := utils.QuickWordCount(ctx, path, stat.Size())
+	wordCount, err := reading.QuickWordCount(ctx, path, stat.Size())
 	if err != nil || wordCount <= 0 {
 		d := int64(float64(stat.Size())/4.2/220*60) + 10
 		params.Duration = utils.ToNullInt64(d)
 	} else {
-		params.Duration = utils.ToNullInt64(utils.EstimateReadingDuration(wordCount))
+		params.Duration = utils.ToNullInt64(reading.EstimateReadingDuration(wordCount))
 	}
 }
 
 func extractComicText(ctx context.Context, path, engine string, result *MediaMetadata) {
 	captions, err := ExtractImageTextFromComicArchive(ctx, path, engine)
 	if err != nil {
-		models.Log.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
+		logging.Log.Warn("Comic archive OCR extraction failed", "path", path, "error", err)
 	} else {
 		result.Captions = captions
 	}
@@ -199,7 +203,7 @@ func extractComicText(ctx context.Context, path, engine string, result *MediaMet
 func extractDocumentTextToCaptions(ctx context.Context, path string, result *MediaMetadata) {
 	captions, err := extractDocumentText(ctx, path)
 	if err != nil {
-		models.Log.Warn("Document text extraction failed", "path", path, "error", err)
+		logging.Log.Warn("Document text extraction failed", "path", path, "error", err)
 	} else {
 		result.Captions = captions
 	}
@@ -208,7 +212,7 @@ func extractDocumentTextToCaptions(ctx context.Context, path string, result *Med
 func extractImageOCRCaptions(ctx context.Context, path, engine string, result *MediaMetadata) {
 	captions, err := extractImageText(ctx, path, engine)
 	if err != nil {
-		models.Log.Warn("Image OCR extraction failed", "path", path, "error", err)
+		logging.Log.Warn("Image OCR extraction failed", "path", path, "error", err)
 	} else {
 		result.Captions = captions
 	}
@@ -217,7 +221,7 @@ func extractImageOCRCaptions(ctx context.Context, path, engine string, result *M
 func extractSpeechCaptions(ctx context.Context, path, engine string, result *MediaMetadata) {
 	captions, err := ExtractSpeechToText(ctx, path, engine)
 	if err != nil {
-		models.Log.Warn("Speech recognition failed", "path", path, "error", err)
+		logging.Log.Warn("Speech recognition failed", "path", path, "error", err)
 	} else {
 		result.Captions = append(result.Captions, captions...)
 	}
@@ -252,10 +256,10 @@ func extractMediaMetadata(
 	result *MediaMetadata,
 ) (*MediaMetadata, error) {
 	duration := int64(0)
-	cmd := utils.FFProbe(ctx, paramsIn.path, "-analyze_duration", "100000", "-probesize", "500000")
+	cmd := media.FFProbe(ctx, paramsIn.path, "-analyze_duration", "100000", "-probesize", "500000")
 	output, err := cmd.Output()
 	if err != nil {
-		cmdFallback := utils.FFProbe(ctx, paramsIn.path)
+		cmdFallback := media.FFProbe(ctx, paramsIn.path)
 		output, _ = cmdFallback.Output()
 	}
 
@@ -274,10 +278,10 @@ func extractMediaMetadata(
 			sc = processStreams(data.Streams, paramsIn.path, &params)
 			processChapters(data.Chapters, paramsIn.path, result)
 		} else {
-			models.Log.Debug("ffprobe returned invalid JSON", "path", paramsIn.path, "output", string(output))
+			logging.Log.Debug("ffprobe returned invalid JSON", "path", paramsIn.path, "output", string(output))
 		}
 	} else {
-		models.Log.Debug("ffprobe failed to extract metadata (empty output)", "path", paramsIn.path)
+		logging.Log.Debug("ffprobe failed to extract metadata (empty output)", "path", paramsIn.path)
 	}
 
 	if paramsIn.opts.ScanSubtitles {
@@ -287,9 +291,9 @@ func extractMediaMetadata(
 		}, sc.sCount, sc.sCodecs, result)
 	}
 
-	params.VideoCodecs = utils.ToNullString(utils.Combine(sc.vCodecs))
-	params.AudioCodecs = utils.ToNullString(utils.Combine(sc.aCodecs))
-	params.SubtitleCodecs = utils.ToNullString(utils.Combine(sc.sCodecs))
+	params.VideoCodecs = utils.ToNullString(textutil.Combine(sc.vCodecs))
+	params.AudioCodecs = utils.ToNullString(textutil.Combine(sc.aCodecs))
+	params.SubtitleCodecs = utils.ToNullString(textutil.Combine(sc.sCodecs))
 	params.VideoCount = utils.ToNullInt64(sc.vCount)
 	params.AudioCount = utils.ToNullInt64(sc.aCount)
 	params.SubtitleCount = utils.ToNullInt64(sc.sCount)
@@ -339,14 +343,14 @@ func processFormatInfo(
 	if d, err := strconv.ParseFloat(data.Format.Duration, 64); err == nil {
 		*p.duration = int64(d)
 		if *p.duration > 0 && *p.duration < 2678400 {
-			if estimated, shouldOverride := utils.ShouldOverrideDuration(
+			if estimated, shouldOverride := media.ShouldOverrideDuration(
 				float64(*p.duration),
 				p.stat.Size(),
 				p.ext,
 			); shouldOverride {
-				models.Log.Debug("Replacing suspiciously low duration with format-specific estimate",
+				logging.Log.Debug("Replacing suspiciously low duration with format-specific estimate",
 					"path", p.path, "reported", *p.duration, "estimated", int64(estimated),
-					"bitrate", utils.GetEstimatedBitrate(p.ext))
+					"bitrate", media.GetEstimatedBitrate(p.ext))
 				*p.duration = int64(estimated)
 			}
 			p.params.Duration = utils.ToNullInt64(*p.duration)
@@ -376,12 +380,12 @@ func extractFormatTags(tags map[string]string, params *db.UpsertMediaParams) {
 	}
 
 	var extraInfo []string
-	bestDate := utils.SpecificDate(
+	bestDate := formatutil.SpecificDate(
 		tags["originalyear"], tags["TDOR"], tags["TORY"],
 		tags["date"], tags["TDRC"], tags["TDRL"], tags["year"],
 	)
 	if bestDate != nil {
-		extraInfo = append(extraInfo, utils.ToDecade(bestDate.Year()))
+		extraInfo = append(extraInfo, formatutil.ToDecade(bestDate.Year()))
 		if ts := bestDate.Unix(); ts < params.TimeCreated.Int64 {
 			params.TimeCreated = utils.ToNullInt64(ts)
 		}
@@ -514,10 +518,10 @@ func processExternalSubtitles(
 	if !p.scanSubtitles {
 		return sCount, sCodecs
 	}
-	externalSubs := utils.GetExternalSubtitles(p.path)
+	externalSubs := media.GetExternalSubtitles(p.path)
 	for _, sub := range externalSubs {
 		sCount++
-		displayName, _, _ := utils.ExtractSubtitleInfo(sub)
+		displayName, _, _ := media.ExtractSubtitleInfo(sub)
 		if displayName != "" {
 			sCodecs = append(sCodecs, displayName)
 		} else {
@@ -584,7 +588,7 @@ func captionForLine(
 		return captions
 	}
 
-	startTime := utils.FromTimestampSeconds(strings.ReplaceAll(matches[0], ",", "."))
+	startTime := textutil.FromTimestampSeconds(strings.ReplaceAll(matches[0], ",", "."))
 	if startTime < 10.0 {
 		return captions
 	}
@@ -623,7 +627,7 @@ func scanCaptionText(scanner *bufio.Scanner) []string {
 // Each chunk is stored as a caption with time=0 (documents don't have timestamps).
 func extractDocumentText(ctx context.Context, path string) ([]db.InsertCaptionParams, error) {
 	// Use the existing ExtractText utility
-	fullText, err := utils.ExtractText(ctx, path)
+	fullText, err := reading.ExtractText(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -749,7 +753,7 @@ func extractImageText(ctx context.Context, path, engine string) ([]db.InsertCapt
 	// Convert image to PNG if it's in a format that OCR engines might struggle with
 	convertedPath, err := ConvertImageForOCR(ctx, path)
 	if err != nil {
-		models.Log.Warn("Image conversion failed, using original", "path", path, "error", err)
+		logging.Log.Warn("Image conversion failed, using original", "path", path, "error", err)
 		convertedPath = path
 	}
 	if convertedPath != path {
@@ -1105,7 +1109,7 @@ func extractSpeechToTextWhisper(ctx context.Context, path string) ([]db.InsertCa
 func ExtractImageTextFromComicArchive(ctx context.Context, path, ocrEngine string) ([]db.InsertCaptionParams, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
-	if !utils.ComicExtensionMap[ext] {
+	if !media.ComicExtensionMap[ext] {
 		return nil, fmt.Errorf("unsupported archive format: %s", ext)
 	}
 
@@ -1192,7 +1196,7 @@ func processComicPage(
 ) ([]db.InsertCaptionParams, error) {
 	rc, err := params.Reader.File[params.ImageFile.idx].Open()
 	if err != nil {
-		models.Log.Warn(
+		logging.Log.Warn(
 			"Failed to open image in archive",
 			"archive",
 			params.ArchivePath,
@@ -1208,7 +1212,7 @@ func processComicPage(
 	// Extract image to temp file for OCR processing
 	tmpFile, err2 := os.CreateTemp("", "comic-ocr-*.img")
 	if err2 != nil {
-		models.Log.Warn("Failed to create temp file for OCR", "error", err2)
+		logging.Log.Warn("Failed to create temp file for OCR", "error", err2)
 		return nil, err2
 	}
 	tmpPath := tmpFile.Name()
@@ -1216,14 +1220,14 @@ func processComicPage(
 	defer tmpFile.Close()
 
 	if _, err2 := io.Copy(tmpFile, rc); err2 != nil {
-		models.Log.Warn("Failed to extract image for OCR", "error", err2)
+		logging.Log.Warn("Failed to extract image for OCR", "error", err2)
 		return nil, err2
 	}
 
 	// Run OCR on the extracted image
 	captions, err := extractImageText(ctx, tmpPath, params.OCREngine)
 	if err != nil {
-		models.Log.Warn(
+		logging.Log.Warn(
 			"OCR failed on comic page",
 			"archive",
 			params.ArchivePath,
@@ -1309,7 +1313,7 @@ func extractImageTextFromCBR(ctx context.Context, path, ocrEngine string) ([]db.
 	for pageNum, imgPath := range imageFiles {
 		captions, err := extractImageText(ctx, imgPath, ocrEngine)
 		if err != nil {
-			models.Log.Warn("OCR failed on comic page", "archive", path, "page", imgPath, "error", err)
+			logging.Log.Warn("OCR failed on comic page", "archive", path, "page", imgPath, "error", err)
 			continue
 		}
 

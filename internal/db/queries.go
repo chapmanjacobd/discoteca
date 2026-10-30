@@ -12,7 +12,7 @@ import (
 const mediaColumns = "path, path_tokenized, title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score"
 
 // SubtitlePathExclusion filters sidecar subtitle files out of aggregate
-// queries. Keep in sync with utils.SubtitleExtensions.
+// queries. Keep in sync with media.SubtitleExtensions.
 const SubtitlePathExclusion = "LOWER(path) NOT LIKE '%.srt' AND LOWER(path) NOT LIKE '%.vtt' AND LOWER(path) NOT LIKE '%.ass' AND LOWER(path) NOT LIKE '%.ssa' AND LOWER(path) NOT LIKE '%.lrc' AND LOWER(path) NOT LIKE '%.idx' AND LOWER(path) NOT LIKE '%.sub'"
 
 func scanMedia(rows *sql.Rows) (Media, error) {

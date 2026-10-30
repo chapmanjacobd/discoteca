@@ -3,9 +3,9 @@ package commands
 import (
 	"context"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type SearchCmd struct {
@@ -48,7 +48,7 @@ func (c *SearchCmd) Run(ctx context.Context) error {
 		query.SortMedia(media, flags)
 
 		if flags.JSON {
-			return utils.PrintJSON(media)
+			return fileutil.PrintJSON(media)
 		}
 
 		return PrintMedia(flags.DisplayFlags, flags.Columns, media)

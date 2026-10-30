@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/history"
+	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
-	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
 type HistoryCmd struct {
@@ -42,7 +43,7 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 		HideRedundantFirstPlayed(media)
 
 		if flags.JSON {
-			return utils.PrintJSON(media)
+			return fileutil.PrintJSON(media)
 		}
 
 		c.printHeader(flags)
@@ -145,7 +146,7 @@ func (c *HistoryAddCmd) AfterApply() error {
 }
 
 func (c *HistoryAddCmd) Run(ctx context.Context) error {
-	models.SetupLogging(c.Verbose)
+	logging.SetupLogging(c.Verbose)
 
 	var absPaths []string
 	for _, p := range c.Paths {
@@ -159,7 +160,7 @@ func (c *HistoryAddCmd) Run(ctx context.Context) error {
 
 	err := history.UpdateHistorySimple(ctx, c.Database, absPaths, 0, c.Done)
 	if err == nil {
-		models.Log.Info("History added", "count", len(absPaths), "database", c.Database)
+		logging.Log.Info("History added", "count", len(absPaths), "database", c.Database)
 	}
 	return err
 }
