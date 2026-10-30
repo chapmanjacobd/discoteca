@@ -3,7 +3,6 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -104,27 +103,6 @@ func FullHashFile(path string) (string, error) {
 }
 
 // FilterDeleted returns only the paths that currently exist on the filesystem
-func FilterDeleted(paths []string) []string {
-	var existing []string
-	deletedDirs := make(map[string]bool)
-
-	for _, p := range paths {
-		dir := filepath.Dir(p)
-		if deletedDirs[dir] {
-			continue
-		}
-
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			deletedDirs[dir] = true
-			continue
-		}
-
-		if _, err := os.Stat(p); err == nil {
-			existing = append(existing, p)
-		}
-	}
-	return existing
-}
 
 type FileStats struct {
 	Size         int64
@@ -133,142 +111,9 @@ type FileStats struct {
 }
 
 // GetFileStats returns size and timestamps for a file
-func GetFileStats(path string) (FileStats, error) {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return FileStats{}, err
-	}
-
-	return FileStats{
-		Size:         stat.Size(),
-		TimeCreated:  stat.ModTime().Unix(), // Go doesn't have a cross-platform way to get creation time easily
-		TimeModified: stat.ModTime().Unix(),
-	}, nil
-}
 
 // DetectMimeType returns the mimetype of a file based on extension
 // Used only for HTTP Content-Type headers in streaming
-func DetectMimeType(path string) string {
-	ext := strings.ToLower(filepath.Ext(path))
-	if m := detectAppMime(ext); m != "" {
-		return m
-	}
-	if m := detectTextMime(ext); m != "" {
-		return m
-	}
-	if m := detectImageMime(ext); m != "" {
-		return m
-	}
-	if m := detectAudioMime(ext); m != "" {
-		return m
-	}
-	if m := detectVideoMime(ext); m != "" {
-		return m
-	}
-	return "application/octet-stream"
-}
-
-func detectAppMime(ext string) string {
-	switch ext {
-	case ".apk":
-		return "application/vnd.android.package-archive"
-	case ".zim":
-		return "application/x-zim"
-	case ".epub":
-		return "application/epub+zip"
-	case ".pdf":
-		return "application/pdf"
-	case ".mobi":
-		return "application/x-mobipocket-ebook"
-	case ".azw", ".azw3":
-		return "application/vnd.amazon.ebook"
-	case ".fb2":
-		return "application/x-fictionbook"
-	case ".js":
-		return "application/javascript"
-	case ".json":
-		return "application/json"
-	case ".xml":
-		return "application/xml"
-	case ".cbz":
-		return "application/vnd.comicbook+zip"
-	case ".cbr":
-		return "application/vnd.comicbook-rar"
-	}
-	return ""
-}
-
-func detectTextMime(ext string) string {
-	switch ext {
-	case ".txt":
-		return "text/plain"
-	case ".html", ".htm":
-		return "text/html"
-	case ".css":
-		return "text/css"
-	}
-	return ""
-}
-
-func detectImageMime(ext string) string {
-	switch ext {
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".png":
-		return "image/png"
-	case ".gif":
-		return "image/gif"
-	case ".webp":
-		return "image/webp"
-	case ".bmp":
-		return "image/bmp"
-	case ".svg":
-		return "image/svg+xml"
-	case ".tiff", ".tif":
-		return "image/tiff"
-	case ".ico":
-		return "image/x-icon"
-	case ".djvu", ".djv":
-		return "image/vnd.djvu"
-	}
-	return ""
-}
-
-func detectAudioMime(ext string) string {
-	switch ext {
-	case ".mp3":
-		return "audio/mpeg"
-	case ".flac":
-		return "audio/flac"
-	case ".ogg":
-		return "audio/ogg"
-	case ".wav":
-		return "audio/wav"
-	case ".opus":
-		return "audio/opus"
-	case ".aac":
-		return "audio/aac"
-	}
-	return ""
-}
-
-func detectVideoMime(ext string) string {
-	switch ext {
-	case ".mp4", ".m4v", ".m4a":
-		return "video/mp4"
-	case ".webm":
-		return "video/webm"
-	case ".mkv":
-		return "video/x-matroska"
-	case ".avi":
-		return "video/x-msvideo"
-	case ".mov":
-		return "video/quicktime"
-	case ".wmv":
-		return "video/x-ms-wmv"
-	}
-	return ""
-}
 
 // GetContentTypeFromExt returns the content type based on file extension
 func GetContentTypeFromExt(ext string) string {
@@ -298,64 +143,6 @@ func GetContentTypeFromExt(ext string) string {
 }
 
 // GetMountPoint returns the mount point for a given path
-func GetMountPoint(path string) (string, error) {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
-	}
-
-	// For Windows, use VolumeName
-	if vol := filepath.VolumeName(absPath); vol != "" {
-		// On Windows, VolumeName returns "C:" or "\\server\share"
-		// Ensure it has a trailing separator for consistency
-		if !strings.HasSuffix(vol, string(filepath.Separator)) {
-			vol += string(filepath.Separator)
-		}
-		return vol, nil
-	}
-
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return "", err
-	}
-
-	dev, ok := GetDeviceID(info)
-	if !ok {
-		// If we can't get device ID, just return root for Unix-like
-		return string(filepath.Separator), nil
-	}
-
-	dir := absPath
-	if !info.IsDir() {
-		dir = filepath.Dir(absPath)
-		info, err = os.Stat(dir)
-		if err != nil {
-			return "", err
-		}
-		if d, ok := GetDeviceID(info); ok {
-			dev = d
-		}
-	}
-
-	for {
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return dir, nil
-		}
-
-		parentInfo, err := os.Stat(parent)
-		if err != nil {
-			return "", err
-		}
-
-		parentDev, ok := GetDeviceID(parentInfo)
-		if !ok || parentDev != dev {
-			return dir, nil
-		}
-
-		dir = parent
-	}
-}
 
 // MoveFile moves a file from source to destination, handling cross-filesystem moves
 func MoveFile(src, dst string) error {
@@ -415,52 +202,12 @@ func MoveFile(src, dst string) error {
 }
 
 // Rename renames a file, respecting simulation mode
-func Rename(flags models.GlobalFlags, src, dst string) error {
-	if flags.Simulate {
-		fmt.Fprintf(Stdout, "rename %s %s\n", src, dst)
-		return nil
-	}
-	models.Log.Debug("rename", "src", src, "dst", dst)
-	return os.Rename(src, dst)
-}
 
 // Unlink deletes a file, respecting simulation mode
-func Unlink(flags models.GlobalFlags, path string) error {
-	if flags.Simulate {
-		fmt.Fprintf(Stdout, "unlink %s\n", path)
-		return nil
-	}
-	models.Log.Debug("unlink", "path", path)
-	return os.Remove(path)
-}
 
 // Rmtree deletes a directory tree, respecting simulation mode
-func Rmtree(flags models.GlobalFlags, path string) error {
-	if flags.Simulate {
-		fmt.Fprintf(Stdout, "rmtree %s\n", path)
-		return nil
-	}
-	models.Log.Debug("rmtree", "path", path)
-	return os.RemoveAll(path)
-}
 
 // AltName returns an alternative filename if the given path already exists
-func AltName(path string) string {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return path
-	}
-
-	ext := filepath.Ext(path)
-	base := strings.TrimSuffix(path, ext)
-	counter := 1
-	for {
-		newPath := fmt.Sprintf("%s_%d%s", base, counter, ext)
-		if _, err := os.Stat(newPath); os.IsNotExist(err) {
-			return newPath
-		}
-		counter++
-	}
-}
 
 // CommonPath returns the longest common path prefix
 // Always returns forward slashes for cross-platform consistency

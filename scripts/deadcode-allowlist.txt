@@ -1,0 +1,6 @@
+# Functions that are allowed to be unreachable.
+#
+# Format: repo/relative/path.go:FunctionName
+#
+# Keep this list empty when possible. Entries may only be removed, never added
+# without an explicit reason. Test helpers in internal/testutils are exempt.

@@ -5,25 +5,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
-const (
-	DefaultTableLimit        = 350
-	DefaultPlayQueue         = 120
-	DefaultSubtitleMix       = 0.35
-	DefaultFileRowsReadLimit = 500000
-	DefaultMultiplePlayback  = -1
-	DefaultOpenLimit         = 7
+var (
+	IsWindows = runtime.GOOS == "windows"
+	IsMac     = runtime.GOOS == "darwin"
 )
-
-func GetMpvListenSocket() string {
-	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
-	if runtimeDir == "" {
-		runtimeDir = os.TempDir()
-	}
-	return filepath.Join(runtimeDir, "mpv_socket")
-}
 
 func GetMpvWatchSocket() string {
 	home, _ := os.UserHomeDir()
@@ -46,15 +33,6 @@ func GetMpvWatchLaterDir() string {
 	}
 	return filepath.Join(home, ".config", "mpv", "watch_later")
 }
-
-var (
-	ApplicationStart = time.Now().Unix()
-	IsWindows        = runtime.GOOS == "windows"
-	IsLinux          = runtime.GOOS == "linux"
-	IsMac            = runtime.GOOS == "darwin"
-)
-
-var SQLiteExtensions = []string{".sqlite", ".sqlite3", ".db", ".db3", ".s3db", ".sl3"}
 
 var AudioExtensions = []string{
 	"aa3", "aac", "ac3", "aif", "aiff", "ape", "caf", "dff", "dsf", "flac",
@@ -167,10 +145,6 @@ func init() {
 	}
 }
 
-var SubtitleExtensions = []string{
-	"srt", "vtt", "mks", "ass", "ssa", "lrc", "idx", "sub",
-}
-
 // UnreliableDurationFormats are formats known to have unreliable duration metadata
 // (DVD, Blu-ray, camcorder formats, and older codecs)
 // The int value is the estimated bitrate in bits per second for each format
@@ -243,23 +217,6 @@ func EstimateDurationFromSizeWithFormat(size int64, ext string) float64 {
 	return float64(size) / float64(bitrate) * 8
 }
 
-// GetDurationForTimeout returns a duration value suitable for timeout calculations.
-// If the provided duration is valid (> 0), it returns it as-is.
-// If duration is <= 0, it estimates from file size:
-//   - For unreliable formats (DVD, Blu-ray, etc.), uses format-specific bitrate
-//   - For other formats, uses default video bitrate
-//
-// Returns 0 if size is invalid (<= 0)
-func GetDurationForTimeout(duration float64, size int64, ext string) float64 {
-	if duration > 0 {
-		return duration
-	}
-	if size <= 0 {
-		return 0
-	}
-	return EstimateDurationFromSizeWithFormat(size, ext)
-}
-
 // ShouldOverrideDuration determines if reported duration should be overridden
 // with an estimate based on file size. Returns true only when:
 //   - File extension matches an unreliable format
@@ -283,10 +240,6 @@ func ShouldOverrideDuration(reportedDuration float64, size int64, ext string) (f
 
 	// Override with estimated duration
 	return estimatedDuration, true
-}
-
-func GetTempDir() string {
-	return os.TempDir()
 }
 
 func GetCattNowPlayingFile() string {

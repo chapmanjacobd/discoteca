@@ -1,4 +1,4 @@
-.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build release-checksums release-linux-matrix cross-deps benchmark benchstat profiles screenshots
+.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build release-checksums release-linux-matrix cross-deps benchmark benchstat profiles screenshots deadcode
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
@@ -10,7 +10,7 @@ else
 	EXE=
 endif
 
-all: clean webbuild fmt lint build test webtest readme
+all: clean webbuild fmt lint build test webtest readme deadcode
 
 ubuntu-deps:
 	sudo apt-get update && sudo apt-get install -y --no-install-recommends -o APT::Install-Suggests=0 \
@@ -103,6 +103,9 @@ lint:
 
 lint-no-fix:
 	golangci-lint run --build-tags "$(BUILD_TAGS)" ./...
+
+deadcode:
+	./scripts/check-deadcode.sh
 
 install:
 	go install -tags "$(BUILD_TAGS)" ./cmd/disco

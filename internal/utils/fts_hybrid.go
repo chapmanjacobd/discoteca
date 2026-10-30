@@ -102,11 +102,6 @@ func (h *HybridSearchQuery) BuildFTSQuery(_ string) string {
 	return strings.Join(trigrams, " OR ")
 }
 
-// HasPhrases returns true if the query contains phrase searches
-func (h *HybridSearchQuery) HasPhrases() bool {
-	return len(h.Phrases) > 0
-}
-
 // HasFTSTerms returns true if the query contains FTS term searches
 func (h *HybridSearchQuery) HasFTSTerms() bool {
 	for _, term := range h.FTSTerms {
@@ -115,35 +110,4 @@ func (h *HybridSearchQuery) HasFTSTerms() bool {
 		}
 	}
 	return false
-}
-
-// BuildFTSQueryExact constructs an exact FTS MATCH query
-// Uses full terms instead of trigrams for precise matching
-func (h *HybridSearchQuery) BuildFTSQueryExact(joinOp string) string {
-	if len(h.FTSTerms) == 0 {
-		return ""
-	}
-
-	var terms []string
-	for _, term := range h.FTSTerms {
-		// Pass through boolean operators
-		if term == "OR" || term == "AND" || term == "NOT" {
-			continue
-		}
-
-		// Use full term for exact matching
-		if len(term) > 0 {
-			terms = append(terms, term)
-		}
-	}
-
-	if len(terms) == 0 {
-		return ""
-	}
-
-	// Join with the specified operator (OR/AND)
-	if joinOp == "AND" {
-		return strings.Join(terms, " AND ")
-	}
-	return strings.Join(terms, " OR ")
 }

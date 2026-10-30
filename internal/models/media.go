@@ -59,18 +59,6 @@ type Playlist struct {
 	DB              string  `json:"db,omitempty"`
 }
 
-func PlaylistFromDB(p db.Playlists, dbPath string) Playlist {
-	return Playlist{
-		ID:              p.ID,
-		Path:            NullStringPtr(p.Path),
-		Title:           NullStringPtr(p.Title),
-		ExtractorKey:    NullStringPtr(p.ExtractorKey),
-		ExtractorConfig: NullStringPtr(p.ExtractorConfig),
-		TimeDeleted:     NullInt64Ptr(p.TimeDeleted),
-		DB:              dbPath,
-	}
-}
-
 func (m *Media) Parent() string {
 	return filepath.Dir(m.Path)
 }
@@ -218,67 +206,6 @@ func FromDB(m db.Media) Media {
 		Sha256:          NullStringPtr(m.Sha256),
 		IsDeduped:       NullInt64Ptr(m.IsDeduped),
 	}
-}
-
-func FromDBWithDB(m db.Media, dbPath string) MediaWithDB {
-	return MediaWithDB{
-		Media: FromDB(m),
-		DB:    dbPath,
-	}
-}
-
-func ToDBUpsert(m Media) db.UpsertMediaParams {
-	return db.UpsertMediaParams{
-		Path:           m.Path,
-		PathTokenized:  ToNullString(m.PathTokenized),
-		Title:          ToNullString(m.Title),
-		Duration:       ToNullInt64(m.Duration),
-		Size:           ToNullInt64(m.Size),
-		TimeCreated:    ToNullInt64(m.TimeCreated),
-		TimeModified:   ToNullInt64(m.TimeModified),
-		MediaType:      ToNullString(m.MediaType),
-		Width:          ToNullInt64(m.Width),
-		Height:         ToNullInt64(m.Height),
-		Fps:            ToNullFloat64(m.Fps),
-		VideoCodecs:    ToNullString(m.VideoCodecs),
-		AudioCodecs:    ToNullString(m.AudioCodecs),
-		SubtitleCodecs: ToNullString(m.SubtitleCodecs),
-		VideoCount:     ToNullInt64(m.VideoCount),
-		AudioCount:     ToNullInt64(m.AudioCount),
-		SubtitleCount:  ToNullInt64(m.SubtitleCount),
-		Album:          ToNullString(m.Album),
-		Artist:         ToNullString(m.Artist),
-		Genre:          ToNullString(m.Genre),
-		Categories:     ToNullString(m.Categories),
-		Description:    ToNullString(m.Description),
-		Language:       ToNullString(m.Language),
-		TimeDownloaded: ToNullInt64(m.TimeDownloaded),
-		Score:          ToNullFloat64(m.Score),
-		Fasthash:       ToNullString(m.Fasthash),
-		Sha256:         ToNullString(m.Sha256),
-		IsDeduped:      ToNullInt64(m.IsDeduped),
-	}
-}
-
-func ToNullString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
-func ToNullInt64(i *int64) sql.NullInt64 {
-	if i == nil {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{Int64: *i, Valid: true}
-}
-
-func ToNullFloat64(f *float64) sql.NullFloat64 {
-	if f == nil {
-		return sql.NullFloat64{}
-	}
-	return sql.NullFloat64{Float64: *f, Valid: true}
 }
 
 func NullStringPtr(ns sql.NullString) *string {

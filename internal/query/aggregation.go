@@ -24,6 +24,48 @@ type DUQueryResult struct {
 	TotalDuration int64
 }
 
+// Path extraction expressions shared by every DU query. Keeping them in one
+// place ensures the root and subdirectory aggregation paths cannot drift apart.
+const (
+	duRootPathSQL = `
+		CASE
+			WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
+				substr(replace(path, '\\', '/'), 1,
+					CASE
+						WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
+						THEN instr(substr(replace(path, '\\', '/'), 2), '/')
+						ELSE length(replace(path, '\\', '/'))
+					END
+				)
+			ELSE
+				CASE
+					WHEN instr(replace(path, '\\', '/'), '/') > 0
+					THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
+					ELSE replace(path, '\\', '/')
+				END
+		END`
+
+	duSubdirPathSQL = `
+		CASE
+			WHEN substr(?, 1, 1) = '/' THEN
+				? || substr(
+					substr(replace(path, '\\', '/'), length(?) + 1),
+					1,
+					CASE
+						WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
+						THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
+						ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
+					END
+				)
+			ELSE
+				? || CASE
+					WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
+					THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
+					ELSE substr(replace(path, '\\', '/'), length(?) + 1)
+				END
+		END`
+)
+
 // needsFolderBackfiltering reports whether folder-level aggregates must be
 // computed before the result set can be filtered.
 func needsFolderBackfiltering(flags models.GlobalFlags) bool {
@@ -89,245 +131,6 @@ func hasFolderAggregateFilter(flags models.GlobalFlags) bool {
 // SQL WHERE builder has anything to add.
 func hasBasicFilters(flags models.GlobalFlags) bool {
 	return HasAnyFilter(flags)
-}
-
-// AggregateDUByPath performs SQL-level aggregation for DU mode
-// This is much faster than fetching all media and aggregating in Go
-func AggregateDUByPath(
-	ctx context.Context,
-	dbPath, pathPrefix string,
-	targetDepth int,
-) ([]DUQueryResult, error) {
-	sqlDB, err := db.Connect(ctx, dbPath)
-	if err != nil {
-		return nil, err
-	}
-	defer sqlDB.Close()
-
-	// Build SQL query for aggregation
-	// We use SUBSTR and INSTR to extract the path at target depth
-	// For cross-platform compatibility, we normalize separators in the SQL query
-	// by replacing backslashes with forward slashes for comparison
-	var query string
-	var args []any
-
-	if pathPrefix == "" {
-		// Root level: aggregate by first path component
-		// Normalize paths by replacing backslashes with forward slashes for consistent grouping
-		query = `
-			SELECT
-				CASE
-					WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
-						substr(replace(path, '\\', '/'), 1, 
-							CASE 
-								WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0 
-								THEN instr(substr(replace(path, '\\', '/'), 2), '/')
-								ELSE length(replace(path, '\\', '/'))
-							END
-						)
-					ELSE
-						CASE
-							WHEN instr(replace(path, '\\', '/'), '/') > 0 
-							THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
-							ELSE replace(path, '\\', '/')
-						END
-				END as agg_path,
-				COUNT(*) as count,
-				COALESCE(SUM(size), 0) as total_size,
-				COALESCE(SUM(duration), 0) as total_duration
-			FROM media
-			WHERE COALESCE(time_deleted, 0) = 0
-			GROUP BY agg_path
-			ORDER BY total_size DESC
-		`
-	} else {
-		// Subdirectory level: aggregate by path at target depth
-		// Normalize both the prefix and stored paths to forward slashes for matching
-		// This ensures /videos/movies matches both /videos/movies/file and \videos\movies\file
-		normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
-
-		query = `
-			SELECT
-				CASE
-					WHEN substr(?, 1, 1) = '/' THEN
-						? || substr(
-							substr(replace(path, '\\', '/'), length(?) + 1),
-							1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
-								ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
-							END
-						)
-					ELSE
-						? || CASE
-							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
-							THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
-							ELSE substr(replace(path, '\\', '/'), length(?) + 1)
-						END
-				END as agg_path,
-				COUNT(*) as count,
-				COALESCE(SUM(size), 0) as total_size,
-				COALESCE(SUM(duration), 0) as total_duration
-			FROM media
-			WHERE COALESCE(time_deleted, 0) = 0
-				AND replace(path, '\\', '/') LIKE ? || '/%'
-				AND (length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))) > ?
-			GROUP BY agg_path
-			ORDER BY total_size DESC
-		`
-		// Add args for the placeholders (12 total)
-		args = append(args,
-			normalizedPrefix, // 1: substr(?, 1, 1)
-			normalizedPrefix, // 2: ? || substr(
-			normalizedPrefix, // 3: length(?) + 1
-			normalizedPrefix, // 4: length(?) + 2
-			normalizedPrefix, // 5: length(?) + 2
-			normalizedPrefix, // 6: length(?) + 1
-			normalizedPrefix, // 7: ? || CASE
-			normalizedPrefix, // 8: length(?) + 1
-			normalizedPrefix, // 9: length(?) + 1
-			normalizedPrefix, // 10: length(?) + 2
-			normalizedPrefix, // 11: length(?) + 1
-			escapedPrefix,    // 12: LIKE ? || '/%'
-			targetDepth,      // 13: separator count > targetDepth
-		)
-	}
-
-	rows, err := sqlDB.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []DUQueryResult
-	for rows.Next() {
-		var r DUQueryResult
-		if err := rows.Scan(&r.Path, &r.Count, &r.TotalSize, &r.TotalDuration); err != nil {
-			return nil, err
-		}
-		results = append(results, r)
-	}
-
-	return results, rows.Err()
-}
-
-// AggregateDUByPathMultiDB performs SQL-level aggregation across multiple databases
-func AggregateDUByPathMultiDB(
-	ctx context.Context,
-	dbPaths []string,
-	pathPrefix string,
-	targetDepth int,
-) ([]DUQueryResult, error) {
-	allResults := make([]DUQueryResult, 0)
-
-	for _, dbPath := range dbPaths {
-		results, err := AggregateDUByPath(ctx, dbPath, pathPrefix, targetDepth)
-		if err != nil {
-			return nil, err
-		}
-		allResults = append(allResults, results...)
-	}
-
-	// Aggregate results from multiple databases by path
-	pathMap := make(map[string]*DUQueryResult)
-	for _, r := range allResults {
-		if _, ok := pathMap[r.Path]; !ok {
-			pathMap[r.Path] = &DUQueryResult{Path: r.Path}
-		}
-		pathMap[r.Path].Count += r.Count
-		pathMap[r.Path].TotalSize += r.TotalSize
-		pathMap[r.Path].TotalDuration += r.TotalDuration
-	}
-
-	// Convert map to slice
-	finalResults := make([]DUQueryResult, 0, len(pathMap))
-	for _, r := range pathMap {
-		finalResults = append(finalResults, *r)
-	}
-
-	return finalResults, nil
-}
-
-// FetchDUDirectFiles fetches files at the target depth for DU mode
-func FetchDUDirectFiles(
-	ctx context.Context,
-	dbPaths []string,
-	pathPrefix string,
-	targetDepth int,
-) ([]models.MediaWithDB, error) {
-	allFiles := make([]models.MediaWithDB, 0)
-
-	for _, dbPath := range dbPaths {
-		files, err := func() ([]models.MediaWithDB, error) {
-			sqlDB, err := db.Connect(ctx, dbPath)
-			if err != nil {
-				return nil, err
-			}
-			defer sqlDB.Close()
-
-			var query string
-			var args []any
-
-			if pathPrefix == "" {
-				// Root level: files with no directory separator
-				// Normalize paths to forward slashes for consistent matching
-				query = `
-				SELECT path, title, duration, size, time_created, time_modified,
-				       time_deleted, time_first_played, time_last_played, play_count,
-				       playhead, album, artist, genre, categories, description,
-				       language, time_downloaded, score, video_codecs, audio_codecs,
-				       subtitle_codecs, width, height, media_type
-				FROM media
-				WHERE COALESCE(time_deleted, 0) = 0
-				  AND instr(replace(path, '\\', '/'), '/') = 0
-			`
-			} else {
-				// Subdirectory: files at exactly target depth
-				// Normalize prefix to forward slashes for cross-platform matching
-				normalizedPrefix := strings.ReplaceAll(pathPrefix, "\\", "/")
-				escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
-
-				// Check if pathPrefix is absolute (after normalization)
-				isAbs := len(normalizedPrefix) > 0 && normalizedPrefix[0] == '/'
-				separatorCount := targetDepth
-				if !isAbs {
-					separatorCount = targetDepth - 1
-				}
-
-				// Normalize paths to forward slashes for consistent matching
-				query = `
-				SELECT path, title, duration, size, time_created, time_modified,
-				       time_deleted, time_first_played, time_last_played, play_count,
-				       playhead, album, artist, genre, categories, description,
-				       language, time_downloaded, score, video_codecs, audio_codecs,
-				       subtitle_codecs, width, height, media_type
-				FROM media
-				WHERE COALESCE(time_deleted, 0) = 0
-				  AND replace(path, '\\', '/') LIKE ? || '/%'
-				  AND (
-					length(replace(path, '\\', '/')) - length(replace(replace(path, '\\', '/'), '/', ''))
-				  ) = ?
-			`
-				args = append(args, escapedPrefix, separatorCount)
-			}
-
-			rows, err := sqlDB.QueryContext(ctx, query, args...)
-			if err != nil {
-				return nil, err
-			}
-			defer rows.Close()
-
-			return ScanMedia(rows, dbPath)
-		}()
-		if err != nil {
-			return nil, err
-		}
-		allFiles = append(allFiles, files...)
-	}
-
-	return allFiles, nil
 }
 
 // AggregateMedia media using the specified aggregation mode
@@ -738,23 +541,7 @@ func getMatchingParentDirs(
 	if pathPrefix == "" {
 		// Root level: extract first path component
 		query = `
-			SELECT
-				CASE
-					WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
-						substr(replace(path, '\\', '/'), 1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), 2), '/')
-								ELSE length(replace(path, '\\', '/'))
-							END
-						)
-					ELSE
-						CASE
-							WHEN instr(replace(path, '\\', '/'), '/') > 0
-							THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
-							ELSE replace(path, '\\', '/')
-						END
-				END as parent_dir,
+			SELECT` + duRootPathSQL + ` as parent_dir,
 				COUNT(*) as file_count
 			FROM media
 			WHERE COALESCE(time_deleted, 0) = 0
@@ -764,25 +551,7 @@ func getMatchingParentDirs(
 		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 		query = `
-			SELECT
-				CASE
-					WHEN substr(?, 1, 1) = '/' THEN
-						? || substr(
-							substr(replace(path, '\\', '/'), length(?) + 1),
-							1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
-								ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
-							END
-						)
-					ELSE
-						? || CASE
-							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
-							THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
-							ELSE substr(replace(path, '\\', '/'), length(?) + 1)
-						END
-				END as parent_dir,
+			SELECT` + duSubdirPathSQL + ` as parent_dir,
 				COUNT(*) as file_count
 			FROM media
 			WHERE COALESCE(time_deleted, 0) = 0
@@ -926,23 +695,7 @@ func aggregateDUWithBasicFilters(
 
 	if pathPrefix == "" {
 		query = `
-			SELECT
-				CASE
-					WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
-						substr(replace(path, '\\', '/'), 1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), 2), '/')
-								ELSE length(replace(path, '\\', '/'))
-							END
-						)
-					ELSE
-						CASE
-							WHEN instr(replace(path, '\\', '/'), '/') > 0
-							THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
-							ELSE replace(path, '\\', '/')
-						END
-				END as agg_path,
+			SELECT` + duRootPathSQL + ` as agg_path,
 				COUNT(*) as count,
 				COALESCE(SUM(size), 0) as total_size,
 				COALESCE(SUM(duration), 0) as total_duration
@@ -954,25 +707,7 @@ func aggregateDUWithBasicFilters(
 		escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 		query = `
-			SELECT
-				CASE
-					WHEN substr(?, 1, 1) = '/' THEN
-						? || substr(
-							substr(replace(path, '\\', '/'), length(?) + 1),
-							1,
-							CASE
-								WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
-								THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
-								ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
-							END
-						)
-					ELSE
-						? || CASE
-							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
-							THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
-							ELSE substr(replace(path, '\\', '/'), length(?) + 1)
-						END
-				END as agg_path,
+			SELECT` + duSubdirPathSQL + ` as agg_path,
 				COUNT(*) as count,
 				COALESCE(SUM(size), 0) as total_size,
 				COALESCE(SUM(duration), 0) as total_duration
@@ -1101,23 +836,7 @@ func sortedParentList(matchingParents map[string]struct{}) []string {
 
 func buildRootDUQuery(parentList []string) (string, []any) {
 	query := `
-		SELECT
-			CASE
-				WHEN substr(replace(path, '\\', '/'), 1, 1) = '/' THEN
-					substr(replace(path, '\\', '/'), 1,
-						CASE
-							WHEN instr(substr(replace(path, '\\', '/'), 2), '/') > 0
-							THEN instr(substr(replace(path, '\\', '/'), 2), '/')
-							ELSE length(replace(path, '\\', '/'))
-						END
-					)
-				ELSE
-					CASE
-						WHEN instr(replace(path, '\\', '/'), '/') > 0
-						THEN substr(replace(path, '\\', '/'), 1, instr(replace(path, '\\', '/'), '/') - 1)
-						ELSE replace(path, '\\', '/')
-					END
-			END as agg_path,
+		SELECT` + duRootPathSQL + ` as agg_path,
 			COUNT(*) as count,
 			COALESCE(SUM(size), 0) as total_size,
 			COALESCE(SUM(duration), 0) as total_duration
@@ -1135,10 +854,7 @@ func buildRootDUQuery(parentList []string) (string, []any) {
 		placeholders[i] = "?"
 		args = append(args, p)
 	}
-	query += fmt.Sprintf(
-		" AND CASE WHEN substr(replace(path, '\\\\', '/'), 1, 1) = '/' THEN substr(replace(path, '\\\\', '/'), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), 2), '/') ELSE length(replace(path, '\\\\', '/')) END) ELSE CASE WHEN instr(replace(path, '\\\\', '/'), '/') > 0 THEN substr(replace(path, '\\\\', '/'), 1, instr(replace(path, '\\\\', '/'), '/') - 1) ELSE replace(path, '\\\\', '/') END END IN (%s)",
-		strings.Join(placeholders, ", "),
-	)
+	query += " AND " + duRootPathSQL + " IN (" + strings.Join(placeholders, ", ") + ")"
 	return query, args
 }
 
@@ -1147,25 +863,7 @@ func buildSubdirDUQuery(pathPrefix string, targetDepth int, parentList []string)
 	escapedPrefix := strings.ReplaceAll(normalizedPrefix, "'", "''")
 
 	query := `
-		SELECT
-			CASE
-				WHEN substr(?, 1, 1) = '/' THEN
-					? || substr(
-						substr(replace(path, '\\', '/'), length(?) + 1),
-						1,
-						CASE
-							WHEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') > 0
-							THEN instr(substr(replace(path, '\\', '/'), length(?) + 2), '/')
-							ELSE length(substr(replace(path, '\\', '/'), length(?) + 1))
-						END
-					)
-				ELSE
-					? || CASE
-						WHEN instr(substr(replace(path, '\\', '/'), length(?) + 1), '/') > 0
-						THEN substr(substr(replace(path, '\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\', '/'), length(?) + 2), '/') - 1)
-						ELSE substr(replace(path, '\\', '/'), length(?) + 1)
-					END
-			END as agg_path,
+		SELECT` + duSubdirPathSQL + ` as agg_path,
 			COUNT(*) as count,
 			COALESCE(SUM(size), 0) as total_size,
 			COALESCE(SUM(duration), 0) as total_duration
@@ -1196,10 +894,7 @@ func appendSubdirParentFilter(query string, args []any, normalizedPrefix string,
 		placeholders[i] = "?"
 		args = append(args, p)
 	}
-	query += fmt.Sprintf(
-		" AND CASE WHEN substr(?, 1, 1) = '/' THEN ? || substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') > 0 THEN instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') ELSE length(substr(replace(path, '\\\\', '/'), length(?) + 1)) END) ELSE ? || CASE WHEN instr(substr(replace(path, '\\\\', '/'), length(?) + 1), '/') > 0 THEN substr(substr(replace(path, '\\\\', '/'), length(?) + 1), 1, instr(substr(replace(path, '\\\\', '/'), length(?) + 2), '/') - 1) ELSE substr(replace(path, '\\\\', '/'), length(?) + 1) END END IN (%s)",
-		strings.Join(placeholders, ", "),
-	)
+	query += " AND " + duSubdirPathSQL + " IN (" + strings.Join(placeholders, ", ") + ")"
 	args = append(args,
 		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,
 		normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix, normalizedPrefix,

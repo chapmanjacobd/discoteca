@@ -416,34 +416,6 @@ func TestSortAdvanced(t *testing.T) {
 	}
 }
 
-func TestXklbDefaultSort(t *testing.T) {
-	fields := query.XklbDefaultSort()
-	if len(fields) == 0 {
-		t.Error("XklbDefaultSort() returned empty fields")
-	}
-
-	// Check first field is video_count desc
-	if len(fields) > 0 {
-		if fields[0].Field != "video_count" || !fields[0].Reverse {
-			t.Errorf("XklbDefaultSort() first field = %+v, want video_count desc", fields[0])
-		}
-	}
-}
-
-func TestDuDefaultSort(t *testing.T) {
-	fields := query.DuDefaultSort()
-	if len(fields) == 0 {
-		t.Error("DuDefaultSort() returned empty fields")
-	}
-
-	// Check first field is size_per_count desc
-	if len(fields) > 0 {
-		if fields[0].Field != "size_per_count" || !fields[0].Reverse {
-			t.Errorf("DuDefaultSort() first field = %+v, want size_per_count desc", fields[0])
-		}
-	}
-}
-
 func TestReverseXklbSort(t *testing.T) {
 	videoCount1 := int64(0)
 	videoCount2 := int64(1)
@@ -566,70 +538,5 @@ func TestParseSortConfigWithGroups(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestWeightedRerank(t *testing.T) {
-	playCount1 := int64(10)
-	playCount2 := int64(5)
-	playCount3 := int64(1)
-	oneMB := int64(1024 * 1024)
-	twoMB := int64(2 * 1024 * 1024)
-	threeMB := int64(3 * 1024 * 1024)
-
-	media := []models.MediaWithDB{
-		{
-			Media: models.Media{
-				Path:      "/path/low.mp4",
-				PlayCount: &playCount3,
-				Size:      &oneMB,
-			},
-		},
-		{
-			Media: models.Media{
-				Path:      "/path/high.mp4",
-				PlayCount: &playCount1,
-				Size:      &threeMB,
-			},
-		},
-		{
-			Media: models.Media{
-				Path:      "/path/medium.mp4",
-				PlayCount: &playCount2,
-				Size:      &twoMB,
-			},
-		},
-	}
-
-	// Apply weighted rerank with play_count as primary (higher weight) and size as secondary
-	query.ApplyWeightedRerank(media, []query.SortField{
-		{Field: "play_count", Reverse: true}, // Most played first
-		{Field: "size", Reverse: true},       // Largest first
-	})
-
-	// Highest play count should come first
-	if media[0].Path != "/path/high.mp4" {
-		t.Errorf("ApplyWeightedRerank() position 0 = %q, want /path/high.mp4 (most played)", media[0].Path)
-	}
-}
-
-func TestNaturalOrderGroup(t *testing.T) {
-	media := []models.MediaWithDB{
-		{Media: models.Media{Path: "/path/episode10.mp4"}},
-		{Media: models.Media{Path: "/path/episode2.mp4"}},
-		{Media: models.Media{Path: "/path/episode1.mp4"}},
-	}
-
-	// Apply natural sort - should order numerically (1, 2, 10) not lexicographically (1, 10, 2)
-	query.ApplyNaturalSort(media, []query.SortField{{Field: "path", Reverse: false}})
-
-	if media[0].Path != "/path/episode1.mp4" {
-		t.Errorf("ApplyNaturalSort() position 0 = %q, want /path/episode1.mp4", media[0].Path)
-	}
-	if media[1].Path != "/path/episode2.mp4" {
-		t.Errorf("ApplyNaturalSort() position 1 = %q, want /path/episode2.mp4", media[1].Path)
-	}
-	if media[2].Path != "/path/episode10.mp4" {
-		t.Errorf("ApplyNaturalSort() position 2 = %q, want /path/episode10.mp4", media[2].Path)
 	}
 }

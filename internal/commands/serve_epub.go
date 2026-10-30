@@ -156,7 +156,7 @@ func (c *ServeCmd) serveHTMLFolder(w http.ResponseWriter, r *http.Request, docPa
 		serveFileWithMimeType(w, r, assetFile)
 		return
 	}
-	serveHTMLFolderWithTOC(w, r, docPath, docPath)
+	serveHTMLWithTOC(w, r, docPath, docPath)
 }
 
 // serveConvertedDocument converts the document via calibre and serves the result.
@@ -320,32 +320,4 @@ html, body { height: 100%%; overflow: hidden; }
 
 func unescapePath(path string) (string, error) {
 	return url.PathUnescape(path)
-}
-
-// serveHTMLFolderWithTOC serves an HTML folder with a sticky TOC header
-func serveHTMLFolderWithTOC(w http.ResponseWriter, _ *http.Request, htmlDir, originalPath string) {
-	// Get list of HTML files for TOC
-	htmlFiles, err := utils.GetHTMLFiles(htmlDir)
-	if err != nil {
-		http.Error(w, "Failed to get HTML files", http.StatusInternalServerError)
-		return
-	}
-
-	// Find actual book content HTML for the main frame (relative to htmlDir)
-	initialSrc := ""
-	contentFile := utils.FindMainContentFile(htmlDir)
-	if contentFile != "" {
-		rel, err := filepath.Rel(htmlDir, contentFile)
-		if err == nil {
-			initialSrc = fmt.Sprintf("/api/epub/%s/%s",
-				strings.TrimPrefix(originalPath, "/"),
-				rel)
-		}
-	}
-
-	// Create wrapper HTML with sticky TOC
-	wrapperHTML := createWrapperHTML(initialSrc, htmlFiles, originalPath)
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(wrapperHTML))
 }

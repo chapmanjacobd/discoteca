@@ -4,55 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 )
-
-// RenameMoveFile moves a file from src to dst, creating parent directories if needed
-func RenameMoveFile(flags models.GlobalFlags, src, dst string) error {
-	if flags.Simulate {
-		fmt.Fprintf(Stdout, "mv %s %s\n", shellquote.ShellQuote(src), shellquote.ShellQuote(dst))
-		return nil
-	}
-
-	err := os.Rename(src, dst)
-	if err != nil {
-		// If dst parent doesn't exist
-		if os.IsNotExist(err) {
-			parent := filepath.Dir(dst)
-			if err2 := os.MkdirAll(parent, 0o755); err2 != nil {
-				return err2
-			}
-			return os.Rename(src, dst)
-		}
-
-		// Cross-device move fallback
-		if strings.Contains(err.Error(), "invalid cross-device link") {
-			// Basic copy and delete
-			input, err2 := os.ReadFile(src)
-			if err2 != nil {
-				return err2
-			}
-			err = os.WriteFile(dst, input, 0o644)
-			if err != nil {
-				return err
-			}
-			return os.Remove(src)
-		}
-	}
-	return err
-}
-
-// RenameNoReplace renames a file only if the destination does not exist
-func RenameNoReplace(src, dst string) error {
-	if _, err := os.Stat(dst); err == nil {
-		return fmt.Errorf("the destination file %s already exists", dst)
-	}
-	return os.Rename(src, dst)
-}
 
 // Trash moves a file to the system trash if available, otherwise deletes it
 func Trash(ctx context.Context, flags models.GlobalFlags, path string) error {
@@ -81,96 +36,6 @@ func Trash(ctx context.Context, flags models.GlobalFlags, path string) error {
 	return nil
 }
 
-func getVisibleEntries(entries []os.DirEntry) []os.DirEntry {
-	var visibleEntries []os.DirEntry
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".") {
-			visibleEntries = append(visibleEntries, e)
-		}
-	}
-	return visibleEntries
-}
-
-func moveSubEntries(outputDir, wrapperPath, wrapperName string, subEntries []os.DirEntry) (string, error) {
-	var conflictItem string
-	for _, se := range subEntries {
-		name := se.Name()
-		if name == wrapperName {
-			conflictItem = name
-			continue
-		}
-
-		src := filepath.Join(wrapperPath, name)
-		dst := filepath.Join(outputDir, name)
-		if err := os.Rename(src, dst); err != nil {
-			// Try fallback
-			if err := RenameMoveFile(models.GlobalFlags{}, src, dst); err != nil {
-				return "", err
-			}
-		}
-	}
-	return conflictItem, nil
-}
-
-func handleConflictAndCleanup(outputDir, wrapperPath, conflictItem string) error {
-	if conflictItem != "" {
-		src := filepath.Join(wrapperPath, conflictItem)
-		tempDst := filepath.Join(outputDir, conflictItem+".tmp")
-		if err := os.Rename(src, tempDst); err != nil {
-			if err := RenameMoveFile(models.GlobalFlags{}, src, tempDst); err != nil {
-				return err
-			}
-		}
-		if err := os.Remove(wrapperPath); err != nil {
-			return err
-		}
-		return os.Rename(tempDst, filepath.Join(outputDir, conflictItem))
-	}
-
-	return os.Remove(wrapperPath)
-}
-
 // FlattenWrapperFolder removes a single subfolder if it's the only entry in outputDir
-func FlattenWrapperFolder(outputDir string) error {
-	entries, err := os.ReadDir(outputDir)
-	if err != nil {
-		return err
-	}
-
-	visibleEntries := getVisibleEntries(entries)
-
-	if len(visibleEntries) == 1 && visibleEntries[0].IsDir() {
-		wrapperName := visibleEntries[0].Name()
-		wrapperPath := filepath.Join(outputDir, wrapperName)
-		models.Log.Info("Flattening wrapper folder", "folder", wrapperName)
-
-		subEntries, err := os.ReadDir(wrapperPath)
-		if err != nil {
-			return err
-		}
-
-		conflictItem, err := moveSubEntries(outputDir, wrapperPath, wrapperName, subEntries)
-		if err != nil {
-			return err
-		}
-
-		return handleConflictAndCleanup(outputDir, wrapperPath, conflictItem)
-	}
-	return nil
-}
 
 // ResolveAbsolutePath expands user home and returns absolute path if it exists
-func ResolveAbsolutePath(s string) string {
-	if strings.HasPrefix(s, "~") {
-		home, _ := os.UserHomeDir()
-		s = filepath.Join(home, s[1:])
-	}
-
-	abs, err := filepath.Abs(s)
-	if err == nil {
-		if _, err := os.Stat(abs); err == nil {
-			return abs
-		}
-	}
-	return s
-}

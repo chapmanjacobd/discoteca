@@ -2,9 +2,6 @@ package utils
 
 import (
 	"database/sql"
-	"fmt"
-	"strconv"
-	"strings"
 )
 
 func GetString(v any) string {
@@ -15,18 +12,6 @@ func GetString(v any) string {
 		return string(b)
 	}
 	return ""
-}
-
-func GetInt(v any) int {
-	switch i := v.(type) {
-	case int:
-		return i
-	case int32:
-		return int(i)
-	case int64:
-		return int(i)
-	}
-	return 0
 }
 
 func GetInt64(v any) int64 {
@@ -105,56 +90,4 @@ func ToNullString(s string) sql.NullString {
 
 func ToNullFloat64(f float64) sql.NullFloat64 {
 	return sql.NullFloat64{Float64: f, Valid: f != 0}
-}
-
-type Slice struct {
-	Start *int
-	Stop  *int
-	Step  *int
-}
-
-func ParseSlice(s string) (Slice, error) {
-	parts := strings.Split(s, ":")
-	if len(parts) > 3 {
-		return Slice{}, fmt.Errorf("invalid slice: %s", s)
-	}
-
-	var res Slice
-	if len(parts) >= 1 && parts[0] != "" {
-		if val, err := strconv.Atoi(parts[0]); err == nil {
-			res.Start = &val
-		}
-	}
-	if len(parts) >= 2 && parts[1] != "" {
-		if val, err := strconv.Atoi(parts[1]); err == nil {
-			res.Stop = &val
-		}
-	}
-	if len(parts) == 3 && parts[2] != "" {
-		if val, err := strconv.Atoi(parts[2]); err == nil {
-			res.Step = &val
-		}
-	}
-
-	return res, nil
-}
-
-func DictFilterBool(d map[string]any) map[string]any {
-	if d == nil {
-		return nil
-	}
-	res := make(map[string]any)
-	for k, v := range d {
-		if v == nil || v == "" || v == 0 {
-			continue
-		}
-		if b, ok := v.(bool); ok && !b {
-			continue
-		}
-		res[k] = v
-	}
-	if len(res) == 0 {
-		return nil
-	}
-	return res
 }

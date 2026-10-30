@@ -1257,43 +1257,6 @@ func IsNumericField(field string) bool {
 	return numericFields[field]
 }
 
-// XklbDefaultSort returns the xklb-style default sort fields
-// This matches the lambda sorting from xklb:
-// - video_count desc (videos before audio-only)
-// - audio_count desc (files with audio before silent ones)
-// - path like "http%" asc (local files before remote URLs)
-// - subtitle_count desc
-// - play_count asc (unplayed/least-played first)
-// - playhead desc (furthest along first)
-// - time_last_played asc (least-recently played first)
-// - title is not null desc (titled entries before untitled)
-// - path asc (alphabetical tiebreak)
-func XklbDefaultSort() []SortField {
-	return []SortField{
-		{Field: "video_count", Reverse: true},
-		{Field: "audio_count", Reverse: true},
-		{Field: "path_is_remote", Reverse: false}, // local before remote
-		{Field: "subtitle_count", Reverse: true},
-		{Field: "play_count", Reverse: false},
-		{Field: "playhead", Reverse: true},
-		{Field: "time_last_played", Reverse: false},
-		{Field: "title_is_null", Reverse: false}, // titled before untitled
-		{Field: "path", Reverse: false},
-	}
-}
-
-// DuDefaultSort returns the default sort for DU mode
-// lambda x: ((size/count), size, count, folders, reverse(path))
-func DuDefaultSort() []SortField {
-	return []SortField{
-		{Field: "size_per_count", Reverse: true}, // size/count desc
-		{Field: "size", Reverse: true},
-		{Field: "count", Reverse: true},
-		{Field: "folders", Reverse: true},
-		{Field: "path", Reverse: true}, // reverse path
-	}
-}
-
 func compareNumericField(i, j models.MediaWithDB, field string) int {
 	var valI, valJ float64
 
@@ -1454,21 +1417,8 @@ func applyStandardSort(media []models.MediaWithDB, fields []SortField, alg strin
 	})
 }
 
-// ApplyNaturalSort applies natural sorting to media using the specified fields as tiebreakers
-func ApplyNaturalSort(media []models.MediaWithDB, fields []SortField) {
-	if len(fields) == 0 {
-		return
-	}
-	// Use natural algorithm for string comparisons
-	applyStandardSort(media, fields, "natural", false)
-}
-
-// ApplyWeightedRerank applies MCDA-style weighted re-ranking based on field positions
-// Fields earlier in the list have higher weights (position-based weighting)
-func ApplyWeightedRerank(media []models.MediaWithDB, fields []SortField) {
-	weightedRerank(media, fields, false)
-}
-
+// weightedRerank applies MCDA-style weighted re-ranking based on field positions.
+// Fields earlier in the list have higher weights (position-based weighting).
 func weightedRerank(media []models.MediaWithDB, fields []SortField, reverse bool) {
 	if len(fields) == 0 || len(media) == 0 {
 		return

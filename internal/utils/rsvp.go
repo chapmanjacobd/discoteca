@@ -1413,18 +1413,6 @@ p > .calibre3:not(:only-of-type) {
 }
 
 // SanitizeFilename replaces special characters with underscores for calibre compatibility
-func SanitizeFilename(name string) string {
-	result := strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return '_'
-	}, name)
-	if len(result) > 100 {
-		result = result[:100]
-	}
-	return result
-}
 
 // cleanupOldCacheFiles removes files and directories older than the specified duration
 func cleanupOldCacheFiles(cacheDir string, maxAge time.Duration) {

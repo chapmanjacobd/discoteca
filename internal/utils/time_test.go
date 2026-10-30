@@ -59,21 +59,6 @@ func TestSpecificDate(t *testing.T) {
 	}
 }
 
-func TestTubeDate(t *testing.T) {
-	v := map[string]any{
-		"upload_date": "20240520",
-		"title":       "test",
-	}
-	got := utils.TubeDate(v)
-	if got == nil {
-		t.Fatal("utils.TubeDate returned nil")
-	}
-
-	if _, ok := v["upload_date"]; ok {
-		t.Error("utils.TubeDate should have removed upload_date from map")
-	}
-}
-
 func TestParseDateOrRelative(t *testing.T) {
 	now := time.Now().Unix()
 	tests := []struct {
@@ -102,45 +87,6 @@ func TestParseDateOrRelative(t *testing.T) {
 				t.Errorf("utils.ParseDateOrRelative(%q) = %v, want near %v (diff %v)", tt.input, got, tt.expected, diff)
 			}
 		}
-	}
-}
-
-func TestIsTZAware(t *testing.T) {
-	utc := time.Now().UTC()
-	if utils.IsTZAware(utc) {
-		t.Error("UTC should not be TZAware")
-	}
-
-	loc := time.FixedZone("TEST", 3600)
-	testTime := time.Date(2020, 1, 1, 0, 0, 0, 0, loc)
-	if !utils.IsTZAware(testTime) {
-		t.Error("FixedZone should be TZAware")
-	}
-}
-
-func TestTubeDateExtra(t *testing.T) {
-	v1 := map[string]any{"timestamp": int64(40000000)}
-	got1 := utils.TubeDate(v1)
-	if got1 == nil || *got1 != 40000000 {
-		t.Errorf("utils.TubeDate int64 failed: %v", got1)
-	}
-
-	v2 := map[string]any{"timestamp": int(40000000)}
-	got2 := utils.TubeDate(v2)
-	if got2 == nil || *got2 != 40000000 {
-		t.Errorf("utils.TubeDate int failed: %v", got2)
-	}
-
-	now := time.Now()
-	v3 := map[string]any{"timestamp": now}
-	got3 := utils.TubeDate(v3)
-	if got3 == nil || *got3 != now.Unix() {
-		t.Errorf("utils.TubeDate time.Time failed: %v", got3)
-	}
-
-	v4 := map[string]any{"timestamp": nil}
-	if got4 := utils.TubeDate(v4); got4 != nil {
-		t.Errorf("utils.TubeDate nil failed: %v", got4)
 	}
 }
 

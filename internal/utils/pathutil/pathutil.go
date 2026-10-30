@@ -98,58 +98,18 @@ func IsAbs(path string) bool {
 }
 
 // HasLeadingSep checks if a path starts with a separator (either / or \ or \\).
-func HasLeadingSep(path string) bool {
-	if path == "" {
-		return false
-	}
-	if path[0] == '/' {
-		return true
-	}
-	if len(path) >= 2 && path[0] == '\\' && path[1] == '\\' {
-		return true
-	}
-	return false
-}
 
 // Depth returns the number of path components.
 // For absolute paths, this counts only the actual components (not the leading separator).
-func Depth(path string) int {
-	parts, _ := Split(path)
-	return len(parts)
-}
 
 // Parent returns the parent directory of a path.
 // Returns empty string if path has no parent.
-func Parent(path string) string {
-	return filepath.Dir(path)
-}
 
 // EnsureTrailingSep adds a trailing separator if not present.
-func EnsureTrailingSep(path string) string {
-	if path == "" {
-		return path
-	}
-	if !strings.HasSuffix(path, "/") && !strings.HasSuffix(path, "\\") {
-		return path + string(filepath.Separator)
-	}
-	return path
-}
 
 // HasTrailingSep checks if path ends with a separator.
-func HasTrailingSep(path string) bool {
-	if path == "" {
-		return false
-	}
-	return strings.HasSuffix(path, "/") || strings.HasSuffix(path, "\\")
-}
 
 // StripTrailingSep removes trailing separator from path.
-func StripTrailingSep(path string) string {
-	for len(path) > 0 && (path[len(path)-1] == '/' || path[len(path)-1] == '\\') {
-		path = path[:len(path)-1]
-	}
-	return path
-}
 
 // Prefix returns the prefix of an absolute path.
 // For Unix: "/"
@@ -193,13 +153,6 @@ func Prefix(path string) string {
 // On Windows: converts backslashes to forward slashes (C:\Users -> C:/Users)
 // On Linux: path is already URL-safe (forward slashes)
 // This is used when sending paths to clients via URLs.
-func ToURL(path string) string {
-	if path == "" {
-		return ""
-	}
-	// Always convert to forward slashes for URLs
-	return strings.ReplaceAll(path, "\\", "/")
-}
 
 // FromURL converts a URL path to a filesystem path.
 // It performs the following normalizations:

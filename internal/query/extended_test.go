@@ -114,10 +114,11 @@ func TestFetchSiblings(t *testing.T) {
 	}
 
 	// Fetch all siblings in the same directory
-	got, err := query.FetchSiblings(
+	flags := models.GlobalFlags{FilterFlags: models.FilterFlags{FetchSiblings: "all"}}
+	got, err := query.NewQueryExecutor(flags).FetchSiblings(
 		context.Background(),
 		media,
-		models.GlobalFlags{FilterFlags: models.FilterFlags{FetchSiblings: "all"}},
+		flags,
 	)
 	if err != nil {
 		t.Fatalf("query.FetchSiblings failed: %v", err)

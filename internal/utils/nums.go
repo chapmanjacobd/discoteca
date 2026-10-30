@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,34 +74,6 @@ func SafeMedian[T Number](slice []T) float64 {
 	return (sorted[n/2-1] + sorted[n/2]) / 2
 }
 
-func Percentile[T Number](slice []T, p float64) float64 {
-	if len(slice) == 0 {
-		return 0
-	}
-	sorted := make([]float64, len(slice))
-	for i, v := range slice {
-		sorted[i] = float64(v)
-	}
-	sort.Float64s(sorted)
-
-	if p <= 0 {
-		return sorted[0]
-	}
-	if p >= 100 {
-		return sorted[len(sorted)-1]
-	}
-
-	index := p / 100.0 * float64(len(sorted)-1)
-	i := int(index)
-	fraction := index - float64(i)
-
-	if i >= len(sorted)-1 {
-		return sorted[len(sorted)-1]
-	}
-
-	return sorted[i]*(1-fraction) + sorted[i+1]*fraction
-}
-
 func humanToUnit(s string, suffixes []struct {
 	suffix string
 	mult   int64
@@ -139,24 +110,6 @@ func HumanToBytes(s string) (int64, error) {
 		{"G", 1000 * 1000 * 1000},
 		{"T", 1000 * 1000 * 1000 * 1000},
 		{"B", 1},
-	}
-	return humanToUnit(s, suffixes)
-}
-
-func HumanToBits(s string) (int64, error) {
-	suffixes := []struct {
-		suffix string
-		mult   int64
-	}{
-		{"KBIT", 1000},
-		{"MBIT", 1000 * 1000},
-		{"GBIT", 1000 * 1000 * 1000},
-		{"TBIT", 1000 * 1000 * 1000 * 1000},
-		{"K", 1000},
-		{"M", 1000 * 1000},
-		{"G", 1000 * 1000 * 1000},
-		{"T", 1000 * 1000 * 1000 * 1000},
-		{"BIT", 1},
 	}
 	return humanToUnit(s, suffixes)
 }
@@ -397,13 +350,6 @@ func CalculatePercentiles(values []int64) []int64 {
 	return res
 }
 
-func Percent(value, total float64) float64 {
-	if total == 0 {
-		return 0
-	}
-	return (value / total) * 100
-}
-
 func FloatFromPercent(s string) (float64, error) {
 	if before, ok := strings.CutSuffix(s, "%"); ok {
 		v, err := strconv.ParseFloat(before, 64)
@@ -517,18 +463,6 @@ func CalculateSegmentsInt(total, chunk int64, gap float64) []int64 {
 	return append(segments, endSegmentStart)
 }
 
-func SafeInt(s string) *int {
-	if s == "" {
-		return nil
-	}
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return nil
-	}
-	i := int(f)
-	return &i
-}
-
 func SafeFloat(s string) *float64 {
 	if s == "" {
 		return nil
@@ -540,41 +474,8 @@ func SafeFloat(s string) *float64 {
 	return &f
 }
 
-func SQLHumanTime(s string) string {
-	if _, err := strconv.Atoi(s); err == nil {
-		return s + " minutes"
-	}
-
-	unitMapping := map[string]string{
-		"min":  "minutes",
-		"mins": "minutes",
-		"s":    "seconds",
-		"sec":  "seconds",
-		"secs": "seconds",
-	}
-
-	re := regexp.MustCompile(`(\d+\.?\d*)([a-zA-Z]+)`)
-	match := re.FindStringSubmatch(s)
-	if match != nil {
-		value := match[1]
-		unit := strings.ToLower(strings.TrimSpace(match[2]))
-		if mapped, ok := unitMapping[unit]; ok {
-			unit = mapped
-		}
-		return fmt.Sprintf("%s %s", value, unit)
-	}
-	return s
-}
-
 func Max[T Number](a, b T) T {
 	if a > b {
-		return a
-	}
-	return b
-}
-
-func Min[T Number](a, b T) T {
-	if a < b {
 		return a
 	}
 	return b
@@ -588,37 +489,7 @@ func BoolToInt64(b bool) int64 {
 }
 
 // ParsePercentOrBytes parses a string like "5%" or "100MB" into a float64 ratio or bytes
-func ParsePercentOrBytes(s string) float64 {
-	s = strings.TrimSpace(s)
-	if before, ok := strings.CutSuffix(s, "%"); ok {
-		v, err := strconv.ParseFloat(before, 64)
-		if err != nil {
-			return 0.05 // default 5%
-		}
-		return v / 100.0
-	}
-	// Parse as bytes
-	bytes, err := HumanToBytes(s)
-	if err != nil {
-		return 0.05
-	}
-	return float64(bytes)
-}
 
 // ParseSize parses a human-readable size string to int64 bytes
-func ParseSize(s string) int64 {
-	bytes, err := HumanToBytes(s)
-	if err != nil {
-		return 30 * 1024 // default 30KiB
-	}
-	return bytes
-}
 
 // ParseBitrate parses a human-readable bitrate string to int64 bits per second
-func ParseBitrate(s string) int64 {
-	bits, err := HumanToBits(s)
-	if err != nil {
-		return 128 * 1000 // default 128kbps
-	}
-	return bits
-}

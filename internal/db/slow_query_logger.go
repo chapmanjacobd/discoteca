@@ -12,8 +12,8 @@ const SlowQueryThreshold = 50 * time.Millisecond
 // debugModeEnabled is an atomic flag to control slow query logging
 var debugModeEnabled atomic.Bool
 
-// Log is the logger instance used by the db package. Set via SetLogger.
-// Defaults to the global slog logger if not set.
+// Log is the logger instance used by the db package. Defaults to the global
+// slog logger.
 var Log Logger = (*defaultLogger)(nil)
 
 // Logger is a minimal logging interface to avoid direct slog dependencies
@@ -22,11 +22,6 @@ type Logger interface {
 	Debug(msg string, args ...any)
 	Warn(msg string, args ...any)
 	Error(msg string, args ...any)
-}
-
-// SetLogger sets the logger instance for the db package
-func SetLogger(logger Logger) {
-	Log = logger
 }
 
 // defaultLogger wraps the global [slog.Logger] as a Logger implementation

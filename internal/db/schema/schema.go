@@ -35,18 +35,3 @@ func GetFTSTables() string {
 	sb.WriteString(GetCaptionsFTS())
 	return sb.String()
 }
-
-// GetSchema returns the complete database schema SQL (Legacy/Full)
-// This includes EVERYTHING: core tables, indexes, captions, and FTS.
-// Useful for backward compatibility or tests that expect a full DB.
-func GetSchema() string {
-	var sb strings.Builder
-	sb.WriteString(GetCoreTables())
-	sb.WriteString("\n")
-	sb.WriteString(GetCoreIndexes())
-	sb.WriteString("\n")
-	sb.WriteString(GetCaptionsTable())
-	sb.WriteString("\n")
-	sb.WriteString(GetFTSTables())
-	return sb.String()
-}

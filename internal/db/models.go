@@ -10,24 +10,6 @@ type Captions struct {
 	Text      sql.NullString  `json:"text"`
 }
 
-type CaptionsFts struct {
-	MediaPath string `json:"media_path"`
-	Text      string `json:"text"`
-}
-
-type CustomKeywords struct {
-	Category string `json:"category"`
-	Keyword  string `json:"keyword"`
-}
-
-type History struct {
-	ID         int64         `json:"id"`
-	MediaPath  string        `json:"media_path"`
-	TimePlayed sql.NullInt64 `json:"time_played"`
-	Playhead   sql.NullInt64 `json:"playhead"`
-	Done       sql.NullInt64 `json:"done"`
-}
-
 type Media struct {
 	Path            string          `json:"path"`
 	PathTokenized   sql.NullString  `json:"path_tokenized"`
@@ -64,20 +46,6 @@ type Media struct {
 	Fasthash  sql.NullString `json:"fasthash"`
 	Sha256    sql.NullString `json:"sha256"`
 	IsDeduped sql.NullInt64  `json:"is_deduped"`
-}
-
-type MediaFts struct {
-	Path          string `json:"path"`
-	PathTokenized string `json:"path_tokenized"`
-	Title         string `json:"title"`
-	Description   string `json:"description"`
-}
-
-type PlaylistItems struct {
-	PlaylistID  int64         `json:"playlist_id"`
-	MediaPath   string        `json:"media_path"`
-	TrackNumber sql.NullInt64 `json:"track_number"`
-	TimeAdded   sql.NullInt64 `json:"time_added"`
 }
 
 type Playlists struct {

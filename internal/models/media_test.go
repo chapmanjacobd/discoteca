@@ -45,34 +45,6 @@ func TestFromDB(t *testing.T) {
 	}
 }
 
-func TestPlaylistFromDB(t *testing.T) {
-	dbPlaylist := db.Playlists{
-		ID:           1,
-		Path:         sql.NullString{String: filepath.FromSlash("/test/playlist"), Valid: true},
-		Title:        sql.NullString{String: "Test Playlist", Valid: true},
-		ExtractorKey: sql.NullString{Valid: false},
-	}
-	dbPath := filepath.FromSlash("/path/to/db")
-
-	p := models.PlaylistFromDB(dbPlaylist, dbPath)
-
-	if p.ID != 1 {
-		t.Errorf("Expected ID 1, got %d", p.ID)
-	}
-	if p.Path == nil || *p.Path != filepath.FromSlash("/test/playlist") {
-		t.Errorf("Expected path %s, got %v", filepath.FromSlash("/test/playlist"), p.Path)
-	}
-	if p.Title == nil || *p.Title != "Test Playlist" {
-		t.Errorf("Expected title Test Playlist, got %v", p.Title)
-	}
-	if p.ExtractorKey != nil {
-		t.Errorf("Expected extractor key nil, got %v", p.ExtractorKey)
-	}
-	if p.DB != dbPath {
-		t.Errorf("Expected DB %s, got %s", dbPath, p.DB)
-	}
-}
-
 func TestMedia_Parent(t *testing.T) {
 	m := models.Media{Path: filepath.FromSlash("/dir/sub/file.mp4")}
 	if got := m.Parent(); got != filepath.FromSlash("/dir/sub") {
@@ -138,82 +110,5 @@ func TestMedia_ParentAtDepth(t *testing.T) {
 				)
 			}
 		})
-	}
-}
-
-func TestFromDBWithDB(t *testing.T) {
-	dbMedia := db.Media{
-		Path: filepath.FromSlash("/test/movie.mp4"),
-	}
-	dbPath := filepath.FromSlash("/path/to/db")
-
-	mWithDB := models.FromDBWithDB(dbMedia, dbPath)
-
-	if mWithDB.Path != filepath.FromSlash("/test/movie.mp4") {
-		t.Errorf("Expected path %s, got %s", filepath.FromSlash("/test/movie.mp4"), mWithDB.Path)
-	}
-	if mWithDB.DB != dbPath {
-		t.Errorf("Expected DB %s, got %s", dbPath, mWithDB.DB)
-	}
-}
-
-func TestToDBUpsert(t *testing.T) {
-	title := "Test Movie"
-	duration := int64(120)
-	fps := 23.976
-
-	m := models.Media{
-		Path:     filepath.FromSlash("/test/movie.mp4"),
-		Title:    &title,
-		Duration: &duration,
-		Fps:      &fps,
-	}
-
-	params := models.ToDBUpsert(m)
-
-	if params.Path != m.Path {
-		t.Errorf("Expected path %s, got %s", m.Path, params.Path)
-	}
-	if !params.Title.Valid || params.Title.String != title {
-		t.Errorf("Expected title %s, got %v", title, params.Title)
-	}
-	if !params.Duration.Valid || params.Duration.Int64 != duration {
-		t.Errorf("Expected duration %d, got %v", duration, params.Duration)
-	}
-	if !params.Fps.Valid || params.Fps.Float64 != fps {
-		t.Errorf("Expected fps %f, got %v", fps, params.Fps)
-	}
-
-	// Test nil values
-	m2 := models.Media{Path: filepath.FromSlash("/test/m2.mp4")}
-	params2 := models.ToDBUpsert(m2)
-	if params2.Title.Valid {
-		t.Errorf("Expected title invalid for nil input")
-	}
-}
-
-func TestToNullHelpers(t *testing.T) {
-	s := "test"
-	if ns := models.ToNullString(&s); !ns.Valid || ns.String != s {
-		t.Errorf("models.ToNullString failed")
-	}
-	if ns := models.ToNullString(nil); ns.Valid {
-		t.Errorf("models.ToNullString(nil) should be invalid")
-	}
-
-	i := int64(123)
-	if ni := models.ToNullInt64(&i); !ni.Valid || ni.Int64 != i {
-		t.Errorf("models.ToNullInt64 failed")
-	}
-	if ni := models.ToNullInt64(nil); ni.Valid {
-		t.Errorf("models.ToNullInt64(nil) should be invalid")
-	}
-
-	f := 1.23
-	if nf := models.ToNullFloat64(&f); !nf.Valid || nf.Float64 != f {
-		t.Errorf("models.ToNullFloat64 failed")
-	}
-	if nf := models.ToNullFloat64(nil); nf.Valid {
-		t.Errorf("models.ToNullFloat64(nil) should be invalid")
 	}
 }

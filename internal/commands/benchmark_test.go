@@ -54,16 +54,28 @@ func BenchmarkSearch(b *testing.B) {
 	sqlDB, _ := setupTestDB(b, 100)
 	defer sqlDB.Close()
 
-	queries := db.New(sqlDB)
+	benchmarkFTSSearch(b, sqlDB, "video")
+}
+
+func benchmarkFTSSearch(b *testing.B, sqlDB *sql.DB, term string) {
+	b.Helper()
 	ctx := context.Background()
 
 	b.ResetTimer()
 	for range b.N {
-		_, err := queries.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
-			Query: "video",
-			Limit: 10,
-		})
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT m.path
+			FROM media m
+			JOIN media_fts ON m.rowid = media_fts.rowid
+			WHERE media_fts MATCH ? AND COALESCE(m.time_deleted, 0) = 0
+			LIMIT ?`, term, 10)
 		if err != nil {
+			b.Fatalf("Search failed: %v", err)
+		}
+		for rows.Next() {
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
 			b.Fatalf("Search failed: %v", err)
 		}
 	}
@@ -120,19 +132,7 @@ func BenchmarkFTSSearch(b *testing.B) {
 	sqlDB, _ := setupTestDB(b, 100)
 	defer sqlDB.Close()
 
-	queries := db.New(sqlDB)
-	ctx := context.Background()
-
-	b.ResetTimer()
-	for range b.N {
-		_, err := queries.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
-			Query: "Sample",
-			Limit: 10,
-		})
-		if err != nil {
-			b.Fatalf("FTS search failed: %v", err)
-		}
-	}
+	benchmarkFTSSearch(b, sqlDB, "Sample")
 }
 
 // BenchmarkAggregateStats measures aggregation query performance

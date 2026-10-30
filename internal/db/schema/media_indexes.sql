@@ -31,6 +31,10 @@ CREATE INDEX IF NOT EXISTS idx_media_active_time_modified ON media(time_modified
 CREATE INDEX IF NOT EXISTS idx_media_active_time_created ON media(time_created) WHERE time_deleted = 0 AND time_created > 0;
 CREATE INDEX IF NOT EXISTS idx_media_active_time_downloaded ON media(time_downloaded) WHERE time_deleted = 0 AND time_downloaded > 0;
 
+-- Partial indexes used by the dedupe workflow
+CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1;
+CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL;
+
 -- History indexes
 CREATE INDEX IF NOT EXISTS idx_history_path ON history(media_path);
 CREATE INDEX IF NOT EXISTS idx_history_time ON history(time_played);

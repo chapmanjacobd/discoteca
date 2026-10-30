@@ -88,44 +88,14 @@ func MpvCall(ctx context.Context, socketPath string, args ...any) (*MpvResponse,
 }
 
 // MpvSetProperty sets a property in mpv
-func MpvSetProperty(ctx context.Context, socketPath, name string, value any) error {
-	_, err := MpvCall(ctx, socketPath, "set_property", name, value)
-	return err
-}
 
 // MpvGetProperty gets a property from mpv
-func MpvGetProperty(ctx context.Context, socketPath, name string) (any, error) {
-	resp, err := MpvCall(ctx, socketPath, "get_property", name)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Data, nil
-}
 
 // MpvPause pauses or unpauses playback
-func MpvPause(ctx context.Context, socketPath string, pause bool) error {
-	return MpvSetProperty(ctx, socketPath, "pause", pause)
-}
 
 // MpvSeek seeks to a specific position
-func MpvSeek(ctx context.Context, socketPath string, value float64, mode string) error {
-	// mode can be "relative", "absolute", "absolute-percent", "relative-percent"
-	if mode == "" {
-		mode = "relative"
-	}
-	_, err := MpvCall(ctx, socketPath, "seek", value, mode)
-	return err
-}
 
 // MpvLoadFile loads a file into mpv
-func MpvLoadFile(ctx context.Context, socketPath, path, mode string) error {
-	// mode can be "replace", "append", "append-play"
-	if mode == "" {
-		mode = "replace"
-	}
-	_, err := MpvCall(ctx, socketPath, "loadfile", path, mode)
-	return err
-}
 
 // PathToMpvWatchLaterMD5 returns the MD5 hash of the absolute path, which mpv uses for filenames
 func PathToMpvWatchLaterMD5(path string) string {
@@ -207,15 +177,3 @@ func GetPlayhead(flags models.GlobalFlags, path string, startTime time.Time, exi
 }
 
 // MpvArgsToMap parses mpv command line arguments into a map
-func MpvArgsToMap(argStrings []string) map[string]string {
-	argMap := make(map[string]string)
-	for _, s := range argStrings {
-		for arg := range strings.SplitSeq(s, ",") {
-			parts := strings.SplitN(strings.TrimLeft(arg, "-"), "=", 2)
-			if len(parts) == 2 {
-				argMap[parts[0]] = parts[1]
-			}
-		}
-	}
-	return argMap
-}

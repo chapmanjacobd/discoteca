@@ -2,7 +2,6 @@ package pathutil_test
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/utils/pathutil"
@@ -136,42 +135,6 @@ func TestJoin(t *testing.T) {
 	}
 }
 
-func TestDepth(t *testing.T) {
-	tests := []struct {
-		path string
-		want int
-	}{
-		// Unix paths
-		{"/home/user", 2},
-		{"/", 0},
-		{"/var/log/syslog", 3},
-
-		// Windows paths (drive counts as component)
-		{"C:\\Users\\user\\file.txt", 4},
-		{"C:\\", 1},
-		{"D:\\data", 2},
-
-		// UNC paths
-		{"\\\\server\\share\\file", 3},
-		{"\\\\server\\share", 2},
-
-		// Relative paths
-		{"relative", 1},
-		{"a/b/c", 3},
-
-		// Edge cases
-		{"", 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			if got := pathutil.Depth(tt.path); got != tt.want {
-				t.Errorf("Depth(%q) = %d, want %d", tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestPrefix(t *testing.T) {
 	sep := string(filepath.Separator)
 	tests := []struct {
@@ -201,96 +164,6 @@ func TestPrefix(t *testing.T) {
 			got := pathutil.Prefix(tt.path)
 			if got != tt.want {
 				t.Errorf("Prefix(%q) = %q, want %q", tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHasLeadingSep(t *testing.T) {
-	tests := []struct {
-		path string
-		want bool
-	}{
-		{"/home", true},
-		{"/", true},
-		{"\\\\server\\share", true},
-		{"C:\\Users", false},
-		{"relative", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			if got := pathutil.HasLeadingSep(tt.path); got != tt.want {
-				t.Errorf("HasLeadingSep(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHasTrailingSep(t *testing.T) {
-	tests := []struct {
-		path string
-		want bool
-	}{
-		{"/home/", true},
-		{"/home", false},
-		{"C:\\Users\\", true},
-		{"C:\\Users", false},
-		{"\\\\server\\share\\", true},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			if got := pathutil.HasTrailingSep(tt.path); got != tt.want {
-				t.Errorf("HasTrailingSep(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEnsureTrailingSep(t *testing.T) {
-	sep := string(filepath.Separator)
-	tests := []struct {
-		path string
-		want string
-	}{
-		{"/home", "/home" + sep},
-		{"/home/", "/home/"},
-		{filepath.FromSlash("C:/Users"), filepath.FromSlash("C:/Users") + sep},
-		{filepath.FromSlash("C:/Users/"), filepath.FromSlash("C:/Users/")},
-		{"", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			got := pathutil.EnsureTrailingSep(tt.path)
-			if got != tt.want {
-				t.Errorf("EnsureTrailingSep(%q) = %q, want %q", tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestStripTrailingSep(t *testing.T) {
-	tests := []struct {
-		path string
-		want string
-	}{
-		{"/home/", "/home"},
-		{"/home//", "/home"},
-		{filepath.FromSlash("C:/Users/"), filepath.FromSlash("C:/Users")},
-		{filepath.FromSlash("C:/Users//"), filepath.FromSlash("C:/Users")},
-		{"/home", "/home"},
-		{"", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			got := pathutil.StripTrailingSep(tt.path)
-			if got != tt.want {
-				t.Errorf("StripTrailingSep(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}
@@ -358,39 +231,6 @@ func TestCrossPlatformConsistency(t *testing.T) {
 }
 
 // TestToURL tests converting filesystem paths to URL-safe paths.
-func TestToURL(t *testing.T) {
-	tests := []struct {
-		name string
-		path string
-		want string
-	}{
-		{"empty", "", ""},
-		{"unix simple", "/home/user", "/home/user"},
-		{"unix nested", "/var/log/syslog", "/var/log/syslog"},
-		{"windows backslash", "C:\\Users\\file", "C:/Users/file"},
-		{"windows forward", "C:/Users/file", "C:/Users/file"},
-		{"windows mixed", "C:\\Users/file\\doc.txt", "C:/Users/file/doc.txt"},
-		{"unc path", "\\\\server\\share\\file", "//server/share/file"},
-		{"windows drive only", "C:", "C:"},
-		{"windows drive backslash", "C:\\", "C:/"},
-		{"windows network share", "\\\\nas\\share\\file", "//nas/share/file"},
-		{"relative unix", "home/user", "home/user"},
-		{"relative windows", "home\\user", "home/user"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := pathutil.ToURL(tt.path)
-			if got != tt.want {
-				t.Errorf("ToURL(%q) = %q, want %q", tt.path, got, tt.want)
-			}
-			// Verify result never contains backslashes
-			if strings.Contains(got, "\\") {
-				t.Errorf("ToURL(%q) = %q contains backslashes, should be URL-safe", tt.path, got)
-			}
-		})
-	}
-}
 
 // TestFromURL tests converting URL paths to filesystem paths.
 func TestFromURL(t *testing.T) {
@@ -441,48 +281,3 @@ func TestFromURL(t *testing.T) {
 // TestToURLFromURLRoundTrip verifies that ToURL(FromURL(x)) and FromURL(ToURL(x)) are identity operations.
 // Note: Round-trip only works correctly on the native OS. On Linux, Windows paths won't round-trip
 // because FromURL doesn't convert forward slashes to backslashes (that's a Windows-only operation).
-func TestToURLFromURLRoundTrip(t *testing.T) {
-	isWindows := filepath.Separator == '\\'
-
-	tests := []string{
-		filepath.FromSlash("/home/user/file.txt"),
-		filepath.FromSlash("relative/path"),
-	}
-
-	// Add Windows-style paths only when testing on Windows
-	if isWindows {
-		tests = append(tests, "C:\\Users\\file.txt", "relative\\path")
-	}
-
-	for _, path := range tests {
-		t.Run(path, func(t *testing.T) {
-			// FS -> URL -> FS should preserve original on native OS
-			url := pathutil.ToURL(path)
-			back := pathutil.FromURL(url)
-			if back != path {
-				t.Errorf("FromURL(ToURL(%q)) = %q, want %q", path, back, path)
-			}
-
-			// URL -> FS -> URL should preserve original
-			url2 := pathutil.ToURL(pathutil.FromURL(path))
-			if url2 != url {
-				t.Errorf("ToURL(FromURL(%q)) = %q, want %q", path, url2, url)
-			}
-		})
-	}
-
-	// Cross-platform test: On Linux, Windows paths convert to URL but don't round-trip
-	if !isWindows {
-		winPath := "C:\\Users\\file.txt"
-		url := pathutil.ToURL(winPath)
-		if url != "C:/Users/file.txt" {
-			t.Errorf("On Linux, ToURL(%q) = %q, want C:/Users/file.txt", winPath, url)
-		}
-		// FromURL on Linux returns the URL as-is (forward slashes)
-		// This is expected - only Windows converts forward slashes to backslashes
-		back := pathutil.FromURL(url)
-		if back != "C:/Users/file.txt" {
-			t.Errorf("On Linux, FromURL(%q) = %q, want C:/Users/file.txt", url, back)
-		}
-	}
-}

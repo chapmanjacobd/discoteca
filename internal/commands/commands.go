@@ -1,24 +1,12 @@
 package commands
 
 import (
-	"embed"
 	"fmt"
 	"strings"
 
-	"github.com/chapmanjacobd/discoteca/internal/db/schema"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
-
-// SchemaFS provides access to the database schema
-func SchemaFS() embed.FS {
-	return schema.SchemaFS
-}
-
-// GetSchema returns the database schema SQL
-func GetSchema() string {
-	return schema.GetSchema()
-}
 
 // ParseDatabaseAndScanPaths separates .db files from scan paths
 // Returns databases, scan paths, and any error

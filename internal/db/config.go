@@ -6,8 +6,7 @@ import (
 )
 
 // ftsEnabledConfig is a runtime configuration to enable/disable FTS.
-// FTS is enabled by default; SetFtsEnabled(false) is only for callers that
-// deliberately opt out of FTS-backed features.
+// FTS is enabled by default; opt-out is reserved for non-FTS builds and tests.
 var (
 	ftsEnabledConfig  = func() *atomic.Bool { var b atomic.Bool; b.Store(true); return &b }()
 	ftsConfigInitOnce sync.Once
@@ -20,11 +19,6 @@ func InitFtsConfig() {
 	ftsConfigInitOnce.Do(func() {
 		ftsEnabledConfig.Store(true)
 	})
-}
-
-// SetFtsEnabled sets the runtime FTS enabled state
-func SetFtsEnabled(enabled bool) {
-	ftsEnabledConfig.Store(enabled)
 }
 
 // IsFtsEnabled returns true if FTS is enabled both at compile time AND runtime

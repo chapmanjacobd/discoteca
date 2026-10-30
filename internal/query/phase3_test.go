@@ -372,7 +372,7 @@ func TestHistoricalUsageFacetsAndQuarters(t *testing.T) {
 	)
 	ctx := context.Background()
 
-	stats, err := query.HistoricalUsage(ctx, dbPath, "quarterly", "time_deleted")
+	stats, err := query.HistoricalUsageFiltered(ctx, dbPath, "quarterly", "time_deleted", models.GlobalFlags{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,13 @@ func TestHistoricalUsageFacetsAndQuarters(t *testing.T) {
 		t.Errorf("quarter labels = %v", labels)
 	}
 
-	if _, err := query.HistoricalUsage(ctx, dbPath, "quarterly", "not_a_time"); err == nil {
+	if _, err := query.HistoricalUsageFiltered(
+		ctx,
+		dbPath,
+		"quarterly",
+		"not_a_time",
+		models.GlobalFlags{},
+	); err == nil {
 		t.Error("expected unknown facet to be rejected")
 	}
 }

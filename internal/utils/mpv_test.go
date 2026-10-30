@@ -62,34 +62,6 @@ func TestMpvCall(t *testing.T) {
 		t.Errorf("Expected pong, got %v", resp.Data)
 	}
 
-	val, err := utils.MpvGetProperty(context.Background(), socketPath, "volume")
-	if err != nil {
-		t.Fatalf("utils.MpvGetProperty failed: %v", err)
-	}
-	if val.(float64) != 50 {
-		t.Errorf("Expected 50, got %v", val)
-	}
-
-	err = utils.MpvSetProperty(context.Background(), socketPath, "volume", 60)
-	if err != nil {
-		t.Fatalf("utils.MpvSetProperty failed: %v", err)
-	}
-
-	err = utils.MpvPause(context.Background(), socketPath, true)
-	if err != nil {
-		t.Fatalf("utils.MpvPause failed: %v", err)
-	}
-
-	err = utils.MpvSeek(context.Background(), socketPath, 10, "relative")
-	if err != nil {
-		t.Fatalf("utils.MpvSeek failed: %v", err)
-	}
-
-	err = utils.MpvLoadFile(context.Background(), socketPath, "file.mp4", "replace")
-	if err != nil {
-		t.Fatalf("utils.MpvLoadFile failed: %v", err)
-	}
-
 	_, err = utils.MpvCall(context.Background(), socketPath, "error")
 	if err == nil {
 		t.Error("Expected error for 'error' command, got nil")
@@ -176,24 +148,5 @@ func TestGetPlayhead(t *testing.T) {
 	startTime = time.Now().Add(-3 * time.Second)
 	if ph := utils.GetPlayhead(flags, path, startTime, 4, 12); ph != 7 {
 		t.Errorf("utils.GetPlayhead (existing time) = %d; want 7", ph)
-	}
-}
-
-func TestMpvArgsToMap(t *testing.T) {
-	args := []string{"--volume=50,mute=yes", "--speed=1.5"}
-	expected := map[string]string{
-		"volume": "50",
-		"mute":   "yes",
-		"speed":  "1.5",
-	}
-
-	actual := utils.MpvArgsToMap(args)
-	if len(actual) != len(expected) {
-		t.Errorf("utils.MpvArgsToMap len = %d; want %d", len(actual), len(expected))
-	}
-	for k, v := range expected {
-		if actual[k] != v {
-			t.Errorf("utils.MpvArgsToMap[%s] = %s; want %s", k, actual[k], v)
-		}
 	}
 }

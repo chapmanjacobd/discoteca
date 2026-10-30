@@ -70,16 +70,6 @@ func applyReRank(media []models.MediaWithDB, flags models.GlobalFlags) {
 	copy(media, reranked)
 }
 
-// FetchSiblings fetches sibling files for the given media (Re-exported for tests)
-func FetchSiblings(
-	ctx context.Context,
-	media []models.MediaWithDB,
-	flags models.GlobalFlags,
-) ([]models.MediaWithDB, error) {
-	executor := NewQueryExecutor(flags)
-	return executor.FetchSiblings(ctx, media, flags)
-}
-
 // ResolvePercentileFlags resolves percentile-based filters (Re-exported for tests)
 func ResolvePercentileFlags(ctx context.Context, dbs []string, flags models.GlobalFlags) (models.GlobalFlags, error) {
 	executor := NewQueryExecutor(flags)
@@ -367,10 +357,6 @@ func SummarizeMedia(media []models.MediaWithDB) []FrequencyStats {
 			TotalDuration: int64(utils.SafeMedian(durations)),
 		},
 	}
-}
-
-func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]FrequencyStats, error) {
-	return HistoricalUsageFiltered(ctx, dbPath, freq, timeColumn, models.GlobalFlags{})
 }
 
 // HistoricalUsageFiltered is HistoricalUsage with the standard filter set

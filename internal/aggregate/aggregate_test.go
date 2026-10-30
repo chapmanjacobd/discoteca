@@ -137,47 +137,6 @@ func TestClusterFoldersByNumbers(t *testing.T) {
 	}
 }
 
-func TestByFolder(t *testing.T) {
-	s100 := int64(100)
-	media := []models.Media{
-		{Path: "/dir1/file1.mp4", Size: &s100},
-		{Path: "/dir1/file2.mp4", Size: &s100},
-		{Path: "/dir2/file3.mp4", Size: &s100},
-	}
-
-	got := aggregate.ByFolder(media)
-	if len(got) != 2 {
-		t.Errorf("Expected 2 folders, got %d", len(got))
-	}
-}
-
-func TestSortFolders_Aggregate(t *testing.T) {
-	tests := []struct {
-		name     string
-		sortBy   string
-		reverse  bool
-		expected string
-	}{
-		{"by path asc", "path", false, "a"},
-		{"by path desc", "path", true, "b"},
-		{"by count asc", "count", false, "a"},
-		{"by count desc", "count", true, "b"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			folders := []aggregate.FolderStats{
-				{Path: "b", Count: 2},
-				{Path: "a", Count: 1},
-			}
-			aggregate.SortFolders(folders, tt.sortBy, tt.reverse)
-			if folders[0].Path != tt.expected {
-				t.Errorf("SortFolders(%s, %v) = %s, want %s", tt.sortBy, tt.reverse, folders[0].Path, tt.expected)
-			}
-		})
-	}
-}
-
 func TestFilterNearDuplicates(t *testing.T) {
 	groups := []models.FolderStats{
 		{

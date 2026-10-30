@@ -839,11 +839,6 @@ func (c *ServeCmd) processLsRows(params lsRowProcessParams) {
 		}
 		fullPath := p.String
 
-		if params.IsPartial && params.OrigPath == "" {
-			c.processLsEmptySearchPath(fullPath, t.String, params.ResultsMap, params.Counts)
-			continue
-		}
-
 		entryName, entryPath, isDir := c.extractLsEntry(fullPath, params.IsPartial, params.OrigPath, params.SearchDir)
 		if entryName == "" {
 			continue
@@ -857,41 +852,6 @@ func (c *ServeCmd) processLsRows(params lsRowProcessParams) {
 			IsDir:      isDir,
 			MediaType:  t.String,
 		})
-	}
-}
-
-// processLsEmptySearchPath handles the special case of empty partial search (./)
-func (c *ServeCmd) processLsEmptySearchPath(
-	fullPath string,
-	mediaType string,
-	resultsMap *map[string]LsEntry,
-	counts map[string]int,
-) {
-	segments := strings.Split(strings.Trim(fullPath, "/"), "/")
-	current := "/"
-	for _, seg := range segments {
-		if seg == "" {
-			continue
-		}
-		entryPath := current + seg + "/"
-		if !strings.HasSuffix(fullPath, "/") && seg == segments[len(segments)-1] {
-			entryPath = current + seg
-			counts[entryPath]++
-			if _, ok := (*resultsMap)[entryPath]; !ok {
-				(*resultsMap)[entryPath] = LsEntry{
-					Name:      seg,
-					Path:      entryPath,
-					IsDir:     false,
-					MediaType: mediaType,
-				}
-			}
-			break
-		}
-		counts[entryPath]++
-		if _, ok := (*resultsMap)[entryPath]; !ok {
-			(*resultsMap)[entryPath] = LsEntry{Name: seg, Path: entryPath, IsDir: true}
-		}
-		current = entryPath
 	}
 }
 

@@ -563,7 +563,13 @@ func TestHistoricalUsage(t *testing.T) {
 	) // 2024-01-01
 	dbConn.Close()
 
-	stats, err := query.HistoricalUsage(context.Background(), dbPath, "monthly", "time_last_played")
+	stats, err := query.HistoricalUsageFiltered(
+		context.Background(),
+		dbPath,
+		"monthly",
+		"time_last_played",
+		models.GlobalFlags{},
+	)
 	if err != nil {
 		t.Fatalf("HistoricalUsage failed: %v", err)
 	}

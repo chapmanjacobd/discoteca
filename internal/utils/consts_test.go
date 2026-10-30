@@ -1,21 +1,10 @@
 package utils_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
-
-func TestGetMpvListenSocket(t *testing.T) {
-	got := utils.GetMpvListenSocket()
-	if got == "" {
-		t.Errorf("GetMpvListenSocket returned empty string")
-	}
-	if !strings.Contains(got, "mpv_socket") {
-		t.Errorf("GetMpvListenSocket mismatch: %s", got)
-	}
-}
 
 func TestGetMpvWatchSocket(t *testing.T) {
 	got := utils.GetMpvWatchSocket()
@@ -36,7 +25,6 @@ func TestGetDirs(t *testing.T) {
 		name string
 		fn   func() string
 	}{
-		{"GetTempDir", utils.GetTempDir},
 		{"GetCattNowPlayingFile", utils.GetCattNowPlayingFile},
 		{"GetConfigDir", utils.GetConfigDir},
 	}

@@ -1,7 +1,6 @@
 package utils_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -19,23 +18,6 @@ func TestGetString(t *testing.T) {
 	for _, tt := range tests {
 		if got := utils.GetString(tt.input); got != tt.expected {
 			t.Errorf("GetString(%v) = %v, want %v", tt.input, got, tt.expected)
-		}
-	}
-}
-
-func TestGetInt(t *testing.T) {
-	tests := []struct {
-		input    any
-		expected int
-	}{
-		{int64(123), 123},
-		{123, 123},
-		{"123", 0},
-		{nil, 0},
-	}
-	for _, tt := range tests {
-		if got := utils.GetInt(tt.input); got != tt.expected {
-			t.Errorf("GetInt(%v) = %v, want %v", tt.input, got, tt.expected)
 		}
 	}
 }
@@ -73,56 +55,6 @@ func TestInt64Value(t *testing.T) {
 	}
 	if got := utils.Int64Value(nil); got != 0 {
 		t.Errorf("Int64Value(nil) = %v, want 0", got)
-	}
-}
-
-func TestParseSlice(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected utils.Slice
-	}{
-		{"1:5:2", utils.Slice{Start: new(int), Stop: new(int), Step: new(int)}},
-		{"3", utils.Slice{Start: new(int)}},
-		{"3:4", utils.Slice{Start: new(int), Stop: new(int)}},
-		{":4", utils.Slice{Stop: new(int)}},
-	}
-	*tests[0].expected.Start = 1
-	*tests[0].expected.Stop = 5
-	*tests[0].expected.Step = 2
-	*tests[1].expected.Start = 3
-	*tests[2].expected.Start = 3
-	*tests[2].expected.Stop = 4
-	*tests[3].expected.Stop = 4
-
-	for _, tt := range tests {
-		got, err := utils.ParseSlice(tt.input)
-		if err != nil {
-			t.Errorf("ParseSlice(%q) error: %v", tt.input, err)
-			continue
-		}
-		if !reflect.DeepEqual(got, tt.expected) {
-			t.Errorf("ParseSlice(%q) = %+v, want %+v", tt.input, got, tt.expected)
-		}
-	}
-}
-
-func TestDictFilterBool(t *testing.T) {
-	data := map[string]any{
-		"a": 1,
-		"b": 0,
-		"c": nil,
-		"d": "",
-		"e": false,
-	}
-	got := utils.DictFilterBool(data)
-	if len(got) != 1 || got["a"] != 1 {
-		t.Errorf("DictFilterBool() = %v, want {a: 1}", got)
-	}
-	if got := utils.DictFilterBool(nil); got != nil {
-		t.Errorf("DictFilterBool(nil) = %v, want nil", got)
-	}
-	if got := utils.DictFilterBool(map[string]any{"a": 0}); got != nil {
-		t.Errorf("DictFilterBool(all false) = %v, want nil", got)
 	}
 }
 

@@ -34,10 +34,6 @@ func ParseDate(dateStr string) int64 {
 
 // IsTZAware checks if a time is not in the Local or UTC location (as a proxy for "aware")
 // In Go, [time.Time] is always aware of its Location.
-func IsTZAware(t time.Time) bool {
-	name, offset := t.Zone()
-	return name != "UTC" && name != "Local" || offset != 0
-}
 
 // SuperParser uses dateparse to attempt to parse a date string with various strategies
 func SuperParser(dateStr string) *time.Time {
@@ -139,45 +135,6 @@ func SpecificDate(dates ...string) *time.Time {
 }
 
 // TubeDate extracts and parses dates from various common metadata keys
-func TubeDate(v map[string]any) *int64 {
-	keys := []string{"release_date", "timestamp", "upload_date", "date", "created_at", "published", "updated"}
-	var uploadDate any
-
-	for _, k := range keys {
-		if val, ok := v[k]; ok && val != nil {
-			uploadDate = val
-			delete(v, k)
-			break
-		}
-	}
-
-	if uploadDate == nil {
-		return nil
-	}
-
-	switch d := uploadDate.(type) {
-	case int64:
-		if d > 30000000 {
-			return &d
-		}
-	case int:
-		d64 := int64(d)
-		if d64 > 30000000 {
-			return &d64
-		}
-	case time.Time:
-		ts := d.Unix()
-		return &ts
-	case string:
-		t := SuperParser(d)
-		if t != nil {
-			ts := t.Unix()
-			return &ts
-		}
-	}
-
-	return nil
-}
 
 // ParseDateOrRelative parses a date string into a Unix timestamp.
 // It supports absolute dates (YYYY-MM-DD) and relative strings (e.g., "3 days").
@@ -205,10 +162,6 @@ func ParseDateOrRelative(dateStr string) int64 {
 	}
 
 	return 0
-}
-
-func UtcFromLocalTimestamp(n int64) time.Time {
-	return time.Unix(n, 0).UTC()
 }
 
 func ToDecade(year int) string {

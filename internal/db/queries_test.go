@@ -10,7 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
-	"github.com/chapmanjacobd/discoteca/internal/db/schema"
+	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
 func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
@@ -19,7 +19,7 @@ func setupDB(t *testing.T) (*sql.DB, *db.Queries) {
 		t.Fatal(err)
 	}
 
-	schemaSQL := schema.GetSchema()
+	schemaSQL := testutils.GetSchema()
 
 	var hasFTS5 bool
 	err = sqlDB.QueryRow("SELECT 1 FROM pragma_compile_options WHERE compile_options = 'ENABLE_FTS5'").Scan(&hasFTS5)
@@ -263,24 +263,7 @@ func (e *queriesTestEnv) testFTSAndCaptions(ctx context.Context, t *testing.T) {
 		Title: sql.NullString{String: "Unique Title for FTS", Valid: true},
 	})
 
-	res, err := e.q.SearchMediaFTS(ctx, db.SearchMediaFTSParams{
-		Query: "Uni",
-		Limit: 10,
-	})
-	if err != nil {
-		t.Errorf("SearchMediaFTS failed: %v", err)
-	}
-	if len(res) == 0 {
-		t.Error("SearchMediaFTS returned no results")
-	}
-	db.RankSearchResults(res, "Unique")
-	if res[0].Rank == 0 {
-		t.Logf("Warning: Search rank is 0")
-	} else {
-		t.Logf("Search rank: %f", res[0].Rank)
-	}
-
-	err = e.q.InsertCaption(ctx, db.InsertCaptionParams{
+	err := e.q.InsertCaption(ctx, db.InsertCaptionParams{
 		MediaPath: path,
 		Time:      sql.NullFloat64{Float64: 10.5, Valid: true},
 		Text:      sql.NullString{String: "Hello from captions", Valid: true},

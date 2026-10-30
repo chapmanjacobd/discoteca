@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"os"
-	"path/filepath"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -53,50 +52,6 @@ func setupTestDB(t *testing.T) (*sql.DB, string) {
 	return sqlDB, dbPath
 }
 
-func TestTracker_UpdatePlayback(t *testing.T) {
-	sqlDB, dbPath := setupTestDB(t)
-	defer os.Remove(dbPath)
-	defer sqlDB.Close()
-
-	path := "/test/video.mp4"
-	if _, err := sqlDB.Exec("INSERT INTO media (path) VALUES (?)", path); err != nil {
-		t.Fatal(err)
-	}
-
-	tracker := history.NewTracker(sqlDB)
-	if err := tracker.UpdatePlayback(context.Background(), path, 100); err != nil {
-		t.Fatalf("UpdatePlayback failed: %v", err)
-	}
-
-	// Verify media update
-	var lastPlayed, playhead int64
-	err := sqlDB.QueryRow("SELECT time_last_played, playhead FROM media WHERE path = ?", path).
-		Scan(&lastPlayed, &playhead)
-	if err != nil {
-		t.Fatalf("Failed to query media: %v", err)
-	}
-	if lastPlayed == 0 {
-		t.Error("Expected time_last_played to be set")
-	}
-	if playhead != 100 {
-		t.Errorf("Expected playhead 100, got %d", playhead)
-	}
-
-	// Verify history record
-	var hPath string
-	var hPlayhead int64
-	err = sqlDB.QueryRow("SELECT media_path, playhead FROM history WHERE media_path = ?", path).Scan(&hPath, &hPlayhead)
-	if err != nil {
-		t.Fatalf("Failed to query history: %v", err)
-	}
-	if filepath.ToSlash(hPath) != filepath.ToSlash(path) {
-		t.Errorf("Expected history path %s, got %s", path, hPath)
-	}
-	if hPlayhead != 100 {
-		t.Errorf("Expected history playhead 100, got %d", hPlayhead)
-	}
-}
-
 func TestUpdateHistorySimple(t *testing.T) {
 	sqlDB, dbPath := setupTestDB(t)
 	sqlDB.Close() // history.UpdateHistorySimple opens its own connection
@@ -129,29 +84,6 @@ func TestUpdateHistorySimple(t *testing.T) {
 	}
 	if done != 1 {
 		t.Errorf("Expected done=1, got %d", done)
-	}
-}
-
-func TestTracker_MarkDeleted(t *testing.T) {
-	sqlDB, dbPath := setupTestDB(t)
-	defer sqlDB.Close()
-	defer os.Remove(dbPath)
-
-	path := "deleted.mp4"
-	sqlDB.Exec("INSERT INTO media (path) VALUES (?)", path)
-
-	tracker := history.NewTracker(sqlDB)
-	if err := tracker.MarkDeleted(context.Background(), path); err != nil {
-		t.Fatal(err)
-	}
-
-	var timeDeleted int64
-	err := sqlDB.QueryRow("SELECT time_deleted FROM media WHERE path = ?", path).Scan(&timeDeleted)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if timeDeleted == 0 {
-		t.Error("Expected time_deleted to be non-zero")
 	}
 }
 

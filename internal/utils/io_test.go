@@ -1,7 +1,6 @@
 package utils_test
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -93,51 +92,5 @@ line2`
 	expected := []string{"line1", "line2", "direct"}
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("utils.ExpandStdin failed: got %v, want %v", got, expected)
-	}
-}
-
-func TestConfirm(t *testing.T) {
-	origStdin := utils.Stdin
-	origStdout := utils.Stdout
-	defer func() {
-		utils.Stdin = origStdin
-		utils.Stdout = origStdout
-	}()
-	utils.Stdout = io.Discard
-
-	tests := []struct {
-		input string
-		want  bool
-	}{
-		{"y\n", true},
-		{"yes\n", true},
-		{"Y\n", true},
-		{"n\n", false},
-		{"no\n", false},
-		{"maybe\n", false},
-		{"\n", false},
-	}
-
-	for _, tt := range tests {
-		utils.Stdin = strings.NewReader(tt.input)
-		if got := utils.Confirm("Is this a test?"); got != tt.want {
-			t.Errorf("utils.Confirm(%q) = %v, want %v", tt.input, got, tt.want)
-		}
-	}
-}
-
-func TestPrompt(t *testing.T) {
-	origStdin := utils.Stdin
-	origStdout := utils.Stdout
-	defer func() {
-		utils.Stdin = origStdin
-		utils.Stdout = origStdout
-	}()
-	utils.Stdout = io.Discard
-
-	input := "test response\n"
-	utils.Stdin = strings.NewReader(input)
-	if got := utils.Prompt("Enter something"); got != "test response" {
-		t.Errorf("utils.Prompt() = %q, want %q", got, "test response")
 	}
 }

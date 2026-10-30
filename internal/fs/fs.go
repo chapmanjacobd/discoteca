@@ -11,22 +11,6 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
-func FindMedia(root string, filter map[string]bool) (map[string]os.FileInfo, error) {
-	files := make(map[string]os.FileInfo)
-	ch := make(chan FindMediaResult)
-
-	var walkErr error
-	go func() {
-		defer close(ch)
-		walkErr = FindMediaChan(root, filter, ch)
-	}()
-
-	for res := range ch {
-		files[res.Path] = res.Info
-	}
-	return files, walkErr
-}
-
 type FindMediaResult struct {
 	Path       string
 	Info       os.FileInfo

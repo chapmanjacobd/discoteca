@@ -35,197 +35,33 @@ type WatchCmd struct {
 
 func (c *WatchCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := c.buildFlags()
-	media, err := c.queryMedia(ctx, flags)
-	if err != nil {
-		return err
-	}
-
-	for i, m := range media {
-		if !utils.FileExists(m.Path) {
-			continue
-		}
-
-		stop, err := c.playMedia(ctx, flags, m)
-		if err != nil {
-			models.Log.Error("Play media failed", "path", m.Path, "error", err)
-		}
-		if stop {
-			return nil
-		}
-
-		if i < len(media)-1 && c.InterdimensionalCable > 0 {
-			fmt.Printf("\nChanging channel...\n")
-		}
-	}
-
-	return nil
-}
-
-func (c *WatchCmd) buildFlags() models.GlobalFlags {
-	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
-		Core:        c.CoreFlags,
-		Query:       c.QueryFlags,
-		PathFilter:  c.PathFilterFlags,
-		Filter:      c.FilterFlags,
-		MediaFilter: c.MediaFilterFlags,
-		TimeFilter:  c.TimeFilterFlags,
-		Deleted:     c.DeletedFlags,
-		Sort:        c.SortFlags,
-		Display:     c.DisplayFlags,
-		FTS:         c.FTSFlags,
+	return runPlayback(ctx, c, playbackOptions{
+		subtitles:    true,
+		fullscreen:   true,
+		savePlayhead: true,
+		channelGap:   true,
 	})
-	flags.PlaybackFlags = c.PlaybackFlags
-	flags.MpvActionFlags = c.MpvActionFlags
-	flags.PostActionFlags = c.PostActionFlags
-	return flags
 }
 
-func (c *WatchCmd) queryMedia(ctx context.Context, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
-	media, err := query.MediaQuery(ctx, c.Databases, flags)
-	if err != nil {
-		return nil, err
+func (c *WatchCmd) flagSets() playbackFlagSets {
+	return playbackFlagSets{
+		core:        c.CoreFlags,
+		query:       c.QueryFlags,
+		pathFilter:  c.PathFilterFlags,
+		filter:      c.FilterFlags,
+		mediaFilter: c.MediaFilterFlags,
+		timeFilter:  c.TimeFilterFlags,
+		deleted:     c.DeletedFlags,
+		sort:        c.SortFlags,
+		display:     c.DisplayFlags,
+		fts:         c.FTSFlags,
+		playback:    c.PlaybackFlags,
+		mpvAction:   c.MpvActionFlags,
+		postAction:  c.PostActionFlags,
 	}
-
-	media = query.FilterMedia(media, flags)
-	query.SortMedia(media, flags)
-
-	if len(media) == 0 {
-		return nil, errors.New("no media found")
-	}
-	return media, nil
 }
 
-func (c *WatchCmd) playMedia(
-	ctx context.Context,
-	flags models.GlobalFlags,
-	m models.MediaWithDB,
-) (stop bool, playErr error) {
-	args := c.buildMpvArgs(m)
-
-	if c.Cast {
-		if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, false); err != nil {
-			models.Log.Error("Cast failed", "path", m.Path, "error", err)
-		}
-		return false, nil
-	}
-
-	startTime := time.Now()
-	exitCode, err := runPlayer(ctx, args, m.Path)
-
-	if c.TrackHistory {
-		if err2 := c.updateHistory(ctx, flags, m, startTime); err2 != nil {
-			models.Log.Error("Warning: failed to update history", "path", m.Path, "error", err2)
-		}
-	}
-
-	if stop := handlePlayerExit(ctx, flags, exitCode, err, m); stop {
-		return true, err
-	}
-
-	if postErr := ExecutePostAction(ctx, flags, []models.MediaWithDB{m}); postErr != nil {
-		models.Log.Error("Post action failed", "path", m.Path, "error", postErr)
-	}
-
-	return false, err
-}
-
-func (c *WatchCmd) buildMpvArgs(m models.MediaWithDB) []string {
-	player := c.OverridePlayer
-	if player == "" {
-		player = "mpv"
-	}
-	args := []string{player}
-
-	if player == "mpv" {
-		args = c.appendWatchMpvFlags(args)
-		args = c.appendSubtitleArgs(args)
-		args = c.appendPlaybackArgs(args, mustInt(m.Duration))
-	}
-
-	args = append(args, m.Path)
-	return args
-}
-
-func (c *WatchCmd) appendWatchMpvFlags(args []string) []string {
-	if c.Volume > 0 {
-		args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
-	}
-	if c.Fullscreen {
-		args = append(args, "--fullscreen")
-	}
-	if c.Mute {
-		args = append(args, "--mute=yes")
-	}
-	if c.Loop {
-		args = append(args, "--loop-file=inf")
-	}
-	if c.SavePlayhead {
-		args = append(args, "--save-position-on-quit")
-	}
-
-	ipcSocket := c.MpvSocket
-	if ipcSocket == "" {
-		ipcSocket = utils.GetMpvWatchSocket()
-	}
-	args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
-	return args
-}
-
-func (c *WatchCmd) appendSubtitleArgs(args []string) []string {
-	useSubs := !c.NoSubtitles
-	if useSubs && c.SubtitleMix > 0 {
-		if utils.RandomFloat() < c.SubtitleMix {
-			useSubs = false
-		}
-	}
-
-	if !useSubs {
-		args = append(args, "--no-sub")
-		args = append(args, c.PlayerArgsNoSub...)
-	} else {
-		args = append(args, c.PlayerArgsSub...)
-	}
-	return args
-}
-
-func (c *WatchCmd) appendPlaybackArgs(args []string, duration int) []string {
-	if c.Speed != 1.0 {
-		args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
-	}
-
-	start, end := c.getStartEnd(duration)
-	if start != "" {
-		args = append(args, fmt.Sprintf("--start=%s", start))
-	}
-	if end != "" {
-		args = append(args, fmt.Sprintf("--end=%s", end))
-	}
-	return args
-}
-
-func (c *WatchCmd) getStartEnd(duration int) (start, end string) {
-	start = c.Start
-	end = c.End
-	if c.InterdimensionalCable > 0 && duration > c.InterdimensionalCable {
-		s := utils.RandomInt(0, duration-c.InterdimensionalCable)
-		start = strconv.Itoa(s)
-		end = strconv.Itoa(s + c.InterdimensionalCable)
-	}
-	return start, end
-}
-
-func (c *WatchCmd) updateHistory(
-	ctx context.Context,
-	flags models.GlobalFlags,
-	m models.MediaWithDB,
-	startTime time.Time,
-) error {
-	mediaDuration := mustInt(m.Duration)
-	existingPlayhead := mustInt(m.Playhead)
-	playhead := utils.GetPlayhead(flags, m.Path, startTime, existingPlayhead, mediaDuration)
-	return history.UpdateHistorySimple(ctx, m.DB, []string{m.Path}, playhead, false)
-}
+func (c *WatchCmd) databases() []string { return c.Databases }
 
 type ListenCmd struct {
 	models.CoreFlags        `embed:""`
@@ -247,50 +83,110 @@ type ListenCmd struct {
 
 func (c *ListenCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := c.buildFlags()
-	media, err := c.queryMedia(ctx, flags)
+	return runPlayback(ctx, c, playbackOptions{audioOnly: true})
+}
+
+func (c *ListenCmd) flagSets() playbackFlagSets {
+	return playbackFlagSets{
+		core:        c.CoreFlags,
+		query:       c.QueryFlags,
+		pathFilter:  c.PathFilterFlags,
+		filter:      c.FilterFlags,
+		mediaFilter: c.MediaFilterFlags,
+		timeFilter:  c.TimeFilterFlags,
+		deleted:     c.DeletedFlags,
+		sort:        c.SortFlags,
+		display:     c.DisplayFlags,
+		fts:         c.FTSFlags,
+		playback:    c.PlaybackFlags,
+		mpvAction:   c.MpvActionFlags,
+		postAction:  c.PostActionFlags,
+	}
+}
+
+func (c *ListenCmd) databases() []string { return c.Databases }
+
+// playbackFlagSets is the common flag set embedded by watch and listen. Keeping
+// the conversion here prevents the two commands from drifting apart.
+type playbackFlagSets struct {
+	core        models.CoreFlags
+	query       models.QueryFlags
+	pathFilter  models.PathFilterFlags
+	filter      models.FilterFlags
+	mediaFilter models.MediaFilterFlags
+	timeFilter  models.TimeFilterFlags
+	deleted     models.DeletedFlags
+	sort        models.SortFlags
+	display     models.DisplayFlags
+	fts         models.FTSFlags
+	playback    models.PlaybackFlags
+	mpvAction   models.MpvActionFlags
+	postAction  models.PostActionFlags
+}
+
+func (s playbackFlagSets) globalFlags() models.GlobalFlags {
+	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
+		Core:        s.core,
+		Query:       s.query,
+		PathFilter:  s.pathFilter,
+		Filter:      s.filter,
+		MediaFilter: s.mediaFilter,
+		TimeFilter:  s.timeFilter,
+		Deleted:     s.deleted,
+		Sort:        s.sort,
+		Display:     s.display,
+		FTS:         s.fts,
+	})
+	flags.PlaybackFlags = s.playback
+	flags.MpvActionFlags = s.mpvAction
+	flags.PostActionFlags = s.postAction
+	return flags
+}
+
+type playbackCommand interface {
+	flagSets() playbackFlagSets
+	databases() []string
+}
+
+// playbackOptions records the intentional differences between watch and listen.
+type playbackOptions struct {
+	audioOnly    bool
+	subtitles    bool
+	fullscreen   bool
+	savePlayhead bool
+	channelGap   bool
+}
+
+func runPlayback(ctx context.Context, cmd playbackCommand, opts playbackOptions) error {
+	flags := cmd.flagSets().globalFlags()
+	media, err := queryPlaybackMedia(ctx, cmd.databases(), flags)
 	if err != nil {
 		return err
 	}
 
-	for _, m := range media {
+	for i, m := range media {
 		if !utils.FileExists(m.Path) {
 			continue
 		}
 
-		stop, err := c.playMedia(ctx, flags, m)
+		stop, err := playMedia(ctx, flags, m, opts)
 		if err != nil {
 			models.Log.Error("Play media failed", "path", m.Path, "error", err)
 		}
 		if stop {
 			return nil
 		}
+
+		if opts.channelGap && i < len(media)-1 && flags.InterdimensionalCable > 0 {
+			fmt.Printf("\nChanging channel...\n")
+		}
 	}
 
 	return nil
 }
 
-func (c *ListenCmd) buildFlags() models.GlobalFlags {
-	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
-		Core:        c.CoreFlags,
-		Query:       c.QueryFlags,
-		PathFilter:  c.PathFilterFlags,
-		Filter:      c.FilterFlags,
-		MediaFilter: c.MediaFilterFlags,
-		TimeFilter:  c.TimeFilterFlags,
-		Deleted:     c.DeletedFlags,
-		Sort:        c.SortFlags,
-		Display:     c.DisplayFlags,
-		FTS:         c.FTSFlags,
-	})
-	flags.PlaybackFlags = c.PlaybackFlags
-	flags.MpvActionFlags = c.MpvActionFlags
-	flags.PostActionFlags = c.PostActionFlags
-	return flags
-}
-
-func (c *ListenCmd) queryMedia(ctx context.Context, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
-	media, err := query.MediaQuery(ctx, c.Databases, flags)
+func queryPlaybackMedia(ctx context.Context, databases []string, flags models.GlobalFlags) ([]models.MediaWithDB, error) {
+	media, err := query.MediaQuery(ctx, databases, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -304,26 +200,27 @@ func (c *ListenCmd) queryMedia(ctx context.Context, flags models.GlobalFlags) ([
 	return media, nil
 }
 
-func (c *ListenCmd) playMedia(
+func playMedia(
 	ctx context.Context,
 	flags models.GlobalFlags,
 	m models.MediaWithDB,
+	opts playbackOptions,
 ) (stop bool, playErr error) {
-	args := c.buildMpvArgs(m)
+	args := buildPlayerArgs(m, flags.PlaybackFlags, opts)
 
-	if c.Cast {
-		if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, true); err != nil {
+	if flags.Cast {
+		if err := CastPlay(ctx, flags, []models.MediaWithDB{m}, opts.audioOnly); err != nil {
 			models.Log.Error("Cast failed", "path", m.Path, "error", err)
 		}
 		return false, nil
 	}
 
 	startTime := time.Now()
-	exitCode, err := runPlayer(ctx, args, m.Path)
+	exitCode, err := runPlayer(ctx, args)
 
-	if c.TrackHistory {
-		if err2 := c.updateHistory(ctx, flags, m, startTime); err2 != nil {
-			models.Log.Warn("Failed to update history", "error", err2)
+	if flags.TrackHistory {
+		if historyErr := updatePlaybackHistory(ctx, flags, m, startTime); historyErr != nil {
+			models.Log.Warn("Failed to update history", "path", m.Path, "error", historyErr)
 		}
 	}
 
@@ -338,68 +235,88 @@ func (c *ListenCmd) playMedia(
 	return false, err
 }
 
-func (c *ListenCmd) buildMpvArgs(m models.MediaWithDB) []string {
-	player := c.OverridePlayer
+func buildPlayerArgs(m models.MediaWithDB, playback models.PlaybackFlags, opts playbackOptions) []string {
+	player := playback.OverridePlayer
 	if player == "" {
 		player = "mpv"
 	}
 	args := []string{player}
 
 	if player == "mpv" {
-		args = append(args, "--video=no")
-		args = c.appendListenMpvFlags(args)
-		args = c.appendPlaybackArgs(args, mustInt(m.Duration))
+		if opts.audioOnly {
+			args = append(args, "--video=no")
+		}
+		if playback.Volume > 0 {
+			args = append(args, fmt.Sprintf("--volume=%d", playback.Volume))
+		}
+		if opts.fullscreen && playback.Fullscreen {
+			args = append(args, "--fullscreen")
+		}
+		if playback.Speed != 1.0 {
+			args = append(args, fmt.Sprintf("--speed=%.2f", playback.Speed))
+		}
+		if playback.Mute {
+			args = append(args, "--mute=yes")
+		}
+		if playback.Loop {
+			args = append(args, "--loop-file=inf")
+		}
+		if opts.savePlayhead && playback.SavePlayhead {
+			args = append(args, "--save-position-on-quit")
+		}
+
+		ipcSocket := playback.MpvSocket
+		if ipcSocket == "" {
+			ipcSocket = utils.GetMpvWatchSocket()
+		}
+		args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
+
+		if opts.subtitles {
+			args = appendSubtitleArgs(args, playback)
+		}
+
+		start, end := startEnd(playback, mustInt(m.Duration))
+		if start != "" {
+			args = append(args, fmt.Sprintf("--start=%s", start))
+		}
+		if end != "" {
+			args = append(args, fmt.Sprintf("--end=%s", end))
+		}
 	}
 
 	args = append(args, m.Path)
 	return args
 }
 
-func (c *ListenCmd) appendListenMpvFlags(args []string) []string {
-	if c.Volume > 0 {
-		args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
-	}
-	if c.Speed != 1.0 {
-		args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
-	}
-	if c.Mute {
-		args = append(args, "--mute=yes")
-	}
-	if c.Loop {
-		args = append(args, "--loop-file=inf")
+func appendSubtitleArgs(args []string, playback models.PlaybackFlags) []string {
+	useSubs := !playback.NoSubtitles
+	if useSubs && playback.SubtitleMix > 0 {
+		if utils.RandomFloat() < playback.SubtitleMix {
+			useSubs = false
+		}
 	}
 
-	ipcSocket := c.MpvSocket
-	if ipcSocket == "" {
-		ipcSocket = utils.GetMpvWatchSocket()
-	}
-	args = append(args, fmt.Sprintf("--input-ipc-server=%s", ipcSocket))
-	return args
-}
-
-func (c *ListenCmd) appendPlaybackArgs(args []string, duration int) []string {
-	start, end := c.getStartEnd(duration)
-	if start != "" {
-		args = append(args, fmt.Sprintf("--start=%s", start))
-	}
-	if end != "" {
-		args = append(args, fmt.Sprintf("--end=%s", end))
+	if !useSubs {
+		args = append(args, "--no-sub")
+		args = append(args, playback.PlayerArgsNoSub...)
+	} else {
+		args = append(args, playback.PlayerArgsSub...)
 	}
 	return args
 }
 
-func (c *ListenCmd) getStartEnd(duration int) (start, end string) {
-	start = c.Start
-	end = c.End
-	if c.InterdimensionalCable > 0 && duration > c.InterdimensionalCable {
-		s := utils.RandomInt(0, duration-c.InterdimensionalCable)
+func startEnd(playback models.PlaybackFlags, duration int) (start, end string) {
+	start = playback.Start
+	end = playback.End
+	if playback.InterdimensionalCable > 0 && duration > playback.InterdimensionalCable {
+		s := utils.RandomInt(0, duration-playback.InterdimensionalCable)
 		start = strconv.Itoa(s)
-		end = strconv.Itoa(s + c.InterdimensionalCable)
+		end = strconv.Itoa(s + playback.InterdimensionalCable)
 	}
 	return start, end
 }
 
-func (c *ListenCmd) updateHistory(
+func updatePlaybackHistory(
 	ctx context.Context,
 	flags models.GlobalFlags,
 	m models.MediaWithDB,
@@ -420,7 +337,7 @@ func mustInt(p *int64) int {
 	return int(*p)
 }
 
-func runPlayer(ctx context.Context, args []string, _ string) (exitCode int, err error) {
+func runPlayer(ctx context.Context, args []string) (exitCode int, err error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -73,10 +73,6 @@ func (f dedupeFilter) appendTo(where string, args []any) (string, []any) {
 func (c *DedupeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
-	if err := c.runMigrations(ctx); err != nil {
-		return err
-	}
-
 	// Dedupe only considers live rows unless the caller explicitly asks for a
 	// different deleted-row policy.
 	if !c.OnlyDeleted && !c.HideDeleted {
@@ -123,39 +119,6 @@ func (c *DedupeCmd) Run(ctx context.Context) error {
 	}
 
 	return c.processDuplicates(ctx, finalCandidates, flags)
-}
-
-func (c *DedupeCmd) runMigrations(ctx context.Context) error {
-	for _, dbPath := range c.Databases {
-		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
-		if err != nil {
-			return err
-		}
-		// Micro-migration for dedupe
-		err = db.EnsureColumns(ctx, sqlDB, []db.ColumnDef{
-			{Table: "media", Column: "is_deduped", Schema: "INTEGER DEFAULT 0"},
-		})
-		if err != nil {
-			sqlDB.Close()
-			return err
-		}
-		err = db.EnsureIndexes(ctx, sqlDB, []db.IndexDef{
-			{
-				Name: "idx_media_is_deduped",
-				SQL:  "CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_deduped = 1",
-			},
-			{
-				Name: "idx_media_unprocessed",
-				SQL:  "CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL",
-			},
-		})
-		if err != nil {
-			sqlDB.Close()
-			return err
-		}
-		sqlDB.Close()
-	}
-	return nil
 }
 
 func (c *DedupeCmd) collectDuplicates(

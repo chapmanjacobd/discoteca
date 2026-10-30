@@ -3,7 +3,6 @@ package utils
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -75,25 +74,6 @@ func ExpandStdin(paths []string) []string {
 		}
 	}
 	return out
-}
-
-func Confirm(message string) bool {
-	fmt.Fprintf(Stdout, "%s [y/N]: ", message)
-	scanner := bufio.NewScanner(Stdin)
-	if scanner.Scan() {
-		response := strings.ToLower(strings.TrimSpace(scanner.Text()))
-		return response == "y" || response == "yes"
-	}
-	return false
-}
-
-func Prompt(message string) string {
-	fmt.Fprintf(Stdout, "%s: ", message)
-	scanner := bufio.NewScanner(Stdin)
-	if scanner.Scan() {
-		return strings.TrimSpace(scanner.Text())
-	}
-	return ""
 }
 
 // PrintJSON encodes data as indented JSON to stdout

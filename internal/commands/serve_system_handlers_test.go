@@ -50,8 +50,13 @@ func TestServeHandlers_Favicon(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	// Should not be 404 even if we don't have a real favicon
-	if w.Code == http.StatusNotFound {
-		t.Error("Favicon endpoint should be handled")
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", w.Code)
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/svg+xml" {
+		t.Errorf("Expected image/svg+xml, got %q", got)
+	}
+	if w.Body.Len() == 0 {
+		t.Error("Expected favicon response body")
 	}
 }

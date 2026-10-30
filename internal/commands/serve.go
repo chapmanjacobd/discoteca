@@ -50,7 +50,6 @@ type LsEntry struct {
 	Path      string `json:"path"`
 	IsDir     bool   `json:"is_dir"`
 	MediaType string `json:"media_type,omitempty"`
-	Local     bool   `json:"local"`
 }
 
 // ServeCmd is the HTTP server command
@@ -141,8 +140,14 @@ func (c *ServeCmd) registerAPIRoutes(mux *http.ServeMux) {
 	// Health and favicon
 	mux.HandleFunc("/health", c.HandleHealth)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "image/x-icon")
+		favicon, err := web.FsRaw.ReadFile("dist/favicon.svg")
+		if err != nil {
+			http.NotFound(w, nil)
+			return
+		}
+		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(favicon)
 	})
 
 	// Core API routes
@@ -178,7 +183,6 @@ func (c *ServeCmd) registerAPIRoutes(mux *http.ServeMux) {
 		{"/api/categorize/category", c.HandleCategorizeDeleteCategory},
 		{"/api/categorize/keyword", c.HandleCategorizeKeyword},
 		{"/api/raw", c.HandleRaw},
-		{"/api/queries", c.HandleQueries},
 		{"/api/zim/view", c.HandleZimView},
 		{"/api/zim/proxy/{port}/{rest...}", c.HandleZimProxy},
 		{"/api/rsvp", c.HandleRSVP},
@@ -278,9 +282,6 @@ func (c *ServeCmd) setCacheControlHeaders(w http.ResponseWriter, r *http.Request
 
 // Mux creates the HTTP request multiplexer with all routes
 func (c *ServeCmd) Mux() http.Handler {
-	if c.APIToken == "" {
-		c.APIToken = "test-token"
-	}
 	mux := http.NewServeMux()
 
 	c.registerAPIRoutes(mux)
@@ -568,8 +569,6 @@ func (c *ServeCmd) parseSearchFlags(flags *models.GlobalFlags, q url.Values) {
 func (c *ServeCmd) parseCategoryFlags(flags *models.GlobalFlags, q url.Values) {
 	if categories := q["category"]; len(categories) > 0 {
 		flags.Category = categories
-	} else if category := q.Get("category"); category != "" {
-		flags.Category = []string{category}
 	}
 	if genre := q.Get("genre"); genre != "" {
 		flags.Genre = genre
@@ -832,8 +831,6 @@ func (c *ServeCmd) parseStatusFlags(flags *models.GlobalFlags, q url.Values) {
 	}
 	if episodes := q["episodes"]; len(episodes) > 0 {
 		flags.FileCounts = strings.Join(episodes, ",")
-	} else if episodes := q.Get("episodes"); episodes != "" {
-		flags.FileCounts = episodes
 	}
 	if groupBy := q.Get("group_by"); groupBy == "parent" {
 		flags.GroupByParent = true
@@ -891,11 +888,6 @@ func (c *ServeCmd) filterDatabases(requested []string) ([]string, error) {
 			return nil, fmt.Errorf("database not in allowed list: %s", db)
 		}
 		filtered = append(filtered, db)
-	}
-
-	// If all databases were filtered out, return empty list (no results)
-	if len(filtered) == 0 {
-		return []string{}, nil
 	}
 
 	return filtered, nil

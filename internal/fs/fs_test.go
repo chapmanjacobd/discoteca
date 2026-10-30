@@ -30,9 +30,14 @@ func TestFindMedia(t *testing.T) {
 		}
 	}
 
-	found, err := fs.FindMedia(tempDir, nil)
-	if err != nil {
-		t.Fatalf("fs.FindMedia failed: %v", err)
+	found := make(map[string]bool)
+	ch := make(chan fs.FindMediaResult, 10)
+	if err := fs.FindMediaChan(tempDir, nil, ch); err != nil {
+		t.Fatalf("fs.FindMediaChan failed: %v", err)
+	}
+	close(ch)
+	for res := range ch {
+		found[res.Path] = true
 	}
 
 	expectedCount := 5 // mp4, mp3, txt, mkv, jpg

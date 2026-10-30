@@ -201,7 +201,7 @@ func writeSubcommand(sb *strings.Builder, node *kong.Node) {
 	fmt.Fprintf(sb, "### %s\n\n", node.Name)
 	fmt.Fprintf(sb, "%s\n\n", node.Help)
 
-	if ex, ok := subcommandExamples[node.Name]; ok {
+	if ex, ok := SubcommandExamples()[node.Name]; ok {
 		writeExamples(sb, node.Name, ex)
 	}
 
