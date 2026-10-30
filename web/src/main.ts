@@ -736,6 +736,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.filters.reverse) {
             params.append('reverse', String('true'));
         }
+        if (state.filters.sort === 'random') {
+            if (!state.filters.randomSeed) state.filters.randomSeed = createRandomSeed();
+            params.append('random_seed', String(state.filters.randomSeed));
+        }
+    }
+
+    function createRandomSeed(): number {
+        return Math.floor(Math.random() * 0xffffffff) + 1;
+    }
+
+    // time_deleted is a Trash-only sort (and hidden everywhere else). Clear it
+    // whenever a view that does not support it becomes active.
+    function clearTrashOnlySort() {
+        if (state.filters.sort !== 'time_deleted') return;
+        state.filters.sort = 'default';
+        state.filters.reverse = false;
+        if (sortBy) sortBy.value = 'default';
     }
 
     const isMobileOrFullscreen = () => window.innerWidth <= 768 || !!document.fullscreenElement;
@@ -802,6 +819,10 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 params.set('sort', String(state.filters.sort));
             }
+        }
+        if (state.filters.sort === 'random') {
+            if (!state.filters.randomSeed) state.filters.randomSeed = createRandomSeed();
+            params.set('random_seed', String(state.filters.randomSeed));
         }
         if (state.filters.reverse) params.set('reverse', 'true');
         if (state.filters.all) {
@@ -898,6 +919,17 @@ document.addEventListener('DOMContentLoaded', () => {
             state.filters.customSortFields = '';
         }
         state.filters.reverse = params.get('reverse') === 'true';
+        const randomSeedParam = params.get('random_seed');
+        if (randomSeedParam) {
+            const parsedSeed = Number(randomSeedParam);
+            if (Number.isFinite(parsedSeed) && parsedSeed > 0) state.filters.randomSeed = parsedSeed;
+        }
+        if (state.filters.sort === 'random' && !state.filters.randomSeed) {
+            state.filters.randomSeed = createRandomSeed();
+        }
+        if (state.filters.randomSeed) {
+            localStorage.setItem('disco-random-seed', String(state.filters.randomSeed));
+        }
         state.filters.all = params.get('all') === 'true';
         const limitParam = params.get('limit');
         if (limitParam) {
@@ -1461,6 +1493,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchPlaylistItems(title) {
         const isNewPlaylist = state.filters.playlist !== title;
+        clearTrashOnlySort();
         state.page = 'playlist';
         state.filters.playlist = title;
         state.filters.genre = '';
@@ -1743,6 +1776,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchDU(path = '', isAutoSkip = false) {
         const prevPath = state.duPath;
+        clearTrashOnlySort();
         // Detect first visit by checking if we haven't loaded any DU data yet AND sort hasn't been set
         const hasLoadedDuData = state.duData && state.duData.length > 0;
         const isFirstDUVisit = !hasLoadedDuData && state.page !== 'du';
@@ -2981,6 +3015,7 @@ document.addEventListener('DOMContentLoaded', () => {
             f.sort,
             f.customSortFields,
             f.reverse,
+            f.randomSeed,
             f.limit,
             f.all,
             getIncludedDatabases(),
@@ -2992,11 +3027,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.page !== 'trash' && state.page !== 'history' && state.page !== 'playlist' && state.page !== 'du' && state.page !== 'curation' && state.page !== 'captions') {
             state.page = 'search';
         }
+        // time_deleted is a Trash-only sort (and hidden everywhere else). If it
+        // survives a navigation out of Trash, fall back to the normal default.
+        if (state.page !== 'trash') clearTrashOnlySort();
         state.filters.search = searchInput ? (searchInput as HTMLInputElement).value : '';
         // A sort restored from a URL may not have a visible toolbar option;
         // keep the state value instead of overwriting it with an empty select.
         const selectedSort = sortBy ? sortBy.value : 'default';
         if (selectedSort) state.filters.sort = selectedSort;
+        if (state.filters.sort === 'random' && !state.filters.randomSeed) {
+            state.filters.randomSeed = createRandomSeed();
+        }
         state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
         state.filters.all = limitAll ? limitAll.checked : false;
 
@@ -3059,15 +3100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             appendFilterParams(params);
-
-            // Sidebar captions filter (when not in full captions mode)
-            // Add sort parameters
-            if (state.filters.sort === 'custom' && state.filters.customSortFields) {
-                params.append('sort_fields', state.filters.customSortFields);
-            } else {
-                params.append('sort', String(state.filters.sort));
-                if (state.filters.reverse) params.append('reverse', String('true'));
-            }
 
             if (state.filters.all) {
                 params.append('all', String('true'));
@@ -3215,16 +3247,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             clearTimeout(skeletonTimeout);
             if (err.name === 'AbortError') return;
+            if (err.message === 'Unauthorized') {
+                // A failed prompt/cancelled session must not reload in a loop.
+                // Let the user retry explicitly.
+                resultsContainer.innerHTML = `<div class="error">Authentication required. <button class="category-btn" onclick="window.location.reload()">Reload</button></div>`;
+                return;
+            }
             console.error('Search failed:', err);
             resultsContainer.innerHTML = `<div class="error">Search failed: ${escapeHtml(err.message)}</div>`;
-            if (err.message === 'Unauthorized') {
-                window.location.reload();
-            }
         }
     }
     async function fetchTrash() {
         state.page = 'trash';
-        if (!state.filters.sort || state.filters.sort === 'default') {
+        if (!state.filters.sort || state.filters.sort === 'default' || state.filters.sort === 'time_last_played') {
             state.filters.sort = 'time_deleted';
             state.filters.reverse = true;
         }
@@ -3234,7 +3269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchHistory() {
         state.page = 'history';
-        if (!state.filters.sort || state.filters.sort === 'default') {
+        if (!state.filters.sort || state.filters.sort === 'default' || state.filters.sort === 'time_deleted') {
             state.filters.sort = 'time_last_played';
             state.filters.reverse = true;
         }
@@ -3290,13 +3325,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('watched', String('true'));
             }
             appendFilterParams(params);
-
-            if (state.filters.sort === 'custom' && state.filters.customSortFields) {
-                params.append('sort_fields', state.filters.customSortFields);
-            } else {
-                params.append('sort', String(state.filters.sort));
-                if (state.filters.reverse) params.append('reverse', String('true'));
-            }
 
             params.append('limit', '1');
             params.append('offset', (state.currentPage * state.filters.limit - 1).toString());
@@ -3862,6 +3890,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function rateMedia(item, score) {
+        if (state.readOnly) {
+            showToast('Read-only mode', '🚫');
+            return;
+        }
         try {
             await fetchAPI('/api/rate', {
                 method: 'POST',
@@ -8749,6 +8781,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.filters.sort = sortBy.value;
         localStorage.setItem('disco-sort', String(state.filters.sort));
+        if (state.filters.sort === 'random') {
+            state.filters.randomSeed = createRandomSeed();
+            localStorage.setItem('disco-random-seed', String(state.filters.randomSeed));
+        }
 
         // Clear custom sort fields when selecting a preset
         if (sortBy.value !== 'custom') {

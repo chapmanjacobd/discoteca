@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -388,10 +389,12 @@ func TestHandleEpisodes(t *testing.T) {
 	sqlDB, _ := sql.Open("sqlite3", dbPath)
 	db.InitDB(context.Background(), sqlDB)
 
-	_, err := sqlDB.Exec(`INSERT INTO media (path, title, media_type, time_deleted) VALUES
-		('/shows/MyShow/MyShow.S01E01.mp4', 'Episode 1', 'video', 0),
-		('/shows/MyShow/MyShow.S01E02.mp4', 'Episode 2', 'video', 0),
-		('/shows/MyShow/MyShow.S01E03.mp4', 'Episode 3', 'video', 0)`)
+	_, err := sqlDB.Exec(`INSERT INTO media (path, title, media_type, size, time_deleted) VALUES
+		('/shows/MyShow/MyShow.S01E01.mp4', 'Episode 1', 'video', 300, 0),
+		('/shows/MyShow/MyShow.S01E02.mp4', 'Episode 2', 'video', 200, 0),
+		('/shows/MyShow/MyShow.S01E03.mp4', 'Episode 3', 'video', 100, 0),
+		('/shows/MyShow/MyShow.S01E01.en.vtt', 'Episode 1 captions', '', 50, 0),
+		('/shows/Other/Other.mp4', 'Other', 'video', 10, 0)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +407,7 @@ func TestHandleEpisodes(t *testing.T) {
 	mux := cmd.Mux()
 
 	t.Run("GroupEpisodes", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/episodes", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/episodes?all=true", nil)
 		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -416,5 +419,86 @@ func TestHandleEpisodes(t *testing.T) {
 		if w.Header().Get("X-Total-Count") == "" {
 			t.Error("Expected X-Total-Count header")
 		}
+
+		var groups []models.FolderStats
+		if err := json.NewDecoder(w.Body).Decode(&groups); err != nil {
+			t.Fatal(err)
+		}
+		totalFiles := 0
+		for _, group := range groups {
+			totalFiles += len(group.Files)
+			for _, file := range group.Files {
+				if filepath.Ext(file.Path) == ".vtt" {
+					t.Errorf("sidecar subtitle leaked into group view: %s", file.Path)
+				}
+			}
+		}
+		if totalFiles != 4 {
+			t.Errorf("expected 4 media files (subtitle excluded), got %d", totalFiles)
+		}
 	})
+
+	t.Run("SortOrdersFolders", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/episodes?all=true&sort=size", nil)
+		req.Header.Set("X-Disco-Token", cmd.APIToken)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d - Body: %s", w.Code, w.Body.String())
+		}
+		var groups []models.FolderStats
+		if err := json.NewDecoder(w.Body).Decode(&groups); err != nil {
+			t.Fatal(err)
+		}
+		if len(groups) < 2 || groups[0].Path != "/shows/Other" {
+			t.Fatalf("expected /shows/Other first for size sort, got %+v", groups)
+		}
+	})
+}
+
+// TestHandleThumbnailShortVideo verifies that clips shorter than the preferred
+// 25-second seek position still get a first-frame thumbnail instead of a 404.
+func TestHandleThumbnailShortVideo(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available")
+	}
+
+	tempDir := t.TempDir()
+	videoPath := filepath.Join(tempDir, "short.mp4")
+	ffmpegArgs := []string{
+		"-y", "-hide_banner", "-loglevel", "error",
+		"-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", videoPath,
+	}
+	if out, err := exec.Command("ffmpeg", ffmpegArgs...).CombinedOutput(); err != nil {
+		t.Skipf("unable to generate test video: %v - %s", err, out)
+	}
+
+	dbPath := filepath.Join(tempDir, "thumbnails.db")
+	sqlDB, _ := sql.Open("sqlite3", dbPath)
+	db.InitDB(context.Background(), sqlDB)
+	if _, err := sqlDB.Exec(
+		`INSERT INTO media (path, title, media_type, time_deleted) VALUES (?, 'Short', 'video', 0)`,
+		videoPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.Close()
+
+	cmd := &commands.ServeCmd{Databases: []string{dbPath}}
+	defer cmd.Close()
+	mux := cmd.Mux()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/thumbnail?path="+videoPath, nil)
+	req.Header.Set("X-Disco-Token", cmd.APIToken)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected thumbnail for short video, got %d - %s", w.Code, w.Body.String())
+	}
+	if w.Body.Len() == 0 {
+		t.Fatal("expected non-empty thumbnail")
+	}
 }

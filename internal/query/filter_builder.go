@@ -861,7 +861,13 @@ func NewSortBuilder(flags models.GlobalFlags) *SortBuilder {
 
 func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 	if sb.Flags.Random {
-		rand.Shuffle(len(media), func(i, j int) {
+		seed := sb.Flags.RandomSeed
+		if seed == 0 {
+			// No seed supplied (CLI, one-shot requests): reshuffle per call.
+			seed = rand.Uint64()
+		}
+		rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
+		rng.Shuffle(len(media), func(i, j int) {
 			media[i], media[j] = media[j], media[i]
 		})
 		applyReRank(media, sb.Flags)

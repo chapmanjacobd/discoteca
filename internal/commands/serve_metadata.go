@@ -141,7 +141,7 @@ func (c *ServeCmd) fetchUncategorizedCount(ctx context.Context) int64 {
 	for _, dbPath := range c.Databases {
 		_ = c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
 			var count int64
-			err := sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND (categories IS NULL OR categories = '')").
+			err := sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM media WHERE time_deleted = 0 AND "+database.SubtitlePathExclusion+" AND (categories IS NULL OR categories = '')").
 				Scan(&count)
 			if err == nil {
 				totalCount += count

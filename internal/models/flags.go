@@ -118,6 +118,10 @@ type SortFlags struct {
 	Random  bool   `help:"Random order"                                                                              short:"r" group:"Sort"`
 	ReRank  string `help:"Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)"                short:"k" group:"Sort" alias:"rerank"`
 
+	// RandomSeed makes a random order stable across paginated requests. The web
+	// client generates and sends this value while the user has Random selected.
+	RandomSeed uint64 `kong:"-" json:"-"`
+
 	// SortExplicit reports whether the user chose a non-default sort. It is set
 	// by commands that otherwise rewrite the default sort.
 	SortExplicit bool `kong:"-"`

@@ -747,6 +747,15 @@ func (c *ServeCmd) parseScoreFlags(flags *models.GlobalFlags, q url.Values) {
 
 // parseSortFlags extracts sorting-related flags
 func (c *ServeCmd) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
+	if seed := strings.TrimSpace(q.Get("random_seed")); seed != "" {
+		parsed, err := strconv.ParseUint(seed, 10, 64)
+		if err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid random_seed: %w", err))
+		} else {
+			flags.RandomSeed = parsed
+		}
+	}
+
 	if sortBy := strings.TrimSpace(q.Get("sort")); sortBy != "" {
 		if err := query.ValidateSortConfig(sortBy); err != nil {
 			setFlagValidationError(flags, fmt.Errorf("invalid sort: %w", err))

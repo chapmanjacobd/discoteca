@@ -77,9 +77,19 @@ export async function fetchAPI(url: string, options: RequestInit = {}, retried =
     if (resp.status === 403) throw new Error('Access Denied');
     if (resp.status === 401) {
         if (!retried) {
-            const supplied = tokenFromLocation() || promptForToken();
-            if (supplied && (await createSession(supplied))) {
-                return fetchAPI(url, options, true);
+            const urlToken = tokenFromLocation();
+            if (urlToken) {
+                if (await createSession(urlToken)) {
+                    return fetchAPI(url, options, true);
+                }
+            } else {
+                const supplied = promptForToken();
+                if (supplied && (await createSession(supplied))) {
+                    // Reload so every request that already failed during
+                    // initialization runs again with the new session cookie.
+                    window.location.reload();
+                    return new Promise<Response>(() => {});
+                }
             }
         }
         throw new Error('Unauthorized');

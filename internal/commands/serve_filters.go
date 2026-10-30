@@ -317,6 +317,9 @@ func (c *ServeCmd) HandleFilterBins(w http.ResponseWriter, r *http.Request) {
 	if rejectInvalidFlags(w, flags) {
 		return
 	}
+	// Filter bins describe the media grid, which does not include sidecar
+	// subtitle files.
+	flags.HideSubtitles = true
 	q := r.URL.Query()
 
 	// Validate and filter databases

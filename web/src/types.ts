@@ -105,6 +105,7 @@ export interface State {
         playlist: string | null;
         sort: string;
         reverse: boolean;
+        randomSeed: number;
         limit: number;
         all: boolean;
         excludedDbs: string[];

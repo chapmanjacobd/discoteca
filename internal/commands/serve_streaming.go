@@ -573,41 +573,53 @@ func (c *ServeCmd) tryServeSmallImage(w http.ResponseWriter, path string) bool {
 }
 
 // generateFallbackThumbnail creates a thumbnail for video or audio files using ffmpeg.
-// For video, it seeks to 25s, retries at 85s if the frame is too dark.
-// For audio, it tries to extract embedded album art.
+// For video, it seeks to 25s and falls back to the first frame for short clips.
+// It retries at 85s if the frame is too dark. For audio, it tries to extract
+// embedded album art.
 func (c *ServeCmd) generateFallbackThumbnail(ctx context.Context, path, mediaType string) ([]byte, error) {
-	var args []string
-	switch mediaType {
-	case "video":
-		args = []string{
-			"-ss", "25", "-i", path, "-frames:v", "1", "-q:v", "4",
-			"-vf", "scale=320:-1", "-f", "image2", "pipe:1",
+	if mediaType == "video" {
+		// Seek into the video to avoid black intro frames. Short clips have no
+		// frame at 25s, so fall back to the first frame instead of returning 404.
+		thumb, err := c.generateVideoFrame(ctx, path, "25")
+		if err != nil || len(thumb) == 0 {
+			thumb, err = c.generateVideoFrame(ctx, path, "0")
 		}
-	case "audio":
-		args = []string{"-i", path, "-an", "-vcodec", "copy", "-f", "image2", "pipe:1"}
-	default:
+
+		// If the first usable frame is too dark, try seeking further.
+		if err == nil && len(thumb) > 0 && utils.IsImageTooDark(thumb, 0.05) {
+			models.Log.Debug("Thumbnail too dark, retrying further in the video", "path", path)
+			if retryThumb, retryErr := c.generateVideoFrame(ctx, path, "85"); retryErr == nil && len(retryThumb) > 0 {
+				thumb = retryThumb
+			}
+		}
+
+		return thumb, err
+	}
+
+	if mediaType != "audio" {
 		return nil, errors.New("unsupported media type for thumbnail")
 	}
 
-	ffmpegArgs := append([]string{"-hide_banner", "-loglevel", "error"}, args...)
-	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
-	thumb, err := cmd.Output()
-
-	// If video thumbnail is too dark, try seeking further (e.g. 60 seconds later)
-	if err == nil && mediaType == "video" && utils.IsImageTooDark(thumb, 0.05) {
-		models.Log.Debug("Thumbnail too dark, retrying further in the video", "path", path)
-		retryArgs := []string{
-			"-ss", "85", "-i", path, "-frames:v", "1", "-q:v", "4",
-			"-vf", "scale=320:-1", "-f", "image2", "pipe:1",
-		}
-		retryFfmpegArgs := append([]string{"-hide_banner", "-loglevel", "error"}, retryArgs...)
-		cmdRetry := exec.CommandContext(ctx, "ffmpeg", retryFfmpegArgs...)
-		if retryThumb, retryErr := cmdRetry.Output(); retryErr == nil {
-			thumb = retryThumb
-		}
+	args := []string{
+		"-hide_banner", "-loglevel", "error",
+		"-i", path, "-an", "-vcodec", "copy",
+		"-f", "image2", "pipe:1",
 	}
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	return cmd.Output()
+}
 
-	return thumb, err
+// generateVideoFrame extracts one scaled frame from path at the given seek
+// position. An empty result is treated as a failure by callers.
+func (c *ServeCmd) generateVideoFrame(ctx context.Context, path, seek string) ([]byte, error) {
+	args := []string{
+		"-hide_banner", "-loglevel", "error",
+		"-ss", seek, "-i", path,
+		"-frames:v", "1", "-q:v", "4",
+		"-vf", "scale=320:-1", "-f", "image2", "pipe:1",
+	}
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	return cmd.Output()
 }
 
 func (c *ServeCmd) HandleThumbnail(w http.ResponseWriter, r *http.Request) {

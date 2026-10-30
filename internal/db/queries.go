@@ -11,6 +11,10 @@ import (
 // mediaColumns is the standard column list for media queries
 const mediaColumns = "path, path_tokenized, title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score"
 
+// SubtitlePathExclusion filters sidecar subtitle files out of aggregate
+// queries. Keep in sync with utils.SubtitleExtensions.
+const SubtitlePathExclusion = "LOWER(path) NOT LIKE '%.srt' AND LOWER(path) NOT LIKE '%.vtt' AND LOWER(path) NOT LIKE '%.ass' AND LOWER(path) NOT LIKE '%.ssa' AND LOWER(path) NOT LIKE '%.lrc' AND LOWER(path) NOT LIKE '%.idx' AND LOWER(path) NOT LIKE '%.sub'"
+
 func scanMedia(rows *sql.Rows) (Media, error) {
 	var i Media
 	err := rows.Scan(
@@ -551,7 +555,7 @@ type GetCategoryStatsRow struct {
 
 // GetCategoryStats retrieves stats for each category
 func (q *Queries) GetCategoryStats(ctx context.Context) ([]GetCategoryStatsRow, error) {
-	const query = `SELECT 'sports' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;sports;%' UNION ALL SELECT 'fitness' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;fitness;%' UNION ALL SELECT 'documentary' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;documentary;%' UNION ALL SELECT 'comedy' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;comedy;%' UNION ALL SELECT 'music' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;music;%' UNION ALL SELECT 'educational' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;educational;%' UNION ALL SELECT 'news' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;news;%' UNION ALL SELECT 'gaming' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;gaming;%' UNION ALL SELECT 'tech' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;tech;%' UNION ALL SELECT 'audiobook' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories LIKE '%;audiobook;%' UNION ALL SELECT 'Uncategorized' as category, COUNT(*) as count FROM media WHERE time_deleted = 0 AND (categories IS NULL OR categories = '') ORDER BY count DESC`
+	const query = `WITH active AS (SELECT categories FROM media WHERE time_deleted = 0 AND ` + SubtitlePathExclusion + `) SELECT 'sports' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;sports;%' UNION ALL SELECT 'fitness' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;fitness;%' UNION ALL SELECT 'documentary' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;documentary;%' UNION ALL SELECT 'comedy' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;comedy;%' UNION ALL SELECT 'music' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;music;%' UNION ALL SELECT 'educational' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;educational;%' UNION ALL SELECT 'news' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;news;%' UNION ALL SELECT 'gaming' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;gaming;%' UNION ALL SELECT 'tech' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;tech;%' UNION ALL SELECT 'audiobook' as category, COUNT(*) as count FROM active WHERE categories LIKE '%;audiobook;%' UNION ALL SELECT 'Uncategorized' as category, COUNT(*) as count FROM active WHERE (categories IS NULL OR categories = '') ORDER BY count DESC`
 	rows, err := q.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -580,7 +584,7 @@ type GetUsedCategoriesRow struct {
 
 // GetUsedCategories retrieves categories that are in use
 func (q *Queries) GetUsedCategories(ctx context.Context) ([]GetUsedCategoriesRow, error) {
-	const query = `SELECT categories, COUNT(*) as count FROM media WHERE time_deleted = 0 AND categories IS NOT NULL AND categories != '' GROUP BY categories`
+	const query = `SELECT categories, COUNT(*) as count FROM media WHERE time_deleted = 0 AND ` + SubtitlePathExclusion + ` AND categories IS NOT NULL AND categories != '' GROUP BY categories`
 	rows, err := q.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -632,7 +636,7 @@ type GetRatingStatsRow struct {
 
 // GetRatingStats retrieves stats for each rating
 func (q *Queries) GetRatingStats(ctx context.Context) ([]GetRatingStatsRow, error) {
-	const query = `SELECT CAST(COALESCE(score, 0) AS INTEGER) as rating, COUNT(*) as count FROM media WHERE time_deleted = 0 GROUP BY rating ORDER BY rating DESC`
+	const query = `SELECT CAST(COALESCE(score, 0) AS INTEGER) as rating, COUNT(*) as count FROM media WHERE time_deleted = 0 AND ` + SubtitlePathExclusion + ` GROUP BY rating ORDER BY rating DESC`
 	rows, err := q.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -661,7 +665,7 @@ type GetGenreStatsRow struct {
 
 // GetGenreStats retrieves stats for each genre
 func (q *Queries) GetGenreStats(ctx context.Context) ([]GetGenreStatsRow, error) {
-	const query = `SELECT genre, COUNT(*) as count FROM media WHERE time_deleted = 0 AND genre IS NOT NULL AND genre != '' GROUP BY genre ORDER BY count DESC`
+	const query = `SELECT genre, COUNT(*) as count FROM media WHERE time_deleted = 0 AND ` + SubtitlePathExclusion + ` AND genre IS NOT NULL AND genre != '' GROUP BY genre ORDER BY count DESC`
 	rows, err := q.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -690,7 +694,7 @@ type GetLanguageStatsRow struct {
 
 // GetLanguageStats retrieves stats for each language
 func (q *Queries) GetLanguageStats(ctx context.Context) ([]GetLanguageStatsRow, error) {
-	const query = `SELECT language, COUNT(*) as count FROM media WHERE time_deleted = 0 AND language IS NOT NULL AND language != '' GROUP BY language ORDER BY count DESC`
+	const query = `SELECT language, COUNT(*) as count FROM media WHERE time_deleted = 0 AND ` + SubtitlePathExclusion + ` AND language IS NOT NULL AND language != '' GROUP BY language ORDER BY count DESC`
 	rows, err := q.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err

@@ -1253,6 +1253,9 @@ func (c *ServeCmd) HandleEpisodes(w http.ResponseWriter, r *http.Request) {
 	if rejectInvalidFlags(w, flags) {
 		return
 	}
+	// Group view renders playable media cards, so sidecar subtitle files belong
+	// in captions, not as media cards or folder counts.
+	flags.HideSubtitles = true
 	if flags.Limit <= 0 {
 		flags.All = true
 		flags.Limit = 1000000
@@ -1266,6 +1269,43 @@ func (c *ServeCmd) HandleEpisodes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := aggregate.GroupByParent(allMedia)
+
+	// GroupByParent sorts folders by path. Apply the selected sort to the
+	// folder sequence as well as to the files inside each folder.
+	switch flags.SortBy {
+	case "size", "duration":
+		sort.SliceStable(results, func(i, j int) bool {
+			left, right := results[i].TotalSize, results[j].TotalSize
+			if flags.SortBy == "duration" {
+				left, right = results[i].TotalDuration, results[j].TotalDuration
+			}
+			if left == right {
+				return results[i].Path < results[j].Path
+			}
+			if flags.Reverse {
+				return left > right
+			}
+			return left < right
+		})
+	default:
+		// Use the position of each folder's first file in the already-sorted
+		// media list. This covers path, random, and the remaining fields.
+		firstSeen := make(map[string]int, len(results))
+		for i, item := range allMedia {
+			parent := item.Parent()
+			if _, ok := firstSeen[parent]; !ok {
+				firstSeen[parent] = i
+			}
+		}
+		sort.SliceStable(results, func(i, j int) bool {
+			left, leftOK := firstSeen[results[i].Path]
+			right, rightOK := firstSeen[results[j].Path]
+			if !leftOK || !rightOK {
+				return results[i].Path < results[j].Path
+			}
+			return left < right
+		})
+	}
 
 	// Set total count header for pagination
 	w.Header().Set("X-Total-Count", strconv.Itoa(len(results)))

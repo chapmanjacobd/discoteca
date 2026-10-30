@@ -26,10 +26,14 @@ func TestHandleCategories(t *testing.T) {
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, media_type, categories, time_deleted) VALUES 
 		(?, 'Test1', 'video', 'comedy;action', 0),
 		(?, 'Test2', 'video', 'comedy', 0),
-		(?, 'Test3', 'video', '', 0)`,
+		(?, 'Test3', 'video', '', 0),
+		(?, 'Captions1', '', 'comedy', 0),
+		(?, 'Captions2', '', '', 0)`,
 		filepath.FromSlash("/tmp/test1.mp4"),
 		filepath.FromSlash("/tmp/test2.mp4"),
-		filepath.FromSlash("/tmp/test3.mp4"))
+		filepath.FromSlash("/tmp/test3.mp4"),
+		filepath.FromSlash("/tmp/test1.vtt"),
+		filepath.FromSlash("/tmp/test2.vtt"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,13 +64,20 @@ func TestHandleCategories(t *testing.T) {
 	}
 
 	foundComedy := false
+	foundUncategorized := false
 	for _, cat := range categories {
 		if cat.Category == "comedy" && cat.Count == 2 {
 			foundComedy = true
 		}
+		if cat.Category == "Uncategorized" && cat.Count == 1 {
+			foundUncategorized = true
+		}
 	}
 	if !foundComedy {
 		t.Error("Expected comedy category with count 2")
+	}
+	if !foundUncategorized {
+		t.Error("Expected Uncategorized count 1 (sidecar subtitle excluded)")
 	}
 }
 

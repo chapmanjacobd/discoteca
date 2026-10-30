@@ -29,6 +29,7 @@ export const state: State = {
         playlist: null,
         sort: getLocalStorageItem('disco-sort', 'default')!,
         reverse: getLocalStorageItem('disco-reverse') === 'true',
+        randomSeed: Number(getLocalStorageItem('disco-random-seed', '')) || 0,
         limit: parseInt(getLocalStorageItem('disco-limit', '99')!),
         all: getLocalStorageItem('disco-limit-all') === 'true',
         excludedDbs: getJSONLocalStorageItem('disco-excluded-dbs', []),
