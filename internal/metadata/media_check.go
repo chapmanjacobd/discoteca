@@ -14,14 +14,24 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
-func DecodeQuickScan(ctx context.Context, path string, scans []float64, scanDuration float64) float64 {
+func DecodeQuickScan(ctx context.Context, path string, scans []float64, scanDuration float64) (float64, error) {
 	if len(scans) == 0 {
-		return 0
+		return 0, nil
 	}
 
 	var wg sync.WaitGroup
 	failChan := make(chan struct{}, len(scans))
 	semaphore := make(chan struct{}, 4) // max 4 parallel ffmpeg instances
+	var fatalMu sync.Mutex
+	var fatalErr error
+
+	setFatal := func(err error) {
+		fatalMu.Lock()
+		defer fatalMu.Unlock()
+		if fatalErr == nil {
+			fatalErr = err
+		}
+	}
 
 	for _, scan := range scans {
 		wg.Add(1)
@@ -46,6 +56,12 @@ func DecodeQuickScan(ctx context.Context, path string, scans []float64, scanDura
 
 			cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 			if err := cmd.Run(); err != nil {
+				// A missing tool or a cancelled context is not measured
+				// corruption; only actual decode failures count.
+				if errors.Is(err, exec.ErrNotFound) || ctx.Err() != nil {
+					setFatal(err)
+					return
+				}
 				failChan <- struct{}{}
 			}
 		}(scan)
@@ -54,12 +70,19 @@ func DecodeQuickScan(ctx context.Context, path string, scans []float64, scanDura
 	wg.Wait()
 	close(failChan)
 
+	fatalMu.Lock()
+	err := fatalErr
+	fatalMu.Unlock()
+	if err != nil {
+		return 0, fmt.Errorf("quick scan failed: %w", err)
+	}
+
 	failCount := 0
 	for range failChan {
 		failCount++
 	}
 
-	return float64(failCount) / float64(len(scans))
+	return float64(failCount) / float64(len(scans)), nil
 }
 
 type ffprobeCorruptionOutput struct {
@@ -78,35 +101,35 @@ func DecodeFullScan(ctx context.Context, path string) (float64, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return 0.5, err
+		return 0, err
 	}
 
 	var data ffprobeCorruptionOutput
 	if err := json.Unmarshal(output, &data); err != nil {
-		return 0.5, err
+		return 0, err
 	}
 
 	if len(data.Streams) == 0 {
-		return 0.5, errors.New("no video streams found")
+		return 0, errors.New("no video streams found")
 	}
 
 	stream := data.Streams[0]
 	fpsParts := utils.SplitAndTrim(stream.RFrameRate, "/")
 	if len(fpsParts) != 2 {
-		return 0.5, fmt.Errorf("invalid frame rate: %s", stream.RFrameRate)
+		return 0, fmt.Errorf("invalid frame rate: %s", stream.RFrameRate)
 	}
 
 	num, _ := strconv.ParseFloat(fpsParts[0], 64)
 	den, _ := strconv.ParseFloat(fpsParts[1], 64)
 	if num == 0 || den == 0 {
-		return 0.5, fmt.Errorf("invalid frame rate values: %s", stream.RFrameRate)
+		return 0, fmt.Errorf("invalid frame rate values: %s", stream.RFrameRate)
 	}
 
 	nbFrames, _ := strconv.ParseFloat(stream.NbReadFrames, 64)
 	metadataDuration, _ := strconv.ParseFloat(data.Format.Duration, 64)
 
 	if metadataDuration == 0 {
-		return 0.5, nil
+		return 0, errors.New("ffprobe reported zero duration")
 	}
 
 	actualDuration := nbFrames * den / num

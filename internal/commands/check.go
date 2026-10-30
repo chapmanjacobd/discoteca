@@ -34,6 +34,9 @@ func (c *CheckCmd) AfterApply() error {
 	if err := c.MediaFilterFlags.AfterApply(); err != nil {
 		return err
 	}
+	// The local --dry-run alias shadows CoreFlags.DryRun, so fold --simulate
+	// into it here rather than relying on the embedded field.
+	c.DryRun = c.DryRun || c.Simulate
 	if len(c.Args) < 1 {
 		return errors.New("at least one database file is required")
 	}
@@ -46,7 +49,7 @@ func (c *CheckCmd) AfterApply() error {
 	return nil
 }
 
-func (c *CheckCmd) buildPresenceSet() (map[string]bool, []string, error) {
+func (c *CheckCmd) buildPresenceSet(allowEmptyRoots bool) (map[string]bool, []string, error) {
 	if len(c.CheckPaths) == 0 {
 		return nil, nil, nil
 	}
@@ -58,20 +61,47 @@ func (c *CheckCmd) buildPresenceSet() (map[string]bool, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+
+		info, err := os.Stat(absRoot)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot check %q: %w", absRoot, err)
+		}
+		if !info.IsDir() {
+			return nil, nil, fmt.Errorf("check path is not a directory: %s", absRoot)
+		}
+
 		absCheckPaths = append(absCheckPaths, absRoot)
 		models.Log.Info("Scanning filesystem for presence set", "path", absRoot)
-		err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, err error) error {
-			if err == nil && !d.IsDir() {
-				absPath, _ := filepath.Abs(path)
-				presenceSet[absPath] = true
+		filesInRoot := 0
+		err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if !d.IsDir() {
+				presenceSet[path] = true
+				filesInRoot++
 			}
 			return nil
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("failed to scan %q: %w", absRoot, err)
+		}
+		if filesInRoot == 0 && !allowEmptyRoots {
+			return nil, nil, fmt.Errorf(
+				"refusing to mark media deleted: scan root %q contains no files (empty mount or wrong path?)",
+				absRoot,
+			)
 		}
 	}
 	return presenceSet, absCheckPaths, nil
+}
+
+func pathWithinRoot(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)))
 }
 
 func (c *CheckCmd) checkMedia(m db.Media, presenceSet map[string]bool, absCheckPaths []string) bool {
@@ -79,7 +109,7 @@ func (c *CheckCmd) checkMedia(m db.Media, presenceSet map[string]bool, absCheckP
 		// Only check files that are within the scanned roots
 		inScannedRoot := false
 		for _, root := range absCheckPaths {
-			if strings.HasPrefix(m.Path, root) {
+			if pathWithinRoot(m.Path, root) {
 				inScannedRoot = true
 				break
 			}
@@ -108,7 +138,7 @@ func (c *CheckCmd) checkDatabase(
 	}
 	defer sqlDB.Close()
 
-	allMedia, err := queries.GetMedia(ctx, 1000000)
+	allMedia, err := queries.GetMedia(ctx, -1)
 	if err != nil {
 		return err
 	}
@@ -152,7 +182,7 @@ func (c *CheckCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	c.CheckPaths = utils.ExpandStdin(c.CheckPaths)
 
-	presenceSet, absCheckPaths, err := c.buildPresenceSet()
+	presenceSet, absCheckPaths, err := c.buildPresenceSet(false)
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/history"
 )
 
@@ -190,6 +191,88 @@ func TestUpdateHistoryWithTime(t *testing.T) {
 	dbVerify.QueryRow("SELECT time_last_played FROM media WHERE path = ?", path).Scan(&lastPlayed)
 	if lastPlayed != customTime {
 		t.Errorf("Expected lastPlayed %d, got %d", customTime, lastPlayed)
+	}
+}
+
+func TestUpdateHistoryWithTime_DoesNotRegressTimestamps(t *testing.T) {
+	sqlDB, dbPath := setupTestDB(t)
+	sqlDB.Close()
+	defer os.Remove(dbPath)
+
+	path := "imported.mp3"
+	dbConn, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbConn.Exec("INSERT INTO media (path) VALUES (?)", path)
+	dbConn.Close()
+
+	update := func(ts int64) {
+		t.Helper()
+		if err := history.UpdateHistoryWithTime(
+			context.Background(),
+			dbPath,
+			[]string{path},
+			history.HistoryEntry{Playhead: 1, TimePlayed: ts},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	newer := int64(2_000_000_000)
+	older := int64(1_000_000_000)
+	update(newer)
+	update(older)
+	update(newer)
+
+	dbVerify, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbVerify.Close()
+
+	var first, last int64
+	if err := dbVerify.QueryRow(
+		"SELECT time_first_played, time_last_played FROM media WHERE path = ?",
+		path,
+	).Scan(&first, &last); err != nil {
+		t.Fatal(err)
+	}
+	if first != older {
+		t.Errorf("Expected time_first_played to stay at %d, got %d", older, first)
+	}
+	if last != newer {
+		t.Errorf("Expected time_last_played to stay at %d, got %d", newer, last)
+	}
+}
+
+func TestUpdatePlayHistory_RewriteCanForceTimestamp(t *testing.T) {
+	sqlDB, dbPath := setupTestDB(t)
+	defer sqlDB.Close()
+	defer os.Remove(dbPath)
+
+	path := "rewrite.mp4"
+	sqlDB.Exec("INSERT INTO media (path, time_first_played, time_last_played) VALUES (?, ?, ?)",
+		path, 2_000_000_000, 2_000_000_000)
+
+	queries := db.New(sqlDB)
+	if err := queries.RewritePlayHistory(context.Background(), db.UpdatePlayHistoryParams{
+		Path:            path,
+		TimeLastPlayed:  sql.NullInt64{Int64: 1_000_000_000, Valid: true},
+		TimeFirstPlayed: sql.NullInt64{Int64: 1_000_000_000, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var first, last int64
+	if err := sqlDB.QueryRow(
+		"SELECT time_first_played, time_last_played FROM media WHERE path = ?",
+		path,
+	).Scan(&first, &last); err != nil {
+		t.Fatal(err)
+	}
+	if first != 1_000_000_000 || last != 1_000_000_000 {
+		t.Errorf("Expected explicit rewrite to force timestamps, got first=%d last=%d", first, last)
 	}
 }
 

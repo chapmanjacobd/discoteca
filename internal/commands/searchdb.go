@@ -25,7 +25,11 @@ type SearchDBCmd struct {
 
 	Database string   `help:"SQLite database file"                  required:"true" arg:"" type:"existingfile"`
 	Table    string   `help:"Table name (fuzzy matching supported)" required:"true" arg:""`
-	Search   []string `help:"Search terms"                          required:"true" arg:""`
+	Terms    []string `help:"Search terms"                          arg:"" name:"terms"`
+
+	// AllRows explicitly opts a destructive action into affecting the whole
+	// table when no predicate was supplied.
+	AllRows bool `help:"Allow --delete-rows/--mark-deleted without a predicate (whole table)"`
 }
 
 func (c *SearchDBCmd) Run(ctx context.Context) error {
@@ -135,9 +139,17 @@ func (c *SearchDBCmd) buildSearchFilters(columns []string) ([]string, []any) {
 	var whereClauses []string
 	var args []any
 
+	// Positional terms plus --search (FilterFlags.Search) are both applied.
+	terms := make([]string, 0, len(c.Terms)+len(c.Search))
+	terms = append(terms, c.Terms...)
+	terms = append(terms, c.Search...)
+
 	// Support for Search terms from command line
-	if len(c.Search) > 0 {
-		for _, term := range c.Search {
+	if len(terms) > 0 {
+		for _, term := range terms {
+			if len(columns) == 0 {
+				continue
+			}
 			var groupClauses []string
 			pattern := term
 			if !c.Exact {
@@ -157,7 +169,7 @@ func (c *SearchDBCmd) buildSearchFilters(columns []string) ([]string, []any) {
 	}
 
 	// Support for GlobalFlags.Include/Exclude
-	if len(c.Include) > 0 {
+	if len(c.Include) > 0 && len(columns) > 0 {
 		for _, inc := range c.Include {
 			groupClauses := make([]string, 0, len(columns))
 			pattern := "%" + inc + "%"
@@ -169,7 +181,7 @@ func (c *SearchDBCmd) buildSearchFilters(columns []string) ([]string, []any) {
 		}
 	}
 
-	if len(c.Exclude) > 0 {
+	if len(c.Exclude) > 0 && len(columns) > 0 {
 		for _, exc := range c.Exclude {
 			groupClauses := make([]string, 0, len(columns))
 			pattern := "%" + exc + "%"
@@ -181,20 +193,83 @@ func (c *SearchDBCmd) buildSearchFilters(columns []string) ([]string, []any) {
 		}
 	}
 
+	// User-provided safety predicate from FilterFlags.Where.
+	for _, clause := range c.Where {
+		clause = strings.TrimSpace(clause)
+		if clause == "" {
+			continue
+		}
+		whereClauses = append(whereClauses, "("+clause+")")
+	}
+
 	return whereClauses, args
 }
 
+func buildPredicate(where []string) string {
+	if len(where) == 0 {
+		return ""
+	}
+	return " WHERE " + strings.Join(where, " AND ")
+}
+
+func (c *SearchDBCmd) requirePredicate(where []string, action string) error {
+	if len(where) > 0 || c.AllRows {
+		return nil
+	}
+	return fmt.Errorf(
+		"refusing to %s every row in %q: supply --where/--search or pass --all-rows explicitly",
+		action,
+		c.Table,
+	)
+}
+
+func (c *SearchDBCmd) countRows(
+	ctx context.Context,
+	sqlDB *sql.DB,
+	table string,
+	where []string,
+	args []any,
+) (int64, error) {
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s%s", table, buildPredicate(where))
+	var count int64
+	if err := sqlDB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (c *SearchDBCmd) deleteRows(ctx context.Context, sqlDB *sql.DB, table string, where []string, args []any) error {
-	query := fmt.Sprintf("DELETE FROM %s", table)
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
+	if err := c.requirePredicate(where, "delete"); err != nil {
+		return err
 	}
 
-	res, err := sqlDB.ExecContext(ctx, query, args...)
+	predicate := buildPredicate(where)
+	if c.Simulate {
+		count, err := c.countRows(ctx, sqlDB, table, where, args)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("[Dry-run] DELETE FROM %s%s would affect %d rows\n", table, predicate, count)
+		return nil
+	}
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	count, _ := res.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s%s", table, predicate), args...)
+	if err != nil {
+		return err
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 	fmt.Printf("Deleted %d rows\n", count)
 	return nil
 }
@@ -206,13 +281,23 @@ func (c *SearchDBCmd) markDeletedRows(
 	where []string,
 	args []any,
 ) error {
-	now := time.Now().Unix()
-	query := fmt.Sprintf("UPDATE %s SET time_deleted = ?", table)
-	actualArgs := append([]any{now}, args...)
-
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
+	if err := c.requirePredicate(where, "mark deleted"); err != nil {
+		return err
 	}
+
+	predicate := buildPredicate(where)
+	if c.Simulate {
+		count, err := c.countRows(ctx, sqlDB, table, where, args)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("[Dry-run] UPDATE %s SET time_deleted = ...%s would affect %d rows\n", table, predicate, count)
+		return nil
+	}
+
+	now := time.Now().Unix()
+	query := fmt.Sprintf("UPDATE %s SET time_deleted = ?%s", table, predicate)
+	actualArgs := append([]any{now}, args...)
 
 	res, err := sqlDB.ExecContext(ctx, query, actualArgs...)
 	if err != nil {

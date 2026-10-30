@@ -454,9 +454,28 @@ type UpdatePlayHistoryParams struct {
 	Path            string
 }
 
-// UpdatePlayHistory updates play history for a media item
+// UpdatePlayHistory updates play history for a media item.
+// time_last_played only moves forward and time_first_played only moves
+// backward, so imports of older sessions cannot regress aggregates.
 func (q *Queries) UpdatePlayHistory(ctx context.Context, arg UpdatePlayHistoryParams) error {
-	const query = `UPDATE media SET time_last_played = ?, time_first_played = COALESCE(time_first_played, ?), play_count = COALESCE(play_count, 0) + 1, playhead = ? WHERE path = ?`
+	const query = `UPDATE media SET time_last_played = MAX(COALESCE(time_last_played, 0), ?), time_first_played = CASE WHEN COALESCE(time_first_played, 0) = 0 THEN ? ELSE MIN(time_first_played, ?) END, play_count = COALESCE(play_count, 0) + 1, playhead = ? WHERE path = ?`
+	_, err := q.db.ExecContext(
+		ctx,
+		query,
+		arg.TimeLastPlayed,
+		arg.TimeFirstPlayed,
+		arg.TimeFirstPlayed,
+		arg.Playhead,
+		arg.Path,
+	)
+	return err
+}
+
+// RewritePlayHistory unconditionally replaces history timestamps. Use this
+// only for explicit corrections/imports; normal playback should use
+// UpdatePlayHistory.
+func (q *Queries) RewritePlayHistory(ctx context.Context, arg UpdatePlayHistoryParams) error {
+	const query = `UPDATE media SET time_last_played = ?, time_first_played = ?, play_count = COALESCE(play_count, 0) + 1, playhead = ? WHERE path = ?`
 	_, err := q.db.ExecContext(ctx, query, arg.TimeLastPlayed, arg.TimeFirstPlayed, arg.Playhead, arg.Path)
 	return err
 }

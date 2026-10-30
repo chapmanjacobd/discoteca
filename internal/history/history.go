@@ -80,8 +80,8 @@ func UpdateHistoryWithTime(
 	}
 
 	for _, path := range paths {
-		// Update media aggregate
-		// Note: UpdatePlayHistory in queries.sql only updates time_last_played if it's newer
+		// Update media aggregate. UpdatePlayHistory only moves
+		// time_last_played forward and time_first_played backward.
 		if err := queries.UpdatePlayHistory(ctx, db.UpdatePlayHistoryParams{
 			TimeLastPlayed:  sql.NullInt64{Int64: entry.TimePlayed, Valid: true},
 			TimeFirstPlayed: sql.NullInt64{Int64: entry.TimePlayed, Valid: true},

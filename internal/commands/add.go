@@ -538,12 +538,14 @@ func (c *AddCmd) processScanRoot(ctx context.Context, opts scanRootOptions) (boo
 		}
 	}
 
-	// Record or update this scan root
-	if _, playlistErr := opts.queries.InsertPlaylist(ctx, db.InsertPlaylistParams{
-		Path:         sql.NullString{String: absRoot, Valid: true},
-		ExtractorKey: sql.NullString{String: "Local", Valid: true},
-	}); playlistErr != nil {
-		models.Log.Warn("Failed to insert playlist root", "path", absRoot, "error", playlistErr)
+	// Record or update this scan root. Simulation must not write to the DB.
+	if !c.Simulate {
+		if _, playlistErr := opts.queries.InsertPlaylist(ctx, db.InsertPlaylistParams{
+			Path:         sql.NullString{String: absRoot, Valid: true},
+			ExtractorKey: sql.NullString{String: "Local", Valid: true},
+		}); playlistErr != nil {
+			models.Log.Warn("Failed to insert playlist root", "path", absRoot, "error", playlistErr)
+		}
 	}
 
 	filter := c.getMediaFilter()
@@ -682,6 +684,11 @@ func (c *AddCmd) Run(ctx context.Context) error {
 	}
 
 	fmt.Println()
+	if c.Simulate {
+		models.Log.Info("Simulation complete; skipping FTS and folder_stats refresh")
+		return nil
+	}
+
 	// Refresh FTS after adding new media (always needed for search)
 	if err := db.RebuildFTS(ctx, sqlDB, dbPath); err != nil {
 		models.Log.Error("Failed to rebuild FTS", "error", err)

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
+	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -257,5 +258,43 @@ func TestAddCmd_UnreadableSubdirDoesNotFail(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("Expected 1 readable item in database, got %d", count)
+	}
+}
+
+func TestAddCmd_SimulateWritesNothing(t *testing.T) {
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	scanDir := filepath.Join(fixture.TempDir, "library")
+	if err := os.MkdirAll(scanDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mediaFile := filepath.Join(scanDir, "video.mp4")
+	if err := os.WriteFile(mediaFile, []byte("fake video content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := &commands.AddCmd{
+		CoreFlags: models.CoreFlags{Simulate: true},
+		Args:      []string{fixture.DBPath, scanDir},
+	}
+	if err := cmd.AfterApply(); err != nil {
+		t.Fatalf("AfterApply failed: %v", err)
+	}
+	if err := cmd.Run(context.Background()); err != nil {
+		t.Fatalf("commands.AddCmd failed: %v", err)
+	}
+
+	dbConn := fixture.GetDB()
+	defer dbConn.Close()
+
+	for _, table := range []string{"media", "playlists", "folder_stats", "media_fts"} {
+		var count int
+		if err := dbConn.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil {
+			t.Fatalf("query %s failed: %v", table, err)
+		}
+		if count != 0 {
+			t.Errorf("Expected no writes to %s during simulation, found %d rows", table, count)
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +39,12 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 		return nil
 	}
 
+	switch action {
+	case "delete", "mark-deleted", "move", "copy", "trash":
+	default:
+		return fmt.Errorf("unknown post-action %q (expected none, delete, mark-deleted, move, copy, or trash)", action)
+	}
+
 	var sizeLimit int64 = 0
 	if flags.ActionSize != "" {
 		if sl, err := utils.HumanToBytes(flags.ActionSize); err == nil {
@@ -47,6 +54,7 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 
 	var totalSize int64 = 0
 	count := 0
+	simulate := flags.Simulate
 
 	for _, m := range media {
 		if flags.ActionLimit > 0 && count >= flags.ActionLimit {
@@ -62,6 +70,13 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 		var size int64 = 0
 		if m.Size != nil {
 			size = *m.Size
+		}
+
+		if simulate {
+			printPostActionPlan(action, flags, m)
+			count++
+			totalSize += size
+			continue
 		}
 
 		switch action {
@@ -86,10 +101,25 @@ func ExecutePostAction(ctx context.Context, flags models.GlobalFlags, media []mo
 	}
 
 	if count > 0 {
-		fmt.Printf("\n%s %d files (%s total)\n", action, count, utils.FormatSize(totalSize))
+		if simulate {
+			fmt.Printf("\n(dry run) would %s %d files (%s total)\n", action, count, utils.FormatSize(totalSize))
+		} else {
+			fmt.Printf("\n%s %d files (%s total)\n", action, count, utils.FormatSize(totalSize))
+		}
 	}
 
 	return nil
+}
+
+func printPostActionPlan(action string, flags models.GlobalFlags, m models.MediaWithDB) {
+	switch action {
+	case "move":
+		fmt.Printf("[Dry-run] move %s -> %s\n", m.Path, filepath.Join(flags.MoveTo, filepath.Base(m.Path)))
+	case "copy":
+		fmt.Printf("[Dry-run] copy %s -> %s\n", m.Path, filepath.Join(flags.CopyTo, filepath.Base(m.Path)))
+	default:
+		fmt.Printf("[Dry-run] %s %s\n", action, m.Path)
+	}
 }
 
 func RunExitCommand(ctx context.Context, flags models.GlobalFlags, exitCode int, path string) error {
@@ -182,17 +212,23 @@ func MoveMediaItem(ctx context.Context, destDir string, m models.MediaWithDB) er
 	}
 
 	dest := filepath.Join(destDir, filepath.Base(m.Path))
-	if err := os.Rename(m.Path, dest); err != nil {
+	if err := utils.MoveFile(m.Path, dest); err != nil {
 		return err
 	}
 
-	// Update database
+	// Update database (the FTS update trigger keeps the search index in sync).
 	sqlDB, err := db.Connect(ctx, m.DB)
 	if err != nil {
 		return err
 	}
 	defer sqlDB.Close()
-	_, err = sqlDB.ExecContext(ctx, "UPDATE media SET path = ? WHERE path = ?", dest, m.Path)
+	_, err = sqlDB.ExecContext(
+		ctx,
+		"UPDATE media SET path = ?, path_tokenized = ? WHERE path = ?",
+		dest,
+		utils.PathToTokenized(dest),
+		m.Path,
+	)
 	if err == nil {
 		fmt.Printf("Moved: %s -> %s\n", m.Path, dest)
 	}
@@ -209,11 +245,22 @@ func CopyMediaItem(destDir string, m models.MediaWithDB) error {
 	}
 
 	dest := filepath.Join(destDir, filepath.Base(m.Path))
-	data, err := os.ReadFile(m.Path)
+	src, err := os.Open(m.Path)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(dest, data, 0o644); err != nil {
+	defer src.Close()
+
+	dst, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return err
+	}
+	if err := dst.Sync(); err != nil {
 		return err
 	}
 

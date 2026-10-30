@@ -24,10 +24,9 @@ type MediaCheckCmd struct {
 
 	ChunkSize         float64 `help:"Chunk size in seconds. If set, recommended to use >0.1 seconds"                                                                                     default:"0.5"`
 	Gap               string  `help:"Width between chunks to skip. Values greater than 1 are treated as number of seconds"                                                               default:"5%"`
-	DeleteCorrupt     string  `help:"Delete media that is more corrupt or equal to this threshold. Values greater than 1 are treated as number of seconds"`
-	FullScanIfCorrupt string  `help:"Full scan as second pass if initial scan result more corruption or equal to this threshold. Values greater than 1 are treated as number of seconds"`
+	DeleteCorrupt     string  `help:"Delete media whose corruption ratio is >= this value (e.g. 0.5 or 50%)"`
+	FullScanIfCorrupt string  `help:"Full scan as a second pass when the quick-scan corruption ratio is >= this value (e.g. 0.2 or 20%)"`
 	FullScan          bool    `help:"Decode the full media file"`
-	AudioScan         bool    `help:"Count errors in audio track only"`
 }
 
 func (c *MediaCheckCmd) Run(ctx context.Context) error {
@@ -43,33 +42,52 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 	deleteThreshold, _ := utils.FloatFromPercent(c.DeleteCorrupt)
 	fullScanThreshold, _ := utils.FloatFromPercent(c.FullScanIfCorrupt)
 
-	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
+	checked := 0
+	var skipped []string
+
+	err := RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
 		if len(media) == 0 {
 			return errors.New("no media found")
 		}
 
 		for _, m := range media {
-			c.checkSingleMedia(ctx, checkMediaOptions{
+			corruption, ok := c.checkSingleMedia(ctx, checkMediaOptions{
 				m:                 m,
 				gap:               gap,
-				deleteThreshold:   deleteThreshold,
 				fullScanThreshold: fullScanThreshold,
-				simulate:          flags.Simulate,
 			})
+			if !ok {
+				skipped = append(skipped, m.Path)
+				continue
+			}
+			checked++
+
+			if deleteThreshold > 0 && corruption >= deleteThreshold {
+				c.handleCorruptFile(ctx, m, corruption, flags.Simulate)
+			}
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\nMediaCheck complete: checked %d file(s), skipped %d file(s)\n", checked, len(skipped))
+	for _, path := range skipped {
+		fmt.Printf("  skipped: %s\n", path)
+	}
+	return nil
 }
 
 type checkMediaOptions struct {
 	m                 models.MediaWithDB
 	gap               float64
-	deleteThreshold   float64
 	fullScanThreshold float64
-	simulate          bool
 }
 
-func (c *MediaCheckCmd) checkSingleMedia(ctx context.Context, opts checkMediaOptions) {
+// checkSingleMedia returns the measured corruption ratio and whether the scan
+// actually produced a measurement. A scan failure is not corruption.
+func (c *MediaCheckCmd) checkSingleMedia(ctx context.Context, opts checkMediaOptions) (float64, bool) {
 	var corruption float64
 	duration := 0.0
 	m := opts.m
@@ -81,38 +99,40 @@ func (c *MediaCheckCmd) checkSingleMedia(ctx context.Context, opts checkMediaOpt
 		var err error
 		corruption, err = metadata.DecodeFullScan(ctx, m.Path)
 		if err != nil {
-			models.Log.Error("Full scan failed", "path", m.Path, "error", err)
-			corruption = 0.5
+			models.Log.Error("Full scan failed; skipping file", "path", m.Path, "error", err)
+			return 0, false
 		}
 	} else {
 		if duration == 0 {
-			corruption = 0.5
-		} else {
-			scans := utils.CalculateSegments(duration, c.ChunkSize, opts.gap)
-			corruption = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
+			models.Log.Warn("Skipping media with unknown duration", "path", m.Path)
+			return 0, false
+		}
+		scans := utils.CalculateSegments(duration, c.ChunkSize, opts.gap)
+		var err error
+		corruption, err = metadata.DecodeQuickScan(ctx, m.Path, scans, c.ChunkSize)
+		if err != nil {
+			models.Log.Error("Quick scan failed; skipping file", "path", m.Path, "error", err)
+			return 0, false
+		}
 
-			if opts.fullScanThreshold > 0 && corruption >= opts.fullScanThreshold {
-				models.Log.Info(
-					"Corruption threshold reached, performing full scan",
-					"path",
-					m.Path,
-					"corruption",
-					corruption,
-				)
-				var err error
-				corruption, err = metadata.DecodeFullScan(ctx, m.Path)
-				if err != nil {
-					models.Log.Error("Full scan failed", "path", m.Path, "error", err)
-				}
+		if opts.fullScanThreshold > 0 && corruption >= opts.fullScanThreshold {
+			models.Log.Info(
+				"Corruption threshold reached, performing full scan",
+				"path",
+				m.Path,
+				"corruption",
+				corruption,
+			)
+			corruption, err = metadata.DecodeFullScan(ctx, m.Path)
+			if err != nil {
+				models.Log.Error("Full scan failed; skipping file", "path", m.Path, "error", err)
+				return 0, false
 			}
 		}
 	}
 
 	fmt.Printf("%.2f%%\t%s\n", corruption*100, m.Path)
-
-	if opts.deleteThreshold > 0 && corruption >= opts.deleteThreshold {
-		c.handleCorruptFile(ctx, m, corruption, opts.simulate)
-	}
+	return corruption, true
 }
 
 func (c *MediaCheckCmd) handleCorruptFile(
@@ -121,10 +141,12 @@ func (c *MediaCheckCmd) handleCorruptFile(
 	corruption float64,
 	simulate bool,
 ) {
-	models.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
 	if simulate {
+		fmt.Printf("[Dry-run] would delete corrupt file: %s (corruption %.2f%%)\n", m.Path, corruption*100)
 		return
 	}
+
+	models.Log.Warn("Deleting corrupt file", "path", m.Path, "corruption", corruption)
 
 	if err := os.Remove(m.Path); err != nil {
 		models.Log.Error("Failed to delete corrupt file", "path", m.Path, "error", err)

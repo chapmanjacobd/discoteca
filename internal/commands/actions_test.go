@@ -81,6 +81,11 @@ func TestMoveMediaItem(t *testing.T) {
 	if count != 1 {
 		t.Errorf("Expected 1 row with new path, got %d", count)
 	}
+	var tokenized sql.NullString
+	dbConn.QueryRow("SELECT path_tokenized FROM media WHERE path = ?", destPath).Scan(&tokenized)
+	if !tokenized.Valid || tokenized.String == "" {
+		t.Error("Expected path_tokenized to be updated after a move")
+	}
 }
 
 func TestCopyMediaItem(t *testing.T) {
@@ -158,5 +163,84 @@ func TestExecutePostAction(t *testing.T) {
 	dbConn.QueryRow("SELECT time_deleted FROM media WHERE path = ?", f1).Scan(&timeDeleted)
 	if timeDeleted == 0 {
 		t.Error("Expected item to be marked as deleted")
+	}
+}
+
+func TestExecutePostAction_UnknownActionIsAnError(t *testing.T) {
+	flags := models.GlobalFlags{
+		PostActionFlags: models.PostActionFlags{PostAction: "explode"},
+	}
+	err := commands.ExecutePostAction(context.Background(), flags, nil)
+	if err == nil {
+		t.Fatal("expected unknown post-action to return an error")
+	}
+}
+
+func TestExecutePostAction_SimulateChangesNothing(t *testing.T) {
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	f1 := fixture.CreateDummyFile("media1.mp4")
+	m := models.MediaWithDB{
+		Media: models.Media{Path: f1},
+		DB:    fixture.DBPath,
+	}
+
+	destDir := filepath.Join(fixture.TempDir, "dest")
+
+	for _, action := range []string{"delete", "move", "copy", "mark-deleted"} {
+		t.Run(action, func(t *testing.T) {
+			flags := models.GlobalFlags{
+				CoreFlags: models.CoreFlags{Simulate: true},
+				PostActionFlags: models.PostActionFlags{
+					PostAction: action,
+					MoveTo:     destDir,
+					CopyTo:     destDir,
+				},
+			}
+			if err := commands.ExecutePostAction(context.Background(), flags, []models.MediaWithDB{m}); err != nil {
+				t.Fatalf("commands.ExecutePostAction failed: %v", err)
+			}
+
+			if _, err := os.Stat(f1); err != nil {
+				t.Errorf("simulated %s removed the source file", action)
+			}
+			if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+				t.Errorf("simulated %s created the destination directory", action)
+			}
+		})
+	}
+}
+
+func TestCopyMediaItem_StreamsLargeFile(t *testing.T) {
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	src := filepath.Join(fixture.TempDir, "large.bin")
+	content := make([]byte, 2*1024*1024)
+	for i := range content {
+		content[i] = byte(i % 251)
+	}
+	if err := os.WriteFile(src, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	destDir := filepath.Join(fixture.TempDir, "copied")
+	m := models.MediaWithDB{Media: models.Media{Path: src}}
+	if err := commands.CopyMediaItem(destDir, m); err != nil {
+		t.Fatalf("commands.CopyMediaItem failed: %v", err)
+	}
+
+	copied, err := os.ReadFile(filepath.Join(destDir, filepath.Base(src)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(copied) != len(content) {
+		t.Fatalf("expected %d bytes, got %d", len(content), len(copied))
+	}
+	for i := range content {
+		if copied[i] != content[i] {
+			t.Fatalf("copied content differs at byte %d", i)
+		}
 	}
 }
