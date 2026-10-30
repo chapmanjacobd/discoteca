@@ -94,14 +94,9 @@ func SortFolders(folders []FolderStats, sortBy string, reverse bool) {
 		}
 	}
 
-	if reverse && sortBy == "" {
-		sort.Slice(folders, less)
+	if reverse {
+		sort.SliceStable(folders, func(i, j int) bool { return less(j, i) })
 		return
 	}
-
-	if reverse {
-		sort.Slice(folders, func(i, j int) bool { return !less(i, j) })
-	} else {
-		sort.Slice(folders, less)
-	}
+	sort.SliceStable(folders, less)
 }

@@ -48,8 +48,8 @@ type FilterFlags struct {
 	Watched          *bool    `help:"Filter by watched status (true/false)"                                  group:"Filter"`
 	Unfinished       bool     `help:"Has playhead but not finished"                                          group:"Filter"`
 	Partial          string   `help:"Filter by partial playback status"                                      group:"Filter" short:"P"`
-	PlayCountMin     int      `help:"Minimum play count"                                                     group:"Filter"`
-	PlayCountMax     int      `help:"Maximum play count"                                                     group:"Filter"`
+	PlayCountMin     *int     `help:"Minimum play count"                                                     group:"Filter"`
+	PlayCountMax     *int     `help:"Maximum play count"                                                     group:"Filter"`
 	Completed        bool     `help:"Show only completed items"                                              group:"Filter"`
 	InProgress       bool     `help:"Show only items in progress"                                            group:"Filter"`
 	WithCaptions     bool     `help:"Show only items with captions"                                          group:"Filter"`
@@ -100,7 +100,11 @@ type DeletedFlags struct {
 }
 
 type SortFlags struct {
-	SortBy  string `help:"Sort by field"                                                              default:"path" short:"u" group:"Sort"`
+	// SortBy accepts:
+	//   "default"  - xklb order for media, DU order for folders
+	//   "path"     - literal path order
+	//   other      - a single field or a comma-separated multi-field config
+	SortBy  string `help:"Sort by field (default, path, or a column)"                                default:"default" short:"u" group:"Sort"`
 	Reverse bool   `help:"Reverse sort order"                                                                        short:"V" group:"Sort"`
 	NatSort bool   `help:"Use natural sorting"                                                                       short:"n" group:"Sort"`
 	Random  bool   `help:"Random order"                                                                              short:"r" group:"Sort"`
@@ -127,7 +131,7 @@ type AggregateFlags struct {
 	FoldersOnly       bool     `help:"Only show folders"                                                 group:"Aggregate"`
 	FilesOnly         bool     `help:"Only show files"                                                   group:"Aggregate"`
 	FolderSizes       []string `help:"Filter folders by total size"                                      group:"Aggregate"`
-	FolderCounts      string   `help:"Filter folders by number of subfolders"                            group:"Aggregate"`
+	FolderCounts      string   `help:"Filter folders by number of files"                                 group:"Aggregate"`
 }
 
 type TextFlags struct {

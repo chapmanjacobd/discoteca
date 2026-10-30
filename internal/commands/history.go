@@ -66,7 +66,7 @@ func (c *HistoryCmd) buildFlags() models.GlobalFlags {
 	})
 	flags.PostActionFlags = c.PostActionFlags
 	// Set default sort for history
-	if flags.SortBy == "path" || flags.SortBy == "" {
+	if flags.SortBy == "path" || flags.SortBy == "" || flags.SortBy == "default" {
 		flags.SortBy = "time_last_played"
 		flags.Reverse = true
 	}

@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 
-	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -37,25 +36,11 @@ func (c *SearchCmd) Run(ctx context.Context) error {
 		Display:     c.DisplayFlags,
 		FTS:         c.FTSFlags,
 	})
-	// We prefer FTS if not specified
+	// We prefer FTS only when every database supports it. A mixed list must not
+	// run an FTS join against a database that has no FTS table.
 	if !flags.FTS && !flags.NoFTS {
-		// Check if FTS table exists in first database
-		if len(c.Databases) > 0 {
-			if sqlDB, err := db.Connect(ctx, c.Databases[0]); err == nil {
-				var name string
-				err := sqlDB.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='media_fts'").
-					Scan(&name)
-				if err == nil {
-					// Verify FTS5 actually works by running a simple query
-					rows, testErr := sqlDB.QueryContext(ctx, "SELECT 1 FROM media_fts LIMIT 1")
-					if testErr == nil {
-						defer rows.Close()
-						_ = rows.Err() // Check for row errors
-						flags.FTS = true
-					}
-				}
-				sqlDB.Close()
-			}
+		if query.DatabasesHaveFTS(ctx, c.Databases) {
+			flags.FTS = true
 		}
 	}
 

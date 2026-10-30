@@ -24,78 +24,71 @@ type DUQueryResult struct {
 	TotalDuration int64
 }
 
-// hasActiveFilters checks if any filters are active that require slow-path processing
-// Returns true if FileCounts (episodes) filter is active, which requires folder backfiltering
-func hasActiveFilters(flags models.GlobalFlags) bool {
-	// FileCounts requires folder-level aggregation before filtering
-	if flags.FileCounts != "" {
-		return true
-	}
-	// FolderCounts also requires folder-level filtering
-	if flags.FolderCounts != "" {
-		return true
-	}
-	// FolderSizes requires post-aggregation filtering
-	if len(flags.FolderSizes) > 0 {
-		return true
-	}
-	return false
+// needsFolderBackfiltering reports whether folder-level aggregates must be
+// computed before the result set can be filtered.
+func needsFolderBackfiltering(flags models.GlobalFlags) bool {
+	return flags.FileCounts != "" || flags.FolderCounts != "" || len(flags.FolderSizes) > 0
 }
 
-// hasBasicFilters checks if only basic SQL-level filters are active (size, duration, media_type, etc.)
-// These can be applied directly in SQL without folder backfiltering
+// HasAnyFilter reports whether any media filter is active. It must stay in
+// sync with FilterBuilder.BuildWhereClauses: every predicate that can remove a
+// row belongs here so the fast paths never return unfiltered data.
+func HasAnyFilter(flags models.GlobalFlags) bool {
+	return hasDeletedOrTypeFilter(flags) ||
+		hasIdentityFilter(flags) ||
+		hasRangeFilter(flags) ||
+		hasTimeFilter(flags) ||
+		hasStatusFilter(flags) ||
+		hasPathOrSearchFilter(flags) ||
+		hasMiscFilter(flags) ||
+		hasFolderAggregateFilter(flags)
+}
+
+func hasDeletedOrTypeFilter(flags models.GlobalFlags) bool {
+	return flags.OnlyDeleted || flags.HideDeleted ||
+		flags.VideoOnly || flags.AudioOnly || flags.ImageOnly || flags.TextOnly
+}
+
+func hasIdentityFilter(flags models.GlobalFlags) bool {
+	return flags.Genre != "" || len(flags.Language) > 0 || len(flags.Paths) > 0
+}
+
+func hasRangeFilter(flags models.GlobalFlags) bool {
+	return flags.PlayCountMin != nil || flags.PlayCountMax != nil ||
+		len(flags.Size) > 0 || len(flags.Duration) > 0
+}
+
+func hasTimeFilter(flags models.GlobalFlags) bool {
+	return flags.DeletedAfter != "" || flags.DeletedBefore != "" ||
+		flags.CreatedAfter != "" || flags.CreatedBefore != "" ||
+		flags.ModifiedAfter != "" || flags.ModifiedBefore != "" ||
+		flags.DownloadedAfter != "" || flags.DownloadedBefore != "" ||
+		flags.PlayedAfter != "" || flags.PlayedBefore != ""
+}
+
+func hasStatusFilter(flags models.GlobalFlags) bool {
+	return flags.Watched != nil || flags.Unfinished || flags.InProgress ||
+		flags.Partial != "" || flags.Completed
+}
+
+func hasPathOrSearchFilter(flags models.GlobalFlags) bool {
+	return flags.OnlineMediaOnly || flags.LocalMediaOnly || len(flags.Ext) > 0 || len(flags.Category) > 0 ||
+		len(flags.Search) > 0 || len(flags.Include) > 0 || len(flags.Exclude) > 0 ||
+		len(flags.PathContains) > 0 || flags.Regex != ""
+}
+
+func hasMiscFilter(flags models.GlobalFlags) bool {
+	return flags.Portrait || flags.WithCaptions || len(flags.Where) > 0 || flags.DurationFromSize != ""
+}
+
+func hasFolderAggregateFilter(flags models.GlobalFlags) bool {
+	return flags.FileCounts != "" || flags.FolderCounts != "" || len(flags.FolderSizes) > 0
+}
+
+// hasBasicFilters is kept for internal callers which want to know whether the
+// SQL WHERE builder has anything to add.
 func hasBasicFilters(flags models.GlobalFlags) bool {
-	return hasTypeOrSizeFilters(flags) ||
-		hasTimeOrMetaFilters(flags) ||
-		hasStatusOrSearchFilters(flags)
-}
-
-func hasTypeOrSizeFilters(flags models.GlobalFlags) bool {
-	if flags.VideoOnly || flags.AudioOnly || flags.ImageOnly || flags.TextOnly {
-		return true
-	}
-	if len(flags.Size) > 0 || len(flags.Duration) > 0 {
-		return true
-	}
-	if flags.PlayCountMin > 0 || flags.PlayCountMax > 0 {
-		return true
-	}
-	return false
-}
-
-func hasTimeOrMetaFilters(flags models.GlobalFlags) bool {
-	if flags.Genre != "" || len(flags.Language) > 0 || len(flags.Ext) > 0 {
-		return true
-	}
-	if flags.ModifiedAfter != "" || flags.ModifiedBefore != "" {
-		return true
-	}
-	if flags.CreatedAfter != "" || flags.CreatedBefore != "" {
-		return true
-	}
-	if flags.DownloadedAfter != "" || flags.DownloadedBefore != "" {
-		return true
-	}
-	return false
-}
-
-func hasStatusOrSearchFilters(flags models.GlobalFlags) bool {
-	if flags.OnlyDeleted || flags.HideDeleted {
-		return true
-	}
-	if flags.OnlineMediaOnly || flags.LocalMediaOnly {
-		return true
-	}
-	if len(flags.Search) > 0 || len(flags.Include) > 0 || len(flags.PathContains) > 0 {
-		return true
-	}
-	if len(flags.Category) > 0 {
-		return true
-	}
-	if flags.Watched != nil || flags.Unfinished || flags.InProgress || flags.Completed {
-		return true
-	}
-	return flags.Partial != ""
+	return HasAnyFilter(flags)
 }
 
 // AggregateDUByPath performs SQL-level aggregation for DU mode
@@ -415,7 +408,7 @@ func matchesFolderCountFilter(f models.FolderStats, flags models.GlobalFlags) bo
 	if r, err := utils.ParseRange(flags.FolderCounts, func(s string) (int64, error) {
 		return strconv.ParseInt(s, 10, 64)
 	}); err == nil {
-		if !r.Matches(int64(f.FolderCount)) {
+		if !r.Matches(int64(f.Count)) {
 			return false
 		}
 	}
@@ -888,7 +881,7 @@ func AggregateDUByPathWithFilters(
 	defer sqlDB.Close()
 
 	// Check if we need folder backfiltering (slow path)
-	needsBackfiltering := hasActiveFilters(flags)
+	needsBackfiltering := needsFolderBackfiltering(flags)
 
 	if !needsBackfiltering {
 		// FAST PATH: Direct SQL aggregation with basic filters
@@ -1287,7 +1280,7 @@ func FetchDUDirectFilesWithFilters(
 	allFiles := make([]models.MediaWithDB, 0)
 
 	// Check if any filters are active
-	hasFilters := hasBasicFilters(flags) || hasActiveFilters(flags)
+	hasFilters := HasAnyFilter(flags)
 
 	for _, dbPath := range dbPaths {
 		files, err := func() ([]models.MediaWithDB, error) {

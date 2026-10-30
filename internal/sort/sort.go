@@ -24,10 +24,10 @@ func Apply(media []models.Media, method Method, reverse, natural bool) {
 	less := makeLessFunc(media, method, natural)
 
 	if reverse {
-		sort.Slice(media, func(i, j int) bool { return !less(i, j) })
-	} else {
-		sort.Slice(media, less)
+		sort.SliceStable(media, func(i, j int) bool { return less(j, i) })
+		return
 	}
+	sort.SliceStable(media, less)
 }
 
 func makeLessFunc(media []models.Media, method Method, natural bool) func(i, j int) bool {

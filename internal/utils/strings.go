@@ -60,7 +60,11 @@ func MatchesAny(path string, patterns []string) bool {
 		if matched, _ := filepath.Match(pattern, path); matched {
 			return true
 		}
-		if CompareBlockStrings(pattern, path) {
+		// Treat shell-style wildcards like SQL LIKE wildcards so the in-memory
+		// filter and the SQL predicate accept the same patterns.
+		likePattern := strings.ReplaceAll(pattern, "*", "%")
+		likePattern = strings.ReplaceAll(likePattern, "?", "_")
+		if CompareBlockStrings(likePattern, path) {
 			return true
 		}
 	}
@@ -576,4 +580,33 @@ func EscapeXML(s string) string {
 	s = strings.ReplaceAll(s, "\"", "&quot;")
 	s = strings.ReplaceAll(s, "'", "&apos;")
 	return s
+}
+
+// PathPatternLike translates the path patterns accepted by MatchesAny into a
+// SQL LIKE pattern. Shell-style '*' and '?' become LIKE wildcards, a pattern
+// without wildcards is treated as a prefix, and existing '%' wildcards are
+// preserved.
+func PathPatternLike(pattern string) string {
+	var b strings.Builder
+	hasWildcard := false
+	for _, r := range pattern {
+		switch r {
+		case '*', '%':
+			b.WriteByte('%')
+			hasWildcard = true
+		case '?':
+			b.WriteByte('_')
+			hasWildcard = true
+		case '\\':
+			b.WriteString(`\\`)
+		case '_':
+			b.WriteString(`\_`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if !hasWildcard {
+		b.WriteByte('%')
+	}
+	return b.String()
 }

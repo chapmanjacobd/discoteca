@@ -89,9 +89,6 @@ func (c *WatchCmd) queryMedia(ctx context.Context, flags models.GlobalFlags) ([]
 
 	media = query.FilterMedia(media, flags)
 	query.SortMedia(media, flags)
-	if c.ReRank != "" {
-		media = query.ReRankMedia(media, flags)
-	}
 
 	if len(media) == 0 {
 		return nil, errors.New("no media found")
@@ -300,9 +297,6 @@ func (c *ListenCmd) queryMedia(ctx context.Context, flags models.GlobalFlags) ([
 
 	media = query.FilterMedia(media, flags)
 	query.SortMedia(media, flags)
-	if c.ReRank != "" {
-		media = query.ReRankMedia(media, flags)
-	}
 
 	if len(media) == 0 {
 		return nil, errors.New("no media found")

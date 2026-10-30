@@ -156,13 +156,9 @@ func (c *ServeCmd) handleQueryCaptionsView(
 	dbs := params.DBs
 	media := []models.MediaWithDB{}
 	queryStr := strings.Join(flags.Search, " ")
-	limit := flags.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-	if flags.All {
-		limit = 1000000
-	}
+	// Fetch every matching caption row so X-Total-Count describes the full
+	// result set; the requested page is sliced afterwards.
+	fetchLimit := 1000000
 
 	aggregate := q.Get("aggregate") == "true"
 
@@ -171,7 +167,7 @@ func (c *ServeCmd) handleQueryCaptionsView(
 			dbPath:    dbPath,
 			queryStr:  queryStr,
 			flags:     flags,
-			limit:     limit,
+			limit:     fetchLimit,
 			aggregate: aggregate,
 			media:     &media,
 		}
@@ -1060,6 +1056,10 @@ func (c *ServeCmd) HandleDU(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-check every filter against the final per-file rows. SQL covers the
+	// filterable predicates; this catches filesystem-only checks such as Exists.
+	directFiles = query.FilterMedia(directFiles, resolvedFlags)
+
 	folders := c.convertDUFolderResults(folderResults)
 
 	sortBy, reverse := c.parseDUSortParams(r)
@@ -1142,8 +1142,7 @@ func (c *ServeCmd) parseDUSortParams(r *http.Request) (sortBy string, reverse bo
 
 // sortDUFiles sorts direct files using the given sort parameters
 func (c *ServeCmd) sortDUFiles(directFiles []models.MediaWithDB, sortBy string, reverse bool) {
-	sort.Slice(directFiles, func(i, j int) bool {
-		var less bool
+	less := func(i, j int) bool {
 		switch sortBy {
 		case "size":
 			iSize := int64(0)
@@ -1154,7 +1153,7 @@ func (c *ServeCmd) sortDUFiles(directFiles []models.MediaWithDB, sortBy string, 
 			if directFiles[j].Size != nil {
 				jSize = *directFiles[j].Size
 			}
-			less = iSize < jSize
+			return iSize < jSize
 		case "duration":
 			iDur := int64(0)
 			jDur := int64(0)
@@ -1164,9 +1163,9 @@ func (c *ServeCmd) sortDUFiles(directFiles []models.MediaWithDB, sortBy string, 
 			if directFiles[j].Duration != nil {
 				jDur = *directFiles[j].Duration
 			}
-			less = iDur < jDur
+			return iDur < jDur
 		case "path", "name":
-			less = directFiles[i].Path < directFiles[j].Path
+			return directFiles[i].Path < directFiles[j].Path
 		case "title":
 			iTitle := ""
 			jTitle := ""
@@ -1176,15 +1175,17 @@ func (c *ServeCmd) sortDUFiles(directFiles []models.MediaWithDB, sortBy string, 
 			if directFiles[j].Title != nil {
 				jTitle = *directFiles[j].Title
 			}
-			less = iTitle < jTitle
+			return iTitle < jTitle
 		default:
-			less = directFiles[i].Path < directFiles[j].Path
+			return directFiles[i].Path < directFiles[j].Path
 		}
-		if reverse {
-			return !less
-		}
-		return less
-	})
+	}
+
+	if reverse {
+		sort.SliceStable(directFiles, func(i, j int) bool { return less(j, i) })
+		return
+	}
+	sort.SliceStable(directFiles, less)
 }
 
 // parseDUPagination extracts limit and offset from request

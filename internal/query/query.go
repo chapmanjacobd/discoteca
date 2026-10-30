@@ -32,9 +32,10 @@ func FilterMedia(media []models.MediaWithDB, flags models.GlobalFlags) []models.
 	return fb.FilterMedia(media)
 }
 
-// SortMedia sorts media using the unified SortBuilder
+// SortMedia sorts media using the unified SortBuilder and applies --re-rank.
 func SortMedia(media []models.MediaWithDB, flags models.GlobalFlags) {
 	NewSortBuilder(flags).Sort(media)
+	applyReRank(media, flags)
 }
 
 // SortMediaWithExpansion sorts media with optional result expansion (siblings, related)
@@ -55,6 +56,15 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 
 	// Sort with the full config (including expansion markers)
 	NewSortBuilder(flags).SortAdvanced(*media, sortConfig)
+	applyReRank(*media, flags)
+}
+
+func applyReRank(media []models.MediaWithDB, flags models.GlobalFlags) {
+	if flags.ReRank == "" {
+		return
+	}
+	reranked := ReRankMedia(media, flags)
+	copy(media, reranked)
 }
 
 // FetchSiblings fetches sibling files for the given media (Re-exported for tests)
@@ -307,17 +317,11 @@ func SortFolders(folders []models.FolderStats, sortBy string, reverse bool) {
 		return folderLess(folders[i], folders[j], sortBy)
 	}
 
-	if reverse && sortBy == "" {
-		// For default DU sort, the TODO says (size/count desc etc.) - our less is already in desc order of those criteria
-		sort.Slice(folders, less)
+	if reverse {
+		sort.SliceStable(folders, func(i, j int) bool { return less(j, i) })
 		return
 	}
-
-	if reverse {
-		sort.Slice(folders, func(i, j int) bool { return !less(i, j) })
-	} else {
-		sort.Slice(folders, less)
-	}
+	sort.SliceStable(folders, less)
 }
 
 type FrequencyStats struct {
@@ -361,6 +365,18 @@ func SummarizeMedia(media []models.MediaWithDB) []FrequencyStats {
 }
 
 func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]FrequencyStats, error) {
+	validTimeColumns := map[string]bool{
+		"time_created":      true,
+		"time_modified":     true,
+		"time_deleted":      true,
+		"time_first_played": true,
+		"time_last_played":  true,
+		"time_downloaded":   true,
+	}
+	if !validTimeColumns[timeColumn] {
+		return nil, fmt.Errorf("invalid time facet: %s", timeColumn)
+	}
+
 	sqlDB, err := db.Connect(ctx, dbPath)
 	if err != nil {
 		return nil, err
@@ -377,7 +393,7 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 		freqSQL = fmt.Sprintf("strftime('%%Y-%%m', datetime(%s, 'unixepoch'))", timeColumn)
 	case "quarterly":
 		freqSQL = fmt.Sprintf(
-			"strftime('%%Y', datetime(%s, 'unixepoch', '-3 months')) || '-Q' || ((strftime('%%m', datetime(%s, 'unixepoch', '-3 months')) - 1) / 3 + 1)",
+			"strftime('%%Y', datetime(%s, 'unixepoch')) || '-Q' || ((CAST(strftime('%%m', datetime(%s, 'unixepoch')) AS INTEGER) - 1) / 3 + 1)",
 			timeColumn,
 			timeColumn,
 		)
@@ -393,6 +409,11 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 		return nil, fmt.Errorf("invalid frequency: %s", freq)
 	}
 
+	deletedPredicate := "time_deleted = 0"
+	if timeColumn == "time_deleted" {
+		deletedPredicate = "1 = 1"
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			%s AS label,
@@ -400,10 +421,10 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 			SUM(size) AS total_size,
 			SUM(duration) AS total_duration
 		FROM media
-		WHERE %s > 0 AND time_deleted = 0
+		WHERE %s > 0 AND %s
 		GROUP BY label
 		ORDER BY label DESC
-	`, freqSQL, timeColumn)
+	`, freqSQL, timeColumn, deletedPredicate)
 
 	rows, err := sqlDB.QueryContext(ctx, query)
 	if err != nil {

@@ -123,14 +123,15 @@ func (fb *FilterBuilder) buildBasicFilters(whereClauses *[]string, args *[]any) 
 		}
 	}
 
-	// Play count filters (indexed column)
-	if fb.Flags.PlayCountMin > 0 {
+	// Play count filters (indexed column). Pointers distinguish "unset" from an
+	// explicit zero, so --play-count-max 0 works.
+	if fb.Flags.PlayCountMin != nil {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("play_count")))
-		*args = append(*args, fb.Flags.PlayCountMin)
+		*args = append(*args, *fb.Flags.PlayCountMin)
 	}
-	if fb.Flags.PlayCountMax > 0 {
+	if fb.Flags.PlayCountMax != nil {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s <= ?", fb.col("play_count")))
-		*args = append(*args, fb.Flags.PlayCountMax)
+		*args = append(*args, *fb.Flags.PlayCountMax)
 	}
 }
 
@@ -245,9 +246,14 @@ func (fb *FilterBuilder) buildStatusFilters(whereClauses *[]string) {
 		}
 	}
 
-	// Playhead/playback status
+	// Playhead/playback status. "Finished" is playhead >= 95% of duration.
+	// Unfinished and InProgress both mean started but not finished, which is
+	// the same concept the UI exposes under two names.
 	if fb.Flags.Unfinished || fb.Flags.InProgress {
-		*whereClauses = append(*whereClauses, fmt.Sprintf("COALESCE(%s, 0) > 0", fb.col("playhead")))
+		playhead := fmt.Sprintf("COALESCE(%s, 0)", fb.col("playhead"))
+		duration := fmt.Sprintf("COALESCE(%s, 0)", fb.col("duration"))
+		finished := fmt.Sprintf("(%s > 0 AND %s >= %s * 0.95)", duration, playhead, duration)
+		*whereClauses = append(*whereClauses, fmt.Sprintf("%s > 0 AND NOT %s", playhead, finished))
 	}
 	if fb.Flags.Partial != "" {
 		if strings.Contains(fb.Flags.Partial, "s") {
@@ -272,6 +278,7 @@ func (fb *FilterBuilder) buildSearchFilters(ctx context.Context, whereClauses *[
 		fb.buildSearchClauses(ctx, allInclude, whereClauses, args)
 	}
 
+	fb.buildIncludeFilters(whereClauses, args)
 	fb.buildExcludeFilters(whereClauses, args)
 	fb.buildRegexFilter(whereClauses, args)
 	fb.buildPathContainsFilters(pathContains, whereClauses, args)
@@ -318,8 +325,9 @@ func (fb *FilterBuilder) buildCategoryFilters(whereClauses *[]string, args *[]an
 }
 
 func (fb *FilterBuilder) splitSearchTerms() (allInclude, pathContains []string) {
+	// --include is a path pattern, not a free-text search. It is handled by
+	// buildIncludeFilters (SQL) and matchesPathFilters (in memory).
 	allInclude = append([]string{}, fb.Flags.Search...)
-	allInclude = append(allInclude, fb.Flags.Include...)
 	pathContains = append([]string{}, fb.Flags.PathContains...)
 
 	var filteredInclude []string
@@ -356,18 +364,12 @@ func (fb *FilterBuilder) buildSearchClauses(
 }
 
 func (fb *FilterBuilder) resolveSearchMode(ctx context.Context) bool {
-	useFTS := fb.Flags.FTS
-	noFTS := fb.Flags.NoFTS
-
-	if !useFTS && !noFTS {
-		mode := DetectSearchMode(ctx, nil)
-		useFTS = (mode == SearchModeFTS5)
-	}
-
-	if noFTS {
-		useFTS = false
-	}
-	return useFTS
+	_ = ctx
+	// Runtime detection is deliberately not used here: the builder has no
+	// per-database handle, and a process-global detection would make mixed
+	// FTS/non-FTS database lists behave differently. Callers opt in per
+	// database with --fts; --no-fts always wins.
+	return fb.Flags.FTS && !fb.Flags.NoFTS
 }
 
 func (fb *FilterBuilder) buildFTSSearchClauses(
@@ -427,13 +429,21 @@ func (fb *FilterBuilder) buildLikeSearchClauses(
 	*whereClauses = append(*whereClauses, "("+strings.Join(searchParts, joinOp)+")")
 }
 
+// buildIncludeFilters applies path patterns using the same glob/prefix
+// semantics as utils.MatchesAny.
+func (fb *FilterBuilder) buildIncludeFilters(whereClauses *[]string, args *[]any) {
+	for _, inc := range fb.Flags.Include {
+		*whereClauses = append(*whereClauses, fmt.Sprintf("%s LIKE ? ESCAPE '\\'", fb.col("path")))
+		*args = append(*args, utils.PathPatternLike(inc))
+	}
+}
+
+// buildExcludeFilters applies path patterns using the same glob/prefix
+// semantics as utils.MatchesAny.
 func (fb *FilterBuilder) buildExcludeFilters(whereClauses *[]string, args *[]any) {
 	for _, exc := range fb.Flags.Exclude {
-		*whereClauses = append(*whereClauses,
-			fmt.Sprintf("%s NOT LIKE ? AND %s NOT LIKE ?", fb.col("path"), fb.col("title")),
-		)
-		pattern := "%" + exc + "%"
-		*args = append(*args, pattern, pattern)
+		*whereClauses = append(*whereClauses, fmt.Sprintf("%s NOT LIKE ? ESCAPE '\\'", fb.col("path")))
+		*args = append(*args, utils.PathPatternLike(exc))
 	}
 }
 
@@ -514,7 +524,7 @@ func (fb *FilterBuilder) BuildQuery(ctx context.Context, columns string) (string
 
 	// Base table
 	table := "media"
-	useFTSJoin := fb.Flags.FTS && fb.hasSearchTerms()
+	useFTSJoin := fb.usesFTSJoin()
 
 	if useFTSJoin {
 		table = fmt.Sprintf("media JOIN %s ON media.rowid = %s.rowid", fb.getFTSTable(), fb.getFTSTable())
@@ -534,43 +544,21 @@ func (fb *FilterBuilder) BuildQuery(ctx context.Context, columns string) (string
 	}
 
 	// Order by
-	if !fb.Flags.Random && !fb.Flags.NatSort && fb.Flags.SortBy != "" {
-		sortExpr := fb.OverrideSort(fb.Flags.SortBy)
-		order := "ASC"
-		if fb.Flags.Reverse {
-			order = "DESC"
-		}
-		query += fmt.Sprintf(" ORDER BY %s %s", sortExpr, order)
+	if orderExpr := fb.BuildQueryOrder(); orderExpr != "" {
+		query += " ORDER BY " + orderExpr
 	} else if fb.Flags.Random {
-		// Optimization for large databases: select rowids randomly first
-		if !fb.Flags.All && !fb.Flags.FTS && !fb.hasSearchTerms() && fb.Flags.Limit > 0 {
-			whereNotDeleted := "WHERE COALESCE(time_deleted, 0) = 0"
-			if fb.Flags.OnlyDeleted {
-				whereNotDeleted = "WHERE COALESCE(time_deleted, 0) > 0"
-			}
-			// We use a larger pool for random selection then limit it in the outer query
-			randomLimit := fb.Flags.Limit * 16
-
-			randomSubquery := fmt.Sprintf(
-				"rowid IN (SELECT rowid FROM media %s ORDER BY RANDOM() LIMIT %d)",
-				whereNotDeleted,
-				randomLimit,
-			)
-			if strings.Contains(query, " WHERE ") {
-				query += " AND " + randomSubquery
-			} else {
-				query += " WHERE " + randomSubquery
-			}
-		}
 		query += " ORDER BY RANDOM()"
 	}
 
 	// Limit and offset
 	if !fb.Flags.All && fb.Flags.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", fb.Flags.Limit)
-	}
-	if fb.Flags.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", fb.Flags.Offset)
+		if fb.Flags.Offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", fb.Flags.Offset)
+		}
+	} else if fb.Flags.Offset > 0 {
+		// SQLite requires a LIMIT when OFFSET is present.
+		query += fmt.Sprintf(" LIMIT -1 OFFSET %d", fb.Flags.Offset)
 	}
 
 	return query, args
@@ -578,6 +566,13 @@ func (fb *FilterBuilder) BuildQuery(ctx context.Context, columns string) (string
 
 // OverrideSort translates logical sort fields into SQL expressions
 func (fb *FilterBuilder) OverrideSort(s string) string {
+	switch strings.TrimSpace(s) {
+	case "default", "xklb", "xklb_default":
+		return fb.xklbSortSQL(false)
+	case "reverse_default", "reverse_xklb", "reverse_xklb_default":
+		return fb.xklbSortSQL(true)
+	}
+
 	yearMonthSQL := func(v string) string {
 		return fmt.Sprintf("cast(strftime('%%Y%%m', datetime(%s, 'unixepoch')) as int)", fb.col(v))
 	}
@@ -614,20 +609,6 @@ func (fb *FilterBuilder) OverrideSort(s string) string {
 	s = strings.ReplaceAll(s, "random", "RANDOM()")
 	s = strings.ReplaceAll(
 		s,
-		"default",
-		fmt.Sprintf(
-			"%s, %s DESC, %s, %s DESC, %s DESC, %s IS NOT NULL DESC, %s",
-			fb.col("play_count"),
-			fb.col("playhead"),
-			fb.col("time_last_played"),
-			fb.col("duration"),
-			fb.col("size"),
-			fb.col("title"),
-			fb.col("path"),
-		),
-	)
-	s = strings.ReplaceAll(
-		s,
 		"priorityfast",
 		fmt.Sprintf("ntile(1000) over (order by %s) desc, %s", fb.col("size"), fb.col("duration")),
 	)
@@ -643,6 +624,60 @@ func (fb *FilterBuilder) OverrideSort(s string) string {
 	return s
 }
 
+// xklbSortSQL returns the SQL expression for the xklb default media order.
+// It mirrors the in-memory XklbDefaultSort comparator so single-database and
+// multi-database fetches start from the same order.
+func (fb *FilterBuilder) xklbSortSQL(reverse bool) string {
+	dir := func(asc bool) string {
+		if reverse {
+			asc = !asc
+		}
+		if asc {
+			return "ASC"
+		}
+		return "DESC"
+	}
+	remote := fmt.Sprintf("CASE WHEN %s LIKE 'http%%' THEN 1 ELSE 0 END", fb.col("path"))
+	untitled := fmt.Sprintf(
+		"CASE WHEN %s IS NULL OR %s = '' THEN 1 ELSE 0 END",
+		fb.col("title"),
+		fb.col("title"),
+	)
+	const format = "COALESCE(%s, 0) %s, COALESCE(%s, 0) %s, %s %s, " +
+		"COALESCE(%s, 0) %s, COALESCE(%s, 0) %s, COALESCE(%s, 0) %s, " +
+		"COALESCE(%s, 0) %s, %s %s, %s %s"
+	return fmt.Sprintf(
+		format,
+		fb.col("video_count"), dir(false),
+		fb.col("audio_count"), dir(false),
+		remote, dir(true),
+		fb.col("subtitle_count"), dir(false),
+		fb.col("play_count"), dir(true),
+		fb.col("playhead"), dir(false),
+		fb.col("time_last_played"), dir(true),
+		untitled, dir(true),
+		fb.col("path"), dir(true),
+	)
+}
+
+// BuildQueryOrder returns the ORDER BY clause for the configured sort, or ""
+// when the order must be applied in memory.
+func (fb *FilterBuilder) BuildQueryOrder() string {
+	if fb.Flags.Random || fb.Flags.NatSort || fb.Flags.SortBy == "" {
+		return ""
+	}
+	sortExpr := fb.OverrideSort(fb.Flags.SortBy)
+	if fb.Flags.SortBy == "default" || fb.Flags.SortBy == "xklb" ||
+		fb.Flags.SortBy == "reverse_default" || fb.Flags.SortBy == "reverse_xklb" {
+		return sortExpr
+	}
+	order := "ASC"
+	if fb.Flags.Reverse {
+		order = "DESC"
+	}
+	return fmt.Sprintf("%s %s", sortExpr, order)
+}
+
 // BuildSelect is an alias for BuildQuery for backward compatibility
 func (fb *FilterBuilder) BuildSelect(ctx context.Context, columns string) (string, []any) {
 	return fb.BuildQuery(ctx, columns)
@@ -655,9 +690,7 @@ func (fb *FilterBuilder) BuildCount(ctx context.Context) (string, []any) {
 
 // hasSearchTerms checks if there are any search/include terms
 func (fb *FilterBuilder) hasSearchTerms() bool {
-	allInclude := append([]string{}, fb.Flags.Search...)
-	allInclude = append(allInclude, fb.Flags.Include...)
-	for _, term := range allInclude {
+	for _, term := range fb.Flags.Search {
 		if strings.HasPrefix(term, "./") || strings.HasPrefix(term, "/") {
 			continue
 		}
@@ -676,7 +709,7 @@ func (fb *FilterBuilder) getFTSTable() string {
 
 // usesFTSJoin returns true if the query will join media with FTS table
 func (fb *FilterBuilder) usesFTSJoin() bool {
-	return fb.Flags.FTS && fb.hasSearchTerms()
+	return fb.Flags.FTS && !fb.Flags.NoFTS && fb.hasSearchTerms()
 }
 
 // col qualifies a column name with media. prefix if using FTS join
@@ -821,222 +854,105 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 		return
 	}
 
+	sortBy := strings.TrimSpace(sb.Flags.SortBy)
+	if sortBy == "" {
+		sortBy = "default"
+	}
+
 	if sb.Flags.NoPlayInOrder {
-		sb.SortBasic(media)
+		sb.sortByConfig(media, sortBy, sb.Flags.Reverse)
 		return
 	}
 
-	// If the user explicitly requested a specific sort field (and it's not the default "path" or "default"),
-	// respect it and use basic sorting - this takes precedence over PlayInOrder
-	if sb.Flags.SortBy != "" && sb.Flags.SortBy != "path" && sb.Flags.SortBy != "default" {
-		sb.SortBasic(media)
-		return
-	}
-
-	// If the user explicitly requested "default", use xklb sorting (with optional reverse)
-	if sb.Flags.SortBy == "default" {
-		if sb.Flags.Reverse {
-			sb.SortAdvanced(media, "reverse_xklb")
-		} else {
-			sb.SortAdvanced(media, "xklb")
+	if sortBy == "default" {
+		config := "xklb"
+		if sb.Flags.PlayInOrder != "" {
+			config = sb.Flags.PlayInOrder
 		}
+		sb.sortAdvancedWithReverse(media, config, sb.Flags.Reverse)
 		return
 	}
 
-	// If PlayInOrder is explicitly set (and SortBy is default), use it
-	if sb.Flags.PlayInOrder != "" {
-		if sb.Flags.Reverse {
-			// Prepend "reverse_" to the PlayInOrder config
-			sb.SortAdvanced(media, "reverse_"+sb.Flags.PlayInOrder)
-		} else {
-			sb.SortAdvanced(media, sb.Flags.PlayInOrder)
-		}
-		return
-	}
-
-	// If SortBy is "path" (the default) with Reverse or NatSort flags, use basic sorting
-	if sb.Flags.Reverse || sb.Flags.NatSort {
-		sb.SortBasic(media)
-		return
-	}
-
-	// Fall back to xklb default sorting when SortBy is "path" (the default)
-	// This provides xklb-style sorting as the default behavior
-	if sb.Flags.SortBy == "path" || sb.Flags.SortBy == "" {
-		sb.SortAdvanced(media, "xklb")
-		return
-	}
-
-	sb.SortBasic(media)
+	sb.sortByConfig(media, sortBy, sb.Flags.Reverse)
 }
 
-func (sb *SortBuilder) sortBasicNumeric(media []models.MediaWithDB, sortBy string, reverse bool) {
-	sort.SliceStable(media, func(i, j int) bool {
-		var vI, vJ float64
-
-		switch sortBy {
-		case "play_count":
-			vI = float64(utils.Int64Value(media[i].PlayCount))
-			vJ = float64(utils.Int64Value(media[j].PlayCount))
-		case "time_last_played":
-			vI = float64(utils.Int64Value(media[i].TimeLastPlayed))
-			vJ = float64(utils.Int64Value(media[j].TimeLastPlayed))
-		case "progress":
-			dI := float64(utils.Int64Value(media[i].Duration))
-			if dI > 0 {
-				vI = float64(utils.Int64Value(media[i].Playhead)) / dI
-			}
-			dJ := float64(utils.Int64Value(media[j].Duration))
-			if dJ > 0 {
-				vJ = float64(utils.Int64Value(media[j].Playhead)) / dJ
-			}
-		}
-
-		// Zero check: zeros always last (greater index)
-		if vI == 0 && vJ != 0 {
-			return false
-		}
-		if vI != 0 && vJ == 0 {
-			return true
-		}
-		if vI == 0 && vJ == 0 {
-			return false
-		}
-
-		if reverse {
-			return vI > vJ
-		}
-		return vI < vJ
-	})
+// SortBasic sorts by the configured SortBy using the unified sort contract.
+func (sb *SortBuilder) SortBasic(media []models.MediaWithDB) {
+	sb.sortByConfig(media, sb.Flags.SortBy, sb.Flags.Reverse)
 }
 
-func (sb *SortBuilder) getBasicLessFunc(
-	media []models.MediaWithDB,
-	sortBy string,
-	reverse, natSort bool,
-) func(i, j int) bool {
-	return func(i, j int) bool {
-		switch sortBy {
-		case "path":
-			if natSort {
-				return utils.NaturalLess(media[i].Path, media[j].Path)
-			}
-			return media[i].Path < media[j].Path
-		case "title":
-			return utils.StringValue(media[i].Title) < utils.StringValue(media[j].Title)
-		case "duration":
-			return sb.lessDuration(media[i], media[j], reverse)
-		case "size":
-			return utils.Int64Value(media[i].Size) < utils.Int64Value(media[j].Size)
-		case "bitrate", "priority":
-			return sb.lessBitrate(media[i], media[j])
-		case "priorityfast":
-			return sb.lessPriorityFast(media[i], media[j])
-		case "time_created", "date_created", "month_created":
-			return utils.Int64Value(media[i].TimeCreated) < utils.Int64Value(media[j].TimeCreated)
-		case "time_modified", "date_modified", "month_modified":
-			return utils.Int64Value(media[i].TimeModified) < utils.Int64Value(media[j].TimeModified)
-		case "time_last_played":
-			return utils.Int64Value(media[i].TimeLastPlayed) < utils.Int64Value(media[j].TimeLastPlayed)
-		case "play_count":
-			return utils.Int64Value(media[i].PlayCount) < utils.Int64Value(media[j].PlayCount)
-		case "time_deleted":
-			return utils.Int64Value(media[i].TimeDeleted) < utils.Int64Value(media[j].TimeDeleted)
-		case "time_downloaded", "time_scanned":
-			return utils.Int64Value(media[i].TimeDownloaded) < utils.Int64Value(media[j].TimeDownloaded)
-		case "media_type":
-			return sb.lessMediaType(media[i], media[j], reverse)
-		case "extension":
-			return strings.ToLower(filepath.Ext(media[i].Path)) < strings.ToLower(filepath.Ext(media[j].Path))
-		default:
+func (sb *SortBuilder) sortByConfig(media []models.MediaWithDB, config string, reverse bool) {
+	config = strings.TrimSpace(config)
+	if config == "" {
+		config = "default"
+	}
+
+	if config == "path" {
+		sb.sortPath(media, reverse)
+		return
+	}
+
+	fields, _ := ParseSortConfig(config)
+	if !allSortFieldsSupported(fields) {
+		unsupported := firstUnsupportedSortField(fields)
+		warnUnsupportedSortField(unsupported)
+		sb.sortAdvancedWithReverse(media, "xklb", reverse)
+		return
+	}
+	sb.sortAdvancedWithReverse(media, config, reverse)
+}
+
+func (sb *SortBuilder) sortPath(media []models.MediaWithDB, reverse bool) {
+	less := func(i, j int) bool {
+		if sb.Flags.NatSort {
 			return utils.NaturalLess(media[i].Path, media[j].Path)
 		}
+		return media[i].Path < media[j].Path
 	}
+	applyLess(media, less, reverse)
 }
 
-func (sb *SortBuilder) SortBasic(media []models.MediaWithDB) {
-	sortBy := sb.Flags.SortBy
-	reverse := sb.Flags.Reverse
-
-	if sortBy == "play_count" || sortBy == "time_last_played" || sortBy == "progress" {
-		sb.sortBasicNumeric(media, sortBy, reverse)
+func applyLess(media []models.MediaWithDB, less func(i, j int) bool, reverse bool) {
+	if reverse {
+		sort.SliceStable(media, func(i, j int) bool { return less(j, i) })
 		return
 	}
+	sort.SliceStable(media, less)
+}
 
-	less := sb.getBasicLessFunc(media, sortBy, reverse, sb.Flags.NatSort)
-	if reverse {
-		sort.SliceStable(media, func(i, j int) bool { return !less(i, j) })
-	} else {
-		sort.SliceStable(media, less)
+func warnUnsupportedSortField(field string) {
+	if models.Log != nil {
+		models.Log.Warn("Unsupported sort field; using default order", "field", field)
 	}
 }
 
-func (sb *SortBuilder) lessDuration(m1, m2 models.MediaWithDB, reverse bool) bool {
-	v1 := utils.Int64Value(m1.Duration)
-	v2 := utils.Int64Value(m2.Duration)
-
-	if v1 == 0 && v2 != 0 {
-		return reverse
+func firstUnsupportedSortField(fields []SortField) string {
+	for _, f := range fields {
+		if !isSupportedSortField(f.Field) {
+			return f.Field
+		}
 	}
-	if v1 != 0 && v2 == 0 {
-		return !reverse
-	}
-	if v1 == 0 && v2 == 0 {
-		return false
-	}
-
-	return v1 < v2
+	return ""
 }
 
-func (sb *SortBuilder) lessBitrate(m1, m2 models.MediaWithDB) bool {
-	size1 := float64(utils.Int64Value(m1.Size))
-	dur1 := float64(utils.Int64Value(m1.Duration))
-	size2 := float64(utils.Int64Value(m2.Size))
-	dur2 := float64(utils.Int64Value(m2.Duration))
+func allSortFieldsSupported(fields []SortField) bool {
+	return firstUnsupportedSortField(fields) == ""
+}
 
-	var br1, br2 float64
-	if dur1 > 0 {
-		br1 = size1 / dur1
-	}
-	if dur2 > 0 {
-		br2 = size2 / dur2
-	}
-
-	if br1 == 0 && br2 != 0 {
-		return false
-	}
-	if br1 != 0 && br2 == 0 {
+// isSupportedSortField reports whether a sort key has a defined in-memory
+// comparator. Unknown keys are never silently treated as path.
+func isSupportedSortField(field string) bool {
+	switch field {
+	case "ps", "pts", "parent", "stem", "extension", "path", "title",
+		"media_type", "genre", "artist", "album", "language", "categories",
+		"video_codecs", "audio_codecs", "path_tokenized", "fasthash", "sha256",
+		"path_is_remote", "title_is_null", "size_per_count", "folders",
+		"folder_count", "count", "priority", "priorityfast", "bitrate",
+		"progress", "date_created", "date_modified", "month_created",
+		"month_modified", "time_scanned":
 		return true
 	}
-	return br1 < br2
-}
-
-func (sb *SortBuilder) lessPriorityFast(m1, m2 models.MediaWithDB) bool {
-	s1 := utils.Int64Value(m1.Size)
-	s2 := utils.Int64Value(m2.Size)
-
-	if s1 != s2 {
-		return s1 > s2
-	}
-
-	return utils.Int64Value(m1.Duration) < utils.Int64Value(m2.Duration)
-}
-
-func (sb *SortBuilder) lessMediaType(m1, m2 models.MediaWithDB, reverse bool) bool {
-	v1 := strings.ToLower(utils.StringValue(m1.MediaType))
-	v2 := strings.ToLower(utils.StringValue(m2.MediaType))
-
-	if v1 == "" && v2 != "" {
-		return reverse
-	}
-	if v1 != "" && v2 == "" {
-		return !reverse
-	}
-	if v1 == "" && v2 == "" {
-		return false
-	}
-
-	return v1 < v2
+	return IsNumericField(field)
 }
 
 // SortField represents a single field in a multi-field sort
@@ -1269,6 +1185,8 @@ func GetSortValueFloat64(m models.MediaWithDB, field string) float64 {
 		return utils.Float64Value(m.Score)
 	case "track_number":
 		return float64(utils.Int64Value(m.TrackNumber))
+	case "is_deduped":
+		return float64(utils.Int64Value(m.IsDeduped))
 	case "count":
 		// For folder stats compatibility
 		return float64(utils.Int64Value(m.Size))
@@ -1282,6 +1200,12 @@ func GetSortValueString(m models.MediaWithDB, field string) string {
 	switch field {
 	case "path":
 		return m.Path
+	case "path_tokenized":
+		return utils.StringValue(m.PathTokenized)
+	case "fasthash":
+		return utils.StringValue(m.Fasthash)
+	case "sha256":
+		return utils.StringValue(m.Sha256)
 	case "title":
 		return utils.StringValue(m.Title)
 	case "parent":
@@ -1323,7 +1247,7 @@ func IsNumericField(field string) bool {
 		"time_created": true, "time_modified": true, "time_downloaded": true,
 		"time_deleted": true, "duration": true, "size": true,
 		"width": true, "height": true, "fps": true, "score": true,
-		"track_number": true, "count": true,
+		"track_number": true, "count": true, "is_deduped": true,
 	}
 	return numericFields[field]
 }
@@ -1444,90 +1368,82 @@ func CompareSortFields(media []models.MediaWithDB, i, j int, sortFields []SortFi
 }
 
 func (sb *SortBuilder) SortAdvanced(media []models.MediaWithDB, config string) {
+	sb.sortAdvancedWithReverse(media, config, false)
+}
+
+func (sb *SortBuilder) sortAdvancedWithReverse(media []models.MediaWithDB, config string, reverse bool) {
 	if config == "" {
 		sb.SortBasic(media)
 		return
 	}
 
-	// Special keywords for preset sorts
-	switch config {
-	case "xklb", "xklb_default":
-		config = "video_count desc,audio_count desc,path_is_remote asc,subtitle_count desc,play_count asc,playhead desc,time_last_played asc,title_is_null asc,path asc"
-	case "reverse_xklb", "reverse_xklb_default":
-		// Reverse of xklb: prioritize audio, remote URLs, no subtitles, most played, etc.
-		config = "video_count asc,audio_count asc,path_is_remote desc,subtitle_count asc,play_count desc,playhead asc,time_last_played desc,title_is_null desc,path desc"
-	case "du", "du_default":
-		config = "size_per_count desc,size desc,count desc,folders desc,path desc"
-	case "reverse_du", "reverse_du_default":
-		// Reverse of du: smallest folders first, alphabetical path
-		config = "size_per_count asc,size asc,count asc,folders asc,path asc"
-	}
+	config = expandSortPreset(config)
 
-	// Check for meta-field markers and use grouped sorting
+	// Groups are applied as successive stable full sorts: each later group
+	// reorders the entire slice, and stability preserves the earlier group's
+	// order only for items that compare equal. Later groups therefore take
+	// precedence over earlier groups.
 	groups := ParseSortConfigWithGroups(config)
 
 	if len(groups) > 1 {
-		// Multiple groups - apply each group's sorting in sequence
 		for _, group := range groups {
 			switch group.Alg {
 			case "weighted":
-				// Apply weighted re-ranking for this group
-				ApplyWeightedRerank(media, group.Fields)
-			case "natural":
-				// Apply natural sorting as tiebreaker for this group
-				ApplyNaturalSort(media, group.Fields)
+				weightedRerank(media, group.Fields, reverse)
 			case "related":
-				// Related media - apply standard natural sort
-				// Note: Media expansion happens earlier in SortMediaWithExpansion
-				applyStandardSort(media, group.Fields, "natural")
+				// Related media is expanded earlier in SortMediaWithExpansion;
+				// ordering here is natural order over the group's fields.
+				applyStandardSort(media, group.Fields, "natural", reverse)
 			default:
-				// Standard multi-field sorting
-				applyStandardSort(media, group.Fields, group.Alg)
+				applyStandardSort(media, group.Fields, group.Alg, reverse)
 			}
 		}
 		return
 	}
 
-	// Single group - use original logic
 	sortFields, alg := ParseSortConfig(config)
 
 	if len(sortFields) == 1 && sortFields[0].Field == "ps" {
-		// Legacy single-field sorting
-		reverse := sortFields[0].Reverse
 		less := func(i, j int) bool {
 			valI := GetSortValueString(media[i], "ps")
 			valJ := GetSortValueString(media[j], "ps")
-
-			var res bool
 			if alg == "python" {
-				res = valI < valJ
-			} else {
-				res = utils.NaturalLess(valI, valJ)
+				return valI < valJ
 			}
-
-			if reverse {
-				return !res
-			}
-			return res
+			return utils.NaturalLess(valI, valJ)
 		}
-		sort.Slice(media, less)
+		applyLess(media, less, sortFields[0].Reverse != reverse)
 		return
 	}
 
-	// Multi-field sorting
-	sort.SliceStable(media, func(i, j int) bool {
-		cmp := CompareSortFields(media, i, j, sortFields, alg)
-		return cmp < 0
-	})
+	applyStandardSort(media, sortFields, alg, reverse)
 }
 
-// applyStandardSort applies standard multi-field sorting to media
-func applyStandardSort(media []models.MediaWithDB, fields []SortField, alg string) {
+func expandSortPreset(config string) string {
+	switch config {
+	case "xklb", "xklb_default":
+		return "video_count desc,audio_count desc,path_is_remote asc,subtitle_count desc,play_count asc,playhead desc,time_last_played asc,title_is_null asc,path asc"
+	case "reverse_xklb", "reverse_xklb_default":
+		return "video_count asc,audio_count asc,path_is_remote desc,subtitle_count asc,play_count desc,playhead asc,time_last_played desc,title_is_null desc,path desc"
+	case "du", "du_default":
+		return "size_per_count desc,size desc,count desc,folders desc,path desc"
+	case "reverse_du", "reverse_du_default":
+		return "size_per_count asc,size asc,count asc,folders asc,path asc"
+	default:
+		return config
+	}
+}
+
+// applyStandardSort applies standard multi-field sorting to media.
+func applyStandardSort(media []models.MediaWithDB, fields []SortField, alg string, reverse bool) {
 	if len(fields) == 0 {
 		return
 	}
 	sort.SliceStable(media, func(i, j int) bool {
 		cmp := CompareSortFields(media, i, j, fields, alg)
+		if reverse {
+			return cmp > 0
+		}
 		return cmp < 0
 	})
 }
@@ -1538,12 +1454,16 @@ func ApplyNaturalSort(media []models.MediaWithDB, fields []SortField) {
 		return
 	}
 	// Use natural algorithm for string comparisons
-	applyStandardSort(media, fields, "natural")
+	applyStandardSort(media, fields, "natural", false)
 }
 
 // ApplyWeightedRerank applies MCDA-style weighted re-ranking based on field positions
 // Fields earlier in the list have higher weights (position-based weighting)
 func ApplyWeightedRerank(media []models.MediaWithDB, fields []SortField) {
+	weightedRerank(media, fields, false)
+}
+
+func weightedRerank(media []models.MediaWithDB, fields []SortField, reverse bool) {
 	if len(fields) == 0 || len(media) == 0 {
 		return
 	}
@@ -1583,7 +1503,7 @@ func ApplyWeightedRerank(media []models.MediaWithDB, fields []SortField) {
 		}
 
 		// Sort values to determine ranks
-		sort.Slice(values, func(i, j int) bool {
+		sort.SliceStable(values, func(i, j int) bool {
 			if values[i].isNumeric {
 				if field.Reverse {
 					return values[i].value > values[j].value
@@ -1610,6 +1530,9 @@ func ApplyWeightedRerank(media []models.MediaWithDB, fields []SortField) {
 
 	// Sort media by total weighted score
 	sort.SliceStable(media, func(i, j int) bool {
+		if reverse {
+			return ranked[i].totalScore < ranked[j].totalScore
+		}
 		return ranked[i].totalScore > ranked[j].totalScore
 	})
 }
@@ -1842,7 +1765,7 @@ func queryRelatedMediaWithRank(
 		WHERE m.rowid = %s.rowid
 		AND %s MATCH ?
 			AND m.path != ?
-		ORDER BY bm25(%s) DESC, m.path
+		ORDER BY bm25(%s) ASC, m.path
 		LIMIT ?
 	`, params.FTSTable, params.FTSTable, params.FTSTable, params.FTSTable, params.FTSTable)
 
@@ -1932,6 +1855,8 @@ func mapStringField(m *db.Media, col string, val any) bool {
 	switch col {
 	case "path":
 		m.Path = s
+	case "path_tokenized":
+		m.PathTokenized = sql.NullString{String: s, Valid: true}
 	case "title":
 		m.Title = sql.NullString{String: s, Valid: true}
 	case "album":
@@ -1954,6 +1879,10 @@ func mapStringField(m *db.Media, col string, val any) bool {
 		m.SubtitleCodecs = sql.NullString{String: s, Valid: true}
 	case "media_type":
 		m.MediaType = sql.NullString{String: s, Valid: true}
+	case "fasthash":
+		m.Fasthash = sql.NullString{String: s, Valid: true}
+	case "sha256":
+		m.Sha256 = sql.NullString{String: s, Valid: true}
 	default:
 		return false
 	}
@@ -1987,6 +1916,14 @@ func mapInt64Field(m *db.Media, col string, val any) bool {
 		m.Width = sql.NullInt64{Int64: i, Valid: true}
 	case "height":
 		m.Height = sql.NullInt64{Int64: i, Valid: true}
+	case "video_count":
+		m.VideoCount = sql.NullInt64{Int64: i, Valid: true}
+	case "audio_count":
+		m.AudioCount = sql.NullInt64{Int64: i, Valid: true}
+	case "subtitle_count":
+		m.SubtitleCount = sql.NullInt64{Int64: i, Valid: true}
+	case "is_deduped":
+		m.IsDeduped = sql.NullInt64{Int64: i, Valid: true}
 	default:
 		return false
 	}
@@ -1997,6 +1934,8 @@ func mapFloat64Field(m *db.Media, col string, val any) bool {
 	switch col {
 	case "score":
 		m.Score = sql.NullFloat64{Float64: utils.GetFloat64(val), Valid: true}
+	case "fps":
+		m.Fps = sql.NullFloat64{Float64: utils.GetFloat64(val), Valid: true}
 	default:
 		return false
 	}
@@ -2063,143 +2002,40 @@ func (qe *QueryExecutor) executeMultiDB(
 	return allMedia, errs
 }
 
-func (qe *QueryExecutor) prepareMediaQuery(
-	dbs []string,
-) (flags models.GlobalFlags, isEpisodic, isMultiDB bool, origLimit, origOffset int) {
-	flags = qe.filterBuilder.Flags
-	origLimit = flags.Limit
-	origOffset = flags.Offset
-	isEpisodic = flags.FileCounts != ""
-	isMultiDB = len(dbs) > 1
-
-	if isEpisodic {
-		// Fetch everything matching other filters so we can count directories accurately
-		flags.All = true
-		flags.Limit = 0
-		flags.Offset = 0
-	}
-
-	// For multiple databases, we need to fetch more results from each DB
-	if isMultiDB && !flags.All && flags.Limit > 0 {
-		flags.Limit += flags.Offset
-		flags.Offset = 0
-	}
-
-	return flags, isEpisodic, isMultiDB, origLimit, origOffset
-}
-
-type postProcessOptions struct {
-	media      []models.MediaWithDB
-	flags      models.GlobalFlags
-	origLimit  int
-	origOffset int
-	isEpisodic bool
-	isMultiDB  bool
-}
-
-func (qe *QueryExecutor) postProcessMediaQuery(
-	ctx context.Context,
-	opts postProcessOptions,
-) ([]models.MediaWithDB, error) {
-	allMedia := opts.media
-	if opts.isEpisodic {
-		allMedia = qe.applyEpisodicFilters(allMedia, opts)
-	}
-
-	allMedia = qe.applyGroupingAndSiblings(ctx, allMedia, opts)
-
-	if opts.isMultiDB && !opts.isEpisodic && !opts.flags.GroupByParent && !opts.flags.All && opts.origLimit > 0 {
-		allMedia = qe.applyMultiDBLimitOffset(allMedia, opts)
-	}
-
-	return allMedia, nil
-}
-
-func (qe *QueryExecutor) applyEpisodicFilters(
-	allMedia []models.MediaWithDB,
-	opts postProcessOptions,
-) []models.MediaWithDB {
-	counts := make(map[string]int64)
-	for _, m := range allMedia {
-		counts[m.Parent()]++
-	}
-
-	r, err := utils.ParseRange(opts.flags.FileCounts, func(s string) (int64, error) {
-		return strconv.ParseInt(s, 10, 64)
-	})
-
-	if err == nil {
-		var filtered []models.MediaWithDB
-		for _, m := range allMedia {
-			if r.Matches(counts[m.Parent()]) {
-				filtered = append(filtered, m)
-			}
-		}
-		allMedia = filtered
-	}
-
-	NewSortBuilder(opts.flags).Sort(allMedia)
-
-	if opts.origOffset > 0 {
-		if opts.origOffset >= len(allMedia) {
-			return []models.MediaWithDB{}
-		}
-		allMedia = allMedia[opts.origOffset:]
-	}
-	if opts.origLimit > 0 && len(allMedia) > opts.origLimit {
-		allMedia = allMedia[:opts.origLimit]
-	}
-	return allMedia
-}
-
-func (qe *QueryExecutor) applyGroupingAndSiblings(
-	ctx context.Context,
-	allMedia []models.MediaWithDB,
-	opts postProcessOptions,
-) []models.MediaWithDB {
-	if opts.flags.GroupByParent {
-		allMedia = qe.GroupByParent(allMedia, opts.flags)
-	}
-
-	if opts.flags.FetchSiblings != "" {
-		var err error
-		allMedia, err = qe.FetchSiblings(ctx, allMedia, opts.flags)
-		if err != nil {
-			return allMedia
-		}
-	}
-	return allMedia
-}
-
-func (qe *QueryExecutor) applyMultiDBLimitOffset(
-	allMedia []models.MediaWithDB,
-	opts postProcessOptions,
-) []models.MediaWithDB {
-	NewSortBuilder(opts.flags).Sort(allMedia)
-
-	if opts.origOffset > 0 {
-		if opts.origOffset >= len(allMedia) {
-			return []models.MediaWithDB{}
-		}
-		allMedia = allMedia[opts.origOffset:]
-	}
-	if len(allMedia) > opts.origLimit {
-		allMedia = allMedia[:opts.origLimit]
-	}
-	return allMedia
-}
-
-// MediaQuery executes a query against multiple databases concurrently
+// MediaQuery executes a query against multiple databases concurrently.
+//
+// The SQL fetch intentionally returns every row matching the SQL predicates;
+// ordering and pagination are applied once, in memory, after grouping and
+// sibling expansion. This keeps one-database and multi-database results in the
+// same order and makes LIMIT/OFFSET select from the final ordering.
 func (qe *QueryExecutor) MediaQuery(ctx context.Context, dbs []string) ([]models.MediaWithDB, error) {
-	flags, isEpisodic, isMultiDB, origLimit, origOffset := qe.prepareMediaQuery(dbs)
+	flags := qe.filterBuilder.Flags
 
 	resolvedFlags, err := qe.ResolvePercentileFlags(ctx, dbs, flags)
-	if err == nil {
-		flags = resolvedFlags
+	if err != nil {
+		return nil, err
+	}
+	flags = resolvedFlags
+
+	if flags.Query != "" {
+		fb := NewFilterBuilder(flags)
+		query, args := fb.BuildQuery(ctx, "*")
+		allMedia, errs := qe.executeMultiDB(ctx, dbs, query, args)
+		if len(errs) > 0 {
+			return allMedia, errors.Join(errs...)
+		}
+		return allMedia, nil
 	}
 
-	// Rebuild filter builder with resolved flags
-	fb := NewFilterBuilder(flags)
+	fetchFlags := flags
+	fetchFlags.All = true
+	fetchFlags.Limit = 0
+	fetchFlags.Offset = 0
+	fetchFlags.SortBy = ""
+	fetchFlags.Random = false
+	fetchFlags.NatSort = false
+
+	fb := NewFilterBuilder(fetchFlags)
 	query, args := fb.BuildQuery(ctx, "*")
 
 	allMedia, errs := qe.executeMultiDB(ctx, dbs, query, args)
@@ -2207,35 +2043,119 @@ func (qe *QueryExecutor) MediaQuery(ctx context.Context, dbs []string) ([]models
 		return allMedia, errors.Join(errs...)
 	}
 
-	return qe.postProcessMediaQuery(ctx, postProcessOptions{
-		media:      allMedia,
-		flags:      flags,
-		origLimit:  origLimit,
-		origOffset: origOffset,
-		isEpisodic: isEpisodic,
-		isMultiDB:  isMultiDB,
-	})
+	// Apply the in-memory predicates too (existence checks and the exact
+	// include/exclude semantics) so the result set matches FilterMedia.
+	allMedia = NewFilterBuilder(flags).FilterMedia(allMedia)
+
+	if flags.FileCounts != "" {
+		allMedia = qe.applyEpisodicFilters(allMedia, flags)
+	}
+
+	if flags.GroupByParent {
+		allMedia = qe.GroupByParent(allMedia, flags)
+		NewSortBuilder(flags).Sort(allMedia)
+		return paginateMedia(allMedia, flags), nil
+	}
+
+	// Sort after fetching every matching row: random order and --re-rank also
+	// see the complete, filtered set.
+	NewSortBuilder(flags).Sort(allMedia)
+
+	// Pagination selects the page from the final ordering. Sibling expansion
+	// happens for that page, then only the expanded rows are re-ordered.
+	page := paginateMedia(allMedia, flags)
+	if flags.FetchSiblings != "" {
+		siblings, err := qe.FetchSiblings(ctx, page, flags)
+		if err != nil {
+			if models.Log != nil {
+				models.Log.Warn("Sibling fetch failed", "error", err)
+			}
+		} else {
+			page = siblings
+			NewSortBuilder(flags).Sort(page)
+		}
+	}
+
+	return page, nil
 }
 
-// MediaQueryCount executes a count query against multiple databases concurrently
+func paginateMedia(media []models.MediaWithDB, flags models.GlobalFlags) []models.MediaWithDB {
+	offset := max(flags.Offset, 0)
+	if offset > len(media) {
+		return []models.MediaWithDB{}
+	}
+	media = media[offset:]
+
+	if flags.All || flags.Limit <= 0 {
+		return media
+	}
+	if len(media) > flags.Limit {
+		media = media[:flags.Limit]
+	}
+	return media
+}
+
+func (qe *QueryExecutor) applyEpisodicFilters(
+	allMedia []models.MediaWithDB,
+	flags models.GlobalFlags,
+) []models.MediaWithDB {
+	counts := make(map[string]int64)
+	for _, m := range allMedia {
+		counts[m.Parent()]++
+	}
+
+	r, err := utils.ParseRange(flags.FileCounts, func(s string) (int64, error) {
+		return strconv.ParseInt(s, 10, 64)
+	})
+	if err != nil {
+		return allMedia
+	}
+
+	filtered := make([]models.MediaWithDB, 0, len(allMedia))
+	for _, m := range allMedia {
+		if r.Matches(counts[m.Parent()]) {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered
+}
+
+// needsPostProcessedCount reports whether the count must be derived from the
+// same post-processed result set as the response.
+func needsPostProcessedCount(flags models.GlobalFlags) bool {
+	if flags.GroupByParent || flags.FetchSiblings != "" || flags.FileCounts != "" || flags.Exists {
+		return true
+	}
+	if flags.Related > 0 || strings.Contains(flags.PlayInOrder, "_related_media") ||
+		strings.Contains(flags.SortBy, "_related_media") {
+		return true
+	}
+	return false
+}
+
+// MediaQueryCount executes a count query against multiple databases concurrently.
 func (qe *QueryExecutor) MediaQueryCount(ctx context.Context, dbs []string) (int64, error) {
 	flags := qe.filterBuilder.Flags
 
-	if flags.FileCounts != "" {
+	if needsPostProcessedCount(flags) {
 		tempFlags := flags
 		tempFlags.All = true
 		tempFlags.Limit = 0
 		tempFlags.Offset = 0
 
-		tempExecutor := NewQueryExecutor(tempFlags)
-		allMedia, err := tempExecutor.MediaQuery(ctx, dbs)
+		allMedia, err := NewQueryExecutor(tempFlags).MediaQuery(ctx, dbs)
 		if err != nil {
 			return 0, err
 		}
 		return int64(len(allMedia)), nil
 	}
 
-	query, args := qe.filterBuilder.BuildCount(ctx)
+	resolvedFlags, err := qe.ResolvePercentileFlags(ctx, dbs, flags)
+	if err != nil {
+		return 0, err
+	}
+
+	query, args := NewFilterBuilder(resolvedFlags).BuildCount(ctx)
 
 	var wg sync.WaitGroup
 	results := make(chan int64, len(dbs))
@@ -2293,6 +2213,7 @@ func (qe *QueryExecutor) GroupByParent(allMedia []models.MediaWithDB, flags mode
 		LatestEpisodeTime       *string `json:"latest_episode_time,omitempty"`
 		RepresentativePath      string  `json:"representative_path"`
 		RepresentativeMediaType *string `json:"media_type,omitempty"`
+		DB                      string  `json:"db"`
 	}
 
 	groups := make(map[string]*GroupedMedia)
@@ -2306,6 +2227,7 @@ func (qe *QueryExecutor) GroupByParent(allMedia []models.MediaWithDB, flags mode
 				TotalDuration:           0,
 				RepresentativePath:      m.Path,
 				RepresentativeMediaType: m.MediaType,
+				DB:                      m.DB,
 			}
 		}
 		g := groups[parent]
@@ -2331,7 +2253,7 @@ func (qe *QueryExecutor) GroupByParent(allMedia []models.MediaWithDB, flags mode
 				Duration:  &g.TotalDuration,
 				Title:     &g.ParentPath,
 			},
-			DB:            allMedia[0].DB,
+			DB:            g.DB,
 			EpisodeCount:  g.EpisodeCount,
 			TotalSize:     g.TotalSize,
 			TotalDuration: g.TotalDuration,
@@ -2347,10 +2269,13 @@ func (qe *QueryExecutor) determineSiblingLimit(filesInDir []models.MediaWithDB, 
 	limit := flags.FetchSiblingsMax
 	switch flags.FetchSiblings {
 	case "all", "always":
-		return 2000, true
+		if limit <= 0 {
+			limit = 2000
+		}
+		return limit, true
 	case "each":
 		if limit <= 0 {
-			limit = len(filesInDir)
+			limit = -1 // SQLite: no limit
 		}
 		return limit, true
 	case "if-audiobook":
@@ -2382,10 +2307,21 @@ func (qe *QueryExecutor) querySiblings(
 	ctx context.Context,
 	dbPath, dir string,
 	limit int,
+	flags models.GlobalFlags,
 ) ([]models.MediaWithDB, error) {
-	query := "SELECT path, path_tokenized, title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped FROM media WHERE time_deleted = 0 AND path LIKE ? ORDER BY path LIMIT ?"
+	query := "SELECT path, path_tokenized, title, duration, size, time_created, time_modified, time_deleted, time_first_played, time_last_played, play_count, playhead, media_type, width, height, fps, video_codecs, audio_codecs, subtitle_codecs, video_count, audio_count, subtitle_count, album, artist, genre, categories, description, language, time_downloaded, score, fasthash, sha256, is_deduped FROM media WHERE "
+	args := make([]any, 0, 2)
+	if flags.OnlyDeleted {
+		query += "COALESCE(time_deleted, 0) > 0"
+	} else if flags.HideDeleted {
+		query += "COALESCE(time_deleted, 0) = 0"
+	} else {
+		query += "1 = 1"
+	}
+	query += " AND path LIKE ? ORDER BY path LIMIT ?"
 	pattern := dir + "%"
-	return QueryDatabase(ctx, dbPath, query, []any{pattern, limit})
+	args = append(args, pattern, limit)
+	return QueryDatabase(ctx, dbPath, query, args)
 }
 
 func (qe *QueryExecutor) groupByParentDir(media []models.MediaWithDB) map[string][]models.MediaWithDB {
@@ -2412,7 +2348,7 @@ func (qe *QueryExecutor) fetchSiblingsForDir(
 	}
 
 	dbPath := filesInDir[0].DB
-	return qe.querySiblings(ctx, dbPath, dir, limit)
+	return qe.querySiblings(ctx, dbPath, dir, limit, flags)
 }
 
 func (qe *QueryExecutor) FetchSiblings(
@@ -2443,6 +2379,7 @@ func (qe *QueryExecutor) FetchSiblings(
 		}
 	}
 
+	NewSortBuilder(flags).Sort(allSiblings)
 	return allSiblings, nil
 }
 
@@ -2469,6 +2406,10 @@ func (qe *QueryExecutor) cleanPercentileFlags(flags models.GlobalFlags) models.G
 	}
 	tempFlags.All = true
 	tempFlags.Limit = 0
+	tempFlags.Offset = 0
+	// Percentile sampling only needs the column values; ordering is irrelevant
+	// and may reference columns that the caller's sort does not need.
+	tempFlags.SortBy = ""
 	return tempFlags
 }
 
@@ -2495,26 +2436,31 @@ func (qe *QueryExecutor) queryPercentileValues(
 		gCounts := make(map[string]int64)
 		for rows.Next() {
 			var p string
-			if err := rows.Scan(&p); err == nil {
-				gCounts[filepath.Dir(p)]++
+			if err := rows.Scan(&p); err != nil {
+				return nil, err
 			}
+			gCounts[filepath.Dir(p)]++
 		}
 		if err := rows.Err(); err != nil {
-			models.Log.Debug("Percentile query error", "error", err)
+			return nil, err
 		}
 		for _, c := range gCounts {
 			values = append(values, c)
 		}
-	} else {
-		for rows.Next() {
-			var v sql.NullInt64
-			if err := rows.Scan(&v); err == nil && v.Valid {
-				values = append(values, v.Int64)
-			}
+		return values, nil
+	}
+
+	for rows.Next() {
+		var v sql.NullInt64
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
 		}
-		if err := rows.Err(); err != nil {
-			models.Log.Debug("Percentile query error", "error", err)
+		if v.Valid {
+			values = append(values, v.Int64)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return values, nil
 }
@@ -2524,7 +2470,7 @@ func (qe *QueryExecutor) getPercentileValues(
 	dbs []string,
 	flags models.GlobalFlags,
 	field string,
-) []int64 {
+) ([]int64, error) {
 	tempFlags := qe.cleanPercentileFlags(flags)
 
 	fb := NewFilterBuilder(tempFlags)
@@ -2539,21 +2485,26 @@ func (qe *QueryExecutor) getPercentileValues(
 	var values []int64
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var errs []error
 	for _, dbPath := range dbs {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
 			localValues, err := qe.queryPercentileValues(ctx, path, sqlQuery, args, field)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", path, err))
 				return
 			}
-			mu.Lock()
 			values = append(values, localValues...)
-			mu.Unlock()
 		}(dbPath)
 	}
 	wg.Wait()
-	return values
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	return values, nil
 }
 
 func (qe *QueryExecutor) applyPercentileToRange(ranges []string, mapping []int64) []string {
@@ -2582,45 +2533,57 @@ type TimePercentileOptions struct {
 func (qe *QueryExecutor) resolveTimePercentiles(
 	ctx context.Context,
 	opts TimePercentileOptions,
-) {
-	values := qe.getPercentileValues(ctx, opts.dbs, *opts.flags, opts.field)
-	if len(values) > 0 {
-		mapping := utils.CalculatePercentiles(values)
-		for _, r := range opts.ranges {
-			if pmin, pmax, ok := utils.ParsePercentileRange(r); ok {
-				*opts.after = strconv.FormatInt(mapping[int(pmin)], 10)
-				*opts.before = strconv.FormatInt(mapping[int(pmax)], 10)
-			}
+) error {
+	values, err := qe.getPercentileValues(ctx, opts.dbs, *opts.flags, opts.field)
+	if err != nil {
+		return err
+	}
+	mapping := utils.CalculatePercentiles(values)
+	for _, r := range opts.ranges {
+		if pmin, pmax, ok := utils.ParsePercentileRange(r); ok {
+			*opts.after = strconv.FormatInt(mapping[int(pmin)], 10)
+			*opts.before = strconv.FormatInt(mapping[int(pmax)], 10)
 		}
 	}
+	return nil
 }
 
-func (qe *QueryExecutor) resolveSizePercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) {
-	values := qe.getPercentileValues(ctx, dbs, *flags, "size")
-	if len(values) > 0 {
-		mapping := utils.CalculatePercentiles(values)
-		flags.Size = qe.applyPercentileToRange(flags.Size, mapping)
+func (qe *QueryExecutor) resolveSizePercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) error {
+	values, err := qe.getPercentileValues(ctx, dbs, *flags, "size")
+	if err != nil {
+		return err
 	}
+	mapping := utils.CalculatePercentiles(values)
+	flags.Size = qe.applyPercentileToRange(flags.Size, mapping)
+	return nil
 }
 
-func (qe *QueryExecutor) resolveDurationPercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) {
-	values := qe.getPercentileValues(ctx, dbs, *flags, "duration")
-	if len(values) > 0 {
-		mapping := utils.CalculatePercentiles(values)
-		flags.Duration = qe.applyPercentileToRange(flags.Duration, mapping)
+func (qe *QueryExecutor) resolveDurationPercentiles(
+	ctx context.Context,
+	dbs []string,
+	flags *models.GlobalFlags,
+) error {
+	values, err := qe.getPercentileValues(ctx, dbs, *flags, "duration")
+	if err != nil {
+		return err
 	}
+	mapping := utils.CalculatePercentiles(values)
+	flags.Duration = qe.applyPercentileToRange(flags.Duration, mapping)
+	return nil
 }
 
-func (qe *QueryExecutor) resolveEpisodePercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) {
-	values := qe.getPercentileValues(ctx, dbs, *flags, "episodes")
-	if len(values) > 0 {
-		mapping := utils.CalculatePercentiles(values)
-		if pmin, pmax, ok := utils.ParsePercentileRange(flags.FileCounts); ok {
-			minVal := mapping[int(pmin)]
-			maxVal := mapping[int(pmax)]
-			flags.FileCounts = fmt.Sprintf("+%d,-%d", minVal, maxVal)
-		}
+func (qe *QueryExecutor) resolveEpisodePercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) error {
+	values, err := qe.getPercentileValues(ctx, dbs, *flags, "episodes")
+	if err != nil {
+		return err
 	}
+	mapping := utils.CalculatePercentiles(values)
+	if pmin, pmax, ok := utils.ParsePercentileRange(flags.FileCounts); ok {
+		minVal := mapping[int(pmin)]
+		maxVal := mapping[int(pmax)]
+		flags.FileCounts = fmt.Sprintf("+%d,-%d", minVal, maxVal)
+	}
+	return nil
 }
 
 func (qe *QueryExecutor) hasAnyPercentileFlag(flags models.GlobalFlags) bool {
@@ -2646,24 +2609,48 @@ func (qe *QueryExecutor) hasAnyPercentileFlag(flags models.GlobalFlags) bool {
 	return false
 }
 
-func (qe *QueryExecutor) resolveAllPercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) {
-	qe.resolveSizePercentiles(ctx, dbs, flags)
-	qe.resolveDurationPercentiles(ctx, dbs, flags)
+func validatePercentileFlags(flags models.GlobalFlags) error {
+	groups := [][]string{
+		flags.Size, flags.Duration, flags.Modified, flags.Created, flags.Downloaded,
+	}
+	for _, ranges := range groups {
+		for _, s := range ranges {
+			if err := utils.ValidatePercentileRange(s); err != nil {
+				return err
+			}
+		}
+	}
+	return utils.ValidatePercentileRange(flags.FileCounts)
+}
 
-	qe.resolveTimePercentiles(ctx, TimePercentileOptions{
+func (qe *QueryExecutor) resolveAllPercentiles(ctx context.Context, dbs []string, flags *models.GlobalFlags) error {
+	if err := qe.resolveSizePercentiles(ctx, dbs, flags); err != nil {
+		return err
+	}
+	if err := qe.resolveDurationPercentiles(ctx, dbs, flags); err != nil {
+		return err
+	}
+
+	if err := qe.resolveTimePercentiles(ctx, TimePercentileOptions{
 		dbs: dbs, flags: flags, field: "time_modified",
 		ranges: flags.Modified, after: &flags.ModifiedAfter, before: &flags.ModifiedBefore,
-	})
-	qe.resolveTimePercentiles(ctx, TimePercentileOptions{
+	}); err != nil {
+		return err
+	}
+	if err := qe.resolveTimePercentiles(ctx, TimePercentileOptions{
 		dbs: dbs, flags: flags, field: "time_created",
 		ranges: flags.Created, after: &flags.CreatedAfter, before: &flags.CreatedBefore,
-	})
-	qe.resolveTimePercentiles(ctx, TimePercentileOptions{
+	}); err != nil {
+		return err
+	}
+	if err := qe.resolveTimePercentiles(ctx, TimePercentileOptions{
 		dbs: dbs, flags: flags, field: "time_downloaded",
 		ranges: flags.Downloaded, after: &flags.DownloadedAfter, before: &flags.DownloadedBefore,
-	})
+	}); err != nil {
+		return err
+	}
 
-	qe.resolveEpisodePercentiles(ctx, dbs, flags)
+	return qe.resolveEpisodePercentiles(ctx, dbs, flags)
 }
 
 func (qe *QueryExecutor) ResolvePercentileFlags(
@@ -2671,11 +2658,12 @@ func (qe *QueryExecutor) ResolvePercentileFlags(
 	dbs []string,
 	flags models.GlobalFlags,
 ) (models.GlobalFlags, error) {
+	if err := validatePercentileFlags(flags); err != nil {
+		return flags, err
+	}
 	if !qe.hasAnyPercentileFlag(flags) {
 		return flags, nil
 	}
 
-	qe.resolveAllPercentiles(ctx, dbs, &flags)
-
-	return flags, nil
+	return flags, qe.resolveAllPercentiles(ctx, dbs, &flags)
 }

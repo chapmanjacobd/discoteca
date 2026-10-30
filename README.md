@@ -429,7 +429,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -471,7 +471,7 @@ Flags:
   --folder-sizes
         Filter folders by total size
   --folder-counts
-        Filter folders by number of subfolders
+        Filter folders by number of files
   --regex-sort
         Sort by splitting lines and sorting words
   --regexs
@@ -638,7 +638,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -1329,7 +1329,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -1371,7 +1371,7 @@ Flags:
   --folder-sizes
         Filter folders by total size
   --folder-counts
-        Filter folders by number of subfolders
+        Filter folders by number of files
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -1699,9 +1699,9 @@ Flags:
   --folder-sizes
         Filter folders by total size
   --folder-counts
-        Filter folders by number of subfolders
+        Filter folders by number of files
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -1995,7 +1995,7 @@ Flags:
   --played-before
         Last played before date (YYYY-MM-DD)
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -2167,7 +2167,7 @@ Flags:
   --played-before
         Last played before date (YYYY-MM-DD)
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -2359,7 +2359,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -2624,7 +2624,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -3013,7 +3013,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -3338,7 +3338,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -3380,7 +3380,7 @@ Flags:
   --folder-sizes
         Filter folders by total size
   --folder-counts
-        Filter folders by number of subfolders
+        Filter folders by number of files
   -O, --play-in-order
         Play media in order
   --no-play-in-order
@@ -3654,7 +3654,7 @@ Flags:
   --only-deleted
         Include only deleted files in results
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -3696,7 +3696,7 @@ Flags:
   --folder-sizes
         Filter folders by total size
   --folder-counts
-        Filter folders by number of subfolders
+        Filter folders by number of files
   --regex-sort
         Sort by splitting lines and sorting words
   --regexs
@@ -3922,7 +3922,7 @@ Flags:
   -T, --timeout
         Quit after N minutes/seconds
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -4164,7 +4164,7 @@ Flags:
   --probe-images
         Run ffprobe on image files (default: skip)
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort
@@ -4294,7 +4294,7 @@ Flags:
   --probe-images
         Run ffprobe on image files (default: skip)
   -u, --sort-by
-        Sort by field
+        Sort by field (default, path, or a column)
   -V, --reverse
         Reverse sort order
   -n, --nat-sort

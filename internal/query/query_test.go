@@ -79,7 +79,7 @@ func TestFilterBuilder_Build(t *testing.T) {
 				QueryFlags:   models.QueryFlags{Limit: 10},
 				DeletedFlags: models.DeletedFlags{HideDeleted: true},
 			},
-			"SELECT * FROM media WHERE COALESCE(time_deleted, 0) = 0 AND rowid IN (SELECT rowid FROM media WHERE COALESCE(time_deleted, 0) = 0 ORDER BY RANDOM() LIMIT 160) ORDER BY RANDOM() LIMIT 10",
+			"SELECT * FROM media WHERE COALESCE(time_deleted, 0) = 0 ORDER BY RANDOM() LIMIT 10",
 		},
 		{
 			"FTS Search (Improved Join)",

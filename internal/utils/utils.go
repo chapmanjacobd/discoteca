@@ -11,6 +11,9 @@ func GetString(v any) string {
 	if s, ok := v.(string); ok {
 		return s
 	}
+	if b, ok := v.([]byte); ok {
+		return string(b)
+	}
 	return ""
 }
 

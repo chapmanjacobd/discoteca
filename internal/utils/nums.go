@@ -440,7 +440,29 @@ func ParsePercentileRange(s string) (minVal, maxVal float64, ok bool) {
 	if err != nil {
 		return 0, 0, false
 	}
+	if minVal < 0 || maxVal > 100 || minVal > maxVal {
+		return 0, 0, false
+	}
 	return minVal, maxVal, true
+}
+
+// IsPercentileSyntax reports whether s looks like a percentile range
+// ("pMIN-MAX"). It lets validation distinguish a malformed percentile from an
+// ordinary size/duration range.
+func IsPercentileSyntax(s string) bool {
+	return strings.HasPrefix(strings.TrimSpace(s), "p")
+}
+
+// ValidatePercentileRange returns an error for malformed percentile input.
+// Non-percentile ranges are accepted unchanged.
+func ValidatePercentileRange(s string) error {
+	if !IsPercentileSyntax(s) {
+		return nil
+	}
+	if _, _, ok := ParsePercentileRange(s); !ok {
+		return fmt.Errorf("invalid percentile range %q: want pMIN-MAX with 0 <= MIN <= MAX <= 100", s)
+	}
+	return nil
 }
 
 func CalculateSegments(total, chunk, gap float64) []float64 {
