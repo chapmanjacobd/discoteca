@@ -960,6 +960,47 @@ func isSupportedSortField(field string) bool {
 	return IsNumericField(field)
 }
 
+// ValidateSortConfig reports whether a sort configuration uses only known
+// presets, algorithms, meta markers, and field names. It is the allowlist for
+// user-supplied sort query parameters before they can reach SQL.
+func ValidateSortConfig(config string) error {
+	config = strings.TrimSpace(config)
+	if config == "" {
+		return nil
+	}
+	switch config {
+	case "default", "xklb", "xklb_default", "reverse_default", "reverse_xklb",
+		"reverse_xklb_default", "du", "du_default", "reverse_du", "reverse_du_default",
+		"random", "random()", "RANDOM", "RANDOM()":
+		return nil
+	}
+
+	knownAlgs := map[string]bool{
+		"natural": true, "ignorecase": true, "lowercase": true, "human": true,
+		"locale": true, "signed": true, "os": true, "python": true,
+	}
+	if knownAlgs[config] {
+		return nil
+	}
+
+	for part := range strings.SplitSeq(config, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		switch part {
+		case "_weighted_rerank", "_natural_order", "_related_media":
+			continue
+		}
+		field := parseSortField(part).Field
+		if field == "ps" || isSupportedSortField(field) {
+			continue
+		}
+		return fmt.Errorf("unsupported sort field %q", field)
+	}
+	return nil
+}
+
 // SortField represents a single field in a multi-field sort
 type SortField struct {
 	Field   string

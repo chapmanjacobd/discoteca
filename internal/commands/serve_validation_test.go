@@ -201,8 +201,8 @@ func TestServeCmd_HandleHLSPlaylist_Validation(t *testing.T) {
 		req := newAuthRequest(http.MethodGet, "/api/hls/playlist?path=nonexistent.mp4", nil, cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
-		if w.Code != http.StatusNotFound {
-			t.Errorf("Expected 404, got %d", w.Code)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected 403 for a path outside the database, got %d", w.Code)
 		}
 	})
 }

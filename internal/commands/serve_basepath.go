@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -35,6 +36,10 @@ func normalizeBasePath(raw string) string {
 	if raw == "" || raw == "/" {
 		return ""
 	}
+	if strings.Contains(raw, "://") || strings.Contains(raw, "\\") ||
+		strings.HasPrefix(raw, "//") {
+		return ""
+	}
 	if !strings.HasPrefix(raw, "/") {
 		raw = "/" + raw
 	}
@@ -55,8 +60,19 @@ func normalizeBasePath(raw string) string {
 	return clean
 }
 
+// isLoopbackRequest reports whether the immediate peer is loopback. A missing
+// or malformed RemoteAddr fails closed.
+func isLoopbackRequest(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return isLoopbackHost(host)
+}
+
 // effectiveBasePath returns the prefix to use for this request. An explicitly
-// configured --base-path always wins. Otherwise X-Forwarded-Prefix is honored,
+// configured --base-path always wins. Otherwise X-Forwarded-Prefix is honored
+// only when --trust-forwarded-prefix is set or the immediate peer is loopback,
 // which lets nginx either strip the prefix (proxy_pass with a trailing slash)
 // or pass it through unchanged.
 func (c *ServeCmd) effectiveBasePath(r *http.Request) (prefix string, fromForwardedHeader bool) {
@@ -65,6 +81,9 @@ func (c *ServeCmd) effectiveBasePath(r *http.Request) (prefix string, fromForwar
 	}
 	header := r.Header.Get("X-Forwarded-Prefix")
 	if header == "" {
+		return "", false
+	}
+	if !c.TrustForwardedPrefix && !isLoopbackRequest(r) {
 		return "", false
 	}
 	prefix = normalizeBasePath(header)

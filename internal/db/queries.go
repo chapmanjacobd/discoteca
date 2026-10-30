@@ -221,6 +221,30 @@ func (q *Queries) GetMediaByPathPrefix(ctx context.Context, arg GetMediaByPathPr
 	return items, nil
 }
 
+// GetMediaByPathRange retrieves non-deleted media whose path sorts within
+// [lower, upper). It is used for indexed sibling lookups by path prefix.
+func (q *Queries) GetMediaByPathRange(ctx context.Context, lower, upper string, limit int64) ([]Media, error) {
+	const query = `SELECT ` + mediaColumns + ` FROM media WHERE time_deleted = 0 AND path >= ? AND path < ? ORDER BY path LIMIT ?`
+	rows, err := q.db.QueryContext(ctx, query, lower, upper, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []Media
+	for rows.Next() {
+		i, err := scanMedia(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 // GetMediaByPathExact retrieves a single media item by exact path match
 func (q *Queries) GetMediaByPathExact(ctx context.Context, path string) (Media, error) {
 	const query = `SELECT ` + mediaColumns + ` FROM media WHERE path = ? LIMIT 1`

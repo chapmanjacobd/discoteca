@@ -179,7 +179,11 @@ func (c *ServeCmd) checkFuzzyPathMatch(
 		base = strings.TrimSuffix(base, secondExt)
 	}
 
-	mediaInDir, _ := queries.GetMedia(ctx, 1000)
+	// Look up only the indexed path range that can contain a sibling with this
+	// base name, instead of scanning the first 1000 rows of the database.
+	lower := filepath.Join(dir, base)
+	upper := lower + "\U0010FFFF"
+	mediaInDir, _ := queries.GetMediaByPathRange(ctx, lower, upper, 1000)
 	for _, m := range mediaInDir {
 		if filepath.Dir(m.Path) == dir {
 			mBase := strings.TrimSuffix(filepath.Base(m.Path), filepath.Ext(m.Path))
@@ -322,8 +326,7 @@ func (c *ServeCmd) HandleSubtitles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !utils.FileExists(path) {
-		models.Log.Warn("File not found on disk, marking as deleted in databases", "path", path)
-		c.markDeletedInAllDBs(r.Context(), path, true)
+		models.Log.Warn("File not found on disk", "path", path)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
@@ -708,7 +711,11 @@ func (c *ServeCmd) HandleHLSPlaylist(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if !found || m.Duration == nil {
+	if !found {
+		http.Error(w, "Media not found in database", http.StatusForbidden)
+		return
+	}
+	if m.Duration == nil {
 		http.Error(w, "Media not found or no duration", http.StatusNotFound)
 		return
 	}
@@ -736,9 +743,14 @@ func (c *ServeCmd) HandleHLSSegment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only stream files that are listed in a configured database.
+	if found, _ := c.getMediaTypeFromDB(r.Context(), path); !found {
+		http.Error(w, "Media not found in database", http.StatusForbidden)
+		return
+	}
+
 	if !utils.FileExists(path) {
-		models.Log.Warn("File not found on disk, marking as deleted in databases", "path", path)
-		c.markDeletedInAllDBs(r.Context(), path, true)
+		models.Log.Warn("File not found on disk", "path", path)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
@@ -815,6 +827,10 @@ func serveFileWithMimeType(w http.ResponseWriter, r *http.Request, filePath stri
 		".svg":   "image/svg+xml",
 	}
 
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if ext == ".html" || ext == ".htm" || ext == ".xhtml" {
+		setDocumentSecurityHeaders(w)
+	}
 	if mimeType, ok := mimeTypes[ext]; ok {
 		w.Header().Set("Content-Type", mimeType)
 	}

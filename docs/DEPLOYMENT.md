@@ -19,7 +19,9 @@ disco serve /var/lib/disco/library.db --port 5555 --no-browser --base-path /disc
 ```
 
 The prefix is also accepted from `X-Forwarded-Prefix`, so `--base-path` is
-optional when nginx sets the header. Both proxy styles work:
+optional when nginx sets the header. The header is trusted when the immediate
+peer is loopback; set `--trust-forwarded-prefix` when a non-loopback proxy must
+supply it. Both proxy styles work:
 
 - `proxy_pass http://127.0.0.1:5555;` keeps `/disco/...` in the request path;
   the server strips it.
@@ -72,13 +74,17 @@ All flags apply to the `serve` subcommand.
 
 | Flag | Default | Purpose |
 |---|---|---|
+| `--host` | `127.0.0.1` | Listen address. A non-loopback address requires `DISCO_API_TOKEN`. |
+| `--port` | `5555` | Listen port. |
 | `--search-timeout` | `15s` | Upper bound for one `/api/query` request, including waiting for a search slot. |
 | `--max-concurrent-searches` | `4` | Concurrent `/api/query` searches. Extra requests wait, then receive `503` when the timeout expires. Use `0` to disable the limit. |
 | `--max-limit` | `1000` | Largest `limit` a client may request per database. Negative limits and offsets are ignored. |
 | `--db-cache-mb` | `256` | SQLite page cache per connection. Lower it to roughly `32`-`64` on a 1 GB host. |
 | `--read-only` | off | Disable progress updates, playlist changes, and deletions. |
-| `--port` | `5555` | Listen port. |
 | `--no-browser` | off | Required for headless deployments. |
+| `--kiwix-host` | `127.0.0.1` | Host of the externally managed `kiwix-serve`. |
+| `--kiwix-port` | `8181` | Port of the externally managed `kiwix-serve`. `0` disables ZIM support. |
+| `--trust-forwarded-prefix` | off | Trust `X-Forwarded-Prefix` even when the peer is not loopback. |
 
 Memory is dominated by the databases, the unbounded thumbnail cache, and any
 `ffmpeg` transcodes. Measure the service rather than guessing:
@@ -108,9 +114,41 @@ ExecStart=/usr/local/bin/disco serve \
 ## HTTPS and access
 
 `disco` does not terminate TLS. Put it behind nginx or Caddy on the same host,
-and keep the listen port bound to loopback or a private interface. The server
-sets an `HttpOnly`, `SameSite=Strict` token cookie scoped to the configured
-base path; do not expose the port directly to the internet.
+and keep the listen address at the default `127.0.0.1` (or another private
+interface). The server refuses to bind to a non-loopback address unless
+`DISCO_API_TOKEN` is set; a reverse proxy is the recommended remote deployment.
+
+The API token is not embedded in static assets. The client exchanges a token
+for an `HttpOnly`, `SameSite=Strict` session cookie with `POST /api/session`.
+Set `DISCO_API_TOKEN` in the service environment, then open the UI once with
+`?token=<token>` or enter the token at the prompt. Scripts can keep using
+`X-Disco-Token` or `Authorization: Bearer <token>`.
+
+If `DISCO_API_TOKEN` is unset, a token is generated at startup and printed once
+to stderr. Treat it as a secret and do not expose the listen port directly to
+the internet.
+
+## External ZIM server
+
+discoteca does not start, stop, wait for, or clean up `kiwix-serve`. Run it as a
+separate service and tell discoteca which host and port to proxy to:
+
+```bash
+# Terminal 1: one or more ZIM files
+kiwix-serve --port=8181 \
+  --urlRootLocation=/api/zim/proxy/ \
+  /var/lib/disco/library.zim
+
+# Terminal 2
+disco serve --kiwix-host 127.0.0.1 --kiwix-port 8181 /var/lib/disco/library.db
+```
+
+The external server must use the same `--urlRootLocation` as the proxy route.
+If discoteca is mounted below a prefix, include it, for example
+`--urlRootLocation=/disco/api/zim/proxy/` with `--base-path /disco`. The ZIM file
+must also appear in a discoteca database; `/api/zim/view` rejects files that are
+not listed. `--kiwix-port 0` disables ZIM support and returns `503` on ZIM
+routes.
 
 ## Upgrades and reversibility
 

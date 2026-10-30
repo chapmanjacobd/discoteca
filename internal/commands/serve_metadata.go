@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -25,10 +26,17 @@ func (c *ServeCmd) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	var metadata models.Media
 	found := false
 
-	// If dbPath is provided, only check that database
+	// If dbPath is provided, only check that database. The parameter must name
+	// one of the configured databases; opening an arbitrary path can create a
+	// new SQLite file as a side effect.
 	dbs := c.Databases
 	if dbPath != "" {
-		dbs = []string{dbPath}
+		filtered, err := c.filterDatabases([]string{dbPath})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid database filter: %v", err), http.StatusBadRequest)
+			return
+		}
+		dbs = filtered
 	}
 
 	for _, dp := range dbs {

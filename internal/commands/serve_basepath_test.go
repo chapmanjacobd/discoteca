@@ -80,17 +80,15 @@ func TestMuxBasePath(t *testing.T) {
 		}
 	})
 
-	t.Run("ScopesAuthCookieToPrefix", func(t *testing.T) {
+	t.Run("DoesNotSetTokenCookieOnStaticRequest", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/disco/", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
-		cookies := w.Result().Cookies()
-		if len(cookies) == 0 {
-			t.Fatal("expected a cookie")
-		}
-		if got := cookies[0].Path; got != "/disco/" {
-			t.Errorf("expected cookie path /disco/, got %q", got)
+		for _, cookie := range w.Result().Cookies() {
+			if cookie.Name == "disco_token" {
+				t.Fatalf("static request must not set an authentication token cookie")
+			}
 		}
 	})
 }
@@ -100,11 +98,16 @@ func TestMuxForwardedPrefix(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
+	newForwardedRequest := func(method, target, prefix string) *http.Request {
+		req := httptest.NewRequest(method, target, nil)
+		req.RemoteAddr = "127.0.0.1:12345"
+		req.Header.Set("X-Forwarded-Prefix", prefix)
+		return req
+	}
+
 	t.Run("PrefixStillInPath", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/disco/health", nil)
-		req.Header.Set("X-Forwarded-Prefix", "/disco")
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
+		mux.ServeHTTP(w, newForwardedRequest(http.MethodGet, "/disco/health", "/disco"))
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", w.Code)
@@ -112,10 +115,8 @@ func TestMuxForwardedPrefix(t *testing.T) {
 	})
 
 	t.Run("PrefixStrippedByProxy", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
-		req.Header.Set("X-Forwarded-Prefix", "/disco")
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
+		mux.ServeHTTP(w, newForwardedRequest(http.MethodGet, "/health", "/disco"))
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", w.Code)
@@ -123,10 +124,8 @@ func TestMuxForwardedPrefix(t *testing.T) {
 	})
 
 	t.Run("IndexUsesForwardedPrefix", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("X-Forwarded-Prefix", "/disco")
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
+		mux.ServeHTTP(w, newForwardedRequest(http.MethodGet, "/", "/disco"))
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", w.Code)
@@ -137,13 +136,63 @@ func TestMuxForwardedPrefix(t *testing.T) {
 	})
 
 	t.Run("MalformedHeaderIgnored", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
-		req.Header.Set("X-Forwarded-Prefix", "//evil.example")
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
+		mux.ServeHTTP(w, newForwardedRequest(http.MethodGet, "/health", "//evil.example"))
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", w.Code)
+		}
+	})
+}
+
+func TestForwardedPrefixTrust(t *testing.T) {
+	t.Run("UntrustedNonLoopbackPeer", func(t *testing.T) {
+		cmd := &commands.ServeCmd{}
+		defer cmd.Close()
+		mux := cmd.Mux()
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = "203.0.113.10:4567"
+		req.Header.Set("X-Forwarded-Prefix", "/disco")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if strings.Contains(w.Body.String(), `window.__DISCO_BASE_PATH__="/disco"`) {
+			t.Error("untrusted forwarded prefix must not be injected")
+		}
+	})
+
+	t.Run("TrustedFlagAllowsRemotePeer", func(t *testing.T) {
+		cmd := &commands.ServeCmd{TrustForwardedPrefix: true}
+		defer cmd.Close()
+		mux := cmd.Mux()
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = "203.0.113.10:4567"
+		req.Header.Set("X-Forwarded-Prefix", "/disco")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if !strings.Contains(w.Body.String(), `window.__DISCO_BASE_PATH__="/disco"`) {
+			t.Error("trusted forwarded prefix should be injected")
+		}
+	})
+
+	t.Run("RejectsSchemeAndDotDot", func(t *testing.T) {
+		cmd := &commands.ServeCmd{TrustForwardedPrefix: true}
+		defer cmd.Close()
+		mux := cmd.Mux()
+
+		for _, prefix := range []string{"http://evil.example", "../", "/a/../b", `\evil`} {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RemoteAddr = "203.0.113.10:4567"
+			req.Header.Set("X-Forwarded-Prefix", prefix)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if strings.Contains(w.Body.String(), "window.__DISCO_BASE_PATH__") {
+				t.Errorf("prefix %q should have been rejected", prefix)
+			}
 		}
 	})
 }

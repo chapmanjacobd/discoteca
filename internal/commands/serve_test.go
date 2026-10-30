@@ -59,7 +59,7 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 		t.Errorf("Expected status 404, got %d", resp.StatusCode)
 	}
 
-	// 7. Verify DB update
+	// 7. Playback probes must not mutate the library.
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()
 	var timeDeleted sql.NullInt64
@@ -67,8 +67,8 @@ func TestServeCmd_HandlePlay_FileNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query failed: %v", err)
 	}
-	if !timeDeleted.Valid || timeDeleted.Int64 == 0 {
-		t.Errorf("Expected file to be marked as deleted in DB")
+	if timeDeleted.Valid && timeDeleted.Int64 != 0 {
+		t.Errorf("playback must not mark a missing file as deleted")
 	}
 }
 
@@ -105,7 +105,7 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 		t.Errorf("Expected status 404, got %d", resp.StatusCode)
 	}
 
-	// 7. Verify DB update
+	// 7. Playback probes must not mutate the library.
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()
 	var timeDeleted sql.NullInt64
@@ -113,8 +113,8 @@ func TestServeCmd_HandleHLSSegment_FileNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query failed: %v", err)
 	}
-	if !timeDeleted.Valid || timeDeleted.Int64 == 0 {
-		t.Errorf("Expected file to be marked as deleted in DB")
+	if timeDeleted.Valid && timeDeleted.Int64 != 0 {
+		t.Errorf("playback must not mark a missing file as deleted")
 	}
 }
 
@@ -151,7 +151,7 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 		t.Errorf("Expected status 404, got %d", resp.StatusCode)
 	}
 
-	// 7. Verify DB update
+	// 7. Playback probes must not mutate the library.
 	dbConn := fixture.GetDB()
 	defer dbConn.Close()
 	var timeDeleted sql.NullInt64
@@ -159,7 +159,7 @@ func TestServeCmd_HandleSubtitles_FileNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query failed: %v", err)
 	}
-	if !timeDeleted.Valid || timeDeleted.Int64 == 0 {
-		t.Errorf("Expected file to be marked as deleted in DB")
+	if timeDeleted.Valid && timeDeleted.Int64 != 0 {
+		t.Errorf("playback must not mark a missing file as deleted")
 	}
 }

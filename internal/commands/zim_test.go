@@ -2,544 +2,234 @@ package commands_test
 
 import (
 	"context"
-	"encoding/xml"
-	"fmt"
+	"database/sql"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync"
 	"testing"
-	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
+	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
-// TestKiwixManager_findAvailablePort tests port allocation logic
-func TestKiwixManager_findAvailablePort(t *testing.T) {
-	manager := &commands.KiwixManager{
-		Instances: make(map[string]*commands.KiwixInstance),
-		UsedPorts: make(map[int]bool),
+func serverPort(t *testing.T, server *httptest.Server) int {
+	t.Helper()
+	port, err := strconv.Atoi(strings.TrimPrefix(server.URL, "http://127.0.0.1:"))
+	if err != nil {
+		t.Fatalf("failed to parse mock server port: %v", err)
 	}
-
-	t.Run("returns first available port starting from commands.KiwixPortStart", func(t *testing.T) {
-		port := manager.FindAvailablePort(context.Background())
-		if port != commands.KiwixPortStart {
-			t.Errorf("Expected port %d, got %d", commands.KiwixPortStart, port)
-		}
-	})
-
-	t.Run("skips used ports in UsedPorts map", func(t *testing.T) {
-		manager.UsedPorts[commands.KiwixPortStart] = true
-		port := manager.FindAvailablePort(context.Background())
-		if port != commands.KiwixPortStart+1 {
-			t.Errorf("Expected port %d, got %d", commands.KiwixPortStart+1, port)
-		}
-	})
-
-	t.Run("skips ports that are not available", func(t *testing.T) {
-		// This test verifies that commands.IsPortAvailable is called
-		// We can't easily mock commands.IsPortAvailable, but we can verify the logic
-		manager2 := &commands.KiwixManager{
-			Instances: make(map[string]*commands.KiwixInstance),
-			UsedPorts: make(map[int]bool),
-		}
-		// Mark first 5 ports as used
-		for i := range 5 {
-			manager2.UsedPorts[commands.KiwixPortStart+i] = true
-		}
-		port := manager2.FindAvailablePort(context.Background())
-		if port != commands.KiwixPortStart+5 {
-			t.Errorf("Expected port %d, got %d", commands.KiwixPortStart+5, port)
-		}
-	})
-
-	t.Run("returns 0 when no ports available in range", func(t *testing.T) {
-		manager3 := &commands.KiwixManager{
-			Instances: make(map[string]*commands.KiwixInstance),
-			UsedPorts: make(map[int]bool),
-		}
-		// Mark all 100 ports as used
-		for i := range 100 {
-			manager3.UsedPorts[commands.KiwixPortStart+i] = true
-		}
-		port := manager3.FindAvailablePort(context.Background())
-		if port != 0 {
-			t.Errorf("Expected port 0 (no available ports), got %d", port)
-		}
-	})
+	return port
 }
 
-// TestKiwixManager_ensureKiwixServing tests instance management
-func TestKiwixManager_ensureKiwixServing(t *testing.T) {
-	manager := &commands.KiwixManager{
-		Instances: make(map[string]*commands.KiwixInstance),
-		UsedPorts: make(map[int]bool),
+func freePort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	t.Run("attempts to start kiwix-serve for any file", func(t *testing.T) {
-		// Note: EnsureKiwixServing doesn't validate file existence
-		// That validation happens in handleZimView before calling EnsureKiwixServing
-		// This test verifies the function tries to start kiwix-serve
-		nonExistentPath := "/tmp/nonexistent.zim"
-		port, err := manager.EnsureKiwixServing(context.Background(), nonExistentPath)
-		// The function will try to start kiwix-serve, which may fail if not installed
-		// or succeed if kiwix-serve is installed (it doesn't validate the file)
-		if err != nil {
-			// Expected if kiwix-serve is not installed
-			if !strings.Contains(err.Error(), "kiwix-serve") {
-				t.Errorf("Expected kiwix-serve related error, got: %v", err)
-			}
-		} else {
-			// kiwix-serve started (file validation is done by handleZimView)
-			t.Logf("kiwix-serve started on port %d (file validation done by handleZimView)", port)
-		}
-	})
-
-	t.Run("returns same port for same ZIM file on subsequent calls", func(t *testing.T) {
-		// Create a dummy ZIM file
-		tmpDir := t.TempDir()
-		zimPath := filepath.Join(tmpDir, "test.zim")
-		if err := os.WriteFile(zimPath, []byte("dummy zim content"), 0o644); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-
-		// First call - would try to start kiwix-serve (which may not be installed)
-		// We're testing the caching logic, so we'll mock the instance directly
-		manager.Instances[zimPath] = &commands.KiwixInstance{
-			Port:     commands.KiwixPortStart + 10,
-			ZimPath:  zimPath,
-			LastUsed: time.Now(),
-		}
-
-		// Second call should return cached instance
-		port, err := manager.EnsureKiwixServing(context.Background(), zimPath)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-		if port != commands.KiwixPortStart+10 {
-			t.Errorf("Expected cached port %d, got %d", commands.KiwixPortStart+10, port)
-		}
-	})
-
-	t.Run("updates LastUsed on subsequent calls", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		zimPath := filepath.Join(tmpDir, "test2.zim")
-		if err := os.WriteFile(zimPath, []byte("dummy"), 0o644); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-
-		oldTime := time.Now().Add(-1 * time.Hour)
-		manager.Instances[zimPath] = &commands.KiwixInstance{
-			Port:     commands.KiwixPortStart + 11,
-			ZimPath:  zimPath,
-			LastUsed: oldTime,
-		}
-
-		_, err := manager.EnsureKiwixServing(context.Background(), zimPath)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-
-		instance := manager.Instances[zimPath]
-		if instance.LastUsed.Before(oldTime.Add(30 * time.Minute)) {
-			t.Errorf("Expected LastUsed to be updated, got %v", instance.LastUsed)
-		}
-	})
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+	return port
 }
 
-// TestKiwixManager_cleanupOldInstances tests cleanup logic
-func TestKiwixManager_cleanupOldInstances(t *testing.T) {
-	manager := &commands.KiwixManager{
-		Instances: make(map[string]*commands.KiwixInstance),
-		UsedPorts: make(map[int]bool),
+func insertZimMedia(t *testing.T, dbPath, zimPath string) {
+	t.Helper()
+	sqlDB, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	tmpDir := t.TempDir()
-	zimPath1 := filepath.Join(tmpDir, "old.zim")
-	zimPath2 := filepath.Join(tmpDir, "recent.zim")
-	os.WriteFile(zimPath1, []byte("dummy"), 0o644)
-	os.WriteFile(zimPath2, []byte("dummy"), 0o644)
-
-	// Add old instance (should be cleaned up)
-	oldTime := time.Now().Add(-31 * time.Minute)
-	port1 := commands.KiwixPortStart + 20
-	manager.Instances[zimPath1] = &commands.KiwixInstance{
-		Port:     port1,
-		ZimPath:  zimPath1,
-		LastUsed: oldTime,
+	defer sqlDB.Close()
+	if err := db.InitDB(context.Background(), sqlDB); err != nil {
+		t.Fatal(err)
 	}
-	manager.UsedPorts[port1] = true
-
-	// Add recent instance (should NOT be cleaned up)
-	recentTime := time.Now().Add(-10 * time.Minute)
-	port2 := commands.KiwixPortStart + 21
-	manager.Instances[zimPath2] = &commands.KiwixInstance{
-		Port:     port2,
-		ZimPath:  zimPath2,
-		LastUsed: recentTime,
-	}
-	manager.UsedPorts[port2] = true
-
-	// Manually trigger cleanup logic (without goroutine/ticker)
-	cutoff := time.Now().Add(-30 * time.Minute)
-	for path, instance := range manager.Instances {
-		if instance.LastUsed.Before(cutoff) {
-			delete(manager.UsedPorts, instance.Port)
-			delete(manager.Instances, path)
-		}
-	}
-
-	if _, exists := manager.Instances[zimPath1]; exists {
-		t.Errorf("Expected old instance to be cleaned up")
-	}
-	if _, exists := manager.UsedPorts[port1]; exists {
-		t.Errorf("Expected old port to be released")
-	}
-	if _, exists := manager.Instances[zimPath2]; !exists {
-		t.Errorf("Expected recent instance to remain")
-	}
-	if _, exists := manager.UsedPorts[port2]; !exists {
-		t.Errorf("Expected recent port to remain reserved")
+	if _, err := sqlDB.Exec(
+		`INSERT INTO media (path, media_type, time_deleted) VALUES (?, 'text', 0)`,
+		zimPath,
+	); err != nil {
+		t.Fatal(err)
 	}
 }
 
-// TestKiwixManager_concurrentAccess tests thread safety
-func TestKiwixManager_concurrentAccess(t *testing.T) {
-	manager := &commands.KiwixManager{
-		Instances: make(map[string]*commands.KiwixInstance),
-		UsedPorts: make(map[int]bool),
-		Mutex:     sync.Mutex{},
+func TestHandleZimProxyUsesConfiguredPortOnly(t *testing.T) {
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("mock kiwix response"))
+	}))
+	defer targetServer.Close()
+	port := serverPort(t, targetServer)
+
+	cmd := &commands.ServeCmd{
+		Databases: []string{"/tmp/unused.db"},
+		KiwixHost: "127.0.0.1",
+		KiwixPort: port,
 	}
+	defer cmd.Close()
 
-	tmpDir := t.TempDir()
-	zimPath := filepath.Join(tmpDir, "concurrent.zim")
-	os.WriteFile(zimPath, []byte("dummy"), 0o644)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/zim/proxy/{rest...}", cmd.HandleZimProxy)
 
-	// Pre-populate with a mock instance
-	manager.Instances[zimPath] = &commands.KiwixInstance{
-		Port:     commands.KiwixPortStart + 30,
-		ZimPath:  zimPath,
-		LastUsed: time.Now(),
+	// A request-supplied port must not redirect the proxy to another target.
+	req := httptest.NewRequest(http.MethodGet, "/api/zim/proxy/9999/content", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 from the configured target, got %d", w.Code)
 	}
-
-	var wg sync.WaitGroup
-	errors := make(chan error, 100)
-
-	// Simulate concurrent access
-	for range 50 {
-		wg.Go(func() {
-			port, err := manager.EnsureKiwixServing(context.Background(), zimPath)
-			if err != nil {
-				errors <- err
-				return
-			}
-			if port != commands.KiwixPortStart+30 {
-				errors <- fmt.Errorf("expected port %d, got %d", commands.KiwixPortStart+30, port)
-			}
-		})
-	}
-
-	wg.Wait()
-	close(errors)
-
-	for err := range errors {
-		t.Errorf("Concurrent access error: %v", err)
+	if strings.TrimSpace(w.Body.String()) != "mock kiwix response" {
+		t.Fatalf("unexpected proxy response %q", w.Body.String())
 	}
 }
 
-// TestHandleZimView tests the HTTP handler for ZIM files
+func TestHandleZimProxyDisabled(t *testing.T) {
+	cmd := &commands.ServeCmd{Databases: []string{"/tmp/unused.db"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/zim/proxy/content", nil)
+	w := httptest.NewRecorder()
+	cmd.HandleZimProxy(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when ZIM is disabled, got %d", w.Code)
+	}
+}
+
 func TestHandleZimView(t *testing.T) {
 	fixture := testutils.Setup(t)
 	defer fixture.Cleanup()
 
-	cmd := &commands.ServeCmd{
-		Databases: []string{fixture.DBPath},
-		APIToken:  "test-token",
+	zimPath := filepath.Join(fixture.TempDir, "test.zim")
+	if err := os.WriteFile(zimPath, []byte("dummy zim content"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	defer cmd.Close()
+	insertZimMedia(t, fixture.DBPath, zimPath)
 
-	t.Run("returns 400 for missing path parameter", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/zim/view", nil)
-		w := httptest.NewRecorder()
-
-		cmd.HandleZimView(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Expected status 400, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("returns 400 for non-.zim files", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path=/tmp/test.mp4", nil)
-		w := httptest.NewRecorder()
-
-		cmd.HandleZimView(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Expected status 400 for non-.zim file, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("returns 404 for non-existent ZIM file", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path=/tmp/nonexistent.zim", nil)
-		w := httptest.NewRecorder()
-
-		cmd.HandleZimView(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("Expected status 404, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("returns HTML with iframe for valid ZIM file", func(t *testing.T) {
-		// Create a mock ZIM file
-		zimPath := filepath.Join(fixture.TempDir, "test.zim")
-		if err := os.WriteFile(zimPath, []byte("dummy zim content"), 0o644); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-
-		// Create a mock server to simulate kiwix-serve
-		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK"))
-		}))
-		defer mockServer.Close()
-
-		// Extract port from mock server
-		mockPort := 8181 + 50
-		// We need to intercept the commands.WaitForKiwixReady call
-		originalWaitFunc := commands.WaitForKiwixReady
-		commands.WaitForKiwixReady = func(ctx context.Context, port int, timeout time.Duration) error {
-			// Skip actual check, assume server is ready
-			return nil
-		}
-		defer func() { commands.WaitForKiwixReady = originalWaitFunc }()
-
-		// Mock the commands.ZimManager to avoid actually starting kiwix-serve
-		originalManager := commands.ZimManager
-		mockManager := &commands.KiwixManager{
-			Instances: make(map[string]*commands.KiwixInstance),
-			UsedPorts: make(map[int]bool),
-		}
-		mockManager.Instances[zimPath] = &commands.KiwixInstance{
-			Port:     mockPort,
-			ZimPath:  zimPath,
-			LastUsed: time.Now(),
-		}
-		commands.ZimManager = mockManager
-		defer func() { commands.ZimManager = originalManager }()
-
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/zim/view?path=%s", zimPath), nil)
-		w := httptest.NewRecorder()
-
-		cmd.HandleZimView(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected status 200, got %d", resp.StatusCode)
-		}
-
-		body := w.Body.String()
-		if !strings.Contains(body, "<iframe") {
-			t.Errorf("Expected HTML to contain iframe")
-		}
-		if !strings.Contains(body, filepath.Base(zimPath)) {
-			t.Errorf("Expected HTML to contain ZIM file name")
-		}
-	})
-}
-
-// TestHandleZimProxy tests the proxy HTTP handler
-func TestHandleZimProxy(t *testing.T) {
-	cmd := &commands.ServeCmd{
-		Databases: []string{"/tmp/test.db"},
-		APIToken:  "test-token",
-	}
-	defer cmd.Close()
-
-	t.Run("returns 400 for missing port", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/zim/proxy/", nil)
-		w := httptest.NewRecorder()
-
-		cmd.HandleZimProxy(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Expected status 400, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("proxies request to target server", func(t *testing.T) {
-		// Create a mock target server
-		targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("mock kiwix response"))
-		}))
-		defer targetServer.Close()
-
-		// Extract port from target server URL
-		port := strings.TrimPrefix(targetServer.URL, "http://127.0.0.1:")
-
-		// Create a request that mimics the route pattern /api/zim/proxy/{port}/{rest...}
-		// We need to use a mux to properly set up path values
-		mux := http.NewServeMux()
-		mux.HandleFunc("/api/zim/proxy/{port}/{rest...}", func(w http.ResponseWriter, r *http.Request) {
-			cmd.HandleZimProxy(w, r)
-		})
-
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/zim/proxy/%s/content", port), nil)
-		w := httptest.NewRecorder()
-
-		mux.ServeHTTP(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected status 200, got %d", resp.StatusCode)
-		}
-	})
-}
-
-// TestGetKiwixContentURL tests parsing the ZIM catalog
-func TestGetKiwixContentURL(t *testing.T) {
-	t.Run("parses catalog entry with HTML link", func(t *testing.T) {
-		// Create a mock catalog server
-		catalogXML := `<?xml version="1.0" encoding="UTF-8"?>
+	catalogXML := `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>
     <title>Test ZIM</title>
     <name>test-zim</name>
-    <link rel="alternate" href="/api/zim/proxy/8181/content/test-zim" type="text/html"/>
+    <link rel="alternate" href="/api/zim/proxy/content/test-zim" type="text/html"/>
   </entry>
 </feed>`
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasSuffix(r.URL.Path, "/catalog/v2/entries") {
-				w.Header().Set("Content-Type", "application/xml")
-				w.Write([]byte(catalogXML))
-			} else {
-				w.WriteHeader(http.StatusNotFound)
-			}
-		}))
-		defer server.Close()
+	kiwixServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/catalog/v2/entries") {
+			w.Header().Set("Content-Type", "application/xml")
+			_, _ = w.Write([]byte(catalogXML))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer kiwixServer.Close()
 
-		// Parse the catalog to verify structure
-		var feed struct {
-			XMLName xml.Name             `xml:"feed"`
-			Entries []commands.OpdsEntry `xml:"entry"`
+	cmd := &commands.ServeCmd{
+		Databases: []string{fixture.DBPath},
+		KiwixHost: "127.0.0.1",
+		KiwixPort: serverPort(t, kiwixServer),
+	}
+	defer cmd.Close()
+
+	t.Run("valid listed ZIM returns HTML", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+zimPath, nil)
+		w := httptest.NewRecorder()
+		cmd.HandleZimView(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d - %s", w.Code, w.Body.String())
 		}
-		if err := xml.Unmarshal([]byte(catalogXML), &feed); err != nil {
-			t.Fatalf("Failed to parse catalog: %v", err)
+		body := w.Body.String()
+		if !strings.Contains(body, "<iframe") {
+			t.Error("expected an iframe")
 		}
-		if len(feed.Entries) != 1 {
-			t.Fatalf("Expected 1 entry, got %d", len(feed.Entries))
+		if !strings.Contains(body, "test.zim") {
+			t.Error("expected the ZIM file name")
 		}
-		if feed.Entries[0].Title != "Test ZIM" {
-			t.Errorf("Expected title 'Test ZIM', got '%s'", feed.Entries[0].Title)
-		}
-		hasHTMLLink := false
-		for _, link := range feed.Entries[0].Link {
-			if link.Type == "text/html" {
-				hasHTMLLink = true
-				break
-			}
-		}
-		if !hasHTMLLink {
-			t.Errorf("Expected HTML link in entry")
+		if !strings.Contains(body, "/api/zim/proxy/viewer#test-zim") {
+			t.Errorf("expected the configured proxy viewer URL, got %s", body)
 		}
 	})
 
-	t.Run("handles empty catalog", func(t *testing.T) {
-		emptyXML := `<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-</feed>`
+	t.Run("missing path returns 400", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view", nil)
+		w := httptest.NewRecorder()
+		cmd.HandleZimView(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
 
-		var feed struct {
-			XMLName xml.Name             `xml:"feed"`
-			Entries []commands.OpdsEntry `xml:"entry"`
+	t.Run("non-zim path returns 400", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path=/tmp/test.mp4", nil)
+		w := httptest.NewRecorder()
+		cmd.HandleZimView(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
 		}
-		if err := xml.Unmarshal([]byte(emptyXML), &feed); err != nil {
-			t.Fatalf("Failed to parse empty catalog: %v", err)
+	})
+
+	t.Run("unlisted ZIM returns 403", func(t *testing.T) {
+		other := filepath.Join(fixture.TempDir, "other.zim")
+		if err := os.WriteFile(other, []byte("dummy"), 0o644); err != nil {
+			t.Fatal(err)
 		}
-		if len(feed.Entries) != 0 {
-			t.Errorf("Expected 0 entries, got %d", len(feed.Entries))
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+other, nil)
+		w := httptest.NewRecorder()
+		cmd.HandleZimView(w, req)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("expected 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("unreachable kiwix returns 503", func(t *testing.T) {
+		unreachable := &commands.ServeCmd{
+			Databases: []string{fixture.DBPath},
+			KiwixHost: "127.0.0.1",
+			KiwixPort: freePort(t),
+		}
+		defer unreachable.Close()
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+zimPath, nil)
+		w := httptest.NewRecorder()
+		unreachable.HandleZimView(w, req)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected 503, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "not reachable") {
+			t.Errorf("expected a clear unreachable message, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("disabled mode returns 503", func(t *testing.T) {
+		disabled := &commands.ServeCmd{Databases: []string{fixture.DBPath}}
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+zimPath, nil)
+		w := httptest.NewRecorder()
+		disabled.HandleZimView(w, req)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected 503, got %d", w.Code)
 		}
 	})
 }
 
-// TestIsPortAvailable tests port availability checking
-func TestIsPortAvailable(t *testing.T) {
-	t.Run("returns true for available port", func(t *testing.T) {
-		// Find a truly available port
-		port := commands.KiwixPortStart + 100
-		if !commands.IsPortAvailable(context.Background(), port) {
-			t.Errorf("Expected port %d to be available", port)
-		}
-	})
+func TestZimProxyNeverSpawnsAProcess(t *testing.T) {
+	// This is a regression guard for the managed-process design: the handler
+	// is entirely HTTP-based, so a request to an unreachable upstream returns
+	// 503 rather than trying to start kiwix-serve.
+	cmd := &commands.ServeCmd{
+		Databases: []string{"/tmp/unused.db"},
+		KiwixHost: "127.0.0.1",
+		KiwixPort: freePort(t),
+	}
+	defer cmd.Close()
 
-	t.Run("returns false for occupied port", func(t *testing.T) {
-		// Bind to a port to make it unavailable
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("Failed to bind test port: %v", err)
-		}
-		defer listener.Close()
+	req := httptest.NewRequest(http.MethodGet, "/api/zim/proxy/content", nil)
+	w := httptest.NewRecorder()
+	cmd.HandleZimProxy(w, req)
 
-		addr := listener.Addr().String()
-		parts := strings.Split(addr, ":")
-		port := 0
-		fmt.Sscanf(parts[1], "%d", &port)
-
-		if commands.IsPortAvailable(context.Background(), port) {
-			t.Errorf("Expected port %d to be unavailable", port)
-		}
-	})
-}
-
-// TestWaitForKiwixReady tests server readiness checking
-func TestWaitForKiwixReady(t *testing.T) {
-	t.Run("returns quickly for ready server", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		// Extract port
-		portStr := strings.TrimPrefix(server.URL, "http://127.0.0.1:")
-		var port int
-		fmt.Sscanf(portStr, "%d", &port)
-
-		// This would test the actual function, but it uses hardcoded URL patterns
-		// We document the expected behavior instead
-		start := time.Now()
-		err := commands.WaitForKiwixReady(context.Background(), port, 2*time.Second)
-		elapsed := time.Since(start)
-
-		// Should return quickly if server is ready
-		if err == nil && elapsed > 1*time.Second {
-			t.Errorf("Expected quick return for ready server, took %v", elapsed)
-		}
-	})
-
-	t.Run("returns error for unavailable server", func(t *testing.T) {
-		// Use a port that's definitely not running anything
-		port := commands.KiwixPortStart + 999
-
-		start := time.Now()
-		err := commands.WaitForKiwixReady(context.Background(), port, 100*time.Millisecond)
-		elapsed := time.Since(start)
-
-		if err == nil {
-			t.Errorf("Expected error for unavailable server")
-		}
-		if elapsed < 100*time.Millisecond {
-			t.Errorf("Expected to wait for timeout, took %v", elapsed)
-		}
-	})
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for unreachable upstream, got %d", w.Code)
+	}
 }

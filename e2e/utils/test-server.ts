@@ -78,7 +78,7 @@ export class TestServer {
         this.port = await findFreePort();
       }
 
-      this.baseUrl = `http://localhost:${this.port}`;
+      this.baseUrl = `http://127.0.0.1:${this.port}`;
       const binaryPath = process.env.DISCO_BINARY || path.join(__dirname, '../../disco');
 
       // Check if binary exists

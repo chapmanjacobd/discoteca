@@ -2,10 +2,13 @@ package commands
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 	"github.com/chapmanjacobd/discoteca/web"
 )
@@ -69,7 +73,11 @@ type ServeCmd struct {
 	models.FTSFlags         `embed:""`
 
 	Databases             []string      `help:"SQLite database files"                                                           required:"true" arg:"" type:"existingfile"`
+	Host                  string        `help:"Address to listen on (loopback by default)"                                                default:"127.0.0.1"`
 	Port                  int           `help:"Port to listen on"                                                                                                          default:"5555" short:"p"`
+	KiwixHost             string        `help:"Host of the externally managed kiwix-serve"                                                  default:"127.0.0.1"`
+	KiwixPort             int           `help:"Port of the externally managed kiwix-serve (0 disables ZIM support)"                         default:"8181"`
+	TrustForwardedPrefix  bool          `help:"Trust X-Forwarded-Prefix from non-loopback peers"`
 	PublicDir             string        `help:"Override embedded web assets with local directory"`
 	BasePath              string        `help:"URL prefix when served behind a reverse proxy (for example /disco)"                                                         default:""`
 	Dev                   bool          `help:"Enable development mode (auto-reload)"`
@@ -88,23 +96,76 @@ type ServeCmd struct {
 	hasFfmpeg             bool
 }
 
-// authMiddleware validates API token for authenticated endpoints
+// authMiddleware validates API token for authenticated endpoints. Scripts may
+// send the token in X-Disco-Token or as a Bearer token; browsers use the
+// HttpOnly session cookie established by POST /api/session.
 func (c *ServeCmd) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("X-Disco-Token")
 		if token == "" {
-			// Also check cookie for same-origin convenience
-			if cookie, err := r.Cookie("disco_token"); err == nil {
+			if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+				token = strings.TrimSpace(bearer)
+			}
+		}
+		if token == "" {
+			if cookie, err := r.Cookie(sessionCookieName); err == nil {
 				token = cookie.Value
 			}
 		}
 
-		if token != c.APIToken {
+		if !c.tokenMatches(token) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 		next(w, r)
 	}
+}
+
+const sessionCookieName = "disco_token"
+
+// tokenMatches compares tokens in constant time and rejects empty tokens when
+// the server has a configured token.
+func (c *ServeCmd) tokenMatches(token string) bool {
+	if c.APIToken == "" {
+		return token == ""
+	}
+	return subtle.ConstantTimeCompare([]byte(token), []byte(c.APIToken)) == 1
+}
+
+// HandleSession exchanges an API token for an HttpOnly session cookie. The
+// token is accepted only in the Authorization header so it never appears in a
+// URL that reaches a reverse proxy log.
+func (c *ServeCmd) HandleSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if c.APIToken == "" {
+		http.Error(w, "Session authentication is not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || !c.tokenMatches(strings.TrimSpace(bearer)) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	prefix := BasePathFromContext(r.Context())
+	cookiePath := "/"
+	if prefix != "" {
+		cookiePath = prefix + "/"
+	}
+	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    c.APIToken,
+		Path:     cookiePath,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+	})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // isPathBlocklisted checks if a path should be denied access
@@ -139,6 +200,9 @@ func (c *ServeCmd) isPathBlocklisted(path string) bool {
 func (c *ServeCmd) registerAPIRoutes(mux *http.ServeMux) {
 	// Health and favicon
 	mux.HandleFunc("/health", c.HandleHealth)
+	// Session exchange is the one API route that validates the token itself;
+	// it must be reachable before a session cookie exists.
+	mux.HandleFunc("/api/session", c.HandleSession)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
 		favicon, err := web.FsRaw.ReadFile("dist/favicon.svg")
 		if err != nil {
@@ -184,7 +248,7 @@ func (c *ServeCmd) registerAPIRoutes(mux *http.ServeMux) {
 		{"/api/categorize/keyword", c.HandleCategorizeKeyword},
 		{"/api/raw", c.HandleRaw},
 		{"/api/zim/view", c.HandleZimView},
-		{"/api/zim/proxy/{port}/{rest...}", c.HandleZimProxy},
+		{"/api/zim/proxy/{rest...}", c.HandleZimProxy},
 		{"/api/rsvp", c.HandleRSVP},
 		{"/api/epub/{path...}", c.HandleEpubConvert},
 		{"/api/hls/playlist", c.HandleHLSPlaylist},
@@ -230,18 +294,6 @@ func (c *ServeCmd) newLibHandler() http.HandlerFunc {
 func (c *ServeCmd) newStaticHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		prefix := BasePathFromContext(r.Context())
-
-		cookiePath := "/"
-		if prefix != "" {
-			cookiePath = prefix + "/"
-		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     "disco_token",
-			Value:    c.APIToken,
-			Path:     cookiePath,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
 
 		c.setCacheControlHeaders(w, r)
 
@@ -405,13 +457,54 @@ func (c *ServeCmd) initDatabases(ctx context.Context) {
 	}
 }
 
-// setupAPIToken sets the API token from environment or generates a new one
+// setupAPIToken sets the API token from the environment or generates one. A
+// generated token is printed once to stderr; it is never embedded in a static
+// response.
 func (c *ServeCmd) setupAPIToken() {
 	if envToken := os.Getenv("DISCO_API_TOKEN"); envToken != "" {
 		c.APIToken = envToken
-	} else {
-		c.APIToken = utils.RandomString(32)
+		return
 	}
+	c.APIToken = utils.RandomString(32)
+	fmt.Fprintf(
+		os.Stderr,
+		"DISCO_API_TOKEN is not set. Generated API token: %s\n"+
+			"Use this token to authenticate (POST /api/session with an Authorization: Bearer header).\n",
+		c.APIToken,
+	)
+}
+
+// listenAddress returns the configured host and port as a net address.
+func (c *ServeCmd) listenAddress() string {
+	host := c.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(c.Port))
+}
+
+// isLoopbackHost reports whether host refers to the local machine only.
+func isLoopbackHost(host string) bool {
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	switch strings.ToLower(host) {
+	case "", "localhost":
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// validateListenConfig refuses an unauthenticated bind on a non-loopback
+// interface.
+func (c *ServeCmd) validateListenConfig() error {
+	if !isLoopbackHost(c.Host) && os.Getenv("DISCO_API_TOKEN") == "" {
+		return fmt.Errorf(
+			"refusing to listen on non-loopback address %q without DISCO_API_TOKEN; "+
+				"set DISCO_API_TOKEN or bind to 127.0.0.1 and use a reverse proxy",
+			c.Host,
+		)
+	}
+	return nil
 }
 
 // cacheDatabases connects to all databases and stores them in the cache
@@ -488,11 +581,15 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 	db.InitFtsConfig()
 	db.SetCacheSizeMB(c.DBCacheMB)
 
+	if err := c.validateListenConfig(); err != nil {
+		return err
+	}
+	if err := c.validateKiwixConfig(); err != nil {
+		return err
+	}
+
 	// Initialize MIME types
 	initMimeTypes()
-
-	// Start ZIM manager background goroutine
-	StartZimManager()
 
 	// Pre-warm database connections
 	c.initDatabases(ctx)
@@ -514,8 +611,8 @@ func (c *ServeCmd) Run(ctx context.Context) error {
 
 	handler := c.Mux()
 
-	addr := fmt.Sprintf(":%d", c.Port)
-	baseURL := fmt.Sprintf("http://localhost:%d", c.Port)
+	addr := c.listenAddress()
+	baseURL := fmt.Sprintf("http://%s", addr)
 	models.Log.Info("Server starting", "addr", baseURL)
 
 	// Open browser unless --no-browser is passed
@@ -612,14 +709,37 @@ func (c *ServeCmd) parseRatingFlags(flags *models.GlobalFlags, q url.Values) {
 	}
 }
 
+// rejectInvalidFlags writes a 400 when ParseFlags found an unsafe parameter.
+func rejectInvalidFlags(w http.ResponseWriter, flags models.GlobalFlags) bool {
+	if flags.ValidationError == "" {
+		return false
+	}
+	sendError(w, http.StatusBadRequest, flags.ValidationError)
+	return true
+}
+
+func setFlagValidationError(flags *models.GlobalFlags, err error) {
+	if flags.ValidationError == "" {
+		flags.ValidationError = err.Error()
+	}
+}
+
 // parseScoreFlags extracts min/max score and unplayed flags
 func (c *ServeCmd) parseScoreFlags(flags *models.GlobalFlags, q url.Values) {
-	if minScore := q.Get("min_score"); minScore != "" {
-		flags.Where = append(flags.Where, "score >= "+minScore)
+	parseScore := func(name, operator string) {
+		raw := q.Get(name)
+		if raw == "" {
+			return
+		}
+		value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+			setFlagValidationError(flags, fmt.Errorf("invalid %s value %q", name, raw))
+			return
+		}
+		flags.Where = append(flags.Where, operator+" "+strconv.FormatFloat(value, 'g', -1, 64))
 	}
-	if maxScore := q.Get("max_score"); maxScore != "" {
-		flags.Where = append(flags.Where, "score <= "+maxScore)
-	}
+	parseScore("min_score", "score >=")
+	parseScore("max_score", "score <=")
 	if unplayed := q.Get("unplayed"); unplayed == "true" {
 		flags.Where = append(flags.Where, "COALESCE(play_count, 0) = 0 AND COALESCE(playhead, 0) = 0")
 	}
@@ -627,28 +747,44 @@ func (c *ServeCmd) parseScoreFlags(flags *models.GlobalFlags, q url.Values) {
 
 // parseSortFlags extracts sorting-related flags
 func (c *ServeCmd) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
-	if sortBy := q.Get("sort"); sortBy != "" {
-		flags.SortBy = sortBy
-		if sortBy == "random" {
-			flags.Random = true
+	if sortBy := strings.TrimSpace(q.Get("sort")); sortBy != "" {
+		if err := query.ValidateSortConfig(sortBy); err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid sort: %w", err))
+		} else {
+			flags.SortBy = sortBy
+			if sortBy == "random" || sortBy == "random()" ||
+				sortBy == "RANDOM" || sortBy == "RANDOM()" {
+				flags.Random = true
+			}
 		}
 	}
 	// Support complex sorting with sort_fields array (JSON) or comma-separated string
 	if sortFields := q.Get("sort_fields"); sortFields != "" {
+		config := sortFields
 		if strings.HasPrefix(sortFields, "[") {
 			var fieldList []string
-			if err := json.Unmarshal([]byte(sortFields), &fieldList); err == nil {
-				flags.PlayInOrder = strings.Join(fieldList, ",")
+			if err := json.Unmarshal([]byte(sortFields), &fieldList); err != nil {
+				setFlagValidationError(flags, fmt.Errorf("invalid sort_fields: %w", err))
+				return
 			}
+			config = strings.Join(fieldList, ",")
+		}
+		if err := query.ValidateSortConfig(config); err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid sort_fields: %w", err))
 		} else {
-			flags.PlayInOrder = sortFields
+			flags.PlayInOrder = config
 		}
 	}
 	// Also support sort_order for explicit direction
 	if sortDesc := q.Get("sort_desc"); sortDesc != "" {
 		descFields := make(map[string]bool)
 		for f := range strings.SplitSeq(sortDesc, ",") {
-			descFields[strings.TrimSpace(f)] = true
+			f = strings.TrimSpace(f)
+			if err := query.ValidateSortConfig(f); err != nil {
+				setFlagValidationError(flags, fmt.Errorf("invalid sort_desc: %w", err))
+				return
+			}
+			descFields[f] = true
 		}
 		if flags.PlayInOrder != "" {
 			var newOrder []string
@@ -847,7 +983,11 @@ func (c *ServeCmd) parseDatabaseFlags(flags *models.GlobalFlags, q url.Values) {
 // ParseFlags extracts query parameters into GlobalFlags
 func (c *ServeCmd) ParseFlags(r *http.Request) models.GlobalFlags {
 	flags := c.GetGlobalFlags()
-	q := r.URL.Query()
+	q, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		flags.ValidationError = "invalid query string: " + err.Error()
+		return flags
+	}
 
 	c.parseSearchFlags(&flags, q)
 	c.parseCategoryFlags(&flags, q)
@@ -897,6 +1037,66 @@ func (c *ServeCmd) filterDatabases(requested []string) ([]string, error) {
 // It validates that all requested databases are in the server's allowed list
 func (c *ServeCmd) getDBs(flags models.GlobalFlags) ([]string, error) {
 	return c.filterDatabases(flags.Databases)
+}
+
+// execWriteAcrossDBs runs fn against every configured database and returns a
+// write outcome. Handlers use it so a failure is not reported as success.
+func (c *ServeCmd) execWriteAcrossDBs(
+	ctx context.Context,
+	fn func(context.Context, *sql.DB) (int64, error),
+) (affected int64, succeeded, failed int, errs []string) {
+	for _, dbPath := range c.Databases {
+		var rows int64
+		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			var err error
+			rows, err = fn(ctx, sqlDB)
+			return err
+		})
+		if err != nil {
+			failed++
+			errs = append(errs, fmt.Sprintf("%s: %v", dbPath, err))
+			models.Log.Error("Database write failed", "db", dbPath, "error", err)
+			continue
+		}
+		succeeded++
+		affected += rows
+	}
+	return affected, succeeded, failed, errs
+}
+
+// sendWriteResult maps a multi-database write outcome to an HTTP response.
+// notFoundMessage, when set, turns a zero-row success into a 404.
+func sendWriteResult(
+	w http.ResponseWriter,
+	successStatus int,
+	affected int64,
+	succeeded, failed int,
+	errs []string,
+	notFoundMessage string,
+) {
+	if failed == 0 {
+		if affected == 0 && notFoundMessage != "" {
+			sendError(w, http.StatusNotFound, notFoundMessage)
+			return
+		}
+		w.WriteHeader(successStatus)
+		return
+	}
+	if succeeded == 0 {
+		sendJSON(w, http.StatusInternalServerError, map[string]any{
+			"error":    "all database writes failed",
+			"affected": affected,
+			"failed":   failed,
+			"errors":   errs,
+		})
+		return
+	}
+	sendJSON(w, http.StatusMultiStatus, map[string]any{
+		"status":   "partial",
+		"affected": affected,
+		"failed":   failed,
+		"errors":   errs,
+	})
 }
 
 // searchTimeout returns the configured per-search timeout.

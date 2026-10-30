@@ -314,6 +314,9 @@ func buildTimeBins(times []int64) (minVal, maxVal int64, percentiles []int64) {
 // HandleFilterBins handles the /api/filter-bins endpoint
 func (c *ServeCmd) HandleFilterBins(w http.ResponseWriter, r *http.Request) {
 	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
 	q := r.URL.Query()
 
 	// Validate and filter databases

@@ -1,6 +1,6 @@
 import './style.css';
 import Hls from 'hls.js';
-import { fetchAPI, getCookie } from './api';
+import { fetchAPI, getCookie, initSessionFromURL } from './api';
 import { appUrl } from './base';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
@@ -30,6 +30,8 @@ const DEFAULT_CATEGORIES: Record<string, string[]> = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    initSessionFromURL();
+
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
@@ -3175,6 +3177,15 @@ document.addEventListener('DOMContentLoaded', () => {
         performSearch();
     }
 
+    function emptyBinMessage(result: any): string {
+        const deleted = Number(result?.deleted || 0);
+        const failed = Number(result?.failed || 0);
+        const noun = deleted === 1 ? 'file' : 'files';
+        let msg = `Deleted ${deleted} ${noun}`;
+        if (failed > 0) msg += ` (${failed} failed)`;
+        return msg;
+    }
+
     async function emptyBin() {
         // "Empty Bin" means the whole bin, not just the visible page. The
         // backend treats an empty paths array as "all trash entries".
@@ -3190,7 +3201,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ paths: [] })
             });
             if (!resp.ok) throw new Error('Failed to empty bin');
-            const msg = await resp.text();
+            const result = await resp.json();
+            const msg = emptyBinMessage(result);
             showToast(msg, '🔥');
             state.currentPage = 1;
             fetchTrash();
@@ -3258,7 +3270,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ paths: [path] })
             });
             if (!resp.ok) throw new Error('Failed to delete');
-            const msg = await resp.text();
+            const result = await resp.json();
+            const msg = emptyBinMessage(result);
             showToast(msg, '🔥');
 
             if (itemEl) {

@@ -353,6 +353,10 @@ type GlobalFlags struct {
 	HashingFlags     `embed:""`
 	MergeFlags       `embed:""`
 	DatabaseFlags    `embed:""`
+
+	// ValidationError is set by the HTTP request parser when a query parameter
+	// would otherwise reach SQL. Handlers turn it into a 400 response.
+	ValidationError string `json:"-" kong:"-"`
 }
 
 // ControlFlags are a subset of flags for simple control commands

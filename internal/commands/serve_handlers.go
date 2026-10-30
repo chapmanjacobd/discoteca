@@ -30,6 +30,9 @@ func (c *ServeCmd) HandleHealth(w http.ResponseWriter, _ *http.Request) {
 // GET /api/query?search=...&category=...&rating=...&sort=...&limit=...&offset=...
 func (c *ServeCmd) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
 	q := r.URL.Query()
 
 	ctx, cancel := context.WithTimeout(r.Context(), c.searchTimeout())
@@ -424,11 +427,17 @@ func (c *ServeCmd) HandlePlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !strings.HasPrefix(req.Path, "http") && !utils.FileExists(req.Path) {
-		models.Log.Warn("File not found, marking as deleted in databases", "path", req.Path)
-		c.markDeletedInAllDBs(r.Context(), req.Path, true)
-		sendError(w, http.StatusNotFound, "File not found")
-		return
+	if !strings.HasPrefix(req.Path, "http") {
+		found, _ := c.getMediaTypeFromDB(r.Context(), req.Path)
+		if !found {
+			sendError(w, http.StatusForbidden, "Media not found in database")
+			return
+		}
+		if !utils.FileExists(req.Path) {
+			// Playback is a probe, not a library action: do not mutate the DB.
+			sendError(w, http.StatusNotFound, "File not found")
+			return
+		}
 	}
 
 	// Trigger local playback
@@ -444,27 +453,30 @@ func (c *ServeCmd) HandlePlay(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (c *ServeCmd) markDeletedInAllDBs(ctx context.Context, path string, deleted bool) {
+// markDeletedInAllDBs marks or restores a path and reports per-database errors.
+func (c *ServeCmd) markDeletedInAllDBs(ctx context.Context, path string, deleted bool) (
+	affected int64, succeeded, failed int, errs []string,
+) {
 	if c.ReadOnly {
-		return
+		return 0, 0, 0, nil
 	}
 	var deleteTime int64 = 0
 	if deleted {
 		deleteTime = time.Now().Unix()
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			queries := database.New(sqlDB)
-			return queries.MarkDeleted(ctx, database.MarkDeletedParams{
-				Path:        path,
-				TimeDeleted: sql.NullInt64{Int64: deleteTime, Valid: deleted},
-			})
-		})
+	return c.execWriteAcrossDBs(ctx, func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+		res, err := sqlDB.ExecContext(
+			ctx,
+			"UPDATE media SET time_deleted = ? WHERE path = ?",
+			deleteTime,
+			path,
+		)
 		if err != nil {
-			models.Log.Error("Failed to mark file as deleted", "db", dbPath, "path", path, "error", err)
+			return 0, err
 		}
-	}
+		return res.RowsAffected()
+	})
 }
 
 // HandleDelete marks a file as deleted or restores it in all databases.
@@ -486,8 +498,8 @@ func (c *ServeCmd) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.markDeletedInAllDBs(r.Context(), req.Path, !req.Restore)
-	w.WriteHeader(http.StatusOK)
+	affected, succeeded, failed, errs := c.markDeletedInAllDBs(r.Context(), req.Path, !req.Restore)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
 }
 
 // HandleProgress updates the playback progress for a media file.
@@ -515,28 +527,24 @@ func (c *ServeCmd) HandleProgress(w http.ResponseWriter, r *http.Request) {
 		increment = 1
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			// Use raw SQL to update progress
-			// We want to increment play_count only once per session ideally, but for now we follow simple logic
-			if _, err := sqlDB.ExecContext(ctx, `
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			res, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET time_last_played = ?,
 			    time_first_played = COALESCE(time_first_played, ?),
 			    playhead = ?,
 			    play_count = COALESCE(play_count, 0) + ?
 			WHERE path = ?`,
-				now, now, req.Playhead, increment, req.Path); err != nil {
-				return err
+				now, now, req.Playhead, increment, req.Path)
+			if err != nil {
+				return 0, err
 			}
-			return nil
-		})
-		if err != nil {
-			models.Log.Error("Failed to update progress", "db", dbPath, "error", err)
-		}
-	}
-
-	w.WriteHeader(http.StatusOK)
+			return res.RowsAffected()
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
 }
 
 // HandleMarkUnplayed resets play count and progress for a media file.
@@ -560,25 +568,23 @@ func (c *ServeCmd) HandleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			if _, err := sqlDB.ExecContext(ctx, `
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			res, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET play_count = 0,
 			    playhead = 0,
 			    time_last_played = 0
 			WHERE path = ?`,
-				req.Path); err != nil {
-				return err
+				req.Path)
+			if err != nil {
+				return 0, err
 			}
-			return nil
-		})
-		if err != nil {
-			models.Log.Error("Failed to mark as unplayed", "db", dbPath, "error", err)
-		}
-	}
-
-	w.WriteHeader(http.StatusOK)
+			return res.RowsAffected()
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
 }
 
 // HandleMarkPlayed increments play count and resets progress for a media file.
@@ -603,26 +609,24 @@ func (c *ServeCmd) HandleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().Unix()
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			if _, err := sqlDB.ExecContext(ctx, `
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			res, err := sqlDB.ExecContext(ctx, `
 			UPDATE media
 			SET time_last_played = ?,
 			    time_first_played = COALESCE(time_first_played, ?),
 			    play_count = COALESCE(play_count, 0) + 1,
 			    playhead = 0
 			WHERE path = ?`,
-				now, now, req.Path); err != nil {
-				return err
+				now, now, req.Path)
+			if err != nil {
+				return 0, err
 			}
-			return nil
-		})
-		if err != nil {
-			models.Log.Error("Failed to mark as played", "db", dbPath, "error", err)
-		}
-	}
-
-	w.WriteHeader(http.StatusOK)
+			return res.RowsAffected()
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
 }
 
 // HandleRate updates the rating for a media file.
@@ -647,24 +651,22 @@ func (c *ServeCmd) HandleRate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			if _, err := sqlDB.ExecContext(
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			res, err := sqlDB.ExecContext(
 				ctx,
 				"UPDATE media SET score = ? WHERE path = ?",
 				req.Score,
 				req.Path,
-			); err != nil {
-				return err
+			)
+			if err != nil {
+				return 0, err
 			}
-			return nil
-		})
-		if err != nil {
-			models.Log.Error("Failed to update rating", "db", dbPath, "error", err)
-		}
-	}
-
-	w.WriteHeader(http.StatusOK)
+			return res.RowsAffected()
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
 }
 
 func (c *ServeCmd) HandleEvents(w http.ResponseWriter, r *http.Request) {
@@ -972,6 +974,9 @@ func (c *ServeCmd) buildLsResults(
 
 func (c *ServeCmd) HandleDU(w http.ResponseWriter, r *http.Request) {
 	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
 	path := r.URL.Query().Get("path")
 	includeCounts := r.URL.Query().Get("include_counts") == "true"
 
@@ -1207,6 +1212,9 @@ func (c *ServeCmd) applyDUPagination(
 
 func (c *ServeCmd) HandleEpisodes(w http.ResponseWriter, r *http.Request) {
 	flags := c.ParseFlags(r)
+	if rejectInvalidFlags(w, flags) {
+		return
+	}
 	if flags.Limit <= 0 {
 		flags.All = true
 		flags.Limit = 1000000

@@ -103,7 +103,7 @@ disco serve library.db
 
 ### Web & Proxy
 
-- `kiwix-serve` - ZIM file serving (Wikipedia offline)
+- `kiwix-serve` - externally managed ZIM file server (Wikipedia offline)
 
 See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.
 See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, nginx, and URL-prefix setup.
@@ -3218,6 +3218,36 @@ Flags:
 
 Start Web UI server
 
+The server binds to `127.0.0.1` by default. Remote deployments should keep that
+bind and put a reverse proxy in front; binding to a non-loopback interface
+requires `DISCO_API_TOKEN`.
+
+Authentication uses an `HttpOnly`, `SameSite=Strict` session cookie. Open the
+web UI with `?token=<token>` once, or enter the token when prompted, and the
+client exchanges it for a cookie via `POST /api/session`. Scripts may send
+`X-Disco-Token: <token>` or `Authorization: Bearer <token>` directly.
+
+If `DISCO_API_TOKEN` is unset, a token is generated at startup and printed once
+to stderr.
+
+ZIM support uses an externally managed `kiwix-serve`; discoteca does not start
+or stop it. Run it separately and point discoteca at its port:
+
+```bash
+# Terminal 1
+kiwix-serve --port=8181 \
+  --urlRootLocation=/api/zim/proxy/ \
+  /path/to/library.zim
+
+# Terminal 2
+disco serve --kiwix-port 8181 library.db
+```
+
+The ZIM file must also be present in one of the discoteca databases, and the
+external server must use the same `--urlRootLocation` as the proxy route
+(add the app's `--base-path` before `/api/zim/proxy/` if you use one).
+Use `--kiwix-port 0` to disable ZIM support.
+
 Examples:
 
 ```bash
@@ -3465,6 +3495,14 @@ Flags:
         Find media related to the first result
   -p, --port
         Port to listen on
+  --host
+        Address to listen on (loopback by default)
+  --kiwix-host
+        Host of the externally managed kiwix-serve
+  --kiwix-port
+        Port of the externally managed kiwix-serve (0 disables ZIM support)
+  --trust-forwarded-prefix
+        Trust X-Forwarded-Prefix from non-loopback peers
   --public-dir
         Override embedded web assets with local directory
   --base-path

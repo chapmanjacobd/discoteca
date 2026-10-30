@@ -24,6 +24,11 @@ import (
 )
 
 func (c *ServeCmd) HandleCategorizeKeywords(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	type catKeywords struct {
 		Category string   `json:"category"`
 		Keywords []string `json:"keywords"`
@@ -87,20 +92,24 @@ func (c *ServeCmd) HandleCategorizeDeleteCategory(w http.ResponseWriter, r *http
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			_, err := sqlDB.ExecContext(ctx, "DELETE FROM custom_keywords WHERE category = ?", category)
-			return err
-		})
-		if err != nil {
-			models.Log.Error("Failed to delete category", "db", dbPath, "error", err)
-		}
-	}
-
-	sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			res, err := sqlDB.ExecContext(ctx, "DELETE FROM custom_keywords WHERE category = ?", category)
+			if err != nil {
+				return 0, err
+			}
+			return res.RowsAffected()
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 }
 
 func (c *ServeCmd) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return
@@ -116,21 +125,22 @@ func (c *ServeCmd) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-				_, err := sqlDB.ExecContext(
+		affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+			r.Context(),
+			func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+				res, err := sqlDB.ExecContext(
 					ctx,
 					"DELETE FROM custom_keywords WHERE category = ? AND keyword = ?",
 					req.Category,
 					req.Keyword,
 				)
-				return err
-			})
-			if err != nil {
-				models.Log.Error("Failed to delete keyword", "db", dbPath, "error", err)
-			}
-		}
-		sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+				if err != nil {
+					return 0, err
+				}
+				return res.RowsAffected()
+			},
+		)
+		sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 		return
 	}
 
@@ -148,22 +158,22 @@ func (c *ServeCmd) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			_, err := sqlDB.ExecContext(
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			res, err := sqlDB.ExecContext(
 				ctx,
 				"INSERT OR IGNORE INTO custom_keywords (category, keyword) VALUES (?, ?)",
 				req.Category,
 				req.Keyword,
 			)
-			return err
-		})
-		if err != nil {
-			models.Log.Error("Failed to save custom keyword", "db", dbPath, "error", err)
-		}
-	}
-
-	sendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			if err != nil {
+				return 0, err
+			}
+			return res.RowsAffected()
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 }
 
 func (c *ServeCmd) fetchAllMedia(ctx context.Context, purpose string) []models.MediaWithDB {
@@ -467,6 +477,10 @@ func (c *ServeCmd) mergeAndFormatCategories(existing *string, found []string) st
 }
 
 func (c *ServeCmd) HandleCategorizeApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
 		return
@@ -495,6 +509,7 @@ func (c *ServeCmd) HandleCategorizeApply(w http.ResponseWriter, r *http.Request)
 	}
 
 	count := 0
+	failed := 0
 	for _, m := range allMedia {
 		foundCategories := c.findMatchedCategories(m, compiled)
 
@@ -510,12 +525,22 @@ func (c *ServeCmd) HandleCategorizeApply(w http.ResponseWriter, r *http.Request)
 			})
 			if err == nil {
 				count++
+			} else {
+				failed++
+				models.Log.Error("Failed to apply category", "db", m.DB, "path", m.Path, "error", err)
 			}
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"count": %d}`, count)
+	status := http.StatusOK
+	if failed > 0 {
+		if count == 0 {
+			status = http.StatusInternalServerError
+		} else {
+			status = http.StatusMultiStatus
+		}
+	}
+	sendJSON(w, status, map[string]int{"count": count, "failed": failed})
 }
 
 func (c *ServeCmd) HandleRaw(w http.ResponseWriter, r *http.Request) {
@@ -574,8 +599,7 @@ func (c *ServeCmd) HandleRaw(w http.ResponseWriter, r *http.Request) {
 
 	isLocal := utils.FileExists(localPath)
 	if !isLocal {
-		models.Log.Warn("File not found on disk, marking as deleted in databases", "path", path)
-		c.markDeletedInAllDBs(r.Context(), path, true)
+		models.Log.Warn("File not found on disk", "path", path)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
@@ -627,6 +651,159 @@ func (c *ServeCmd) HandleTrash(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, http.StatusOK, media)
 }
 
+// EmptyBinResult describes what an /api/empty-bin request did. Counts refer to
+// unique paths, not databases or rows.
+type EmptyBinResult struct {
+	Deleted int    `json:"deleted"`
+	Failed  int    `json:"failed"`
+	Skipped int    `json:"skipped"`
+	Error   string `json:"error,omitempty"`
+}
+
+func (c *ServeCmd) pathIsTrashed(ctx context.Context, path string) bool {
+	found := false
+	for _, dbPath := range c.Databases {
+		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			var exists int
+			err := sqlDB.QueryRowContext(
+				ctx,
+				"SELECT 1 FROM media WHERE path = ? AND COALESCE(time_deleted, 0) > 0 LIMIT 1",
+				path,
+			).Scan(&exists)
+			if err == nil {
+				found = true
+				return nil
+			}
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return err
+		})
+		if err != nil {
+			models.Log.Error("Failed to validate trashed path", "db", dbPath, "path", path, "error", err)
+		}
+		if found {
+			break
+		}
+	}
+	return found
+}
+
+// dbHasTrashedPath reports whether an exact path is present in one database.
+func (c *ServeCmd) dbHasTrashedPath(ctx context.Context, dbPath, path string) bool {
+	found := false
+	_ = c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+		var exists int
+		err := sqlDB.QueryRowContext(
+			ctx,
+			"SELECT 1 FROM media WHERE path = ? AND COALESCE(time_deleted, 0) > 0 LIMIT 1",
+			path,
+		).Scan(&exists)
+		if err == nil {
+			found = true
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	})
+	return found
+}
+
+// emptyBinDelete removes files and rows for paths that have already been
+// validated. It returns a per-path result summary.
+func (c *ServeCmd) emptyBinDelete(ctx context.Context, paths []string) EmptyBinResult {
+	result := EmptyBinResult{}
+	if len(paths) == 0 {
+		return result
+	}
+
+	rowDeleted := make(map[string]bool)
+	fileRemoved := make(map[string]bool)
+	failedPaths := make(map[string]bool)
+
+	// Validate membership before mutating anything.
+	valid := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if c.pathIsTrashed(ctx, p) {
+			valid = append(valid, p)
+		} else {
+			result.Skipped++
+		}
+	}
+	if len(valid) == 0 {
+		return result
+	}
+
+	// Remove files first. A file that cannot be removed keeps its trash row so
+	// the user can retry instead of leaving an orphaned file behind.
+	for _, p := range valid {
+		if utils.FileExists(p) {
+			if err := os.Remove(p); err != nil {
+				models.Log.Error("Failed to delete file", "path", p, "error", err)
+				failedPaths[p] = true
+			} else {
+				fileRemoved[p] = true
+			}
+		}
+	}
+
+	for _, dbPath := range c.Databases {
+		var present []string
+		for _, p := range valid {
+			if failedPaths[p] {
+				continue
+			}
+			if c.dbHasTrashedPath(ctx, dbPath, p) {
+				present = append(present, p)
+			}
+		}
+		if len(present) == 0 {
+			continue
+		}
+
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(present)), ",")
+		args := make([]any, 0, len(present))
+		for _, p := range present {
+			args = append(args, p)
+		}
+		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			if err != nil {
+				return err
+			}
+			if _, err = tx.ExecContext(ctx, "DELETE FROM media WHERE path IN ("+placeholders+")", args...); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+			return tx.Commit()
+		})
+		if err != nil {
+			models.Log.Error("Failed to delete rows from DB", "db", dbPath, "error", err)
+			for _, p := range present {
+				failedPaths[p] = true
+			}
+			continue
+		}
+		for _, p := range present {
+			rowDeleted[p] = true
+		}
+	}
+
+	for _, p := range valid {
+		if failedPaths[p] {
+			result.Failed++
+			continue
+		}
+		if fileRemoved[p] || rowDeleted[p] {
+			result.Deleted++
+		} else {
+			result.Failed++
+		}
+	}
+	return result
+}
+
 func (c *ServeCmd) HandleEmptyBin(w http.ResponseWriter, r *http.Request) {
 	if c.ReadOnly {
 		http.Error(w, "Read-only mode", http.StatusForbidden)
@@ -645,58 +822,67 @@ func (c *ServeCmd) HandleEmptyBin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var media []models.MediaWithDB
+	var paths []string
 	if len(req.Paths) > 0 {
-		// Only delete the requested paths
+		seen := make(map[string]bool, len(req.Paths))
+		invalid := 0
 		for _, p := range req.Paths {
-			media = append(media, models.MediaWithDB{Media: models.Media{Path: p}})
+			if c.isPathBlocklisted(p) {
+				http.Error(w, "Access denied: sensitive path", http.StatusForbidden)
+				return
+			}
+			if seen[p] {
+				continue
+			}
+			seen[p] = true
+			if !c.pathIsTrashed(r.Context(), p) {
+				invalid++
+				continue
+			}
+			paths = append(paths, p)
+		}
+		if invalid > 0 {
+			sendJSON(w, http.StatusBadRequest, EmptyBinResult{
+				Skipped: invalid,
+				Error:   "one or more paths are not in the trash of a configured database",
+			})
+			return
 		}
 	} else {
-		// Fallback: Delete everything in trash if no paths provided
+		// Fallback: delete everything in trash if no paths were provided.
 		flags := c.GetGlobalFlags()
 		flags.OnlyDeleted = true
 		flags.HideDeleted = false
 		flags.All = true
 
-		var err error
-		media, err = query.MediaQuery(r.Context(), c.Databases, flags)
+		media, err := query.MediaQuery(r.Context(), c.Databases, flags)
 		if err != nil {
 			models.Log.Error("Trash query failed", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	}
-
-	count := 0
-	for _, m := range media {
-		if utils.FileExists(m.Path) {
-			if err := os.Remove(m.Path); err != nil {
-				models.Log.Error("Failed to delete file", "path", m.Path, "error", err)
+		seen := make(map[string]bool, len(media))
+		for _, m := range media {
+			if c.isPathBlocklisted(m.Path) {
 				continue
 			}
-		}
-
-		// Remove from DB
-		for _, dbPath := range c.Databases {
-			err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-				result, err := sqlDB.ExecContext(ctx, "DELETE FROM media WHERE path = ?", m.Path)
-				if err != nil {
-					return err
-				}
-				rows, _ := result.RowsAffected()
-				if rows > 0 {
-					count++
-				}
-				return nil
-			})
-			if err != nil {
-				models.Log.Error("Failed to delete from DB", "db", dbPath, "error", err)
+			if !seen[m.Path] {
+				seen[m.Path] = true
+				paths = append(paths, m.Path)
 			}
 		}
 	}
 
-	models.Log.Info("Bin emptied", "files_removed", count)
-	fmt.Fprintf(w, "Deleted %d files", count)
+	result := c.emptyBinDelete(r.Context(), paths)
+	models.Log.Info("Bin emptied", "files_removed", result.Deleted, "failed", result.Failed, "skipped", result.Skipped)
+
+	status := http.StatusOK
+	if result.Failed > 0 && result.Deleted == 0 {
+		status = http.StatusInternalServerError
+	} else if result.Failed > 0 {
+		status = http.StatusMultiStatus
+	}
+	sendJSON(w, status, result)
 }
 
 func (c *ServeCmd) HandleOPDS(w http.ResponseWriter, r *http.Request) {
@@ -811,20 +997,28 @@ func (c *ServeCmd) handlePostPlaylist(w http.ResponseWriter, r *http.Request) {
 
 	playlistPath := "custom:" + utils.RandomString(12)
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			queries := database.New(sqlDB)
-			_, err := queries.InsertPlaylist(ctx, database.InsertPlaylistParams{
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			if err != nil {
+				return 0, err
+			}
+			queries := database.New(tx)
+			if _, err = queries.InsertPlaylist(ctx, database.InsertPlaylistParams{
 				Title: sql.NullString{String: req.Title, Valid: true},
 				Path:  sql.NullString{String: playlistPath, Valid: true},
-			})
-			return err
-		})
-		if err != nil {
-			models.Log.Error("Failed to insert playlist", "db", dbPath, "title", req.Title, "error", err)
-		}
-	}
-	w.WriteHeader(http.StatusCreated)
+			}); err != nil {
+				_ = tx.Rollback()
+				return 0, err
+			}
+			if err = tx.Commit(); err != nil {
+				return 0, err
+			}
+			return 1, nil
+		},
+	)
+	sendWriteResult(w, http.StatusCreated, affected, succeeded, failed, errs, "")
 }
 
 func (c *ServeCmd) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
@@ -834,31 +1028,39 @@ func (c *ServeCmd) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			queries := database.New(sqlDB)
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			if err != nil {
+				return 0, err
+			}
+			queries := database.New(tx)
 			pls, err := queries.GetPlaylists(ctx)
 			if err != nil {
-				return err
+				_ = tx.Rollback()
+				return 0, err
 			}
+			var deleted int64
 			for _, p := range pls {
 				if p.Title.Valid && strings.EqualFold(p.Title.String, title) {
-					err = queries.DeletePlaylist(ctx, database.DeletePlaylistParams{
+					if err = queries.DeletePlaylist(ctx, database.DeletePlaylistParams{
 						ID:          p.ID,
 						TimeDeleted: sql.NullInt64{Int64: time.Now().Unix(), Valid: true},
-					})
-					if err != nil {
-						return err
+					}); err != nil {
+						_ = tx.Rollback()
+						return 0, err
 					}
+					deleted++
 				}
 			}
-			return nil
-		})
-		if err != nil {
-			models.Log.Error("Failed to delete playlist", "db", dbPath, "title", title, "error", err)
-		}
-	}
-	w.WriteHeader(http.StatusOK)
+			if err = tx.Commit(); err != nil {
+				return 0, err
+			}
+			return deleted, nil
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 }
 
 func (c *ServeCmd) HandlePlaylists(w http.ResponseWriter, r *http.Request) {
@@ -1017,20 +1219,27 @@ func (c *ServeCmd) handlePostPlaylistItem(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			queries := database.New(sqlDB)
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			if err != nil {
+				return 0, err
+			}
+			queries := database.New(tx)
 			playlistID, err := c.findPlaylistID(ctx, queries, req.PlaylistTitle)
 			if err != nil {
-				return err
+				_ = tx.Rollback()
+				return 0, err
 			}
 			if playlistID == -1 {
-				return fmt.Errorf("playlist not found: %s", req.PlaylistTitle)
+				_ = tx.Rollback()
+				return 0, nil
 			}
 
 			// Get max track number
 			var maxTrack sql.NullInt64
-			_ = sqlDB.QueryRowContext(ctx, "SELECT MAX(track_number) FROM playlist_items WHERE playlist_id = ?", playlistID).
+			_ = tx.QueryRowContext(ctx, "SELECT MAX(track_number) FROM playlist_items WHERE playlist_id = ?", playlistID).
 				Scan(&maxTrack)
 
 			trackNum := req.TrackNumber
@@ -1042,17 +1251,21 @@ func (c *ServeCmd) handlePostPlaylistItem(w http.ResponseWriter, r *http.Request
 				}
 			}
 
-			return queries.AddPlaylistItem(ctx, database.AddPlaylistItemParams{
+			if err = queries.AddPlaylistItem(ctx, database.AddPlaylistItemParams{
 				PlaylistID:  playlistID,
 				MediaPath:   req.MediaPath,
 				TrackNumber: sql.NullInt64{Int64: trackNum, Valid: true},
-			})
-		})
-		if err != nil {
-			models.Log.Error("Failed to insert playlist item", "db", dbPath, "title", req.PlaylistTitle, "error", err)
-		}
-	}
-	w.WriteHeader(http.StatusOK)
+			}); err != nil {
+				_ = tx.Rollback()
+				return 0, err
+			}
+			if err = tx.Commit(); err != nil {
+				return 0, err
+			}
+			return 1, nil
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 }
 
 func (c *ServeCmd) handleDeletePlaylistItem(w http.ResponseWriter, r *http.Request) {
@@ -1070,12 +1283,18 @@ func (c *ServeCmd) handleDeletePlaylistItem(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	for _, dbPath := range c.Databases {
-		err := c.execDB(r.Context(), dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			queries := database.New(sqlDB)
+	affected, succeeded, failed, errs := c.execWriteAcrossDBs(
+		r.Context(),
+		func(ctx context.Context, sqlDB *sql.DB) (int64, error) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			if err != nil {
+				return 0, err
+			}
+			queries := database.New(tx)
 			pls, err := queries.GetPlaylists(ctx)
 			if err != nil {
-				return err
+				_ = tx.Rollback()
+				return 0, err
 			}
 
 			var playlistID int64 = -1
@@ -1087,29 +1306,24 @@ func (c *ServeCmd) handleDeletePlaylistItem(w http.ResponseWriter, r *http.Reque
 			}
 
 			if playlistID == -1 {
-				return nil
+				_ = tx.Rollback()
+				return 0, nil
 			}
 
-			return queries.RemovePlaylistItem(ctx, database.RemovePlaylistItemParams{
+			if err = queries.RemovePlaylistItem(ctx, database.RemovePlaylistItemParams{
 				PlaylistID: playlistID,
 				MediaPath:  req.MediaPath,
-			})
-		})
-		if err != nil {
-			models.Log.Error(
-				"Failed to delete playlist item",
-				"db",
-				dbPath,
-				"title",
-				req.PlaylistTitle,
-				"path",
-				req.MediaPath,
-				"error",
-				err,
-			)
-		}
-	}
-	w.WriteHeader(http.StatusOK)
+			}); err != nil {
+				_ = tx.Rollback()
+				return 0, err
+			}
+			if err = tx.Commit(); err != nil {
+				return 0, err
+			}
+			return 1, nil
+		},
+	)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 }
 
 func (c *ServeCmd) HandlePlaylistItems(w http.ResponseWriter, r *http.Request) {

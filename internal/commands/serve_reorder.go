@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -138,21 +139,67 @@ func (c *ServeCmd) reorderItems(allItems []playlistItem, mediaPath string, newIn
 	return finalItems, nil
 }
 
-func (c *ServeCmd) updateTrackNumbers(ctx context.Context, items []playlistItem) {
-	for i, item := range items {
-		newTrackNum := int64(i + 1)
-		err := c.execDB(ctx, item.DBPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			queries := database.New(sqlDB)
-			return queries.AddPlaylistItem(ctx, database.AddPlaylistItemParams{
-				PlaylistID:  item.PlaylistID,
-				MediaPath:   item.MediaPath,
-				TrackNumber: sql.NullInt64{Int64: newTrackNum, Valid: true},
-			})
+func (c *ServeCmd) updateTrackNumbers(ctx context.Context, items []playlistItem) (
+	affected int64, succeeded, failed int, errs []string,
+) {
+	// Group by database so each database gets one transaction.
+	type dbGroup struct {
+		items []playlistItem
+	}
+	groups := make(map[string]*dbGroup)
+	for _, item := range items {
+		group := groups[item.DBPath]
+		if group == nil {
+			group = &dbGroup{}
+			groups[item.DBPath] = group
+		}
+		group.items = append(group.items, item)
+	}
+
+	for dbPath, group := range groups {
+		expected := int64(len(group.items))
+		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			if err != nil {
+				return err
+			}
+			for _, item := range group.items {
+				res, err := tx.ExecContext(
+					ctx,
+					"UPDATE playlist_items SET track_number = ? WHERE playlist_id = ? AND media_path = ?",
+					item.TrackNumber,
+					item.PlaylistID,
+					item.MediaPath,
+				)
+				if err != nil {
+					_ = tx.Rollback()
+					return err
+				}
+				rows, err := res.RowsAffected()
+				if err != nil {
+					_ = tx.Rollback()
+					return err
+				}
+				if rows != 1 {
+					_ = tx.Rollback()
+					return fmt.Errorf("expected 1 track update for %s, got %d", item.MediaPath, rows)
+				}
+			}
+			if err = tx.Commit(); err != nil {
+				return err
+			}
+			affected += expected
+			return nil
 		})
 		if err != nil {
-			models.Log.Error("Failed to update track number", "db", item.DBPath, "path", item.MediaPath, "error", err)
+			failed++
+			errs = append(errs, fmt.Sprintf("%s: %v", dbPath, err))
+			models.Log.Error("Failed to update track numbers", "db", dbPath, "error", err)
+			continue
 		}
+		succeeded++
 	}
+	return affected, succeeded, failed, errs
 }
 
 func (c *ServeCmd) HandlePlaylistReorder(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +241,11 @@ func (c *ServeCmd) HandlePlaylistReorder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	c.updateTrackNumbers(r.Context(), finalItems)
-	w.WriteHeader(http.StatusOK)
+	// Assign the new global positions before grouping by database.
+	for i := range finalItems {
+		finalItems[i].TrackNumber = int64(i + 1)
+	}
+
+	affected, succeeded, failed, errs := c.updateTrackNumbers(r.Context(), finalItems)
+	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
 }
