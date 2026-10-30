@@ -53,10 +53,8 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 			MediaFilterFlags: models.MediaFilterFlags{
 				Ext: []string{".mp4"},
 			},
-			DisplayFlags: models.DisplayFlags{
-				JSON: true,
-			},
-			Args: []string{dbPath},
+			DisplayFlags: models.DisplayFlags{JSON: true},
+			Args:         []string{dbPath},
 		}
 		cmd.AfterApply()
 
@@ -93,10 +91,8 @@ func TestComplexFilteringAndAggregation(t *testing.T) {
 				SortBy:  "size",
 				Reverse: true,
 			},
-			DisplayFlags: models.DisplayFlags{
-				JSON: true,
-			},
-			Args: []string{dbPath},
+			DisplayFlags: models.DisplayFlags{JSON: true},
+			Args:         []string{dbPath},
 		}
 		cmd.AfterApply()
 
@@ -133,9 +129,7 @@ func TestClusterSort(t *testing.T) {
 
 	t.Run("BasicClustering", func(t *testing.T) {
 		cmd := &commands.ClusterSortCmd{
-			SimilarityFlags: models.SimilarityFlags{
-				PrintGroups: true,
-			},
+			JSON:      true,
 			InputPath: "-",
 		}
 
@@ -186,11 +180,9 @@ func TestStatsWithFrequency(t *testing.T) {
 
 	cmd := &commands.StatsCmd{
 		Facet:     "watched",
+		Frequency: "daily",
 		Databases: []string{dbPath},
-		DisplayFlags: models.DisplayFlags{
-			Frequency: "daily",
-			JSON:      true,
-		},
+		JSON:      true,
 	}
 
 	oldStdout := os.Stdout

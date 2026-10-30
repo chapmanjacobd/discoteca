@@ -851,6 +851,7 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 		rand.Shuffle(len(media), func(i, j int) {
 			media[i], media[j] = media[j], media[i]
 		})
+		applyReRank(media, sb.Flags)
 		return
 	}
 
@@ -861,6 +862,7 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 
 	if sb.Flags.NoPlayInOrder {
 		sb.sortByConfig(media, sortBy, sb.Flags.Reverse)
+		applyReRank(media, sb.Flags)
 		return
 	}
 
@@ -870,15 +872,18 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 			config = sb.Flags.PlayInOrder
 		}
 		sb.sortAdvancedWithReverse(media, config, sb.Flags.Reverse)
+		applyReRank(media, sb.Flags)
 		return
 	}
 
 	sb.sortByConfig(media, sortBy, sb.Flags.Reverse)
+	applyReRank(media, sb.Flags)
 }
 
 // SortBasic sorts by the configured SortBy using the unified sort contract.
 func (sb *SortBuilder) SortBasic(media []models.MediaWithDB) {
 	sb.sortByConfig(media, sb.Flags.SortBy, sb.Flags.Reverse)
+	applyReRank(media, sb.Flags)
 }
 
 func (sb *SortBuilder) sortByConfig(media []models.MediaWithDB, config string, reverse bool) {
@@ -1369,6 +1374,7 @@ func CompareSortFields(media []models.MediaWithDB, i, j int, sortFields []SortFi
 
 func (sb *SortBuilder) SortAdvanced(media []models.MediaWithDB, config string) {
 	sb.sortAdvancedWithReverse(media, config, false)
+	applyReRank(media, sb.Flags)
 }
 
 func (sb *SortBuilder) sortAdvancedWithReverse(media []models.MediaWithDB, config string, reverse bool) {

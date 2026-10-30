@@ -22,7 +22,9 @@ func TestDiskUsageCmd_Run(t *testing.T) {
 
 	t.Run("DefaultDU", func(t *testing.T) {
 		cmd := &commands.DiskUsageCmd{
-			Args: []string{fixture.DBPath},
+			PrintCmd: commands.PrintCmd{
+				Args: []string{fixture.DBPath},
+			},
 		}
 		cmd.AfterApply()
 		if err := cmd.Run(context.Background()); err != nil {

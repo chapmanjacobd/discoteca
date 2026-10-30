@@ -17,6 +17,7 @@ import (
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/shellquote"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
@@ -29,8 +30,9 @@ type DedupeCmd struct {
 	models.TimeFilterFlags  `embed:""`
 	models.DeletedFlags     `embed:""`
 	models.DedupeFlags      `embed:""`
-	models.PostActionFlags  `embed:""`
 	models.HashingFlags     `embed:""`
+
+	Trash bool `help:"Trash duplicates instead of deleting them" group:"PostAction"`
 
 	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
 }
@@ -41,11 +43,44 @@ type DedupeDuplicate struct {
 	DuplicateSize int64
 }
 
+// dedupeFilter is the SQL predicate shared by every candidate query so filters
+// are honoured while rows are selected, not after the work is done.
+type dedupeFilter struct {
+	where string
+	args  []any
+}
+
+func buildDedupeFilter(ctx context.Context, flags models.GlobalFlags) dedupeFilter {
+	clauses, args := query.NewFilterBuilder(flags).BuildWhereClauses(ctx)
+	return dedupeFilter{where: strings.Join(clauses, " AND "), args: args}
+}
+
+func (f dedupeFilter) appendTo(where string, args []any) (string, []any) {
+	// The filter predicate is always placed first so its arguments come first.
+	combinedArgs := make([]any, 0, len(f.args)+len(args))
+	combinedArgs = append(combinedArgs, f.args...)
+	combinedArgs = append(combinedArgs, args...)
+
+	if f.where == "" {
+		return where, args
+	}
+	if where == "" {
+		return f.where, combinedArgs
+	}
+	return f.where + " AND " + where, combinedArgs
+}
+
 func (c *DedupeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
 	if err := c.runMigrations(ctx); err != nil {
 		return err
+	}
+
+	// Dedupe only considers live rows unless the caller explicitly asks for a
+	// different deleted-row policy.
+	if !c.OnlyDeleted && !c.HideDeleted {
+		c.HideDeleted = true
 	}
 
 	flags := models.GlobalFlags{
@@ -56,11 +91,11 @@ func (c *DedupeCmd) Run(ctx context.Context) error {
 		TimeFilterFlags:  c.TimeFilterFlags,
 		DeletedFlags:     c.DeletedFlags,
 		DedupeFlags:      c.DedupeFlags,
-		PostActionFlags:  c.PostActionFlags,
 		HashingFlags:     c.HashingFlags,
 	}
 
-	duplicates, err := c.collectDuplicates(ctx, flags)
+	filter := buildDedupeFilter(ctx, flags)
+	duplicates, err := c.collectDuplicates(ctx, flags, filter)
 	if err != nil {
 		return err
 	}
@@ -123,21 +158,25 @@ func (c *DedupeCmd) runMigrations(ctx context.Context) error {
 	return nil
 }
 
-func (c *DedupeCmd) collectDuplicates(ctx context.Context, flags models.GlobalFlags) ([]DedupeDuplicate, error) {
+func (c *DedupeCmd) collectDuplicates(
+	ctx context.Context,
+	flags models.GlobalFlags,
+	filter dedupeFilter,
+) ([]DedupeDuplicate, error) {
 	var duplicates []DedupeDuplicate
 	for _, dbPath := range c.Databases {
 		var dbDups []DedupeDuplicate
 		var err error
 		if c.Audio {
-			dbDups, err = c.getMusicDuplicates(ctx, dbPath)
+			dbDups, err = c.getMusicDuplicates(ctx, dbPath, filter)
 		} else if c.ExtractorID {
-			dbDups, err = c.getIDDuplicates(ctx, dbPath)
+			dbDups, err = c.getIDDuplicates(ctx, dbPath, filter)
 		} else if c.TitleOnly {
-			dbDups, err = c.getTitleDuplicates(ctx, dbPath)
+			dbDups, err = c.getTitleDuplicates(ctx, dbPath, filter)
 		} else if c.DurationOnly {
-			dbDups, err = c.getDurationDuplicates(ctx, dbPath)
+			dbDups, err = c.getDurationDuplicates(ctx, dbPath, filter)
 		} else if c.Filesystem {
-			dbDups, err = c.getFSDuplicates(ctx, dbPath, flags)
+			dbDups, err = c.getFSDuplicates(ctx, dbPath, flags, filter)
 		} else {
 			return nil, errors.New("profile not set. Use --audio, --id, --title, --duration, or --fs")
 		}
@@ -157,6 +196,10 @@ func (c *DedupeCmd) filterDuplicates(duplicates []DedupeDuplicate) []DedupeDupli
 
 	for _, d := range duplicates {
 		if seenDuplicates[d.DuplicatePath] || d.KeepPath == d.DuplicatePath {
+			continue
+		}
+
+		if c.CompareDirs && filepath.Dir(d.KeepPath) != filepath.Dir(d.DuplicatePath) {
 			continue
 		}
 
@@ -184,6 +227,9 @@ func (c *DedupeCmd) filterDuplicates(duplicates []DedupeDuplicate) []DedupeDupli
 
 		// Check if keep path still exists
 		if !utils.FileExists(d.KeepPath) {
+			continue
+		}
+		if c.Exists && !utils.FileExists(d.DuplicatePath) {
 			continue
 		}
 
@@ -257,7 +303,7 @@ func (c *DedupeCmd) removeDuplicate(
 		if err := exec.CommandContext(ctx, "bash", "-c", cmdStr+" "+quotedDup+" "+quotedKeep).Run(); err != nil {
 			return err
 		}
-	case flags.Trash:
+	case c.Trash:
 		if err := utils.Trash(ctx, flags, d.DuplicatePath); err != nil {
 			return err
 		}
@@ -367,6 +413,7 @@ func (c *DedupeCmd) updateDatabase(
 func (c *DedupeCmd) getDuplicatesBy(
 	ctx context.Context,
 	dbPath, groupByCols, whereClause string,
+	filter dedupeFilter,
 ) ([]DedupeDuplicate, error) {
 	sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
@@ -374,19 +421,17 @@ func (c *DedupeCmd) getDuplicatesBy(
 	}
 	defer sqlDB.Close()
 
-	if whereClause != "" {
-		whereClause = " AND " + whereClause
-	}
+	where, args := filter.appendTo(whereClause, nil)
 
 	queryStr := fmt.Sprintf(`
 		SELECT %s, COUNT(*) as count
 		FROM media
-		WHERE COALESCE(time_deleted, 0) = 0 %s
+		WHERE %s
 		GROUP BY %s
 		HAVING count > 1
-	`, groupByCols, whereClause, groupByCols)
+	`, groupByCols, where, groupByCols)
 
-	rows, err := sqlDB.QueryContext(ctx, queryStr)
+	rows, err := sqlDB.QueryContext(ctx, queryStr, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +448,7 @@ func (c *DedupeCmd) getDuplicatesBy(
 			return nil, err
 		}
 
-		groupDups, err := c.processDuplicateGroup(ctx, sqlDB, cols, values)
+		groupDups, err := c.processDuplicateGroup(ctx, sqlDB, cols, values, filter)
 		if err != nil {
 			return nil, err
 		}
@@ -426,22 +471,24 @@ func (c *DedupeCmd) processDuplicateGroup(
 	sqlDB *sql.DB,
 	cols []string,
 	values []any,
+	filter dedupeFilter,
 ) ([]DedupeDuplicate, error) {
 	whereParts := make([]string, len(cols))
-	args := make([]any, len(cols))
+	args := make([]any, 0, len(cols)+len(filter.args))
 	for i, col := range cols {
 		whereParts[i] = strings.TrimSpace(col) + " = ?"
 		if val, ok := values[i].(*any); ok {
-			args[i] = *val
+			args = append(args, *val)
 		}
 	}
+	where, args := filter.appendTo(strings.Join(whereParts, " AND "), args)
 
 	groupQuery := fmt.Sprintf(`
-		SELECT path, size, duration
+		SELECT path, COALESCE(size, 0), COALESCE(duration, 0)
 		FROM media
-		WHERE %s AND COALESCE(time_deleted, 0) = 0
+		WHERE %s
 		ORDER BY COALESCE(is_deduped, 0) DESC, size DESC, time_modified DESC
-	`, strings.Join(whereParts, " AND "))
+	`, where)
 
 	gRows, err := sqlDB.QueryContext(ctx, groupQuery, args...)
 	if err != nil {
@@ -480,26 +527,43 @@ func (c *DedupeCmd) processDuplicateGroup(
 	return dups, nil
 }
 
-func (c *DedupeCmd) getMusicDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(ctx, dbPath, "title, artist, album", "title != '' AND artist != ''")
+func (c *DedupeCmd) getMusicDuplicates(
+	ctx context.Context,
+	dbPath string,
+	filter dedupeFilter,
+) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "title, artist, album", "title != '' AND artist != ''", filter)
 }
 
-func (c *DedupeCmd) getIDDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(ctx, dbPath, "webpath", "webpath != ''")
+func (c *DedupeCmd) getIDDuplicates(
+	ctx context.Context,
+	dbPath string,
+	filter dedupeFilter,
+) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "webpath", "webpath != ''", filter)
 }
 
-func (c *DedupeCmd) getTitleDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(ctx, dbPath, "title", "title != ''")
+func (c *DedupeCmd) getTitleDuplicates(
+	ctx context.Context,
+	dbPath string,
+	filter dedupeFilter,
+) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "title", "title != ''", filter)
 }
 
-func (c *DedupeCmd) getDurationDuplicates(ctx context.Context, dbPath string) ([]DedupeDuplicate, error) {
-	return c.getDuplicatesBy(ctx, dbPath, "duration", "duration > 0")
+func (c *DedupeCmd) getDurationDuplicates(
+	ctx context.Context,
+	dbPath string,
+	filter dedupeFilter,
+) ([]DedupeDuplicate, error) {
+	return c.getDuplicatesBy(ctx, dbPath, "duration", "duration > 0", filter)
 }
 
 func (c *DedupeCmd) getFSDuplicates(
 	ctx context.Context,
 	dbPath string,
 	flags models.GlobalFlags,
+	filter dedupeFilter,
 ) ([]DedupeDuplicate, error) {
 	sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
@@ -507,15 +571,17 @@ func (c *DedupeCmd) getFSDuplicates(
 	}
 	defer sqlDB.Close()
 
+	where, args := filter.appendTo("size > 0", nil)
+
 	// 1. Group by size in SQL
-	query := `
+	queryStr := fmt.Sprintf(`
 		SELECT size, COUNT(*) as count
 		FROM media
-		WHERE COALESCE(time_deleted, 0) = 0 AND size > 0
+		WHERE %s
 		GROUP BY size
 		HAVING count > 1
-	`
-	rows, err := sqlDB.QueryContext(ctx, query)
+	`, where)
+	rows, err := sqlDB.QueryContext(ctx, queryStr, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -530,7 +596,7 @@ func (c *DedupeCmd) getFSDuplicates(
 		}
 		models.Log.Debug("Found potential duplicates by size", "size", size, "count", count)
 
-		groupDups := c.processFSSizeGroup(ctx, sqlDB, size, flags)
+		groupDups := c.processFSSizeGroup(ctx, sqlDB, size, flags, filter)
 		dups = append(dups, groupDups...)
 	}
 	if err := rows.Err(); err != nil {
@@ -552,11 +618,14 @@ func (c *DedupeCmd) processFSSizeGroup(
 	sqlDB *sql.DB,
 	size int64,
 	flags models.GlobalFlags,
+	filter dedupeFilter,
 ) []DedupeDuplicate {
+	where, args := filter.appendTo("size = ?", []any{size})
 	gRows, err := sqlDB.QueryContext(
 		ctx,
-		"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) FROM media WHERE size = ? AND COALESCE(time_deleted, 0) = 0",
-		size,
+		"SELECT path, COALESCE(fasthash, ''), COALESCE(sha256, ''), COALESCE(is_deduped, 0) "+
+			"FROM media WHERE "+where,
+		args...,
 	)
 	if err != nil {
 		return nil // continue

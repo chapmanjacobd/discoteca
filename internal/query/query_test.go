@@ -579,3 +579,16 @@ func TestOverrideSort(t *testing.T) {
 		t.Errorf("OverrideSort failed: %s", got)
 	}
 }
+
+func TestSortHistory_PartialStartedOnly(t *testing.T) {
+	started := int64(1000)
+	media := []models.MediaWithDB{
+		{Media: models.Media{Path: "started", TimeFirstPlayed: &started}},
+		{Media: models.Media{Path: "unstarted"}},
+	}
+
+	got := query.SortHistory(media, "s", false)
+	if len(got) != 1 || got[0].Path != "unstarted" {
+		t.Errorf("partial 's' filter returned %v", got)
+	}
+}

@@ -30,7 +30,7 @@ func TestRegexSortCmd_Run(t *testing.T) {
 	t.Run("LineSortDup", func(t *testing.T) {
 		var out strings.Builder
 		cmd := &commands.RegexSortCmd{
-			TextFlags: models.TextFlags{
+			TextProcessingFlags: models.TextProcessingFlags{
 				LineSorts: []string{"dup", "natural"},
 			},
 			Reader: strings.NewReader(input),

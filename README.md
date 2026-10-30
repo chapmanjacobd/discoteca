@@ -12,6 +12,18 @@ disco add library.db ./video --scan-subtitles
 disco serve library.db
 ```
 
+## CLI changes
+
+- `--timeout`, `--threads`, and `--ignore-errors` were removed; they were accepted but never applied.
+- `--frequency` is only exposed by `stats`. `--facet` requires `--frequency`.
+- `print` and `du` now scan files and directories passed on the command line.
+- `check` applies path/media filters to database rows before marking files deleted; scan roots are still walked fully.
+- `dedupe` applies path/search/time/deleted/media filters while selecting candidates and only supports `--trash` as a post-action.
+- `add` only exposes filters that can be evaluated before a row exists: path, size, and extension.
+- `merge-dbs` applies `--where` to `media` only; use `--where-table TABLE=CLAUSE` for other tables.
+- `similar-files` and `similar-folders` no longer expose sort flags; `cluster-sort` emits JSON with `--json`.
+- Unknown `--columns` values are rejected instead of printing blank cells.
+
 ## Screenshots
 
 ### Grid View

@@ -24,7 +24,7 @@ import (
 type AddCmd struct {
 	models.CoreFlags        `embed:""`
 	models.PathFilterFlags  `embed:""`
-	models.FilterFlags      `embed:""`
+	models.AddFilterFlags   `embed:""`
 	models.MediaFilterFlags `embed:""`
 
 	Args                    []string `help:"Database file followed by paths to scan"                                  required:"true" name:"args" arg:""`
@@ -648,7 +648,6 @@ func (c *AddCmd) Run(ctx context.Context) error {
 	flags := models.GlobalFlags{
 		CoreFlags:        c.CoreFlags,
 		PathFilterFlags:  c.PathFilterFlags,
-		FilterFlags:      c.FilterFlags,
 		MediaFilterFlags: c.MediaFilterFlags,
 	}
 

@@ -89,7 +89,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
-			MediaFilterFlags: models.MediaFilterFlags{
+			CaptionFilterFlags: models.CaptionFilterFlags{
 				VideoOnly: true,
 			},
 		}
@@ -103,7 +103,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
-			MediaFilterFlags: models.MediaFilterFlags{
+			CaptionFilterFlags: models.CaptionFilterFlags{
 				AudioOnly: true,
 			},
 		}
@@ -117,7 +117,7 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 		cmd := &commands.SearchCaptionsCmd{
 			Database: dbPath,
 			Search:   []string{"world"},
-			MediaFilterFlags: models.MediaFilterFlags{
+			CaptionFilterFlags: models.CaptionFilterFlags{
 				ImageOnly: true,
 			},
 		}

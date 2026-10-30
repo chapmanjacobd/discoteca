@@ -16,7 +16,6 @@ type SimilarFilesCmd struct {
 	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
 	models.TimeFilterFlags  `embed:""`
-	models.SortFlags        `embed:""`
 	models.DisplayFlags     `embed:""`
 	models.SimilarityFlags  `embed:""`
 
@@ -29,7 +28,6 @@ type SimilarFoldersCmd struct {
 	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
 	models.TimeFilterFlags  `embed:""`
-	models.SortFlags        `embed:""`
 	models.DisplayFlags     `embed:""`
 	models.SimilarityFlags  `embed:""`
 
@@ -43,7 +41,6 @@ func (c *SimilarFilesCmd) Run(ctx context.Context) error {
 		FilterFlags:      c.FilterFlags,
 		MediaFilterFlags: c.MediaFilterFlags,
 		TimeFilterFlags:  c.TimeFilterFlags,
-		SortFlags:        c.SortFlags,
 		DisplayFlags:     c.DisplayFlags,
 		SimilarityFlags:  c.SimilarityFlags,
 	}
@@ -57,7 +54,6 @@ func (c *SimilarFoldersCmd) Run(ctx context.Context) error {
 		FilterFlags:      c.FilterFlags,
 		MediaFilterFlags: c.MediaFilterFlags,
 		TimeFilterFlags:  c.TimeFilterFlags,
-		SortFlags:        c.SortFlags,
 		DisplayFlags:     c.DisplayFlags,
 		SimilarityFlags:  c.SimilarityFlags,
 	}

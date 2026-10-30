@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,9 +13,8 @@ import (
 )
 
 type MergeDBsCmd struct {
-	models.CoreFlags   `embed:""`
-	models.FilterFlags `embed:""`
-	models.MergeFlags  `embed:""`
+	models.CoreFlags  `embed:""`
+	models.MergeFlags `embed:""`
 
 	TargetDB  string   `help:"Target SQLite database file"  required:"true" arg:""`
 	SourceDBs []string `help:"Source SQLite database files" required:"true" arg:"" type:"existingfile"`
@@ -22,30 +22,45 @@ type MergeDBsCmd struct {
 
 func (c *MergeDBsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-
-	targetConn, err := db.Connect(ctx, c.TargetDB)
-	if err != nil {
-		return fmt.Errorf("failed to connect to target DB %s: %w", c.TargetDB, err)
+	if err := c.MergeFlags.AfterApply(); err != nil {
+		return err
 	}
-	defer targetConn.Close()
-
-	// Ensure target schema is initialized (if it's a new file)
-	if err := db.InitDB(ctx, targetConn); err != nil {
-		models.Log.Warn(
-			"Target DB initialization might have partially failed or it was already initialized",
-			"error",
-			err,
-		)
+	if len(c.WhereMedia) > 0 && c.Simulate {
+		models.Log.Info("Simulating merge with --where applied to the media table only")
 	}
 
-	for _, srcPath := range c.SourceDBs {
-		models.Log.Info("Merging database", "src", srcPath)
-		if err := c.mergeDatabase(ctx, srcPath, targetConn); err != nil {
-			return err
+	var (
+		targetConn *sql.DB
+		err        error
+	)
+	if c.Simulate {
+		models.Log.Info("Simulating merge; target database will not be modified", "target", c.TargetDB)
+	} else {
+		targetConn, err = db.Connect(ctx, c.TargetDB)
+		if err != nil {
+			return fmt.Errorf("failed to connect to target DB %s: %w", c.TargetDB, err)
+		}
+		defer targetConn.Close()
+
+		// Ensure target schema is initialized (if it's a new file)
+		if err := db.InitDB(ctx, targetConn); err != nil {
+			models.Log.Warn(
+				"Target DB initialization might have partially failed or it was already initialized",
+				"error",
+				err,
+			)
 		}
 	}
 
-	return nil
+	var failures []error
+	for _, srcPath := range c.SourceDBs {
+		models.Log.Info("Merging database", "src", srcPath)
+		if err := c.mergeDatabase(ctx, srcPath, targetConn); err != nil {
+			failures = append(failures, fmt.Errorf("%s: %w", srcPath, err))
+		}
+	}
+
+	return errors.Join(failures...)
 }
 
 func (c *MergeDBsCmd) mergeDatabase(ctx context.Context, srcPath string, targetConn *sql.DB) error {
@@ -59,7 +74,11 @@ func (c *MergeDBsCmd) mergeDatabase(ctx context.Context, srcPath string, targetC
 	if err != nil {
 		return err
 	}
+	if err := c.validateWhereTables(tables); err != nil {
+		return err
+	}
 
+	var failures []error
 	for _, table := range tables {
 		if !c.shouldProcessTable(table) {
 			continue
@@ -67,10 +86,19 @@ func (c *MergeDBsCmd) mergeDatabase(ctx context.Context, srcPath string, targetC
 		models.Log.Info("Merging table", "table", table)
 		if err := c.mergeTable(ctx, srcConn, targetConn, table); err != nil {
 			models.Log.Error("Failed to merge table", "table", table, "error", err)
-			continue
+			failures = append(failures, fmt.Errorf("table %s: %w", table, err))
 		}
 	}
 
+	return errors.Join(failures...)
+}
+
+func (c *MergeDBsCmd) validateWhereTables(tables []string) error {
+	for _, table := range c.WhereTableNames() {
+		if !slices.Contains(tables, table) {
+			return fmt.Errorf("--where-table references %q, which is not a table in the source database", table)
+		}
+	}
 	return nil
 }
 
@@ -111,18 +139,35 @@ func (c *MergeDBsCmd) mergeTable(ctx context.Context, srcConn, targetConn *sql.D
 		return err
 	}
 
+	if c.Simulate {
+		selectedCols := c.selectColumns(srcCols, nil)
+		if len(selectedCols) == 0 {
+			return fmt.Errorf("no columns selected for table %s", table)
+		}
+		return c.copyRows(ctx, copyRowsParams{
+			srcConn:      srcConn,
+			table:        table,
+			selectedCols: selectedCols,
+		})
+	}
+
 	targetCols, err := c.getTableColumns(ctx, targetConn, table)
-	if err != nil && c.OnlyTargetColumns {
+	if err != nil {
+		return err
+	}
+	if len(targetCols) == 0 {
 		return fmt.Errorf("table %s does not exist in target", table)
 	}
 
 	selectedCols := c.selectColumns(srcCols, targetCols)
 	if len(selectedCols) == 0 {
-		models.Log.Warn("No columns selected for table", "table", table)
-		return nil
+		return fmt.Errorf("no columns selected for table %s (source and target schemas do not overlap)", table)
 	}
 
-	insertQuery := c.buildInsertQuery(ctx, targetConn, table, selectedCols)
+	insertQuery, err := c.buildInsertQuery(ctx, targetConn, table, selectedCols)
+	if err != nil {
+		return err
+	}
 
 	return c.copyRows(ctx, copyRowsParams{
 		srcConn:      srcConn,
@@ -182,17 +227,28 @@ func (c *MergeDBsCmd) buildInsertQuery(
 	targetConn *sql.DB,
 	table string,
 	selectedCols []string,
-) string {
+) (string, error) {
 	pks := c.resolvePrimaryKeys(ctx, targetConn, table)
 	baseQuery := c.buildBaseInsert(table, selectedCols)
 
-	if c.Upsert && len(pks) > 0 {
-		if upsertQuery := c.buildUpsertQuery(table, selectedCols, pks); upsertQuery != "" {
-			return upsertQuery
-		}
+	if !c.Upsert {
+		return baseQuery, nil
 	}
 
-	return baseQuery
+	if len(pks) == 0 {
+		return "", fmt.Errorf(
+			"--upsert requires a primary key for table %s; pass --primary-key or --business-key",
+			table,
+		)
+	}
+	upsertQuery := c.buildUpsertQuery(table, selectedCols, pks)
+	if upsertQuery == "" {
+		return "", fmt.Errorf(
+			"--upsert cannot build a conflict clause for table %s: primary key columns %v are not all in the selected columns %v",
+			table, pks, selectedCols,
+		)
+	}
+	return upsertQuery, nil
 }
 
 func (c *MergeDBsCmd) resolvePrimaryKeys(ctx context.Context, targetConn *sql.DB, table string) []string {
@@ -261,9 +317,9 @@ type copyRowsParams struct {
 }
 
 func (c *MergeDBsCmd) copyRows(ctx context.Context, p copyRowsParams) error {
-	whereClause := ""
-	if len(c.Where) > 0 {
-		whereClause = " WHERE " + strings.Join(c.Where, " AND ")
+	whereClause := c.WhereForTable(p.table, c.WhereMedia)
+	if whereClause != "" {
+		whereClause = " WHERE " + whereClause
 	}
 	selectQuery := fmt.Sprintf("SELECT %s FROM %s%s", strings.Join(p.selectedCols, ", "), p.table, whereClause)
 
@@ -272,6 +328,18 @@ func (c *MergeDBsCmd) copyRows(ctx context.Context, p copyRowsParams) error {
 		return fmt.Errorf("failed to select from source: %w", err)
 	}
 	defer rows.Close()
+
+	if c.Simulate {
+		count := 0
+		for rows.Next() {
+			count++
+		}
+		if err = rows.Err(); err != nil {
+			return err
+		}
+		models.Log.Info("Simulated merge", "table", p.table, "rows", count, "where", whereClause)
+		return nil
+	}
 
 	tx, err := p.targetConn.BeginTx(ctx, nil)
 	if err != nil {

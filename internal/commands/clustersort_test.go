@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
-	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
 func TestClusterSortCmd_Run(t *testing.T) {
@@ -61,9 +60,7 @@ path/to/video3.mp4
 
 		cmd := &commands.ClusterSortCmd{
 			InputPath: tmpFile.Name(),
-			SimilarityFlags: models.SimilarityFlags{
-				PrintGroups: true,
-			},
+			JSON:      true,
 		}
 		// This will write to os.Stdout
 		if err := cmd.Run(context.Background()); err != nil {

@@ -13,21 +13,17 @@ import (
 )
 
 type ClusterSortCmd struct {
-	models.CoreFlags       `embed:""`
-	models.SimilarityFlags `embed:""`
-	models.TextFlags       `embed:""`
+	models.CoreFlags            `embed:""`
+	models.DuplicateFilterFlags `embed:""`
 
 	InputPath  string `help:"Input file path (default stdin)"   default:"-" arg:"" optional:""`
 	OutputPath string `help:"Output file path (default stdout)"`
+	Clusters   int    `help:"Number of clusters (default: sqrt(number of lines))"`
+	JSON       bool   `help:"Output results as JSON"                                 short:"j"`
 }
 
 func (c *ClusterSortCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
-	flags := models.GlobalFlags{
-		CoreFlags:       c.CoreFlags,
-		SimilarityFlags: c.SimilarityFlags,
-		TextFlags:       c.TextFlags,
-	}
 
 	var lines []string
 	var scanner *bufio.Scanner
@@ -54,7 +50,7 @@ func (c *ClusterSortCmd) Run(ctx context.Context) error {
 		return nil
 	}
 
-	groups := aggregate.ClusterPaths(flags, lines)
+	groups := aggregate.ClusterPaths(lines, c.Clusters)
 
 	if c.Duplicates != nil && *c.Duplicates {
 		groups = aggregate.FilterNearDuplicates(groups)
@@ -72,7 +68,7 @@ func (c *ClusterSortCmd) Run(ctx context.Context) error {
 		groups = filtered
 	}
 
-	if c.PrintGroups {
+	if c.JSON {
 		return utils.PrintJSON(groups)
 	}
 

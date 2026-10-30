@@ -28,7 +28,6 @@ type ReadmeCmd struct {
 	models.MpvActionFlags   `embed:""`
 	models.PostActionFlags  `embed:""`
 	models.HashingFlags     `embed:""`
-	models.MergeFlags       `embed:""`
 	models.DatabaseFlags    `embed:""`
 }
 
@@ -58,6 +57,16 @@ func writeIntro(sb *strings.Builder) {
 	sb.WriteString("disco add library.db ./video --scan-subtitles\n")
 	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
+	sb.WriteString("## CLI changes\n\n")
+	sb.WriteString("- `--timeout`, `--threads`, and `--ignore-errors` were removed; they were accepted but never applied.\n")
+	sb.WriteString("- `--frequency` is only exposed by `stats`. `--facet` requires `--frequency`.\n")
+	sb.WriteString("- `print` and `du` now scan files and directories passed on the command line.\n")
+	sb.WriteString("- `check` applies path/media filters to database rows before marking files deleted; scan roots are still walked fully.\n")
+	sb.WriteString("- `dedupe` applies path/search/time/deleted/media filters while selecting candidates and only supports `--trash` as a post-action.\n")
+	sb.WriteString("- `add` only exposes filters that can be evaluated before a row exists: path, size, and extension.\n")
+	sb.WriteString("- `merge-dbs` applies `--where` to `media` only; use `--where-table TABLE=CLAUSE` for other tables.\n")
+	sb.WriteString("- `similar-files` and `similar-folders` no longer expose sort flags; `cluster-sort` emits JSON with `--json`.\n")
+	sb.WriteString("- Unknown `--columns` values are rejected instead of printing blank cells.\n\n")
 }
 
 func writeScreenshots(sb *strings.Builder) {
@@ -138,15 +147,14 @@ var subcommandExamples = map[string][]string{
 	"add": {
 		"disco add my_videos.db ~/Videos",
 		"disco add --video-only my_videos.db /mnt/media",
-	},
-	"print": {
+	}, "print": {
 		"disco print my_videos.db",
 		"disco print my_videos.db -u size --reverse",
 		"disco print my_videos.db --big-dirs -u count",
 	},
 	"search": {
-		"disco search my_videos.db 'matrix'",
-		"disco search my_videos.db 'cyberpunk' --video-only",
+		"disco search my_videos.db --search matrix",
+		"disco search my_videos.db --search cyberpunk --video-only",
 	},
 	"watch": {
 		"disco watch my_videos.db",
@@ -159,7 +167,7 @@ var subcommandExamples = map[string][]string{
 	},
 	"serve": {
 		"disco serve my_videos.db my_music.db",
-		"disco serve --readonly my_videos.db",
+		"disco serve --read-only my_videos.db",
 	},
 	"disk-usage": {
 		"disco du my_videos.db",
@@ -167,11 +175,17 @@ var subcommandExamples = map[string][]string{
 	},
 	"history": {
 		"disco history my_videos.db",
-		"disco history my_videos.db --inprogress",
+		"disco history my_videos.db --in-progress",
 	},
 	"optimize": {
 		"disco optimize my_videos.db",
 	},
+}
+
+// SubcommandExamples returns the documented examples keyed by command name.
+// It exists so tests can verify that every published example parses.
+func SubcommandExamples() map[string][]string {
+	return subcommandExamples
 }
 
 func writeSubcommands(sb *strings.Builder, ctx *kong.Context) {

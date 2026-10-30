@@ -10,28 +10,38 @@ import (
 )
 
 type PlaylistsCmd struct {
-	models.CoreFlags    `embed:""`
-	models.DisplayFlags `embed:""`
+	models.CoreFlags `embed:""`
 
+	JSON      bool     `help:"Output results as JSON" short:"j"`
 	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
+}
+
+type PlaylistEntry struct {
+	Database string       `json:"database"`
+	Playlist db.Playlists `json:"playlist"`
 }
 
 func (c *PlaylistsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
+
+	var all []PlaylistEntry
 	for _, dbPath := range c.Databases {
 		sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
 		if err != nil {
 			return err
 		}
-		defer sqlDB.Close()
 
 		playlists, err := queries.GetPlaylists(ctx)
+		sqlDB.Close()
 		if err != nil {
 			return err
 		}
 
 		if c.JSON {
-			return utils.PrintJSON(playlists)
+			for _, playlist := range playlists {
+				all = append(all, PlaylistEntry{Database: dbPath, Playlist: playlist})
+			}
+			continue
 		}
 
 		fmt.Printf("Playlists in %s:\n", dbPath)
@@ -43,6 +53,10 @@ func (c *PlaylistsCmd) Run(ctx context.Context) error {
 			)
 		}
 		fmt.Println()
+	}
+
+	if c.JSON {
+		return utils.PrintJSON(all)
 	}
 	return nil
 }

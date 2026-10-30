@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/chapmanjacobd/discoteca/internal/commands"
-	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
@@ -22,7 +21,6 @@ func TestStatsCmd_Run(t *testing.T) {
 
 	t.Run("DefaultStats", func(t *testing.T) {
 		cmd := &commands.StatsCmd{
-			Facet:     "watched",
 			Databases: []string{fixture.DBPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
@@ -32,9 +30,8 @@ func TestStatsCmd_Run(t *testing.T) {
 
 	t.Run("JSONStats", func(t *testing.T) {
 		cmd := &commands.StatsCmd{
-			DisplayFlags: models.DisplayFlags{JSON: true},
-			Facet:        "watched",
-			Databases:    []string{fixture.DBPath},
+			JSON:      true,
+			Databases: []string{fixture.DBPath},
 		}
 		if err := cmd.Run(context.Background()); err != nil {
 			t.Fatalf("commands.StatsCmd failed: %v", err)

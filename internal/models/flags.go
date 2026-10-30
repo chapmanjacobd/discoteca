@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
@@ -14,12 +15,11 @@ import (
 // CoreFlags are essential flags shared across most binaries/commands
 type CoreFlags struct {
 	// Common options
-	Verbose   int    `help:"Enable verbose logging (-v for info, -vv for debug)" short:"v" env:"DISCO_VERBOSE" type:"counter"`
-	Simulate  bool   `help:"Dry run; don't actually do anything"`
-	DryRun    bool   `                                                                                                        kong:"-"` // Alias for Simulate
-	NoConfirm bool   `help:"Don't ask for confirmation"                          short:"y"`
-	Yes       bool   `                                                                                                        kong:"-"` // Alias for NoConfirm
-	Timeout   string `help:"Quit after N minutes/seconds"                        short:"T"`
+	Verbose   int  `help:"Enable verbose logging (-v for info, -vv for debug)" short:"v" env:"DISCO_VERBOSE" type:"counter"`
+	Simulate  bool `help:"Dry run; don't actually do anything"`
+	DryRun    bool `                                                                                                        kong:"-"` // Derived from Simulate
+	NoConfirm bool `help:"Don't ask for confirmation"                          short:"y"`
+	Yes       bool `                                                                                                        kong:"-"` // Derived from NoConfirm
 }
 
 type QueryFlags struct {
@@ -77,6 +77,14 @@ type MediaFilterFlags struct {
 	ProbeImages     bool     `help:"Run ffprobe on image files (default: skip)" group:"MediaFilter"`
 }
 
+// CaptionFilterFlags are the media filters that caption search can evaluate.
+type CaptionFilterFlags struct {
+	VideoOnly bool `help:"Only search video captions" group:"MediaFilter"`
+	AudioOnly bool `help:"Only search audio captions" group:"MediaFilter"`
+	ImageOnly bool `help:"Only search image captions" group:"MediaFilter"`
+	TextOnly  bool `help:"Only search text captions"  group:"MediaFilter"`
+}
+
 type TimeFilterFlags struct {
 	CreatedAfter     string `help:"Created after date (YYYY-MM-DD)"      group:"Time"`
 	CreatedBefore    string `help:"Created before date (YYYY-MM-DD)"     group:"Time"`
@@ -109,13 +117,55 @@ type SortFlags struct {
 	NatSort bool   `help:"Use natural sorting"                                                                       short:"n" group:"Sort"`
 	Random  bool   `help:"Random order"                                                                              short:"r" group:"Sort"`
 	ReRank  string `help:"Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)"                short:"k" group:"Sort" alias:"rerank"`
+
+	// SortExplicit reports whether the user chose a non-default sort. It is set
+	// by commands that otherwise rewrite the default sort.
+	SortExplicit bool `kong:"-"`
 }
 
 type DisplayFlags struct {
-	Columns   []string `help:"Columns to display"                                                  short:"c" group:"Display"`
-	JSON      bool     `help:"Output results as JSON"                                              short:"j" group:"Display"`
-	Summarize bool     `help:"Print aggregate statistics"                                                    group:"Display"`
-	Frequency string   `help:"Group statistics by time frequency (daily, weekly, monthly, yearly)" short:"f" group:"Display"`
+	Columns   []string `help:"Columns to display"                                     short:"c" group:"Display"`
+	JSON      bool     `help:"Output results as JSON"                                 short:"j" group:"Display"`
+	Summarize bool     `help:"Print aggregate statistics"                                       group:"Display"`
+}
+
+var validMediaColumns = map[string]bool{
+	"path": true, "title": true, "duration": true, "size": true,
+	"play_count": true, "playhead": true, "time_last_played": true, "db": true,
+}
+
+var validFolderColumns = map[string]bool{
+	"path": true, "count": true, "exists_count": true, "deleted_count": true,
+	"played_count": true, "size": true, "duration": true, "avg_size": true,
+	"avg_duration": true, "median_size": true, "median_duration": true, "folder_count": true,
+}
+
+// ValidateColumns returns an error when a requested display column is not
+// supported. Without this, unknown column names would silently print blank
+// cells.
+func (d DisplayFlags) ValidateColumns(folderMode bool) error {
+	valid := validMediaColumns
+	if folderMode {
+		valid = validFolderColumns
+	}
+	for _, column := range d.Columns {
+		if !valid[column] {
+			names := make([]string, 0, len(valid))
+			for name := range valid {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			return fmt.Errorf("unknown column %q; valid columns: %s", column, strings.Join(names, ", "))
+		}
+	}
+	return nil
+}
+
+// AddFilterFlags are the filters that can be applied while scanning the filesystem
+// for `add`. Database-only filters (search, playback state, dates) do not make
+// sense before a row exists, so they are intentionally not exposed here.
+type AddFilterFlags struct {
+	Size []string `help:"Size range (e.g., >100MB, 1GB%10)" group:"Filter" short:"S"`
 }
 
 type AggregateFlags struct {
@@ -139,11 +189,28 @@ type TextFlags struct {
 	Regexs     []string `help:"Regex patterns for line splitting"         alias:"re" group:"Text"`
 	WordSorts  []string `help:"Word sorting strategies"                              group:"Text"`
 	LineSorts  []string `help:"Line sorting strategies"                              group:"Text"`
-	Compat     bool     `help:"Use natsort compat mode"                              group:"Text"`
 	Preprocess bool     `help:"Remove junk common to filenames and URLs"             group:"Text" default:"true"`
 	StopWords  []string `help:"List of words to ignore"                              group:"Text"`
 	Duplicates *bool    `help:"Filter for duplicate words (true/false)"              group:"Text"`
 	UniqueOnly *bool    `help:"Filter for unique words (true/false)"                 group:"Text"`
+}
+
+// TextProcessingFlags are the text-processor options exposed by regex-sort.
+// RegexSort itself is omitted because that command always regex-sorts.
+type TextProcessingFlags struct {
+	Regexs     []string `help:"Regex patterns for line splitting"         alias:"re" group:"Text"`
+	WordSorts  []string `help:"Word sorting strategies"                              group:"Text"`
+	LineSorts  []string `help:"Line sorting strategies"                              group:"Text"`
+	Preprocess bool     `help:"Remove junk common to filenames and URLs"             group:"Text" default:"true"`
+	StopWords  []string `help:"List of words to ignore"                              group:"Text"`
+	Duplicates *bool    `help:"Filter for duplicate words (true/false)"              group:"Text"`
+	UniqueOnly *bool    `help:"Filter for unique words (true/false)"                 group:"Text"`
+}
+
+// DuplicateFilterFlags are the corpus filters used by cluster-sort.
+type DuplicateFilterFlags struct {
+	Duplicates *bool `help:"Filter for duplicate words (true/false)" group:"Text"`
+	UniqueOnly *bool `help:"Filter for unique words (true/false)"    group:"Text"`
 }
 
 type SimilarityFlags struct {
@@ -157,22 +224,18 @@ type SimilarityFlags struct {
 	FilterDurations bool    `help:"Cluster by duration similarity"               group:"Similarity"`
 	TotalSizes      bool    `help:"Compare total sizes (folders only)"           group:"Similarity"`
 	TotalDurations  bool    `help:"Compare total durations (folders only)"       group:"Similarity"`
+	NameFullPath    bool    `help:"Match folder names using full paths"          group:"Similarity"`
 	OnlyDuplicates  bool    `help:"Only show duplicate items"                    group:"Similarity"`
 	OnlyOriginals   bool    `help:"Only show original items"                     group:"Similarity"`
-	ClusterSort     bool    `help:"Group items by similarity"                    group:"Similarity"                short:"C"`
-	Clusters        int     `help:"Number of clusters"                           group:"Similarity"`
-	TFIDF           bool    `help:"Use TF-IDF for clustering"                    group:"Similarity"`
-	MoveGroups      bool    `help:"Move grouped files into separate directories" group:"Similarity"`
-	PrintGroups     bool    `help:"Print clusters as JSON"                       group:"Similarity"`
 }
 
 type DedupeFlags struct {
-	Audio              bool    `help:"Dedupe database by artist + album + title"                           group:"Dedupe"`
-	ExtractorID        bool    `help:"Dedupe database by extractor_id"                                     group:"Dedupe" alias:"id"`
-	TitleOnly          bool    `help:"Dedupe database by title"                                            group:"Dedupe"`
-	DurationOnly       bool    `help:"Dedupe database by duration"                                         group:"Dedupe"`
-	Filesystem         bool    `help:"Dedupe filesystem database (hash)"                                   group:"Dedupe" alias:"fs"`
-	CompareDirs        bool    `help:"Compare directories"                                                 group:"Dedupe"`
+	Audio              bool    `help:"Group by title + artist + album"                                     group:"Dedupe"`
+	ExtractorID        bool    `help:"Group by webpath (extractor ID)"                                     group:"Dedupe" alias:"id"`
+	TitleOnly          bool    `help:"Group by title"                                                      group:"Dedupe"`
+	DurationOnly       bool    `help:"Group by duration"                                                   group:"Dedupe"`
+	Filesystem         bool    `help:"Group by size, then sample hash, then sha256"                        group:"Dedupe" alias:"fs"`
+	CompareDirs        bool    `help:"Require matching parent directories before grouping"                 group:"Dedupe"`
 	Basename           bool    `help:"Match by basename similarity"                                        group:"Dedupe"`
 	Dirname            bool    `help:"Match by dirname similarity"                                         group:"Dedupe"`
 	MinSimilarityRatio float64 `help:"Filter out matches with less than this ratio (0.7-0.9)"              group:"Dedupe"            default:"0.8"`
@@ -257,9 +320,13 @@ type MergeFlags struct {
 	BusinessKeys      []string `help:"Comma separated business keys"                     group:"Merge"`
 	Upsert            bool     `help:"Upsert rows on conflict"                           group:"Merge"`
 	Ignore            bool     `help:"Ignore rows on conflict (only-new-rows)"           group:"Merge"`
-	OnlyNewRows       bool     `                                                                       kong:"-"` // Alias for Ignore
+	OnlyNewRows       bool     `                                                                       kong:"-"` // Derived from Ignore
 	OnlyTargetColumns bool     `help:"Only copy columns that exist in target"            group:"Merge"`
 	SkipColumns       []string `help:"Columns to skip during merge"                      group:"Merge"`
+	WhereMedia        []string `help:"SQL where clause(s) applied to the media table"   group:"Merge" short:"w" name:"where"`
+	WhereTable        []string `help:"Per-table WHERE clause TABLE=CLAUSE (repeatable)"  group:"Merge"`
+
+	whereByTable map[string]string
 }
 
 // GlobalFlags are flags available to disco data commands (print, search, du, etc)
@@ -286,9 +353,6 @@ type GlobalFlags struct {
 	HashingFlags     `embed:""`
 	MergeFlags       `embed:""`
 	DatabaseFlags    `embed:""`
-
-	Threads      int  `help:"Use N threads for parallel processing"`
-	IgnoreErrors bool `help:"Ignore errors and continue to next file" short:"i"`
 }
 
 // ControlFlags are a subset of flags for simple control commands
@@ -323,7 +387,42 @@ func (m *MergeFlags) AfterApply() error {
 	if m.Ignore {
 		m.OnlyNewRows = true
 	}
+	m.whereByTable = make(map[string]string, len(m.WhereTable))
+	for _, entry := range m.WhereTable {
+		table, clause, found := strings.Cut(entry, "=")
+		table = strings.TrimSpace(table)
+		clause = strings.TrimSpace(clause)
+		if !found || table == "" || clause == "" {
+			return fmt.Errorf("invalid --where-table %q: expected TABLE=CLAUSE", entry)
+		}
+		if _, exists := m.whereByTable[table]; exists {
+			return fmt.Errorf("duplicate --where-table for table %q", table)
+		}
+		m.whereByTable[table] = clause
+	}
 	return nil
+}
+
+// WhereForTable returns the WHERE clause that should be applied while copying
+// rows out of table. `--where` is media-only; other tables use --where-table.
+func (m *MergeFlags) WhereForTable(table string, genericWhere []string) string {
+	if clause, ok := m.whereByTable[table]; ok {
+		return clause
+	}
+	if table == "media" && len(genericWhere) > 0 {
+		return strings.Join(genericWhere, " AND ")
+	}
+	return ""
+}
+
+// WhereTableNames returns the table names configured with --where-table.
+func (m *MergeFlags) WhereTableNames() []string {
+	names := make([]string, 0, len(m.whereByTable))
+	for table := range m.whereByTable {
+		names = append(names, table)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // Logger interface for structured logging

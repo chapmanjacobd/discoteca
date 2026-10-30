@@ -13,9 +13,8 @@ import (
 )
 
 type RegexSortCmd struct {
-	models.CoreFlags `embed:""`
-	models.SortFlags `embed:""`
-	models.TextFlags `embed:""`
+	models.CoreFlags           `embed:""`
+	models.TextProcessingFlags `embed:""`
 
 	InputPath  string `help:"Input file path (default stdin)"   default:"-" arg:"" optional:""`
 	OutputPath string `help:"Output file path (default stdout)"`
@@ -29,8 +28,15 @@ func (c *RegexSortCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	flags := models.GlobalFlags{
 		CoreFlags: c.CoreFlags,
-		SortFlags: c.SortFlags,
-		TextFlags: c.TextFlags,
+		TextFlags: models.TextFlags{
+			Regexs:     c.Regexs,
+			WordSorts:  c.WordSorts,
+			LineSorts:  c.LineSorts,
+			Preprocess: c.Preprocess,
+			StopWords:  c.StopWords,
+			Duplicates: c.Duplicates,
+			UniqueOnly: c.UniqueOnly,
+		},
 	}
 
 	var lines []string
@@ -63,16 +69,21 @@ func (c *RegexSortCmd) Run(ctx context.Context) error {
 	var processedLines []string
 	if c.Preprocess {
 		sentenceStrings := make([]string, len(lines))
-		mapping := make(map[string]string)
+		mapping := make(map[string][]string, len(lines))
 		for i, line := range lines {
 			sentence := utils.PathToSentence(line)
 			sentenceStrings[i] = sentence
-			mapping[sentence] = line
+			mapping[sentence] = append(mapping[sentence], line)
 		}
 
 		sortedSentences := utils.TextProcessor(flags, sentenceStrings)
+		seen := make(map[string]int, len(mapping))
 		for _, s := range sortedSentences {
-			processedLines = append(processedLines, mapping[s])
+			idx := seen[s]
+			if idx < len(mapping[s]) {
+				processedLines = append(processedLines, mapping[s][idx])
+				seen[s]++
+			}
 		}
 	} else {
 		processedLines = utils.TextProcessor(flags, lines)

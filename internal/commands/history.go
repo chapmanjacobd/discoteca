@@ -14,6 +14,7 @@ import (
 
 type HistoryCmd struct {
 	models.CoreFlags        `embed:""`
+	models.QueryFlags       `embed:""`
 	models.PathFilterFlags  `embed:""`
 	models.FilterFlags      `embed:""`
 	models.MediaFilterFlags `embed:""`
@@ -24,6 +25,14 @@ type HistoryCmd struct {
 	models.PostActionFlags  `embed:""`
 
 	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
+}
+
+func (c *HistoryCmd) AfterApply() error {
+	if err := c.CoreFlags.AfterApply(); err != nil {
+		return err
+	}
+	c.SortExplicit = c.SortBy != "" && c.SortBy != "default"
+	return nil
 }
 
 func (c *HistoryCmd) Run(ctx context.Context) error {
@@ -39,11 +48,16 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 		c.printHeader(flags)
 
 		if flags.DeleteRows {
+			if flags.Simulate {
+				fmt.Printf("[Dry-run] would delete history rows for %d items\n", len(media))
+				return nil
+			}
 			return c.handleDeleteRows(ctx, media)
 		}
 
 		if flags.Partial != "" {
-			query.SortHistory(media, flags.Partial, flags.Reverse)
+			media = query.SortHistory(media, flags.Partial, flags.Reverse)
+			query.ApplyReRank(media, flags)
 		} else {
 			query.SortMedia(media, flags)
 		}
@@ -54,7 +68,7 @@ func (c *HistoryCmd) Run(ctx context.Context) error {
 func (c *HistoryCmd) buildFlags() models.GlobalFlags {
 	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
 		Core:        c.CoreFlags,
-		Query:       models.QueryFlags{},
+		Query:       c.QueryFlags,
 		PathFilter:  c.PathFilterFlags,
 		Filter:      c.FilterFlags,
 		MediaFilter: c.MediaFilterFlags,
@@ -65,8 +79,9 @@ func (c *HistoryCmd) buildFlags() models.GlobalFlags {
 		FTS:         models.FTSFlags{},
 	})
 	flags.PostActionFlags = c.PostActionFlags
-	// Set default sort for history
-	if flags.SortBy == "path" || flags.SortBy == "" || flags.SortBy == "default" {
+	// --sort default (or no flag) means history order. Any explicit non-default
+	// value, including `path`, is preserved.
+	if !c.SortExplicit && (flags.SortBy == "" || flags.SortBy == "default") {
 		flags.SortBy = "time_last_played"
 		flags.Reverse = true
 	}

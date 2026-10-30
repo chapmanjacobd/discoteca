@@ -194,13 +194,13 @@ func ClusterFoldersByName(flags models.GlobalFlags, folders []models.FolderStats
 	for _, f := range folders {
 		found := false
 		name := filepath.Base(f.Path)
-		if flags.TotalSizes { // Re-using flag for name clustering mode for now, or we can use another one
+		if flags.NameFullPath {
 			name = f.Path
 		}
 
 		for i, group := range groups {
 			prevName := filepath.Base(group[0].Path)
-			if flags.TotalSizes {
+			if flags.NameFullPath {
 				prevName = group[0].Path
 			}
 
@@ -228,8 +228,8 @@ func FilterNearDuplicates(groups []models.FolderStats) []models.FolderStats {
 		var keys []string
 
 		for _, m := range group.Files {
-			curr := strings.TrimSpace(m.Path)
-			if curr == "" {
+			curr := filepath.Base(strings.TrimSpace(m.Path))
+			if curr == "" || curr == "." {
 				continue
 			}
 
@@ -282,13 +282,12 @@ func (p PathObservation) Distance(o clusters.Coordinates) float64 {
 	return p.Vector.Distance(o)
 }
 
-// ClusterPaths groups lines of text using TF-IDF and KMeans
-func ClusterPaths(flags models.GlobalFlags, lines []string) []models.FolderStats {
+// ClusterPaths groups lines of text using TF-IDF and KMeans.
+func ClusterPaths(lines []string, k int) []models.FolderStats {
 	if len(lines) < 2 {
 		return []models.FolderStats{{Path: utils.CommonPathFull(lines), Files: wrapLines(lines), Count: len(lines)}}
 	}
 
-	k := flags.Clusters
 	if k <= 0 {
 		k = max(int(math.Sqrt(float64(len(lines)))), 2)
 	}

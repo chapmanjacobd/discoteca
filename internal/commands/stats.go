@@ -17,54 +17,90 @@ type StatsCmd struct {
 	models.MediaFilterFlags `embed:""`
 	models.TimeFilterFlags  `embed:""`
 	models.DeletedFlags     `embed:""`
-	models.DisplayFlags     `embed:""`
 
-	Facet     string   `help:"One of: watched, deleted, created, modified" required:"true" arg:""`
-	Databases []string `help:"SQLite database files"                       required:"true" arg:"" type:"existingfile"`
+	Facet     string   `help:"Time facet for --frequency (watched, deleted, created, modified); requires --frequency" group:"Display"`
+	Frequency string   `help:"Group statistics by time frequency (daily, weekly, monthly, quarterly, yearly, decadally, hourly, minutely)" short:"f" group:"Display"`
+	JSON      bool     `help:"Output results as JSON" short:"j" group:"Display"`
+	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
 }
 
 func (c *StatsCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 
-	timeCol := c.getTimeColumn()
+	if c.Facet != "" && c.Frequency == "" {
+		return fmt.Errorf("--facet %q requires --frequency", c.Facet)
+	}
+	if c.Frequency != "" && c.Facet == "" {
+		c.Facet = "watched"
+	}
+
+	timeCol, err := c.getTimeColumn()
+	if err != nil {
+		return err
+	}
+
+	if !c.OnlyDeleted && c.Facet != "deleted" && !c.HideDeleted {
+		c.HideDeleted = true
+	}
+	flags := models.GlobalFlags{
+		CoreFlags:        c.CoreFlags,
+		PathFilterFlags:  c.PathFilterFlags,
+		FilterFlags:      c.FilterFlags,
+		MediaFilterFlags: c.MediaFilterFlags,
+		TimeFilterFlags:  c.TimeFilterFlags,
+		DeletedFlags:     c.DeletedFlags,
+	}
 
 	for _, dbPath := range c.Databases {
-		if err := c.processDatabase(ctx, dbPath, timeCol); err != nil {
+		if err := c.processDatabase(ctx, dbPath, flags, timeCol); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *StatsCmd) getTimeColumn() string {
+func (c *StatsCmd) getTimeColumn() (string, error) {
 	switch c.Facet {
+	case "watched", "":
+		return "time_last_played", nil
 	case "deleted":
-		return "time_deleted"
+		return "time_deleted", nil
 	case "created":
-		return "time_created"
+		return "time_created", nil
 	case "modified":
-		return "time_modified"
+		return "time_modified", nil
 	default:
-		return "time_last_played"
+		return "", fmt.Errorf("invalid facet %q; expected watched, deleted, created, or modified", c.Facet)
 	}
 }
 
-func (c *StatsCmd) processDatabase(ctx context.Context, dbPath, timeCol string) error {
-	sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
+func (c *StatsCmd) processDatabase(
+	ctx context.Context,
+	dbPath string,
+	flags models.GlobalFlags,
+	timeCol string,
+) error {
+	// Ensure schema drift is handled before the read-only stats queries run.
+	initDB, _, err := db.ConnectWithInit(ctx, dbPath)
 	if err != nil {
 		return err
 	}
-	defer sqlDB.Close()
+	initDB.Close()
 
 	if c.Frequency != "" {
-		return c.printFrequencyStats(ctx, dbPath, timeCol)
+		return c.printFrequencyStats(ctx, dbPath, flags, timeCol)
 	}
 
-	return c.printGeneralStats(ctx, dbPath, queries)
+	return c.printGeneralStats(ctx, dbPath, flags)
 }
 
-func (c *StatsCmd) printFrequencyStats(ctx context.Context, dbPath, timeCol string) error {
-	stats, err := query.HistoricalUsage(ctx, dbPath, c.Frequency, timeCol)
+func (c *StatsCmd) printFrequencyStats(
+	ctx context.Context,
+	dbPath string,
+	flags models.GlobalFlags,
+	timeCol string,
+) error {
+	stats, err := query.HistoricalUsageFiltered(ctx, dbPath, c.Frequency, timeCol, flags)
 	if err != nil {
 		return err
 	}
@@ -77,13 +113,13 @@ func (c *StatsCmd) printFrequencyStats(ctx context.Context, dbPath, timeCol stri
 	return PrintFrequencyStats(stats)
 }
 
-func (c *StatsCmd) printGeneralStats(ctx context.Context, dbPath string, queries *db.Queries) error {
-	stats, err := queries.GetStats(ctx)
+func (c *StatsCmd) printGeneralStats(ctx context.Context, dbPath string, flags models.GlobalFlags) error {
+	stats, err := query.GetStatsFiltered(ctx, dbPath, flags)
 	if err != nil {
 		return err
 	}
 
-	typeStats, err := queries.GetStatsByType(ctx)
+	typeStats, err := query.GetStatsByTypeFiltered(ctx, dbPath, flags)
 	if err != nil {
 		return err
 	}

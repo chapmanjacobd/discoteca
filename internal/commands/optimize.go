@@ -22,8 +22,13 @@ type OptimizeCmd struct {
 func (c *OptimizeCmd) Run(ctx context.Context) error {
 	models.SetupLogging(c.Verbose)
 	for _, dbPath := range c.Databases {
+		if c.Simulate {
+			fmt.Printf("[Simulate] would VACUUM, ANALYZE, optimize media_fts, and backfill NULL media types in %s\n", dbPath)
+			continue
+		}
+
 		models.Log.Info("Optimizing database", "path", dbPath)
-		sqlDB, queries, err := db.ConnectWithInit(ctx, dbPath)
+		sqlDB, _, err := db.ConnectWithInit(ctx, dbPath)
 		if err != nil {
 			return err
 		}
@@ -45,8 +50,8 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 			models.Log.Warn("FTS optimize failed (maybe table doesn't exist?)", "path", dbPath, "error", err)
 		}
 
-		if err := c.BulkMarkOptimizedExtensions(ctx, sqlDB, queries); err != nil {
-			models.Log.Warn("BulkMarkOptimizedExtensions failed", "path", dbPath, "error", err)
+		if err := c.BackfillMediaTypes(ctx, sqlDB); err != nil {
+			models.Log.Warn("BackfillMediaTypes failed", "path", dbPath, "error", err)
 		}
 
 		models.Log.Info("Optimization complete", "path", dbPath)
@@ -54,17 +59,15 @@ func (c *OptimizeCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *OptimizeCmd) BulkMarkOptimizedExtensions(ctx context.Context, sqlDB *sql.DB, _ *db.Queries) error {
-	models.Log.Info("Running BulkMarkOptimizedExtensions...")
+// BackfillMediaTypes fills media_type for rows where it is NULL, based on the
+// file extension. It never overwrites an existing media_type.
+func (c *OptimizeCmd) BackfillMediaTypes(ctx context.Context, sqlDB *sql.DB) error {
+	models.Log.Info("Backfilling NULL media types...")
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-
-	// Logic to mark optimized extensions
-	// This is a placeholder for the actual logic described by the user
-	// assuming it involves updating media_type based on extensions
 
 	rows, err := tx.QueryContext(ctx, "SELECT path FROM media WHERE media_type IS NULL")
 	if err != nil {

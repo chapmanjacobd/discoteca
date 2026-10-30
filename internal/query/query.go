@@ -35,7 +35,6 @@ func FilterMedia(media []models.MediaWithDB, flags models.GlobalFlags) []models.
 // SortMedia sorts media using the unified SortBuilder and applies --re-rank.
 func SortMedia(media []models.MediaWithDB, flags models.GlobalFlags) {
 	NewSortBuilder(flags).Sort(media)
-	applyReRank(media, flags)
 }
 
 // SortMediaWithExpansion sorts media with optional result expansion (siblings, related)
@@ -56,7 +55,11 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 
 	// Sort with the full config (including expansion markers)
 	NewSortBuilder(flags).SortAdvanced(*media, sortConfig)
-	applyReRank(*media, flags)
+}
+
+// ApplyReRank applies --re-rank to an already sorted slice.
+func ApplyReRank(media []models.MediaWithDB, flags models.GlobalFlags) {
+	applyReRank(media, flags)
 }
 
 func applyReRank(media []models.MediaWithDB, flags models.GlobalFlags) {
@@ -176,10 +179,11 @@ func getMediaValueFloat(m models.MediaWithDB, col string) float64 {
 	}
 }
 
-// SortHistory applies specialized sorting for playback history
-func SortHistory(media []models.MediaWithDB, partial string, reverse bool) {
+// SortHistory applies specialized sorting for playback history. It returns a
+// new slice when the partial filter drops rows; callers must use the result.
+func SortHistory(media []models.MediaWithDB, partial string, reverse bool) []models.MediaWithDB {
 	if strings.Contains(partial, "s") {
-		var filtered []models.MediaWithDB
+		filtered := make([]models.MediaWithDB, 0, len(media))
 		for _, m := range media {
 			if m.TimeFirstPlayed == nil || *m.TimeFirstPlayed == 0 {
 				filtered = append(filtered, m)
@@ -231,6 +235,7 @@ func SortHistory(media []models.MediaWithDB, partial string, reverse bool) {
 	}
 
 	sort.Slice(media, less)
+	return media
 }
 
 // RegexSortMedia sorts media using the text processor
@@ -365,6 +370,16 @@ func SummarizeMedia(media []models.MediaWithDB) []FrequencyStats {
 }
 
 func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]FrequencyStats, error) {
+	return HistoricalUsageFiltered(ctx, dbPath, freq, timeColumn, models.GlobalFlags{})
+}
+
+// HistoricalUsageFiltered is HistoricalUsage with the standard filter set
+// applied before the time buckets are computed.
+func HistoricalUsageFiltered(
+	ctx context.Context,
+	dbPath, freq, timeColumn string,
+	flags models.GlobalFlags,
+) ([]FrequencyStats, error) {
 	validTimeColumns := map[string]bool{
 		"time_created":      true,
 		"time_modified":     true,
@@ -409,9 +424,10 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 		return nil, fmt.Errorf("invalid frequency: %s", freq)
 	}
 
-	deletedPredicate := "time_deleted = 0"
-	if timeColumn == "time_deleted" {
-		deletedPredicate = "1 = 1"
+	whereClauses, args := NewFilterBuilder(flags).BuildWhereClauses(ctx)
+	whereClauses = append(whereClauses, fmt.Sprintf("%s > 0", timeColumn))
+	if timeColumn != "time_deleted" && !flags.HideDeleted && !flags.OnlyDeleted {
+		whereClauses = append(whereClauses, "COALESCE(time_deleted, 0) = 0")
 	}
 
 	query := fmt.Sprintf(`
@@ -421,12 +437,12 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 			SUM(size) AS total_size,
 			SUM(duration) AS total_duration
 		FROM media
-		WHERE %s > 0 AND %s
+		WHERE %s
 		GROUP BY label
 		ORDER BY label DESC
-	`, freqSQL, timeColumn, deletedPredicate)
+	`, freqSQL, strings.Join(whereClauses, " AND "))
 
-	rows, err := sqlDB.QueryContext(ctx, query)
+	rows, err := sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -447,4 +463,77 @@ func HistoricalUsage(ctx context.Context, dbPath, freq, timeColumn string) ([]Fr
 		return nil, err
 	}
 	return stats, nil
+}
+
+// GetStatsFiltered returns the general statistics for the rows matched by the
+// provided filters.
+func GetStatsFiltered(ctx context.Context, dbPath string, flags models.GlobalFlags) (db.GetStatsRow, error) {
+	sqlDB, err := db.Connect(ctx, dbPath)
+	if err != nil {
+		return db.GetStatsRow{}, err
+	}
+	defer sqlDB.Close()
+
+	predicate, args := statsPredicate(ctx, flags)
+	query := `SELECT COUNT(*) as total_count, SUM(size) as total_size, SUM(duration) as total_duration, ` +
+		`COUNT(CASE WHEN COALESCE(time_last_played, 0) > 0 THEN 1 END) as watched_count, ` +
+		`COUNT(CASE WHEN COALESCE(time_last_played, 0) = 0 THEN 1 END) as unwatched_count, ` +
+		`SUM(COALESCE(play_count, 0) * COALESCE(duration, 0) + COALESCE(playhead, 0)) as total_watched_duration ` +
+		`FROM media` + predicate
+
+	var i db.GetStatsRow
+	err = sqlDB.QueryRowContext(ctx, query, args...).Scan(
+		&i.TotalCount,
+		&i.TotalSize,
+		&i.TotalDuration,
+		&i.WatchedCount,
+		&i.UnwatchedCount,
+		&i.TotalWatchedDuration,
+	)
+	return i, err
+}
+
+// GetStatsByTypeFiltered returns statistics grouped by media type for the rows
+// matched by the provided filters.
+func GetStatsByTypeFiltered(
+	ctx context.Context,
+	dbPath string,
+	flags models.GlobalFlags,
+) ([]db.GetStatsByTypeRow, error) {
+	sqlDB, err := db.Connect(ctx, dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer sqlDB.Close()
+
+	predicate, args := statsPredicate(ctx, flags)
+	query := `SELECT media_type, COUNT(*) as count, SUM(size) as total_size, SUM(duration) as total_duration ` +
+		`FROM media` + predicate + ` GROUP BY media_type`
+
+	rows, err := sqlDB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []db.GetStatsByTypeRow
+	for rows.Next() {
+		var i db.GetStatsByTypeRow
+		if err := rows.Scan(&i.MediaType, &i.Count, &i.TotalSize, &i.TotalDuration); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func statsPredicate(ctx context.Context, flags models.GlobalFlags) (string, []any) {
+	whereClauses, args := NewFilterBuilder(flags).BuildWhereClauses(ctx)
+	if len(whereClauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(whereClauses, " AND "), args
 }

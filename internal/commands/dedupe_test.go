@@ -219,7 +219,7 @@ func TestDedupeCmd_TrashSimulateDoesNotInvokeTrash(t *testing.T) {
 		DedupeFlags: models.DedupeFlags{
 			TitleOnly: true,
 		},
-		PostActionFlags: models.PostActionFlags{Trash: true},
+		Trash: true,
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.DedupeCmd failed: %v", err)

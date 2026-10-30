@@ -3,11 +3,8 @@ package commands
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -65,38 +62,11 @@ func (c *FilesInfoCmd) Run(ctx context.Context) error {
 	}
 
 	// Handle paths
-	for _, root := range c.ScanPaths {
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				return nil
-			}
-
-			// Use path as-is
-			meta, err := metadata.Extract(ctx, path, metadata.ExtractOptions{
-				ScanSubtitles: c.ScanSubtitles,
-				ProbeImages:   c.ProbeImages,
-			})
-			if err != nil {
-				return err
-			}
-			allMedia = append(allMedia, models.MediaWithDB{
-				Media: models.Media{
-					Path:      meta.Media.Path,
-					Title:     models.NullStringPtr(meta.Media.Title),
-					MediaType: models.NullStringPtr(meta.Media.MediaType),
-					Size:      models.NullInt64Ptr(meta.Media.Size),
-					Duration:  models.NullInt64Ptr(meta.Media.Duration),
-				},
-			})
-			return nil
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error walking %s: %v\n", root, err)
-		}
+	scanned, err := ScanMediaPaths(ctx, c.ScanPaths, scanOptionsForFlags(flags))
+	if err != nil {
+		return err
 	}
+	allMedia = append(allMedia, filterScannedMedia(scanned, flags)...)
 
 	if c.JSON {
 		return utils.PrintJSON(allMedia)

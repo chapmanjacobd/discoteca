@@ -38,14 +38,36 @@ func (c *MediaCheckCmd) Run(ctx context.Context) error {
 		DeletedFlags:     c.DeletedFlags,
 	}
 
-	gap, _ := utils.FloatFromPercent(c.Gap)
-	deleteThreshold, _ := utils.FloatFromPercent(c.DeleteCorrupt)
-	fullScanThreshold, _ := utils.FloatFromPercent(c.FullScanIfCorrupt)
+	gap := 0.05
+	var err error
+	if c.Gap != "" {
+		gap, err = utils.FloatFromPercent(c.Gap)
+		if err != nil {
+			return fmt.Errorf("invalid --gap %q: %w", c.Gap, err)
+		}
+	}
+	if c.ChunkSize <= 0 {
+		c.ChunkSize = 0.5
+	}
+	deleteThreshold := 0.0
+	if c.DeleteCorrupt != "" {
+		deleteThreshold, err = utils.FloatFromPercent(c.DeleteCorrupt)
+		if err != nil {
+			return fmt.Errorf("invalid --delete-corrupt %q: %w", c.DeleteCorrupt, err)
+		}
+	}
+	fullScanThreshold := 0.0
+	if c.FullScanIfCorrupt != "" {
+		fullScanThreshold, err = utils.FloatFromPercent(c.FullScanIfCorrupt)
+		if err != nil {
+			return fmt.Errorf("invalid --full-scan-if-corrupt %q: %w", c.FullScanIfCorrupt, err)
+		}
+	}
 
 	checked := 0
 	var skipped []string
 
-	err := RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
+	err = RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
 		if len(media) == 0 {
 			return errors.New("no media found")
 		}

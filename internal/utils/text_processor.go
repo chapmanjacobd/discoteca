@@ -41,10 +41,18 @@ func WordSorter(flags models.GlobalFlags, corpusStats map[string]int, lineWords 
 		return lineWords
 	}
 
-	// Helper for lastindex
-	reversed := make([]string, len(lineWords))
+	firstIndex := make(map[string]int, len(lineWords))
+	lastIndex := make(map[string]int, len(lineWords))
 	for i, w := range lineWords {
-		reversed[len(lineWords)-1-i] = w
+		if _, ok := firstIndex[w]; !ok {
+			firstIndex[w] = i
+		}
+	}
+	for i := len(lineWords) - 1; i >= 0; i-- {
+		w := lineWords[i]
+		if _, ok := lastIndex[w]; !ok {
+			lastIndex[w] = len(lineWords) - 1 - i
+		}
 	}
 
 	sort.SliceStable(lineWords, func(i, j int) bool {
@@ -69,9 +77,9 @@ func WordSorter(flags models.GlobalFlags, corpusStats map[string]int, lineWords 
 			case "unique":
 				cmp = CompareBool(corpusStats[w1] == 1, corpusStats[w2] == 1)
 			case "index":
-				cmp = CompareInt(indexOf(lineWords, w1), indexOf(lineWords, w2))
+				cmp = CompareInt(firstIndex[w1], firstIndex[w2])
 			case "lastindex":
-				cmp = CompareInt(indexOf(reversed, w1), indexOf(reversed, w2))
+				cmp = CompareInt(lastIndex[w1], lastIndex[w2])
 			case "linecount":
 				cmp = CompareInt(countOf(lineWords, w1), countOf(lineWords, w2))
 			case "alpha", "python":
@@ -155,6 +163,12 @@ func LineSorter(
 				cmp = CompareFloat(avgCount(l1.words, corpusStats), avgCount(l2.words, corpusStats))
 			case "dupmedian":
 				cmp = CompareFloat(medianCount(l1.words, corpusStats), medianCount(l2.words, corpusStats))
+			case "allunique":
+				cmp = CompareBool(allWordsUnique(l1.words, corpusStats), allWordsUnique(l2.words, corpusStats))
+			case "alldup":
+				cmp = CompareBool(allWordsDuplicate(l1.words, corpusStats), allWordsDuplicate(l2.words, corpusStats))
+			case "dupmode":
+				cmp = CompareInt(mostCommonCount(l1.words, corpusStats), mostCommonCount(l2.words, corpusStats))
 			case "alpha", "python":
 				cmp = CompareString(strings.Join(l1.words, " "), strings.Join(l2.words, " "))
 			case "natural", "natsort":
@@ -362,15 +376,6 @@ func CompareString(a, b string) int {
 	return 0
 }
 
-func indexOf(slice []string, val string) int {
-	for i, v := range slice {
-		if v == val {
-			return i
-		}
-	}
-	return -1
-}
-
 func countOf(slice []string, val string) int {
 	count := 0
 	for _, v := range slice {
@@ -455,4 +460,50 @@ func medianCount(words []string, stats map[string]int) float64 {
 		counts = append(counts, stats[w])
 	}
 	return SafeMedian(counts)
+}
+
+// allWordsUnique reports whether every word occurs exactly once in the corpus.
+func allWordsUnique(words []string, stats map[string]int) bool {
+	if len(words) == 0 {
+		return false
+	}
+	for _, w := range words {
+		if stats[w] != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// allWordsDuplicate reports whether every word occurs more than once.
+func allWordsDuplicate(words []string, stats map[string]int) bool {
+	if len(words) == 0 {
+		return false
+	}
+	for _, w := range words {
+		if stats[w] <= 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// mostCommonCount returns the most frequent corpus count among the words.
+func mostCommonCount(words []string, stats map[string]int) int {
+	if len(words) == 0 {
+		return 0
+	}
+	frequencies := make(map[int]int)
+	for _, w := range words {
+		frequencies[stats[w]]++
+	}
+	bestCount := 0
+	bestFrequency := -1
+	for count, frequency := range frequencies {
+		if frequency > bestFrequency || (frequency == bestFrequency && count < bestCount) {
+			bestCount = count
+			bestFrequency = frequency
+		}
+	}
+	return bestCount
 }

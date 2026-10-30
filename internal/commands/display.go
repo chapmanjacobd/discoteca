@@ -24,6 +24,9 @@ func HideRedundantFirstPlayed(media []models.MediaWithDB) {
 }
 
 func PrintMedia(flags models.DisplayFlags, columns []string, media []models.MediaWithDB) error {
+	if err := flags.ValidateColumns(false); err != nil {
+		return err
+	}
 	if flags.JSON {
 		return utils.PrintJSON(media)
 	}
@@ -65,6 +68,9 @@ func PrintMedia(flags models.DisplayFlags, columns []string, media []models.Medi
 }
 
 func PrintFolders(flags models.DisplayFlags, columns []string, folders []models.FolderStats) error {
+	if err := flags.ValidateColumns(true); err != nil {
+		return err
+	}
 	if flags.JSON {
 		return utils.PrintJSON(folders)
 	}

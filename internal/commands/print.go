@@ -36,6 +36,7 @@ func (c *PrintCmd) AfterApply() error {
 }
 
 func (c *PrintCmd) Run(ctx context.Context) error {
+	models.SetupLogging(c.Verbose)
 	flags := models.BuildQueryGlobalFlags(models.BuildQueryOptions{
 		Core:        c.CoreFlags,
 		Query:       c.QueryFlags,
@@ -51,53 +52,59 @@ func (c *PrintCmd) Run(ctx context.Context) error {
 	flags.AggregateFlags = c.AggregateFlags
 	flags.TextFlags = c.TextFlags
 
-	return RunQuery(ctx, c.Databases, flags, func(media []models.MediaWithDB) error {
-		// Handle scan paths (omitted for brevity, assume they would be handled if implemented)
+	media, err := loadMedia(ctx, c.Databases, c.ScanPaths, flags)
+	if err != nil {
+		return err
+	}
 
-		HideRedundantFirstPlayed(media)
+	return renderPrint(media, flags)
+}
 
-		isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize || flags.Depth > 0 ||
-			flags.Parents ||
-			flags.FoldersOnly ||
-			len(flags.FolderSizes) > 0 ||
-			flags.FolderCounts != ""
+func renderPrint(media []models.MediaWithDB, flags models.GlobalFlags) error {
+	HideRedundantFirstPlayed(media)
 
-		if flags.JSON {
-			if isAggregated {
-				folders := query.AggregateMedia(media, flags)
-				query.SortFolders(folders, flags.SortBy, flags.Reverse)
-				return PrintFolders(flags.DisplayFlags, flags.Columns, folders)
-			}
-			if flags.Summarize {
-				summary := query.SummarizeMedia(media)
-				return utils.PrintJSON(summary)
-			}
-			return PrintMedia(flags.DisplayFlags, flags.Columns, media)
-		}
+	isAggregated := flags.BigDirs || flags.GroupByExtensions || flags.GroupBySize || flags.Depth > 0 ||
+		flags.Parents ||
+		flags.FoldersOnly ||
+		len(flags.FolderSizes) > 0 ||
+		flags.FolderCounts != ""
 
-		if flags.Summarize {
-			summary := query.SummarizeMedia(media)
-			for _, s := range summary {
-				fmt.Printf("%s: %d files, %s, %s\n",
-					s.Label, s.Count, utils.FormatSize(s.TotalSize), utils.FormatDuration(int(s.TotalDuration)))
-			}
-			if !isAggregated {
-				fmt.Println()
-			}
-		}
-
+	if flags.JSON {
 		if isAggregated {
 			folders := query.AggregateMedia(media, flags)
 			query.SortFolders(folders, flags.SortBy, flags.Reverse)
 			return PrintFolders(flags.DisplayFlags, flags.Columns, folders)
 		}
-
-		if flags.RegexSort {
-			media = query.RegexSortMedia(media, flags)
-		} else {
-			query.SortMedia(media, flags)
+		if flags.Summarize {
+			summary := query.SummarizeMedia(media)
+			return utils.PrintJSON(summary)
 		}
-
 		return PrintMedia(flags.DisplayFlags, flags.Columns, media)
-	})
+	}
+
+	if flags.Summarize {
+		summary := query.SummarizeMedia(media)
+		for _, s := range summary {
+			fmt.Printf("%s: %d files, %s, %s\n",
+				s.Label, s.Count, utils.FormatSize(s.TotalSize), utils.FormatDuration(int(s.TotalDuration)))
+		}
+		if !isAggregated {
+			fmt.Println()
+		}
+	}
+
+	if isAggregated {
+		folders := query.AggregateMedia(media, flags)
+		query.SortFolders(folders, flags.SortBy, flags.Reverse)
+		return PrintFolders(flags.DisplayFlags, flags.Columns, folders)
+	}
+
+	if flags.RegexSort {
+		media = query.RegexSortMedia(media, flags)
+		query.ApplyReRank(media, flags)
+	} else {
+		query.SortMedia(media, flags)
+	}
+
+	return PrintMedia(flags.DisplayFlags, flags.Columns, media)
 }

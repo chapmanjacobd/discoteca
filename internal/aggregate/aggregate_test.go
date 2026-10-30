@@ -222,7 +222,7 @@ func TestClusterPaths(t *testing.T) {
 		"/other/completely/different/file.txt",
 	}
 
-	got := aggregate.ClusterPaths(models.GlobalFlags{SimilarityFlags: models.SimilarityFlags{Clusters: 2}}, lines)
+	got := aggregate.ClusterPaths(lines, 2)
 	if len(got) < 1 {
 		t.Error("ClusterPaths returned no groups")
 	}

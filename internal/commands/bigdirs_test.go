@@ -24,7 +24,9 @@ func TestBigDirsCmd_Run(t *testing.T) {
 	}
 
 	cmd := &commands.BigDirsCmd{
-		Databases: []string{fixture.DBPath},
+		PrintCmd: commands.PrintCmd{
+			Databases: []string{fixture.DBPath},
+		},
 	}
 	if err := cmd.Run(context.Background()); err != nil {
 		t.Fatalf("commands.BigDirsCmd failed: %v", err)

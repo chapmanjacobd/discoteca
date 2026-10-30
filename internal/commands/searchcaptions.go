@@ -15,17 +15,18 @@ import (
 )
 
 type SearchCaptionsCmd struct {
-	models.CoreFlags        `embed:""`
-	models.QueryFlags       `embed:""`
-	models.FTSFlags         `embed:""`
-	models.MediaFilterFlags `embed:""`
-	models.PlaybackFlags    `embed:""`
+	models.CoreFlags          `embed:""`
+	models.FTSFlags           `embed:""`
+	models.CaptionFilterFlags `embed:""`
+	models.PlaybackFlags      `embed:""`
 
-	Database string   `help:"SQLite database file" required:"true" arg:"" type:"existingfile"`
-	Search   []string `help:"Search terms"         required:"true" arg:""`
-
-	Open    bool `help:"Open results in media player"`
-	Overlap int  `help:"Overlap in seconds for merging captions" default:"8"`
+	Database string   `help:"SQLite database file"                 required:"true" arg:"" type:"existingfile"`
+	Search   []string `help:"Search terms"                         required:"true" arg:""`
+	Open     bool     `help:"Open results in media player"`
+	Overlap  int      `help:"Overlap in seconds for merging captions" default:"8"`
+	Limit    int      `help:"Limit results"                           short:"L"                 default:"100"`
+	All      bool     `help:"Return all results (no limit)"           short:"a"`
+	Offset   int      `help:"Skip N merged captions"`
 }
 
 type MergedCaption struct {
@@ -54,6 +55,15 @@ func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
 	limit := int64(c.Limit)
 	if c.All {
 		limit = 1000000
+	} else {
+		if limit <= 0 {
+			limit = 100
+		}
+		if c.Offset > 0 {
+			// The captions query has no OFFSET; fetch enough rows so the offset
+			// can be applied after merging.
+			limit += int64(c.Offset)
+		}
 	}
 
 	rows, err := queries.SearchCaptions(ctx, db.SearchCaptionsParams{
@@ -69,6 +79,7 @@ func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
 	}
 
 	merged := c.mergeCaptions(rows)
+	merged = applyOffset(merged, c.Offset)
 
 	if c.Open {
 		c.playCaptions(ctx, merged)
@@ -77,6 +88,16 @@ func (c *SearchCaptionsCmd) Run(ctx context.Context) error {
 
 	c.printCaptions(merged)
 	return nil
+}
+
+func applyOffset(captions []MergedCaption, offset int) []MergedCaption {
+	if offset <= 0 {
+		return captions
+	}
+	if offset >= len(captions) {
+		return nil
+	}
+	return captions[offset:]
 }
 
 func (c *SearchCaptionsCmd) getEnd(t float64, text string) float64 {
@@ -175,13 +196,7 @@ func (c *SearchCaptionsCmd) playCaptions(ctx context.Context, captions []MergedC
 		fmt.Printf("Playing: %s at %s\n", caption.Path, utils.FormatDuration(int(caption.Time)))
 		fmt.Printf("Text: %s\n", caption.Text)
 
-		args := []string{
-			"mpv",
-			caption.Path,
-			fmt.Sprintf("--start=%f", math.Max(0, caption.Time-2)),
-			fmt.Sprintf("--end=%f", caption.End+1.5),
-		}
-
+		args := c.buildPlayerArgs(caption)
 		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -191,6 +206,63 @@ func (c *SearchCaptionsCmd) playCaptions(ctx context.Context, captions []MergedC
 			fmt.Printf("Error playing %s: %v\n", caption.Path, err)
 		}
 	}
+}
+
+func (c *SearchCaptionsCmd) buildPlayerArgs(caption MergedCaption) []string {
+	player := c.OverridePlayer
+	if player == "" {
+		player = "mpv"
+	}
+	args := []string{player}
+
+	if player == "mpv" {
+		if c.Volume > 0 {
+			args = append(args, fmt.Sprintf("--volume=%d", c.Volume))
+		}
+		if c.Mute {
+			args = append(args, "--mute=yes")
+		}
+		if c.Fullscreen {
+			args = append(args, "--fullscreen")
+		}
+		if c.Loop {
+			args = append(args, "--loop-file=inf")
+		}
+		if c.Speed > 0 && c.Speed != 1.0 {
+			args = append(args, fmt.Sprintf("--speed=%.2f", c.Speed))
+		}
+		if !c.SavePlayhead {
+			args = append(args, "--no-resume-playback")
+		}
+		if c.WatchLaterDir != "" {
+			args = append(args, "--watch-later-directory="+c.WatchLaterDir)
+		}
+		if c.MpvSocket != "" {
+			args = append(args, "--input-ipc-server="+c.MpvSocket)
+		}
+
+		useSubs := !c.NoSubtitles
+		if useSubs && c.SubtitleMix > 0 && utils.RandomFloat() < c.SubtitleMix {
+			useSubs = false
+		}
+		if useSubs {
+			args = append(args, c.PlayerArgsSub...)
+		} else {
+			args = append(args, "--no-sub")
+			args = append(args, c.PlayerArgsNoSub...)
+		}
+	}
+
+	start := fmt.Sprintf("%f", math.Max(0, caption.Time-2))
+	end := fmt.Sprintf("%f", caption.End+1.5)
+	if c.Start != "" {
+		start = c.Start
+	}
+	if c.End != "" {
+		end = c.End
+	}
+	args = append(args, "--start="+start, "--end="+end, caption.Path)
+	return args
 }
 
 // requireCaptionSchema returns a clear error when a database was created

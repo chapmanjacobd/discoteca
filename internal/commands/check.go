@@ -12,6 +12,7 @@ import (
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/models"
+	"github.com/chapmanjacobd/discoteca/internal/query"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
 )
 
@@ -20,7 +21,7 @@ type CheckCmd struct {
 	models.PathFilterFlags  `embed:""`
 	models.MediaFilterFlags `embed:""`
 
-	Args   []string `help:"Database file followed by optional paths to check" required:"true" arg:""`
+	Args   []string `help:"Database file followed by scan roots; path/media filters select which database rows may be marked deleted (roots are always walked fully)" required:"true" arg:""`
 	DryRun bool     `help:"Don't actually mark files as deleted"`
 
 	CheckPaths []string `kong:"-"`
@@ -104,7 +105,7 @@ func pathWithinRoot(path, root string) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)))
 }
 
-func (c *CheckCmd) checkMedia(m db.Media, presenceSet map[string]bool, absCheckPaths []string) bool {
+func (c *CheckCmd) checkMedia(m models.MediaWithDB, presenceSet map[string]bool, absCheckPaths []string) bool {
 	if presenceSet != nil {
 		// Only check files that are within the scanned roots
 		inScannedRoot := false
@@ -138,7 +139,15 @@ func (c *CheckCmd) checkDatabase(
 	}
 	defer sqlDB.Close()
 
-	allMedia, err := queries.GetMedia(ctx, -1)
+	flags := models.GlobalFlags{
+		CoreFlags:        c.CoreFlags,
+		PathFilterFlags:  c.PathFilterFlags,
+		MediaFilterFlags: c.MediaFilterFlags,
+	}
+	flags.HideDeleted = true
+	flags.All = true
+
+	allMedia, err := query.MediaQuery(ctx, []string{dbPath}, flags)
 	if err != nil {
 		return err
 	}

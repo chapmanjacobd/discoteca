@@ -68,3 +68,18 @@ func TestInteractiveDecision_ReturnsError(t *testing.T) {
 		})
 	}
 }
+
+func TestDisplayFlags_ValidateColumns(t *testing.T) {
+	if err := (models.DisplayFlags{Columns: []string{"path", "size"}}).ValidateColumns(false); err != nil {
+		t.Errorf("valid media columns rejected: %v", err)
+	}
+	if err := (models.DisplayFlags{Columns: []string{"not_a_column"}}).ValidateColumns(false); err == nil {
+		t.Error("unknown media column accepted")
+	}
+	if err := (models.DisplayFlags{Columns: []string{"folder_count"}}).ValidateColumns(true); err != nil {
+		t.Errorf("valid folder column rejected: %v", err)
+	}
+	if err := (models.DisplayFlags{Columns: []string{"folder_count"}}).ValidateColumns(false); err == nil {
+		t.Error("folder-only column accepted in media mode")
+	}
+}

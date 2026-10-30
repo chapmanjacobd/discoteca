@@ -2,38 +2,14 @@ package commands
 
 import (
 	"context"
-
-	"github.com/chapmanjacobd/discoteca/internal/models"
 )
 
+// BigDirsCmd is a thin alias for `print --big-dirs`.
 type BigDirsCmd struct {
-	models.CoreFlags        `embed:""`
-	models.PathFilterFlags  `embed:""`
-	models.FilterFlags      `embed:""`
-	models.MediaFilterFlags `embed:""`
-	models.TimeFilterFlags  `embed:""`
-	models.DeletedFlags     `embed:""`
-	models.AggregateFlags   `embed:""`
-	models.SortFlags        `embed:""`
-	models.DisplayFlags     `embed:""`
-
-	Databases []string `help:"SQLite database files" required:"true" arg:"" type:"existingfile"`
+	PrintCmd `embed:""`
 }
 
 func (c *BigDirsCmd) Run(ctx context.Context) error {
-	// Bigdirs is Essentially Print with BigDirs enabled by default
 	c.BigDirs = true
-	printCmd := PrintCmd{
-		CoreFlags:        c.CoreFlags,
-		PathFilterFlags:  c.PathFilterFlags,
-		FilterFlags:      c.FilterFlags,
-		MediaFilterFlags: c.MediaFilterFlags,
-		TimeFilterFlags:  c.TimeFilterFlags,
-		DeletedFlags:     c.DeletedFlags,
-		AggregateFlags:   c.AggregateFlags,
-		SortFlags:        c.SortFlags,
-		DisplayFlags:     c.DisplayFlags,
-		Databases:        c.Databases,
-	}
-	return printCmd.Run(ctx)
+	return c.PrintCmd.Run(ctx)
 }
