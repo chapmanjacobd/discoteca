@@ -101,7 +101,9 @@ func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
 			term = term[:3]
 		}
 		if term != "" {
-			parts = append(parts, term)
+			// Quote the term so FTS5 treats characters such as '[', ']',
+			// '/', '-', or '*' literally instead of as query syntax.
+			parts = append(parts, quoteFTSTerm(term))
 		}
 	}
 
@@ -114,6 +116,14 @@ func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
 		return strings.Join(parts, " ")
 	}
 	return strings.Join(parts, " "+join+" ")
+}
+
+// quoteFTSTerm wraps a term in double quotes for use in an FTS5 MATCH
+// expression. Embedded double quotes are escaped by doubling them. Boolean
+// operators are passed through unquoted by BuildFTSQuery before reaching this
+// helper.
+func quoteFTSTerm(term string) string {
+	return `"` + strings.ReplaceAll(term, `"`, `""`) + `"`
 }
 
 func cleanFTSOperators(parts []string) []string {
