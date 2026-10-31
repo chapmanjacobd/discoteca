@@ -85,11 +85,17 @@ type Server struct {
 	hasFfmpeg             bool
 }
 
-// authMiddleware validates API token for authenticated endpoints. Scripts may
-// send the token in X-Disco-Token or as a Bearer token; browsers use the
-// HttpOnly session cookie established by POST /api/session.
+// authMiddleware validates the API token for authenticated endpoints. When no
+// token is configured (the default for loopback-only servers) all requests are
+// allowed. Scripts may send the token in X-Disco-Token or as a Bearer token;
+// browsers use the HttpOnly session cookie established by POST /api/session.
 func (c *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if c.APIToken == "" {
+			next(w, r)
+			return
+		}
+
 		token := r.Header.Get("X-Disco-Token")
 		if token == "" {
 			if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
@@ -112,11 +118,11 @@ func (c *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 const sessionCookieName = "disco_token"
 
-// tokenMatches compares tokens in constant time and rejects empty tokens when
-// the server has a configured token.
+// tokenMatches compares tokens in constant time. An empty configured token
+// disables authentication, so every supplied token matches.
 func (c *Server) tokenMatches(token string) bool {
 	if c.APIToken == "" {
-		return token == ""
+		return true
 	}
 	return subtle.ConstantTimeCompare([]byte(token), []byte(c.APIToken)) == 1
 }

@@ -139,6 +139,19 @@ func TestSessionEndpoint(t *testing.T) {
 	})
 }
 
+func TestAPIAccessWithoutToken(t *testing.T) {
+	cmd := &server.Server{}
+	mux := cmd.Mux()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected unauthenticated loopback access, got %d", w.Code)
+	}
+}
+
 func TestQueryRejectsUnsafeScoreAndSort(t *testing.T) {
 	dbPath, sqlDB := setupPhase7DB(t)
 	defer sqlDB.Close()

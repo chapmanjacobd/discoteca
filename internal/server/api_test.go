@@ -36,6 +36,7 @@ func TestServeAPI_Query(t *testing.T) {
 
 	cmd := &server.Server{
 		Databases: []string{dbPath},
+		APIToken:  "test-token",
 	}
 	defer cmd.Close()
 	mux := cmd.Mux()

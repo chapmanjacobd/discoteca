@@ -1,9 +1,6 @@
 package server
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 func TestListenAddress(t *testing.T) {
 	tests := []struct {
@@ -78,7 +75,7 @@ func TestLoopbackHost(t *testing.T) {
 	}
 }
 
-func TestSetupAPITokenPrintsOnlyGeneratedTokens(t *testing.T) {
+func TestSetupAPITokenUsesOnlyTheEnvironment(t *testing.T) {
 	t.Run("uses environment token", func(t *testing.T) {
 		t.Setenv("DISCO_API_TOKEN", "from-env")
 		cmd := &Server{}
@@ -88,15 +85,12 @@ func TestSetupAPITokenPrintsOnlyGeneratedTokens(t *testing.T) {
 		}
 	})
 
-	t.Run("generates a token when unset", func(t *testing.T) {
+	t.Run("leaves token unset when the environment is unset", func(t *testing.T) {
 		t.Setenv("DISCO_API_TOKEN", "")
-		cmd := &Server{}
+		cmd := &Server{Host: "127.0.0.1"}
 		cmd.setupAPIToken()
-		if cmd.APIToken == "" {
-			t.Fatal("expected a generated token")
-		}
-		if cmd.APIToken == os.Getenv("DISCO_API_TOKEN") {
-			t.Fatal("generated token should not come from the environment")
+		if cmd.APIToken != "" {
+			t.Fatalf("expected authentication to stay disabled, got %q", cmd.APIToken)
 		}
 	})
 }

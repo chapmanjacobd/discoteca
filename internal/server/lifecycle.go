@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/db"
-	"github.com/chapmanjacobd/discoteca/internal/fileutil"
 	"github.com/chapmanjacobd/discoteca/internal/logging"
 )
 
@@ -122,21 +121,12 @@ func (c *Server) Close() error {
 	return nil
 }
 
-// setupAPIToken sets the API token from the environment or generates one. A
-// generated token is printed once to stderr; it is never embedded in a static
-// response.
+// setupAPIToken enables token authentication only when DISCO_API_TOKEN is set.
+// Loopback-only servers stay open so the local browser does not need to log in.
+// A non-loopback bind without DISCO_API_TOKEN is rejected by
+// validateListenConfig before this runs.
 func (c *Server) setupAPIToken() {
-	if envToken := os.Getenv("DISCO_API_TOKEN"); envToken != "" {
-		c.APIToken = envToken
-		return
-	}
-	c.APIToken = fileutil.RandomString(32)
-	fmt.Fprintf(
-		os.Stderr,
-		"DISCO_API_TOKEN is not set. Generated API token: %s\n"+
-			"Use this token to authenticate (POST /api/session with an Authorization: Bearer header).\n",
-		c.APIToken,
-	)
+	c.APIToken = os.Getenv("DISCO_API_TOKEN")
 }
 
 // listenAddress returns the configured host and port as a net address.

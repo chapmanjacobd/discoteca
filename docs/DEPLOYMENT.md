@@ -118,15 +118,16 @@ and keep the listen address at the default `127.0.0.1` (or another private
 interface). The server refuses to bind to a non-loopback address unless
 `DISCO_API_TOKEN` is set; a reverse proxy is the recommended remote deployment.
 
+Token authentication is optional. A loopback-only server does not require a
+token by default, so a local browser opens without a login prompt. Set
+`DISCO_API_TOKEN` to require authentication; this is mandatory for non-loopback
+binds.
+
 The API token is not embedded in static assets. The client exchanges a token
 for an `HttpOnly`, `SameSite=Strict` session cookie with `POST /api/session`.
 Set `DISCO_API_TOKEN` in the service environment, then open the UI once with
 `?token=<token>` or enter the token at the prompt. Scripts can keep using
 `X-Disco-Token` or `Authorization: Bearer <token>`.
-
-If `DISCO_API_TOKEN` is unset, a token is generated at startup and printed once
-to stderr. Treat it as a secret and do not expose the listen port directly to
-the internet.
 
 ## External ZIM server
 
