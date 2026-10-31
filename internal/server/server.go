@@ -239,6 +239,7 @@ func (c *Server) registerAPIRoutes(mux *http.ServeMux) {
 		{"/api/play", c.HandlePlay},
 		{"/api/delete", c.HandleDelete},
 		{"/api/progress", c.HandleProgress},
+		{"/api/document-progress", c.HandleDocumentProgress},
 		{"/api/mark-played", c.HandleMarkPlayed},
 		{"/api/mark-unplayed", c.HandleMarkUnplayed},
 		{"/api/rate", c.HandleRate},

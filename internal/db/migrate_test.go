@@ -463,7 +463,7 @@ func TestFreshAndMigratedSchemasMatch(t *testing.T) {
 
 	for _, table := range []string{
 		"media", "playlists", "playlist_items", "captions", "history",
-		"custom_keywords", "folder_stats", "folder_stats_meta", "_maintenance_meta",
+		"document_progress", "custom_keywords", "folder_stats", "folder_stats_meta", "_maintenance_meta",
 	} {
 		freshColumns := tableInfo(t, freshDB, table)
 		migratedColumns := tableInfo(t, f.db, table)

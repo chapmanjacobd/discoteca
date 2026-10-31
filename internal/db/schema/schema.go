@@ -8,7 +8,8 @@ import (
 //go:embed *.sql
 var SchemaFS embed.FS
 
-// GetCoreTables returns the SQL to create all core tables (media, playlists, history, meta)
+// GetCoreTables returns the SQL to create all core tables
+// (media, playlists, history, document progress, meta).
 func GetCoreTables() string {
 	var sb strings.Builder
 	sb.WriteString(GetMediaTable())
@@ -16,6 +17,8 @@ func GetCoreTables() string {
 	sb.WriteString(GetPlaylistsTables())
 	sb.WriteString("\n")
 	sb.WriteString(GetHistoryTable())
+	sb.WriteString("\n")
+	sb.WriteString(GetDocumentProgressTable())
 	sb.WriteString("\n")
 	sb.WriteString(GetMetaTables())
 	return sb.String()

@@ -125,6 +125,10 @@ func runMigrations(ctx context.Context, db dbExecer) error {
 		return err
 	}
 
+	if err := deleteOrphanedDocumentProgress(ctx, db); err != nil {
+		return err
+	}
+
 	return migrateIndexes(ctx, db)
 }
 
@@ -1007,6 +1011,13 @@ func strictTableMigrations() []tableMigration {
                 done INTEGER,
                 FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
             ) STRICT`},
+		{"document_progress", `CREATE TABLE document_progress (
+                media_path TEXT PRIMARY KEY,
+                scroll_percent REAL NOT NULL DEFAULT 0,
+                chapter TEXT,
+                time_updated INTEGER NOT NULL DEFAULT (unixepoch()),
+                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+            ) STRICT`},
 		{"custom_keywords", `CREATE TABLE custom_keywords (
                 category TEXT NOT NULL,
                 keyword TEXT NOT NULL,
@@ -1023,6 +1034,22 @@ func migrateStrictTables(ctx context.Context, db dbExecer) error {
 		if err := migrateOrCreateTable(ctx, db, m.name, m.sql); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// deleteOrphanedDocumentProgress removes progress rows whose media row was
+// removed while foreign keys were disabled for the media-table rebuild.
+func deleteOrphanedDocumentProgress(ctx context.Context, db dbExecer) error {
+	exists, err := tableExists(ctx, db, "document_progress")
+	if err != nil || !exists {
+		return err
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		"DELETE FROM document_progress WHERE media_path NOT IN (SELECT path FROM media)",
+	); err != nil {
+		return fmt.Errorf("failed to remove orphaned document progress: %w", err)
 	}
 	return nil
 }

@@ -332,6 +332,27 @@ describe('Playback state', () => {
 
         expect(window.disco.restoreDocumentProgress('book.pdf').scrollPercent).toBeCloseTo(0.42);
     });
+
+    it('posts document progress to the server for cross-device resume', async () => {
+        const state = window.disco.state;
+        state.localResume = true;
+        state.readOnly = false;
+        global.fetch.mockClear();
+
+        window.disco.saveDocumentProgress('book.epub', 0.36, '/api/epub/book.epub/chapter-2.xhtml');
+
+        await vi.waitFor(() => {
+            expect(global.fetch.mock.calls.some(call => String(call[0]).includes('/api/document-progress'))).toBe(true);
+        });
+
+        const call = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/document-progress'));
+        expect(call[1].method).toBe('POST');
+        expect(JSON.parse(call[1].body)).toMatchObject({
+            path: 'book.epub',
+            scroll_percent: 0.36,
+            chapter: '/api/epub/book.epub/chapter-2.xhtml'
+        });
+    });
 });
 
 describe('WebVTT parsing', () => {

@@ -608,29 +608,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const docContainer = document.getElementById('document-container');
             const iframe = docContainer?.querySelector('iframe');
             if (iframe && state.playback.item) {
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                    const iframeWin = iframe.contentWindow;
-
-                    if (iframeDoc && iframeWin) {
-                        const scrollTop = iframeWin.scrollY || iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop;
-                        const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
-                        const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
-
-                        if (scrollHeight > clientHeight) {
-                            const scrollPercent = scrollTop / (scrollHeight - clientHeight);
-                            saveDocumentProgress(state.playback.item.path, scrollPercent);
-                        }
-                    }
-                } catch (e) {
-                    // Cross-origin or other error - silently fail
-                }
+                saveCurrentDocumentProgress(iframe, state.playback.item.path, true);
 
                 // Clear progress timer
                 if (documentProgressTimer !== null) {
                     window.clearInterval(documentProgressTimer);
                     documentProgressTimer = null;
                 }
+                activeDocumentTracker = null;
             }
 
             docModal.classList.add('hidden');
@@ -5219,23 +5204,150 @@ document.addEventListener('DOMContentLoaded', () => {
     // Document reading progress tracking. Document progress uses its own key
     // so a scroll percentage can never be interpreted as media seconds.
     let documentProgressTimer: number | null = null;
+    let activeDocumentTracker: (() => void) | null = null;
     const DOCUMENT_PROGRESS_INTERVAL = 5000; // Save progress every 5 seconds
     const DOCUMENT_PROGRESS_KEY = 'disco-document-progress';
+    const lastPostedDocumentProgress = new Map<string, { scrollPercent: number; chapter: string }>();
 
-    function saveDocumentProgress(path: string, scrollPercent: number, chapter?: string) {
+    interface StoredDocumentProgress {
+        scrollPercent: number;
+        chapter: string;
+        last: number;
+    }
+
+    interface DocumentProgressResponse {
+        scroll_percent?: number;
+        chapter?: string;
+        time_updated?: number;
+    }
+
+    function clampDocumentProgress(value: number): number {
+        if (!Number.isFinite(value)) return 0;
+        return Math.max(0, Math.min(1, value));
+    }
+
+    function cacheDocumentProgress(path: string, progress: StoredDocumentProgress): void {
+        const all = getLocalStorageItem(DOCUMENT_PROGRESS_KEY, {});
+        all[path] = progress;
+        setLocalStorageItem(DOCUMENT_PROGRESS_KEY, all);
+    }
+
+    function sameDocumentPosition(
+        a: { scrollPercent: number; chapter: string },
+        b: { scrollPercent: number; chapter: string }
+    ): boolean {
+        return Math.abs(a.scrollPercent - b.scrollPercent) < 0.0005 && a.chapter === b.chapter;
+    }
+
+    // Converted EPUBs and HTML folders are wrapped in a TOC page. The wrapper
+    // itself never scrolls; the real document lives in #content-frame.
+    function getDocumentContentFrame(iframe: HTMLIFrameElement): HTMLIFrameElement {
+        try {
+            const doc = iframe.contentDocument;
+            if (doc) {
+                const inner = doc.querySelector('#content-frame');
+                if (inner instanceof HTMLIFrameElement) return inner;
+            }
+        } catch {
+            // Cross-origin document; use the outer frame as-is.
+        }
+        return iframe;
+    }
+
+    function getDocumentScrollContext(iframe: HTMLIFrameElement): {
+        win: Window;
+        doc: Document;
+        chapter: string;
+    } | null {
+        const frame = getDocumentContentFrame(iframe);
+        try {
+            const win = frame.contentWindow;
+            const doc = frame.contentDocument || win?.document;
+            if (!win || !doc) return null;
+            return {
+                win,
+                doc,
+                // For wrapped documents the chapter is the inner iframe's
+                // source. Direct documents have no chapter component.
+                chapter: frame === iframe ? '' : (frame.getAttribute('src') || '')
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    function readDocumentProgress(iframe: HTMLIFrameElement): { scrollPercent: number; chapter: string } | null {
+        const ctx = getDocumentScrollContext(iframe);
+        if (!ctx) return null;
+
+        const scrollTop = ctx.win.scrollY || ctx.doc.documentElement.scrollTop || ctx.doc.body?.scrollTop || 0;
+        const scrollHeight = ctx.doc.documentElement.scrollHeight || ctx.doc.body?.scrollHeight || 0;
+        const clientHeight = ctx.win.innerHeight || ctx.doc.documentElement.clientHeight;
+        if (scrollHeight <= clientHeight) {
+            // A short chapter still has a meaningful chapter position even
+            // though there is nothing to scroll within it.
+            return ctx.chapter ? { scrollPercent: 0, chapter: ctx.chapter } : null;
+        }
+
+        return {
+            scrollPercent: clampDocumentProgress(scrollTop / (scrollHeight - clientHeight)),
+            chapter: ctx.chapter
+        };
+    }
+
+    function saveCurrentDocumentProgress(iframe: HTMLIFrameElement, path: string, keepalive = false): void {
+        const current = readDocumentProgress(iframe);
+        if (!current) return;
+        saveDocumentProgress(path, current.scrollPercent, current.chapter, keepalive);
+    }
+
+    function saveDocumentProgress(path: string, scrollPercent: number, chapter?: string, keepalive = false) {
         if (!state.localResume) return;
 
-        const progress = getLocalStorageItem(DOCUMENT_PROGRESS_KEY, {});
-        progress[path] = {
-            scrollPercent: Math.max(0, Math.min(1, scrollPercent)),
+        const progress: StoredDocumentProgress = {
+            scrollPercent: clampDocumentProgress(scrollPercent),
             chapter: chapter || '',
             last: Date.now()
         };
+        cacheDocumentProgress(path, progress);
 
-        setLocalStorageItem(DOCUMENT_PROGRESS_KEY, progress);
+        // Read-only mode still gets local resume, but nothing is sent to the server.
+        if (state.readOnly) return;
+
+        const previous = lastPostedDocumentProgress.get(path);
+        if (previous && sameDocumentPosition(previous, progress)) return;
+
+        void fetchAPI('/api/document-progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path,
+                scroll_percent: progress.scrollPercent,
+                chapter: progress.chapter
+            }),
+            keepalive
+        }).then(async (resp) => {
+            if (!resp.ok) return;
+            lastPostedDocumentProgress.set(path, {
+                scrollPercent: progress.scrollPercent,
+                chapter: progress.chapter
+            });
+            const data = await resp.json().catch(() => null) as DocumentProgressResponse | null;
+            if (data && typeof data.time_updated === 'number' && data.time_updated > 0) {
+                // Align the local timestamp with the server clock so a newer
+                // position from another device wins the next comparison.
+                cacheDocumentProgress(path, {
+                    ...progress,
+                    last: data.time_updated * 1000
+                });
+            }
+        }).catch(() => {
+            // Offline or server error: keep the local copy and retry on the
+            // next tracking tick.
+        });
     }
 
-    function restoreDocumentProgress(path: string): { scrollPercent: number; chapter: string } | null {
+    function restoreDocumentProgress(path: string): StoredDocumentProgress | null {
         if (!state.localResume) return null;
 
         const progress = getLocalStorageItem(DOCUMENT_PROGRESS_KEY, {});
@@ -5246,91 +5358,178 @@ document.addEventListener('DOMContentLoaded', () => {
         const scrollPercent = typeof entry.scrollPercent === 'number'
             ? entry.scrollPercent
             : (entry.pos || 0) / 100;
-        const chapter = entry.chapter || '';
 
-        return { scrollPercent, chapter };
+        return {
+            scrollPercent: clampDocumentProgress(scrollPercent),
+            chapter: entry.chapter || '',
+            last: typeof entry.last === 'number' ? entry.last : 0
+        };
+    }
+
+    async function fetchDocumentProgress(path: string): Promise<StoredDocumentProgress | null> {
+        if (!state.localResume) return null;
+
+        try {
+            const resp = await fetchAPI(`/api/document-progress?path=${encodeURIComponent(path)}`);
+            if (!resp.ok) return null;
+            const data = await resp.json() as DocumentProgressResponse | null;
+            if (!data || typeof data.time_updated !== 'number' || data.time_updated <= 0) return null;
+            return {
+                scrollPercent: clampDocumentProgress(Number(data.scroll_percent) || 0),
+                chapter: typeof data.chapter === 'string' ? data.chapter : '',
+                last: data.time_updated * 1000
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    async function resolveDocumentProgress(path: string): Promise<StoredDocumentProgress | null> {
+        const local = restoreDocumentProgress(path);
+        const remote = await fetchDocumentProgress(path);
+
+        // Ignore small clock differences between this device and the server.
+        const localIsNewer = local !== null && (!remote || local.last > remote.last + 5000);
+        if (remote && !localIsNewer) {
+            cacheDocumentProgress(path, remote);
+            // The server is already at this position; do not write it back on
+            // the first tracking tick.
+            lastPostedDocumentProgress.set(path, {
+                scrollPercent: remote.scrollPercent,
+                chapter: remote.chapter
+            });
+            return remote;
+        }
+
+        // A newer local copy (for example, reading offline) should be pushed
+        // back to the server so the next device sees it.
+        if (localIsNewer) {
+            saveDocumentProgress(path, local.scrollPercent, local.chapter);
+        }
+        return local;
     }
 
     function trackDocumentProgress(iframe: HTMLIFrameElement, path: string) {
-        // Clear existing timer
         if (documentProgressTimer !== null) {
             window.clearInterval(documentProgressTimer);
         }
 
-        // Try to access iframe content (works for same-origin or calibre-converted content)
-        const tryTrackScroll = () => {
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                if (!iframeDoc) return;
+        activeDocumentTracker = () => saveCurrentDocumentProgress(iframe, path, true);
 
-                const iframeWin = iframe.contentWindow;
-                if (!iframeWin) return;
-
-                // Get scroll position from iframe
-                const scrollTop = iframeWin.scrollY || iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop;
-                const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
-                const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
-
-                if (scrollHeight > clientHeight) {
-                    const scrollPercent = scrollTop / (scrollHeight - clientHeight);
-                    saveDocumentProgress(path, scrollPercent);
-                }
-            } catch (e) {
-                // Cross-origin restriction - can't access iframe content
-                // Progress will only be saved when document is closed
-            }
-        };
-
-        // Track periodically while reading
-        documentProgressTimer = window.setInterval(tryTrackScroll, DOCUMENT_PROGRESS_INTERVAL);
-
-        // Also save on unload
-        iframe.addEventListener('beforeunload', () => {
-            tryTrackScroll();
-        });
+        documentProgressTimer = window.setInterval(() => {
+            saveCurrentDocumentProgress(iframe, path);
+        }, DOCUMENT_PROGRESS_INTERVAL);
     }
 
-    function applyDocumentProgress(iframe: HTMLIFrameElement, path: string) {
-        const saved = restoreDocumentProgress(path);
-        if (!saved) return;
+    async function applyDocumentProgress(
+        iframe: HTMLIFrameElement,
+        progress: StoredDocumentProgress | null
+    ): Promise<void> {
+        if (!progress) return;
 
-        const { scrollPercent, chapter } = saved;
-
-        // Wait for iframe to load, then restore position
-        iframe.addEventListener('load', () => {
-            // Give browser 1 second to stabilize layout
-            setTimeout(() => {
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                    const iframeWin = iframe.contentWindow;
-
-                    if (!iframeDoc || !iframeWin) return;
-
-                    const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight;
-                    const clientHeight = iframeWin.innerHeight || iframeDoc.documentElement.clientHeight;
-
-                    if (scrollHeight > clientHeight) {
-                        const targetScroll = scrollPercent * (scrollHeight - clientHeight);
-                        iframeWin.scrollTo({ top: targetScroll, behavior: 'smooth' });
-
-                        // Show toast with resume position
-                        if (scrollPercent > 0.05) { // Only show if > 5% progress
-                            const percent = Math.round(scrollPercent * 100);
-                            const msg = chapter
-                                ? `Resumed at chapter: ${chapter} (${percent}%)`
-                                : `Resumed at ${percent}%`;
-                            showToast(msg, '📖');
-                        }
-                    }
-                } catch (e) {
-                    // Cross-origin or other error - silently fail
-                }
-            }, 1000); // 1 second delay for browser to adjust
+        const { scrollPercent, chapter } = progress;
+        const deadline = Date.now() + 15000;
+        let settled = false;
+        let waitingForChapterLoad = false;
+        let chapterChangedAt = 0;
+        let resolvePromise: () => void = () => {};
+        const promise = new Promise<void>((resolve) => {
+            resolvePromise = resolve;
         });
+
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            resolvePromise();
+        };
+
+        const tryApply = () => {
+            if (settled) return;
+            if (Date.now() > deadline) {
+                finish();
+                return;
+            }
+
+            let wrapper: { inner: HTMLIFrameElement; select: HTMLSelectElement | null } | null = null;
+            try {
+                const doc = iframe.contentDocument;
+                if (doc) {
+                    const inner = doc.querySelector('#content-frame');
+                    if (inner instanceof HTMLIFrameElement) {
+                        wrapper = {
+                            inner,
+                            select: doc.querySelector('.toc-nav select') as HTMLSelectElement | null
+                        };
+                    }
+                }
+            } catch {
+                wrapper = null;
+            }
+
+            if (wrapper && chapter) {
+                const current = wrapper.inner.getAttribute('src') || '';
+                if (current !== chapter && !waitingForChapterLoad) {
+                    const hasOption = wrapper.select
+                        ? Array.from(wrapper.select.options).some(option => option.value === chapter)
+                        : false;
+                    if (hasOption) {
+                        waitingForChapterLoad = true;
+                        wrapper.inner.addEventListener('load', () => {
+                            waitingForChapterLoad = false;
+                            chapterChangedAt = Date.now();
+                        }, { once: true });
+                        if (wrapper.select) wrapper.select.value = chapter;
+                        wrapper.inner.src = chapter;
+                        window.setTimeout(tryApply, 250);
+                        return;
+                    }
+                }
+            }
+
+            if (waitingForChapterLoad || (chapterChangedAt > 0 && Date.now() - chapterChangedAt < 500)) {
+                window.setTimeout(tryApply, 200);
+                return;
+            }
+
+            const ctx = getDocumentScrollContext(iframe);
+            if (!ctx) {
+                window.setTimeout(tryApply, 200);
+                return;
+            }
+
+            const scrollHeight = ctx.doc.documentElement.scrollHeight || ctx.doc.body?.scrollHeight || 0;
+            const clientHeight = ctx.win.innerHeight || ctx.doc.documentElement.clientHeight;
+            if (scrollHeight <= clientHeight) {
+                // A fully loaded short chapter has nothing to scroll; start
+                // tracking instead of waiting for the deadline.
+                if (ctx.doc.readyState === 'complete') {
+                    finish();
+                    return;
+                }
+                window.setTimeout(tryApply, 200);
+                return;
+            }
+
+            const targetScroll = scrollPercent * (scrollHeight - clientHeight);
+            ctx.win.scrollTo({ top: targetScroll, behavior: 'auto' });
+
+            if (scrollPercent > 0.05) {
+                const percent = Math.round(scrollPercent * 100);
+                const chapterName = chapter ? (chapter.split('/').pop() || '') : '';
+                showToast(
+                    chapterName ? `Resumed at ${chapterName} (${percent}%)` : `Resumed at ${percent}%`,
+                    '📖'
+                );
+            }
+            finish();
+        };
+
+        window.setTimeout(tryApply, 300);
+        return promise;
     }
 
     // Render an HTML folder (folder with index.html) in the document viewer
-    async function renderHTMLFolder(item, container, normalizedPath) {
+    async function renderHTMLFolder(item, container, normalizedPath, documentProgress) {
         const baseUrl = appUrl(`/api/epub/${normalizedPath}`);
         
         const iframe = document.createElement("iframe");
@@ -5340,8 +5539,10 @@ document.addEventListener('DOMContentLoaded', () => {
         iframe.style.border = "none";
         container.appendChild(iframe);
 
-        trackDocumentProgress(iframe, item.path);
-        applyDocumentProgress(iframe, item.path);
+        await applyDocumentProgress(iframe, documentProgress);
+        if (state.playback.item?.path === item.path) {
+            trackDocumentProgress(iframe, item.path);
+        }
         iframe.addEventListener('load', () => applyDocumentViewSettings());
         applyDocumentViewSettings();
     }
@@ -5370,6 +5571,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clear previous viewer content
         container.innerHTML = '';
+
         // Setup fullscreen button
         const fsBtn = document.getElementById('doc-fullscreen');
         if (fsBtn) {
@@ -5386,6 +5588,10 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
+        // Resolve local/server progress before creating the iframe so the
+        // document opens at the right chapter without jumping afterward.
+        const documentProgress = await resolveDocumentProgress(item.path);
+
         // Check if this is an HTML folder (folder with index.html)
         const isHTMLFolder = item.media_type === 'text' && item.count !== undefined && item.count > 0;
         
@@ -5399,7 +5605,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(indexUrl);
                 if (response.ok) {
                     // This is an HTML folder, render it
-                    await renderHTMLFolder(item, container, normalizedPath);
+                    await renderHTMLFolder(item, container, normalizedPath, documentProgress);
                     return;
                 }
             } catch {
@@ -5442,8 +5648,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 iframe.style.border = "none";
                 container.appendChild(iframe);
 
-                trackDocumentProgress(iframe, item.path);
-                applyDocumentProgress(iframe, item.path);
+                await applyDocumentProgress(iframe, documentProgress);
+                if (state.playback.item?.path === item.path) {
+                    trackDocumentProgress(iframe, item.path);
+                }
             } else {
                 // Serve raw file directly (e.g. PDF or raw text/markdown)
                 const rawUrl = appUrl(`/api/raw?path=${encodeURIComponent(item.path)}`);
@@ -5455,7 +5663,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.appendChild(iframe);
 
                 // For raw files, try to restore progress (works for same-origin)
-                applyDocumentProgress(iframe, item.path);
+                await applyDocumentProgress(iframe, documentProgress);
+                if (state.playback.item?.path === item.path) {
+                    trackDocumentProgress(iframe, item.path);
+                }
             }
         }
         else {
@@ -5475,7 +5686,10 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(iframe);
 
             // Try to restore progress
-            applyDocumentProgress(iframe, item.path);
+            await applyDocumentProgress(iframe, documentProgress);
+            if (state.playback.item?.path === item.path) {
+                trackDocumentProgress(iframe, item.path);
+            }
         }
 
         const iframe = container.querySelector('iframe');
@@ -9017,6 +9231,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Shared viewer listeners are registered once, not per opened item.
     setupCursorAutoHide();
     setupViewerZoomPan();
+
+    // Flush the current reading position when the page is backgrounded or
+    // closed. The keepalive request still carries the session cookie.
+    window.addEventListener('pagehide', () => activeDocumentTracker?.());
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            activeDocumentTracker?.();
+        }
+    });
 
     // Initial load: database state (including read-only mode) must be known
     // before the first query or any delete controls are rendered.

@@ -37,6 +37,15 @@ type ProgressRequest struct {
 	Completed bool   `json:"completed"`
 }
 
+// DocumentProgress is the last-read position for a document. scroll_percent is
+// normalized to 0..1; chapter is the document fragment/chapter URL when known.
+type DocumentProgress struct {
+	Path          string  `json:"path"`
+	ScrollPercent float64 `json:"scroll_percent"`
+	Chapter       string  `json:"chapter,omitempty"`
+	TimeUpdated   int64   `json:"time_updated"`
+}
+
 type LsEntry struct {
 	Path      string `json:"path"`
 	Name      string `json:"name"`
