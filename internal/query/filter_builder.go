@@ -57,92 +57,118 @@ func (fb *FilterBuilder) BuildWhereClauses(ctx context.Context) ([]string, []any
 }
 
 func (fb *FilterBuilder) buildBasicFilters(whereClauses *[]string, args *[]any) {
-	// Deleted status (indexed column)
+	fb.buildDeletedFilters(whereClauses)
+	fb.buildSubtitleFilters(whereClauses)
+	fb.buildTypeFilters(whereClauses)
+	fb.buildGenreFilters(whereClauses, args)
+	fb.buildLanguageFilters(whereClauses, args)
+	fb.buildPathFilters(whereClauses, args)
+	fb.buildPlayCountFilters(whereClauses, args)
+}
+
+// buildDeletedFilters applies deleted status (indexed column).
+func (fb *FilterBuilder) buildDeletedFilters(whereClauses *[]string) {
 	if fb.Flags.OnlyDeleted {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("COALESCE(%s, 0) > 0", fb.col("time_deleted")))
 	} else if fb.Flags.HideDeleted {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("COALESCE(%s, 0) = 0", fb.col("time_deleted")))
 	}
+}
 
-	// Sidecar subtitles are captions, not media. The web grid opts into this;
-	// explicit CLI path/extension filters still allow inspecting them.
-	if fb.Flags.HideSubtitles && len(fb.Flags.Ext) == 0 && len(fb.Flags.Paths) == 0 {
-		subtitleClauses := make([]string, 0, len(media.SubtitleExtensions))
-		for _, ext := range media.SubtitleExtensions {
-			subtitleClauses = append(
-				subtitleClauses,
-				fmt.Sprintf("LOWER(%s) NOT LIKE '%%%s'", fb.col("path"), ext),
-			)
-		}
-		*whereClauses = append(*whereClauses, "("+strings.Join(subtitleClauses, " AND ")+")")
+// buildSubtitleFilters excludes sidecar subtitles unless the caller explicitly
+// asked for paths or extensions.
+func (fb *FilterBuilder) buildSubtitleFilters(whereClauses *[]string) {
+	if !fb.Flags.HideSubtitles || len(fb.Flags.Ext) > 0 || len(fb.Flags.Paths) > 0 {
+		return
 	}
+	subtitleClauses := make([]string, 0, len(media.SubtitleExtensions))
+	for _, ext := range media.SubtitleExtensions {
+		subtitleClauses = append(
+			subtitleClauses,
+			fmt.Sprintf("LOWER(%s) NOT LIKE '%%%s'", fb.col("path"), ext),
+		)
+	}
+	*whereClauses = append(*whereClauses, "("+strings.Join(subtitleClauses, " AND ")+")")
+}
 
-	// Content type filters (indexed column - should come before expensive searches)
+// buildTypeFilters applies content type filters (indexed column).
+func (fb *FilterBuilder) buildTypeFilters(whereClauses *[]string) {
+	column := fb.col("media_type")
 	var typeClauses []string
 	if fb.Flags.VideoOnly {
-		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'video'", fb.col("media_type")))
+		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'video'", column))
 	}
 	if fb.Flags.AudioOnly {
 		typeClauses = append(
 			typeClauses,
-			fmt.Sprintf("%s = 'audio'", fb.col("media_type")),
-			fmt.Sprintf("%s = 'audiobook'", fb.col("media_type")),
+			fmt.Sprintf("%s = 'audio'", column),
+			fmt.Sprintf("%s = 'audiobook'", column),
 		)
 	}
 	if fb.Flags.ImageOnly {
-		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'image'", fb.col("media_type")))
+		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'image'", column))
 	}
 	if fb.Flags.TextOnly {
-		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'text'", fb.col("media_type")))
+		typeClauses = append(typeClauses, fmt.Sprintf("%s = 'text'", column))
 	}
 	if len(typeClauses) > 0 {
 		*whereClauses = append(*whereClauses, "("+strings.Join(typeClauses, " OR ")+")")
 	}
+}
 
-	// Genre filter (equality match)
-	if fb.Flags.Genre != "" {
-		*whereClauses = append(*whereClauses, fmt.Sprintf("%s = ?", fb.col("genre")))
-		*args = append(*args, fb.Flags.Genre)
+// buildGenreFilters applies the equality genre filter.
+func (fb *FilterBuilder) buildGenreFilters(whereClauses *[]string, args *[]any) {
+	if fb.Flags.Genre == "" {
+		return
 	}
+	*whereClauses = append(*whereClauses, fmt.Sprintf("%s = ?", fb.col("genre")))
+	*args = append(*args, fb.Flags.Genre)
+}
 
-	// Language filter (equality match)
-	if len(fb.Flags.Language) > 0 {
-		langClauses := make([]string, 0, len(fb.Flags.Language))
-		for _, lang := range fb.Flags.Language {
-			langClauses = append(langClauses, fmt.Sprintf("%s = ?", fb.col("language")))
-			*args = append(*args, lang)
-		}
-		if len(langClauses) > 0 {
-			*whereClauses = append(*whereClauses, "("+strings.Join(langClauses, " OR ")+")")
-		}
+// buildLanguageFilters applies equality filters for any requested languages.
+func (fb *FilterBuilder) buildLanguageFilters(whereClauses *[]string, args *[]any) {
+	if len(fb.Flags.Language) == 0 {
+		return
 	}
+	langClauses := make([]string, 0, len(fb.Flags.Language))
+	for _, lang := range fb.Flags.Language {
+		langClauses = append(langClauses, fmt.Sprintf("%s = ?", fb.col("language")))
+		*args = append(*args, lang)
+	}
+	*whereClauses = append(*whereClauses, "("+strings.Join(langClauses, " OR ")+")")
+}
 
-	// Exact path filters (IN clause - very selective)
-	if len(fb.Flags.Paths) > 0 {
-		var inPaths []string
-		for _, p := range fb.Flags.Paths {
-			if strings.Contains(p, "%") {
-				*whereClauses = append(*whereClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
-				*args = append(*args, p)
-			} else {
-				inPaths = append(inPaths, p)
-			}
-		}
-		if len(inPaths) > 0 {
-			placeholders := make([]string, len(inPaths))
-			for i := range inPaths {
-				placeholders[i] = "?"
-				*args = append(*args, inPaths[i])
-			}
-			*whereClauses = append(
-				*whereClauses,
-				fmt.Sprintf("%s IN (%s)", fb.col("path"), strings.Join(placeholders, ", ")),
-			)
+// buildPathFilters applies exact path filters (IN clause) and LIKE patterns.
+func (fb *FilterBuilder) buildPathFilters(whereClauses *[]string, args *[]any) {
+	if len(fb.Flags.Paths) == 0 {
+		return
+	}
+	var inPaths []string
+	for _, p := range fb.Flags.Paths {
+		if strings.Contains(p, "%") {
+			*whereClauses = append(*whereClauses, fmt.Sprintf("%s LIKE ?", fb.col("path")))
+			*args = append(*args, p)
+		} else {
+			inPaths = append(inPaths, p)
 		}
 	}
+	if len(inPaths) == 0 {
+		return
+	}
+	placeholders := make([]string, len(inPaths))
+	for i, path := range inPaths {
+		placeholders[i] = "?"
+		*args = append(*args, path)
+	}
+	*whereClauses = append(
+		*whereClauses,
+		fmt.Sprintf("%s IN (%s)", fb.col("path"), strings.Join(placeholders, ", ")),
+	)
+}
 
-	// Play count filters (indexed column). Pointers distinguish "unset" from an
-	// explicit zero, so --play-count-max 0 works.
+// buildPlayCountFilters applies indexed play count bounds. Pointers distinguish
+// "unset" from an explicit zero, so --play-count-max 0 works.
+func (fb *FilterBuilder) buildPlayCountFilters(whereClauses *[]string, args *[]any) {
 	if fb.Flags.PlayCountMin != nil {
 		*whereClauses = append(*whereClauses, fmt.Sprintf("%s >= ?", fb.col("play_count")))
 		*args = append(*args, *fb.Flags.PlayCountMin)
@@ -689,6 +715,7 @@ func (fb *FilterBuilder) BuildQueryOrder() string {
 	sortExpr := fb.OverrideSort(fb.Flags.SortBy)
 	if fb.Flags.SortBy == "default" || fb.Flags.SortBy == "xklb" ||
 		fb.Flags.SortBy == "reverse_default" || fb.Flags.SortBy == "reverse_xklb" {
+
 		return sortExpr
 	}
 	order := "ASC"
@@ -891,7 +918,7 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 		rng.Shuffle(len(media), func(i, j int) {
 			media[i], media[j] = media[j], media[i]
 		})
-		applyReRank(media, sb.Flags)
+		reRank(media, sb.Flags)
 		return
 	}
 
@@ -902,7 +929,7 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 
 	if sb.Flags.NoPlayInOrder {
 		sb.sortByConfig(media, sortBy, sb.Flags.Reverse)
-		applyReRank(media, sb.Flags)
+		reRank(media, sb.Flags)
 		return
 	}
 
@@ -912,18 +939,18 @@ func (sb *SortBuilder) Sort(media []models.MediaWithDB) {
 			config = sb.Flags.PlayInOrder
 		}
 		sb.sortAdvancedWithReverse(media, config, sb.Flags.Reverse)
-		applyReRank(media, sb.Flags)
+		reRank(media, sb.Flags)
 		return
 	}
 
 	sb.sortByConfig(media, sortBy, sb.Flags.Reverse)
-	applyReRank(media, sb.Flags)
+	reRank(media, sb.Flags)
 }
 
 // SortBasic sorts by the configured SortBy using the unified sort contract.
 func (sb *SortBuilder) SortBasic(media []models.MediaWithDB) {
 	sb.sortByConfig(media, sb.Flags.SortBy, sb.Flags.Reverse)
-	applyReRank(media, sb.Flags)
+	reRank(media, sb.Flags)
 }
 
 func (sb *SortBuilder) sortByConfig(media []models.MediaWithDB, config string, reverse bool) {
@@ -1418,7 +1445,7 @@ func CompareSortFields(media []models.MediaWithDB, i, j int, sortFields []SortFi
 
 func (sb *SortBuilder) SortAdvanced(media []models.MediaWithDB, config string) {
 	sb.sortAdvancedWithReverse(media, config, false)
-	applyReRank(media, sb.Flags)
+	reRank(media, sb.Flags)
 }
 
 func (sb *SortBuilder) sortAdvancedWithReverse(media []models.MediaWithDB, config string, reverse bool) {
@@ -2165,6 +2192,7 @@ func needsPostProcessedCount(flags models.GlobalFlags) bool {
 	}
 	if flags.Related > 0 || strings.Contains(flags.PlayInOrder, "_related_media") ||
 		strings.Contains(flags.SortBy, "_related_media") {
+
 		return true
 	}
 	return false

@@ -141,13 +141,13 @@ func TestUpdateHistoryWithTime_DoesNotRegressTimestamps(t *testing.T) {
 
 	update := func(ts int64) {
 		t.Helper()
-		if err := history.UpdateHistoryWithTime(
+		if updateErr := history.UpdateHistoryWithTime(
 			context.Background(),
 			dbPath,
 			[]string{path},
 			history.HistoryEntry{Playhead: 1, TimePlayed: ts},
-		); err != nil {
-			t.Fatal(err)
+		); updateErr != nil {
+			t.Fatal(updateErr)
 		}
 	}
 

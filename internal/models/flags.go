@@ -163,7 +163,7 @@ func (d DisplayFlags) ValidateColumns(folderMode bool) error {
 // for `add`. Database-only filters (search, playback state, dates) do not make
 // sense before a row exists, so they are intentionally not exposed here.
 type AddFilterFlags struct {
-	Size []string `help:"Size range (e.g., >100MB, 1GB%10)" group:"Filter" short:"S"`
+	Size []string `help:"Size range (e.g., >100MB, 1GB%10)" short:"S" group:"Filter"`
 }
 
 type AggregateFlags struct {
@@ -353,16 +353,16 @@ type GlobalFlags struct {
 
 	// ValidationError is set by the HTTP request parser when a query parameter
 	// would otherwise reach SQL. Handlers turn it into a 400 response.
-	ValidationError string `json:"-" kong:"-"`
+	ValidationError string `kong:"-" json:"-"`
 
 	// SearchModeExplicit reports whether FTS/substring mode was chosen
 	// explicitly. HTTP handlers may auto-detect FTS only when it was not.
-	SearchModeExplicit bool `json:"-" kong:"-"`
+	SearchModeExplicit bool `kong:"-" json:"-"`
 
 	// HideSubtitles excludes sidecar subtitle files (.srt, .vtt, ...) from
 	// media results. The HTTP media grid sets this; the CLI leaves it off so
 	// explicit path/ext queries can still inspect subtitles.
-	HideSubtitles bool `json:"-" kong:"-"`
+	HideSubtitles bool `kong:"-" json:"-"`
 }
 
 // ControlFlags are a subset of flags for simple control commands

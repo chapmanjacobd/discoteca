@@ -164,21 +164,21 @@ func (c *Server) updateTrackNumbers(ctx context.Context, items []playlistItem) (
 				return err
 			}
 			for _, item := range group.items {
-				res, err := tx.ExecContext(
+				res, execErr := tx.ExecContext(
 					ctx,
 					"UPDATE playlist_items SET track_number = ? WHERE playlist_id = ? AND media_path = ?",
 					item.TrackNumber,
 					item.PlaylistID,
 					item.MediaPath,
 				)
-				if err != nil {
+				if execErr != nil {
 					_ = tx.Rollback()
-					return err
+					return execErr
 				}
-				rows, err := res.RowsAffected()
-				if err != nil {
+				rows, rowsErr := res.RowsAffected()
+				if rowsErr != nil {
 					_ = tx.Rollback()
-					return err
+					return rowsErr
 				}
 				if rows != 1 {
 					_ = tx.Rollback()
@@ -247,5 +247,8 @@ func (c *Server) HandlePlaylistReorder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	affected, succeeded, failed, errs := c.updateTrackNumbers(r.Context(), finalItems)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }

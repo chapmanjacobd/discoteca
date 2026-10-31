@@ -29,7 +29,7 @@ func setupEmptyBinEnv(t *testing.T) (*duTestEnv, string) {
 	}
 	defer sqlDB.Close()
 
-	if err := db.InitDB(context.Background(), sqlDB); err != nil {
+	if err = db.InitDB(context.Background(), sqlDB); err != nil {
 		t.Fatalf("Failed to initialize DB: %v", err)
 	}
 
@@ -82,10 +82,13 @@ func countRemaining(t *testing.T, dbPath string) map[string]int {
 	remaining := map[string]int{}
 	for rows.Next() {
 		var path string
-		if err := rows.Scan(&path); err != nil {
+		if err = rows.Scan(&path); err != nil {
 			t.Fatal(err)
 		}
 		remaining[path]++
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	return remaining
 }

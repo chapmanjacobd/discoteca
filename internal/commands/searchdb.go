@@ -22,10 +22,10 @@ type SearchDBCmd struct {
 	Exact   bool     `help:"Exact match for search"                 group:"Filter"`
 	Where   []string `help:"SQL where clause(s)"                    group:"Filter" short:"w"`
 
-	Limit  int  `help:"Limit printed rows (does not affect destructive actions)" short:"L" group:"Display" default:"100"`
-	All    bool `help:"Print all rows (no limit)"                                short:"a" group:"Display"`
-	Offset int  `help:"Skip N printed rows"                                                group:"Display"`
-	JSON   bool `help:"Output results as JSON"                                   short:"j" group:"Display"`
+	Limit  int  `help:"Limit printed rows (does not affect destructive actions)" default:"100" short:"L" group:"Display"`
+	All    bool `help:"Print all rows (no limit)"                                              short:"a" group:"Display"`
+	Offset int  `help:"Skip N printed rows"                                                              group:"Display"`
+	JSON   bool `help:"Output results as JSON"                                                 short:"j" group:"Display"`
 
 	DeleteRows  bool `help:"Delete matching rows"          group:"PostAction"`
 	MarkDeleted bool `help:"Mark matching rows as deleted" group:"PostAction"`
@@ -151,65 +151,97 @@ func (c *SearchDBCmd) buildSearchFilters(columns []string) ([]string, []any) {
 	terms = append(terms, c.Terms...)
 	terms = append(terms, c.Search...)
 
-	// Support for Search terms from command line
-	if len(terms) > 0 {
-		for _, term := range terms {
-			if len(columns) == 0 {
-				continue
-			}
-			var groupClauses []string
-			pattern := term
-			if !c.Exact {
-				pattern = "%" + term + "%"
-			}
-
-			for _, col := range columns {
-				if c.Exact {
-					groupClauses = append(groupClauses, fmt.Sprintf("%s = ?", col))
-				} else {
-					groupClauses = append(groupClauses, fmt.Sprintf("%s LIKE ?", col))
-				}
-				args = append(args, pattern)
-			}
-			whereClauses = append(whereClauses, "("+strings.Join(groupClauses, " OR ")+")")
-		}
-	}
+	whereClauses, args = appendTermFilters(whereClauses, args, terms, columns, c.Exact)
 
 	// Support for GlobalFlags.Include/Exclude
-	if len(c.Include) > 0 && len(columns) > 0 {
-		for _, inc := range c.Include {
-			groupClauses := make([]string, 0, len(columns))
-			pattern := "%" + inc + "%"
-			for _, col := range columns {
-				groupClauses = append(groupClauses, fmt.Sprintf("%s LIKE ?", col))
-				args = append(args, pattern)
-			}
-			whereClauses = append(whereClauses, "("+strings.Join(groupClauses, " OR ")+")")
-		}
-	}
-
-	if len(c.Exclude) > 0 && len(columns) > 0 {
-		for _, exc := range c.Exclude {
-			groupClauses := make([]string, 0, len(columns))
-			pattern := "%" + exc + "%"
-			for _, col := range columns {
-				groupClauses = append(groupClauses, fmt.Sprintf("%s NOT LIKE ?", col))
-				args = append(args, pattern)
-			}
-			whereClauses = append(whereClauses, "("+strings.Join(groupClauses, " AND ")+")")
-		}
-	}
+	whereClauses, args = appendPatternFilters(
+		whereClauses, args, c.Include, columns, patternFilterMode{matchAll: false, negate: false},
+	)
+	whereClauses, args = appendPatternFilters(
+		whereClauses, args, c.Exclude, columns, patternFilterMode{matchAll: true, negate: true},
+	)
 
 	// User-provided safety predicate from FilterFlags.Where.
-	for _, clause := range c.Where {
+	whereClauses = appendWhereFilters(whereClauses, c.Where)
+
+	return whereClauses, args
+}
+
+func appendTermFilters(
+	whereClauses []string,
+	args []any,
+	terms []string,
+	columns []string,
+	exact bool,
+) ([]string, []any) {
+	if len(columns) == 0 {
+		return whereClauses, args
+	}
+
+	op := "LIKE"
+	if exact {
+		op = "="
+	}
+	for _, term := range terms {
+		groupClauses := make([]string, 0, len(columns))
+		pattern := term
+		if !exact {
+			pattern = "%" + term + "%"
+		}
+		for _, col := range columns {
+			groupClauses = append(groupClauses, fmt.Sprintf("%s %s ?", col, op))
+			args = append(args, pattern)
+		}
+		whereClauses = append(whereClauses, "("+strings.Join(groupClauses, " OR ")+")")
+	}
+	return whereClauses, args
+}
+
+type patternFilterMode struct {
+	matchAll bool
+	negate   bool
+}
+
+func appendPatternFilters(
+	whereClauses []string,
+	args []any,
+	patterns []string,
+	columns []string,
+	mode patternFilterMode,
+) ([]string, []any) {
+	if len(patterns) == 0 || len(columns) == 0 {
+		return whereClauses, args
+	}
+
+	op := "LIKE"
+	if mode.negate {
+		op = "NOT LIKE"
+	}
+	join := " OR "
+	if mode.matchAll {
+		join = " AND "
+	}
+	for _, value := range patterns {
+		groupClauses := make([]string, 0, len(columns))
+		pattern := "%" + value + "%"
+		for _, col := range columns {
+			groupClauses = append(groupClauses, fmt.Sprintf("%s %s ?", col, op))
+			args = append(args, pattern)
+		}
+		whereClauses = append(whereClauses, "("+strings.Join(groupClauses, join)+")")
+	}
+	return whereClauses, args
+}
+
+func appendWhereFilters(whereClauses, clauses []string) []string {
+	for _, clause := range clauses {
 		clause = strings.TrimSpace(clause)
 		if clause == "" {
 			continue
 		}
 		whereClauses = append(whereClauses, "("+clause+")")
 	}
-
-	return whereClauses, args
+	return whereClauses
 }
 
 func buildPredicate(where []string) string {

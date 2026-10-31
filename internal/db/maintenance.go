@@ -223,7 +223,7 @@ func populateFolderStats(ctx context.Context, db dbExecer) error {
 	for rows.Next() {
 		var path string
 		var size, duration int64
-		if err := rows.Scan(&path, &size, &duration); err != nil {
+		if scanErr := rows.Scan(&path, &size, &duration); scanErr != nil {
 			continue
 		}
 		parent := filepath.Dir(path)
@@ -234,7 +234,7 @@ func populateFolderStats(ctx context.Context, db dbExecer) error {
 		folderMap[parent].size += size
 		folderMap[parent].duration += duration
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return err
 	}
 	rows.Close()
@@ -245,7 +245,7 @@ func populateFolderStats(ctx context.Context, db dbExecer) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM folder_stats"); err != nil {
+	if _, err = tx.ExecContext(ctx, "DELETE FROM folder_stats"); err != nil {
 		return err
 	}
 

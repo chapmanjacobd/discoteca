@@ -730,12 +730,13 @@ func TestNoDuplicateMediaIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var seq int
 		var name string
 		var unique, partial int
 		var origin string
-		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+		if err = rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
 			t.Fatal(err)
 		}
 		if name == "sqlite_autoindex_media_1" || partial == 1 {
@@ -743,10 +744,9 @@ func TestNoDuplicateMediaIndexes(t *testing.T) {
 		}
 		indexNames = append(indexNames, name)
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	rows.Close()
 
 	seen := make(map[string]string)
 	for _, indexName := range indexNames {

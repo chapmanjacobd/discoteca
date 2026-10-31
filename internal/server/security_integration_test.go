@@ -247,7 +247,10 @@ func TestEmptyBinRejectsUnlistedAndUntrashedPaths(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	body, _ := json.Marshal(map[string][]string{"paths": {"/keep/b.mp4"}})
+	body, err := json.Marshal(map[string][]string{"paths": {"/keep/b.mp4"}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
 	if w.Code != http.StatusBadRequest {
@@ -280,11 +283,11 @@ func TestEmptyBinRejectsPathFromAnotherDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer otherSQL.Close()
-	if err := db.InitDB(context.Background(), otherSQL); err != nil {
+	if err = db.InitDB(context.Background(), otherSQL); err != nil {
 		t.Fatal(err)
 	}
 	otherPath := filepath.Join(t.TempDir(), "other-trash.mp4")
-	if _, err := otherSQL.Exec(
+	if _, err = otherSQL.Exec(
 		`INSERT INTO media (path, media_type, time_deleted) VALUES (?, 'video', 1)`,
 		otherPath,
 	); err != nil {
@@ -295,7 +298,10 @@ func TestEmptyBinRejectsPathFromAnotherDatabase(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	body, _ := json.Marshal(map[string][]string{"paths": {otherPath}})
+	body, err := json.Marshal(map[string][]string{"paths": {otherPath}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
 	if w.Code != http.StatusBadRequest {
@@ -322,7 +328,10 @@ func TestEmptyBinListedPathAndReadOnly(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	body, _ := json.Marshal(map[string][]string{"paths": {filePath}})
+	body, err := json.Marshal(map[string][]string{"paths": {filePath}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
 	if w.Code != http.StatusOK {
@@ -375,7 +384,10 @@ func TestEmptyBinPartialFailure(t *testing.T) {
 	defer cmd.Close()
 	mux := cmd.Mux()
 
-	body, _ := json.Marshal(map[string][]string{"paths": {goodFile, badDir}})
+	body, err := json.Marshal(map[string][]string{"paths": {goodFile, badDir}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
 	if w.Code != http.StatusMultiStatus {
@@ -657,7 +669,10 @@ func TestWriteHandlersReportFailures(t *testing.T) {
 
 	invalidDB := filepath.Join(t.TempDir(), "missing", "db.sqlite")
 	makeBody := func() *bytes.Reader {
-		body, _ := json.Marshal(map[string]any{"path": mediaPath, "score": 4})
+		body, err := json.Marshal(map[string]any{"path": mediaPath, "score": 4})
+		if err != nil {
+			t.Fatal(err)
+		}
 		return bytes.NewReader(body)
 	}
 

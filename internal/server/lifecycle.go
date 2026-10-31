@@ -211,7 +211,7 @@ func (c *Server) checkFfmpeg() {
 }
 
 // openBrowser opens the default browser to the server URL
-func (c *Server) openBrowser(baseURL string) {
+func (c *Server) openBrowser(ctx context.Context, baseURL string) {
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		var openCmd string
@@ -229,7 +229,7 @@ func (c *Server) openBrowser(baseURL string) {
 
 		if openCmd != "" {
 			openArgs = append(openArgs, baseURL)
-			cmd := exec.Command(openCmd, openArgs...)
+			cmd := exec.CommandContext(ctx, openCmd, openArgs...)
 			if err := cmd.Start(); err != nil {
 				logging.Log.Debug("Failed to open browser", "error", err)
 				return
@@ -279,7 +279,7 @@ func (c *Server) Run(ctx context.Context) error {
 
 	// Open browser unless --no-browser is passed
 	if !c.NoBrowser {
-		c.openBrowser(baseURL)
+		c.openBrowser(ctx, baseURL)
 	}
 
 	server := &http.Server{
@@ -344,37 +344,40 @@ func (c *Server) execWriteAcrossDBs(
 	return affected, succeeded, failed, errs
 }
 
+// writeResult describes a multi-database write outcome for sendWriteResult.
+type writeResult struct {
+	status          int
+	affected        int64
+	succeeded       int
+	failed          int
+	errs            []string
+	notFoundMessage string
+}
+
 // sendWriteResult maps a multi-database write outcome to an HTTP response.
 // notFoundMessage, when set, turns a zero-row success into a 404.
-func sendWriteResult(
-	w http.ResponseWriter,
-	successStatus int,
-	affected int64,
-	succeeded, failed int,
-	errs []string,
-	notFoundMessage string,
-) {
-	if failed == 0 {
-		if affected == 0 && notFoundMessage != "" {
-			sendError(w, http.StatusNotFound, notFoundMessage)
+func sendWriteResult(w http.ResponseWriter, result writeResult) {
+	if result.failed == 0 {
+		if result.affected == 0 && result.notFoundMessage != "" {
+			sendError(w, http.StatusNotFound, result.notFoundMessage)
 			return
 		}
-		w.WriteHeader(successStatus)
+		w.WriteHeader(result.status)
 		return
 	}
-	if succeeded == 0 {
+	if result.succeeded == 0 {
 		sendJSON(w, http.StatusInternalServerError, map[string]any{
 			"error":    "all database writes failed",
-			"affected": affected,
-			"failed":   failed,
-			"errors":   errs,
+			"affected": result.affected,
+			"failed":   result.failed,
+			"errors":   result.errs,
 		})
 		return
 	}
 	sendJSON(w, http.StatusMultiStatus, map[string]any{
 		"status":   "partial",
-		"affected": affected,
-		"failed":   failed,
-		"errors":   errs,
+		"affected": result.affected,
+		"failed":   result.failed,
+		"errors":   result.errs,
 	})
 }

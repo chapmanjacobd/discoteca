@@ -27,7 +27,7 @@ func setupDUSortEnv(t *testing.T) (*duTestEnv, string) {
 	}
 	defer sqlDB.Close()
 
-	if err := db.InitDB(context.Background(), sqlDB); err != nil {
+	if err = db.InitDB(context.Background(), sqlDB); err != nil {
 		t.Fatalf("Failed to initialize DB: %v", err)
 	}
 

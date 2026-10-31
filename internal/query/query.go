@@ -61,10 +61,10 @@ func SortMediaWithExpansion(ctx context.Context, sqlDB *sql.DB, media *[]models.
 
 // ApplyReRank applies --re-rank to an already sorted slice.
 func ApplyReRank(media []models.MediaWithDB, flags models.GlobalFlags) {
-	applyReRank(media, flags)
+	reRank(media, flags)
 }
 
-func applyReRank(media []models.MediaWithDB, flags models.GlobalFlags) {
+func reRank(media []models.MediaWithDB, flags models.GlobalFlags) {
 	if flags.ReRank == "" {
 		return
 	}

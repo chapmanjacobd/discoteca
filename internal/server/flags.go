@@ -200,71 +200,12 @@ func (c *Server) parseScoreFlags(flags *models.GlobalFlags, q url.Values) {
 
 // parseSortFlags extracts sorting-related flags
 func (c *Server) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
-	if seed := strings.TrimSpace(q.Get("random_seed")); seed != "" {
-		parsed, err := strconv.ParseUint(seed, 10, 64)
-		if err != nil {
-			setFlagValidationError(flags, fmt.Errorf("invalid random_seed: %w", err))
-		} else {
-			flags.RandomSeed = parsed
-		}
-	}
+	c.parseRandomSeed(flags, q)
+	c.parseSortBy(flags, q)
+	c.parseSortFields(flags, q)
+	c.parseSortDesc(flags, q)
 
-	if sortBy := strings.TrimSpace(q.Get("sort")); sortBy != "" {
-		if err := query.ValidateSortConfig(sortBy); err != nil {
-			setFlagValidationError(flags, fmt.Errorf("invalid sort: %w", err))
-		} else {
-			flags.SortBy = sortBy
-			if sortBy == "random" || sortBy == "random()" ||
-				sortBy == "RANDOM" || sortBy == "RANDOM()" {
-				flags.Random = true
-			}
-		}
-	}
-	// Support complex sorting with sort_fields array (JSON) or comma-separated string
-	if sortFields := q.Get("sort_fields"); sortFields != "" {
-		config := sortFields
-		if strings.HasPrefix(sortFields, "[") {
-			var fieldList []string
-			if err := json.Unmarshal([]byte(sortFields), &fieldList); err != nil {
-				setFlagValidationError(flags, fmt.Errorf("invalid sort_fields: %w", err))
-				return
-			}
-			config = strings.Join(fieldList, ",")
-		}
-		if err := query.ValidateSortConfig(config); err != nil {
-			setFlagValidationError(flags, fmt.Errorf("invalid sort_fields: %w", err))
-		} else {
-			flags.PlayInOrder = config
-		}
-	}
-	// Also support sort_order for explicit direction
-	if sortDesc := q.Get("sort_desc"); sortDesc != "" {
-		descFields := make(map[string]bool)
-		for f := range strings.SplitSeq(sortDesc, ",") {
-			f = strings.TrimSpace(f)
-			if err := query.ValidateSortConfig(f); err != nil {
-				setFlagValidationError(flags, fmt.Errorf("invalid sort_desc: %w", err))
-				return
-			}
-			descFields[f] = true
-		}
-		if flags.PlayInOrder != "" {
-			var newOrder []string
-			for f := range strings.SplitSeq(flags.PlayInOrder, ",") {
-				f = strings.TrimSpace(f)
-				f = strings.TrimPrefix(f, "-")
-				f = strings.TrimSuffix(f, " desc")
-				f = strings.TrimSuffix(f, " asc")
-				if descFields[f] {
-					newOrder = append(newOrder, "-"+f)
-				} else {
-					newOrder = append(newOrder, f)
-				}
-			}
-			flags.PlayInOrder = strings.Join(newOrder, ",")
-		}
-	}
-	if reverse := q.Get("reverse"); reverse == "true" {
+	if q.Get("reverse") == "true" {
 		flags.Reverse = true
 	}
 	if q.Get("random") == "true" {
@@ -276,6 +217,91 @@ func (c *Server) parseSortFlags(flags *models.GlobalFlags, q url.Values) {
 	if rerank := q.Get("rerank"); rerank != "" {
 		flags.ReRank = rerank
 	}
+}
+
+func (c *Server) parseRandomSeed(flags *models.GlobalFlags, q url.Values) {
+	seed := strings.TrimSpace(q.Get("random_seed"))
+	if seed == "" {
+		return
+	}
+	parsed, err := strconv.ParseUint(seed, 10, 64)
+	if err != nil {
+		setFlagValidationError(flags, fmt.Errorf("invalid random_seed: %w", err))
+		return
+	}
+	flags.RandomSeed = parsed
+}
+
+func (c *Server) parseSortBy(flags *models.GlobalFlags, q url.Values) {
+	sortBy := strings.TrimSpace(q.Get("sort"))
+	if sortBy == "" {
+		return
+	}
+	if err := query.ValidateSortConfig(sortBy); err != nil {
+		setFlagValidationError(flags, fmt.Errorf("invalid sort: %w", err))
+		return
+	}
+	flags.SortBy = sortBy
+	switch strings.ToLower(sortBy) {
+	case "random", "random()":
+		flags.Random = true
+	}
+}
+
+// parseSortFields supports complex sorting with a sort_fields array (JSON) or
+// comma-separated string.
+func (c *Server) parseSortFields(flags *models.GlobalFlags, q url.Values) {
+	sortFields := q.Get("sort_fields")
+	if sortFields == "" {
+		return
+	}
+	config := sortFields
+	if strings.HasPrefix(sortFields, "[") {
+		var fieldList []string
+		if err := json.Unmarshal([]byte(sortFields), &fieldList); err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid sort_fields: %w", err))
+			return
+		}
+		config = strings.Join(fieldList, ",")
+	}
+	if err := query.ValidateSortConfig(config); err != nil {
+		setFlagValidationError(flags, fmt.Errorf("invalid sort_fields: %w", err))
+		return
+	}
+	flags.PlayInOrder = config
+}
+
+// parseSortDesc applies explicit direction flags from sort_desc.
+func (c *Server) parseSortDesc(flags *models.GlobalFlags, q url.Values) {
+	sortDesc := q.Get("sort_desc")
+	if sortDesc == "" {
+		return
+	}
+	descFields := make(map[string]bool)
+	for f := range strings.SplitSeq(sortDesc, ",") {
+		f = strings.TrimSpace(f)
+		if err := query.ValidateSortConfig(f); err != nil {
+			setFlagValidationError(flags, fmt.Errorf("invalid sort_desc: %w", err))
+			return
+		}
+		descFields[f] = true
+	}
+	if flags.PlayInOrder == "" {
+		return
+	}
+	var newOrder []string
+	for f := range strings.SplitSeq(flags.PlayInOrder, ",") {
+		f = strings.TrimSpace(f)
+		f = strings.TrimPrefix(f, "-")
+		f = strings.TrimSuffix(f, " desc")
+		f = strings.TrimSuffix(f, " asc")
+		if descFields[f] {
+			newOrder = append(newOrder, "-"+f)
+		} else {
+			newOrder = append(newOrder, f)
+		}
+	}
+	flags.PlayInOrder = strings.Join(newOrder, ",")
 }
 
 // parsePaginationFlags extracts limit and offset flags
@@ -330,71 +356,45 @@ func (c *Server) parseDurationFlags(flags *models.GlobalFlags, q url.Values) {
 
 // parseTimeFlags extracts time-based filter flags
 func (c *Server) parseTimeFlags(flags *models.GlobalFlags, q url.Values) {
-	if minModified := q.Get("min_modified"); minModified != "" {
-		flags.ModifiedAfter = minModified
+	scalars := []struct {
+		key  string
+		dest *string
+	}{
+		{"min_modified", &flags.ModifiedAfter},
+		{"max_modified", &flags.ModifiedBefore},
+		{"min_created", &flags.CreatedAfter},
+		{"max_created", &flags.CreatedBefore},
+		{"min_downloaded", &flags.DownloadedAfter},
+		{"max_downloaded", &flags.DownloadedBefore},
+		{"deleted_after", &flags.DeletedAfter},
+		{"deleted_before", &flags.DeletedBefore},
+		{"played_after", &flags.PlayedAfter},
+		{"played_before", &flags.PlayedBefore},
 	}
-	if maxModified := q.Get("max_modified"); maxModified != "" {
-		flags.ModifiedBefore = maxModified
-	}
-	if minCreated := q.Get("min_created"); minCreated != "" {
-		flags.CreatedAfter = minCreated
-	}
-	if maxCreated := q.Get("max_created"); maxCreated != "" {
-		flags.CreatedBefore = maxCreated
-	}
-	if minDownloaded := q.Get("min_downloaded"); minDownloaded != "" {
-		flags.DownloadedAfter = minDownloaded
-	}
-	if maxDownloaded := q.Get("max_downloaded"); maxDownloaded != "" {
-		flags.DownloadedBefore = maxDownloaded
-	}
-	if deletedAfter := q.Get("deleted_after"); deletedAfter != "" {
-		flags.DeletedAfter = deletedAfter
-	}
-	if deletedBefore := q.Get("deleted_before"); deletedBefore != "" {
-		flags.DeletedBefore = deletedBefore
-	}
-	if playedAfter := q.Get("played_after"); playedAfter != "" {
-		flags.PlayedAfter = playedAfter
-	}
-	if playedBefore := q.Get("played_before"); playedBefore != "" {
-		flags.PlayedBefore = playedBefore
-	}
-
-	if modified := q["modified"]; len(modified) > 0 {
-		flags.Modified = append(flags.Modified, modified...)
-	}
-	if created := q["created"]; len(created) > 0 {
-		flags.Created = append(flags.Created, created...)
-	}
-	if downloaded := q["downloaded"]; len(downloaded) > 0 {
-		flags.Downloaded = append(flags.Downloaded, downloaded...)
-	}
-
-	for _, m := range q["modified"] {
-		for part := range strings.SplitSeq(m, ",") {
-			if strings.HasPrefix(part, "+") {
-				flags.ModifiedAfter = part[1:]
-			} else if strings.HasPrefix(part, "-") {
-				flags.ModifiedBefore = part[1:]
-			}
+	for _, scalar := range scalars {
+		if value := q.Get(scalar.key); value != "" {
+			*scalar.dest = value
 		}
 	}
-	for _, m := range q["created"] {
-		for part := range strings.SplitSeq(m, ",") {
-			if strings.HasPrefix(part, "+") {
-				flags.CreatedAfter = part[1:]
-			} else if strings.HasPrefix(part, "-") {
-				flags.CreatedBefore = part[1:]
-			}
-		}
+
+	appendTimeListFilters(q, "modified", &flags.Modified, &flags.ModifiedAfter, &flags.ModifiedBefore)
+	appendTimeListFilters(q, "created", &flags.Created, &flags.CreatedAfter, &flags.CreatedBefore)
+	appendTimeListFilters(q, "downloaded", &flags.Downloaded, &flags.DownloadedAfter, &flags.DownloadedBefore)
+}
+
+// appendTimeListFilters stores list-form time values and extracts the "+after"
+// and "-before" prefixes into the corresponding scalar filter.
+func appendTimeListFilters(q url.Values, key string, list *[]string, after, before *string) {
+	values := q[key]
+	if len(values) > 0 {
+		*list = append(*list, values...)
 	}
-	for _, m := range q["downloaded"] {
-		for part := range strings.SplitSeq(m, ",") {
-			if strings.HasPrefix(part, "+") {
-				flags.DownloadedAfter = part[1:]
-			} else if strings.HasPrefix(part, "-") {
-				flags.DownloadedBefore = part[1:]
+	for _, value := range values {
+		for part := range strings.SplitSeq(value, ",") {
+			if trimmed, ok := strings.CutPrefix(part, "+"); ok {
+				*after = trimmed
+			} else if trimmed, ok := strings.CutPrefix(part, "-"); ok {
+				*before = trimmed
 			}
 		}
 	}

@@ -218,67 +218,69 @@ func (c *Server) emptyBinDelete(ctx context.Context, paths []string) EmptyBinRes
 		return result
 	}
 
-	rowDeleted := make(map[string]bool)
-	fileRemoved := make(map[string]bool)
-	failedPaths := make(map[string]bool)
-
 	// Validate membership before mutating anything.
-	valid := make([]string, 0, len(paths))
-	for _, p := range paths {
-		if c.pathIsTrashed(ctx, p) {
-			valid = append(valid, p)
-		} else {
-			result.Skipped++
-		}
-	}
+	valid, skipped := c.validateTrashedPaths(ctx, paths)
+	result.Skipped = skipped
 	if len(valid) == 0 {
 		return result
 	}
 
 	// Remove files first. A file that cannot be removed keeps its trash row so
 	// the user can retry instead of leaving an orphaned file behind.
+	fileRemoved, failedPaths := removeBinFiles(valid)
+	rowDeleted := c.deleteBinRows(ctx, valid, failedPaths)
+
 	for _, p := range valid {
-		if fileutil.FileExists(p) {
-			if err := os.Remove(p); err != nil {
-				logging.Log.Error("Failed to delete file", "path", p, "error", err)
-				failedPaths[p] = true
-			} else {
-				fileRemoved[p] = true
-			}
+		switch {
+		case failedPaths[p]:
+			result.Failed++
+		case fileRemoved[p] || rowDeleted[p]:
+			result.Deleted++
+		default:
+			result.Failed++
 		}
 	}
+	return result
+}
 
-	for _, dbPath := range c.Databases {
-		var present []string
-		for _, p := range valid {
-			if failedPaths[p] {
-				continue
-			}
-			if c.dbHasTrashedPath(ctx, dbPath, p) {
-				present = append(present, p)
-			}
+func (c *Server) validateTrashedPaths(ctx context.Context, paths []string) ([]string, int) {
+	valid := make([]string, 0, len(paths))
+	skipped := 0
+	for _, p := range paths {
+		if c.pathIsTrashed(ctx, p) {
+			valid = append(valid, p)
+		} else {
+			skipped++
 		}
+	}
+	return valid, skipped
+}
+
+func removeBinFiles(paths []string) (removed, failed map[string]bool) {
+	removed = make(map[string]bool)
+	failed = make(map[string]bool)
+	for _, p := range paths {
+		if !fileutil.FileExists(p) {
+			continue
+		}
+		if err := os.Remove(p); err != nil {
+			logging.Log.Error("Failed to delete file", "path", p, "error", err)
+			failed[p] = true
+			continue
+		}
+		removed[p] = true
+	}
+	return removed, failed
+}
+
+func (c *Server) deleteBinRows(ctx context.Context, valid []string, failedPaths map[string]bool) map[string]bool {
+	rowDeleted := make(map[string]bool)
+	for _, dbPath := range c.Databases {
+		present := c.presentTrashedPaths(ctx, dbPath, valid, failedPaths)
 		if len(present) == 0 {
 			continue
 		}
-
-		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(present)), ",")
-		args := make([]any, 0, len(present))
-		for _, p := range present {
-			args = append(args, p)
-		}
-		err := c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
-			tx, err := sqlDB.BeginTx(ctx, nil)
-			if err != nil {
-				return err
-			}
-			if _, err = tx.ExecContext(ctx, "DELETE FROM media WHERE path IN ("+placeholders+")", args...); err != nil {
-				_ = tx.Rollback()
-				return err
-			}
-			return tx.Commit()
-		})
-		if err != nil {
+		if err := c.deleteRowsForPaths(ctx, dbPath, present); err != nil {
 			logging.Log.Error("Failed to delete rows from DB", "db", dbPath, "error", err)
 			for _, p := range present {
 				failedPaths[p] = true
@@ -289,19 +291,44 @@ func (c *Server) emptyBinDelete(ctx context.Context, paths []string) EmptyBinRes
 			rowDeleted[p] = true
 		}
 	}
+	return rowDeleted
+}
 
+func (c *Server) presentTrashedPaths(
+	ctx context.Context,
+	dbPath string,
+	valid []string,
+	failedPaths map[string]bool,
+) []string {
+	present := make([]string, 0, len(valid))
 	for _, p := range valid {
 		if failedPaths[p] {
-			result.Failed++
 			continue
 		}
-		if fileRemoved[p] || rowDeleted[p] {
-			result.Deleted++
-		} else {
-			result.Failed++
+		if c.dbHasTrashedPath(ctx, dbPath, p) {
+			present = append(present, p)
 		}
 	}
-	return result
+	return present
+}
+
+func (c *Server) deleteRowsForPaths(ctx context.Context, dbPath string, paths []string) error {
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(paths)), ",")
+	args := make([]any, 0, len(paths))
+	for _, p := range paths {
+		args = append(args, p)
+	}
+	return c.execDB(ctx, dbPath, func(ctx context.Context, sqlDB *sql.DB) error {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, "DELETE FROM media WHERE path IN ("+placeholders+")", args...); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		return tx.Commit()
+	})
 }
 
 func (c *Server) HandleEmptyBin(w http.ResponseWriter, r *http.Request) {

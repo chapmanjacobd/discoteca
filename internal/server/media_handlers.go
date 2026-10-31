@@ -106,7 +106,17 @@ func (c *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	affected, succeeded, failed, errs := c.markDeletedInAllDBs(r.Context(), req.Path, !req.Restore)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
+	sendWriteResult(
+		w,
+		writeResult{
+			status:          http.StatusOK,
+			affected:        affected,
+			succeeded:       succeeded,
+			failed:          failed,
+			errs:            errs,
+			notFoundMessage: "Media not found",
+		},
+	)
 }
 
 // HandleProgress updates the playback progress for a media file.
@@ -154,7 +164,17 @@ func (c *Server) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			return res.RowsAffected()
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
+	sendWriteResult(
+		w,
+		writeResult{
+			status:          http.StatusOK,
+			affected:        affected,
+			succeeded:       succeeded,
+			failed:          failed,
+			errs:            errs,
+			notFoundMessage: "Media not found",
+		},
+	)
 }
 
 // HandleMarkUnplayed resets play count and progress for a media file.
@@ -195,7 +215,17 @@ func (c *Server) HandleMarkUnplayed(w http.ResponseWriter, r *http.Request) {
 			return res.RowsAffected()
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
+	sendWriteResult(
+		w,
+		writeResult{
+			status:          http.StatusOK,
+			affected:        affected,
+			succeeded:       succeeded,
+			failed:          failed,
+			errs:            errs,
+			notFoundMessage: "Media not found",
+		},
+	)
 }
 
 // HandleMarkPlayed increments play count and resets progress for a media file.
@@ -240,7 +270,17 @@ func (c *Server) HandleMarkPlayed(w http.ResponseWriter, r *http.Request) {
 			return res.RowsAffected()
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
+	sendWriteResult(
+		w,
+		writeResult{
+			status:          http.StatusOK,
+			affected:        affected,
+			succeeded:       succeeded,
+			failed:          failed,
+			errs:            errs,
+			notFoundMessage: "Media not found",
+		},
+	)
 }
 
 // HandleRate updates the rating for a media file.
@@ -280,5 +320,15 @@ func (c *Server) HandleRate(w http.ResponseWriter, r *http.Request) {
 			return res.RowsAffected()
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "Media not found")
+	sendWriteResult(
+		w,
+		writeResult{
+			status:          http.StatusOK,
+			affected:        affected,
+			succeeded:       succeeded,
+			failed:          failed,
+			errs:            errs,
+			notFoundMessage: "Media not found",
+		},
+	)
 }

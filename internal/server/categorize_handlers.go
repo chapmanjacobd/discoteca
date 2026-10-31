@@ -98,7 +98,10 @@ func (c *Server) HandleCategorizeDeleteCategory(w http.ResponseWriter, r *http.R
 			return res.RowsAffected()
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }
 
 func (c *Server) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +139,10 @@ func (c *Server) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Request)
 				return res.RowsAffected()
 			},
 		)
-		sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+		sendWriteResult(
+			w,
+			writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+		)
 		return
 	}
 
@@ -169,7 +175,10 @@ func (c *Server) HandleCategorizeKeyword(w http.ResponseWriter, r *http.Request)
 			return res.RowsAffected()
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }
 
 func (c *Server) fetchExistingKeywords(ctx context.Context) map[string]bool {

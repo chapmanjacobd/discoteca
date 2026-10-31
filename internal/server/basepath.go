@@ -38,6 +38,7 @@ func normalizeBasePath(raw string) string {
 	}
 	if strings.Contains(raw, "://") || strings.Contains(raw, "\\") ||
 		strings.HasPrefix(raw, "//") {
+
 		return ""
 	}
 	if !strings.HasPrefix(raw, "/") {

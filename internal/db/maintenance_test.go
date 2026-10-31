@@ -98,7 +98,7 @@ func TestFolderStatsDirtyBitAndRefresh(t *testing.T) {
 	}
 
 	// A no-op refresh must not change rows.
-	if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
+	if err = db.RefreshFolderStats(ctx, sqlDB); err != nil {
 		t.Fatal(err)
 	}
 	countAgain, sizeAgain, durationAgain, foundAgain := folderStat(t, sqlDB, "/media/a")
@@ -143,6 +143,12 @@ func TestFolderStatsDirtyBitAndRefresh(t *testing.T) {
 	}
 
 	// Deleting all media must remove all stale folder rows.
+	assertAllFolderStatsRemoved(ctx, t, sqlDB)
+}
+
+func assertAllFolderStatsRemoved(ctx context.Context, t *testing.T, sqlDB *sql.DB) {
+	t.Helper()
+
 	if _, err := sqlDB.Exec("DELETE FROM media"); err != nil {
 		t.Fatal(err)
 	}

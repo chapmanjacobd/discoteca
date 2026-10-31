@@ -14,6 +14,7 @@ func (c *DiskUsageCmd) Run(ctx context.Context) error {
 	// explicit aggregation mode was requested.
 	if !c.BigDirs && !c.GroupByExtensions && !c.GroupBySize && !c.GroupByParent &&
 		!c.FilesOnly && c.Depth == 0 && !c.Parents {
+
 		c.BigDirs = true
 	}
 	return c.PrintCmd.Run(ctx)

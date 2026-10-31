@@ -2,6 +2,7 @@ package textutil
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -50,8 +51,7 @@ func WordSorter(flags models.GlobalFlags, corpusStats map[string]int, lineWords 
 			firstIndex[w] = i
 		}
 	}
-	for i := len(lineWords) - 1; i >= 0; i-- {
-		w := lineWords[i]
+	for i, w := range slices.Backward(lineWords) {
 		if _, ok := lastIndex[w]; !ok {
 			lastIndex[w] = len(lineWords) - 1 - i
 		}

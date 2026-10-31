@@ -2,6 +2,7 @@ package media
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/chapmanjacobd/discoteca/internal/fileutil"
@@ -15,12 +16,7 @@ var SubtitleExtensions = []string{".srt", ".vtt", ".ass", ".ssa", ".lrc", ".idx"
 // IsSubtitlePath reports whether path has a sidecar subtitle extension.
 func IsSubtitlePath(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	for _, subExt := range SubtitleExtensions {
-		if ext == subExt {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(SubtitleExtensions, ext)
 }
 
 // GetExternalSubtitles finds external subtitle files associated with a media file

@@ -83,7 +83,10 @@ func (c *Server) handlePostPlaylist(w http.ResponseWriter, r *http.Request) {
 			return 1, nil
 		},
 	)
-	sendWriteResult(w, http.StatusCreated, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusCreated, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }
 
 func (c *Server) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +128,10 @@ func (c *Server) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 			return deleted, nil
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }
 
 func (c *Server) HandlePlaylists(w http.ResponseWriter, r *http.Request) {
@@ -330,7 +336,10 @@ func (c *Server) handlePostPlaylistItem(w http.ResponseWriter, r *http.Request) 
 			return 1, nil
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }
 
 func (c *Server) handleDeletePlaylistItem(w http.ResponseWriter, r *http.Request) {
@@ -388,7 +397,10 @@ func (c *Server) handleDeletePlaylistItem(w http.ResponseWriter, r *http.Request
 			return 1, nil
 		},
 	)
-	sendWriteResult(w, http.StatusOK, affected, succeeded, failed, errs, "")
+	sendWriteResult(
+		w,
+		writeResult{status: http.StatusOK, affected: affected, succeeded: succeeded, failed: failed, errs: errs},
+	)
 }
 
 func (c *Server) HandlePlaylistItems(w http.ResponseWriter, r *http.Request) {

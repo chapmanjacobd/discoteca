@@ -3,9 +3,9 @@ package media
 import (
 	"bytes"
 	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
+	_ "image/gif"  // register the GIF decoder with image.Decode
+	_ "image/jpeg" // register the JPEG decoder with image.Decode
+	_ "image/png"  // register the PNG decoder with image.Decode
 	"math"
 )
 

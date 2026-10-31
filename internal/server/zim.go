@@ -188,6 +188,7 @@ func (c *Server) getKiwixContentURL(ctx context.Context, basePath, zimPath strin
 			}
 			if strings.Contains(strings.ToLower(entry.Title), target) ||
 				strings.Contains(strings.ToLower(contentPath), target) {
+
 				return candidate, nil
 			}
 		}

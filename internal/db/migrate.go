@@ -80,7 +80,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	}
 	defer func() { _ = reEnableForeignKeys() }()
 
-	if err := migrate(ctx, conn); err != nil {
+	if err := runMigrations(ctx, conn); err != nil {
 		return err
 	}
 
@@ -91,7 +91,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	return reEnableForeignKeys()
 }
 
-func migrate(ctx context.Context, db dbExecer) error {
+func runMigrations(ctx context.Context, db dbExecer) error {
 	// Rename before adding columns so both old and new names are handled.
 	if err := renameMediaTypeColumn(ctx, db); err != nil {
 		return err
@@ -237,7 +237,7 @@ func migrateToStrict(ctx context.Context, db dbExecer, tableName, createSQL stri
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, tempCreateSQL); err != nil {
+	if _, err = tx.ExecContext(ctx, tempCreateSQL); err != nil {
 		return fmt.Errorf("failed to create temporary strict %s: %w", tableName, err)
 	}
 
@@ -313,7 +313,7 @@ func convertHistoryMediaID(ctx context.Context, db dbExecer) error {
 
 	joinKey := mediaIDJoinKey(ctx, db)
 
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS history_orphaned (
+	if _, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS history_orphaned (
 		id INTEGER,
 		media_id INTEGER NOT NULL,
 		time_played INTEGER,
@@ -385,7 +385,7 @@ func convertCaptionsMediaID(ctx context.Context, db dbExecer) error {
 
 	joinKey := mediaIDJoinKey(ctx, db)
 
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS captions_orphaned (
+	if _, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS captions_orphaned (
 		media_id INTEGER NOT NULL,
 		time REAL,
 		text TEXT,
@@ -857,10 +857,10 @@ func refreshFTSAfterMediaRecreation(ctx context.Context, db dbExecer) error {
 		return err
 	}
 	if mediaFTSMatches {
-		if err := ensureMediaFTSTriggers(ctx, db); err != nil {
+		if err = ensureMediaFTSTriggers(ctx, db); err != nil {
 			return err
 		}
-		if err := rebuildFTSData(ctx, db, "media_fts"); err != nil {
+		if err = rebuildFTSData(ctx, db, "media_fts"); err != nil {
 			return err
 		}
 	}
@@ -1154,14 +1154,15 @@ func ftsTableMatches(ctx context.Context, db dbExecer, tableName string) (bool, 
 		return false, err
 	}
 
-	var expectedColumns, expectedSQLParts []string
+	var expectedColumns []string
+	expectedSQLParts := make([]string, 0, 4)
 	switch tableName {
 	case "media_fts":
 		expectedColumns = []string{"path", "path_tokenized", "title", "description", "time_deleted"}
-		expectedSQLParts = []string{"content='media'", "content_rowid='rowid'"}
+		expectedSQLParts = append(expectedSQLParts, "content='media'", "content_rowid='rowid'")
 	case "captions_fts":
 		expectedColumns = []string{"media_path", "text"}
-		expectedSQLParts = []string{"content='captions'"}
+		expectedSQLParts = append(expectedSQLParts, "content='captions'")
 	default:
 		return false, fmt.Errorf("unknown FTS table %s", tableName)
 	}
@@ -1422,7 +1423,7 @@ func quarantineOrphanPlaylistItems(ctx context.Context, db dbExecer) error {
 		return err
 	}
 
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS playlist_items_orphaned (
+	if _, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS playlist_items_orphaned (
 		playlist_id INTEGER NOT NULL,
 		media_path TEXT NOT NULL,
 		track_number INTEGER,
