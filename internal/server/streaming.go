@@ -128,10 +128,10 @@ func (c *Server) buildAudioCodecArgs(strategy media.TranscodeStrategy) []string 
 // buildFormatArgs returns the format-specific output arguments
 func (c *Server) buildFormatArgs(strategy media.TranscodeStrategy) []string {
 	if strategy.TargetMime == "video/mp4" {
-		// frag_keyframe+empty_moov+default_base_moof+global_sidx is the standard for fragmented streaming
+		// global_sidx requires a seekable output, which pipe:1 is not.
 		return []string{
 			"-f", "mp4",
-			"-movflags", "frag_keyframe+empty_moov+default_base_moof+global_sidx",
+			"-movflags", "frag_keyframe+empty_moov+default_base_moof",
 			"pipe:1",
 		}
 	}
@@ -147,10 +147,24 @@ func (c *Server) buildFormatArgs(strategy media.TranscodeStrategy) []string {
 	}
 }
 
+type transcodeResponseWriter struct {
+	http.ResponseWriter
+	bytesWritten int64
+}
+
+func (w *transcodeResponseWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	w.bytesWritten += int64(n)
+	return n, err
+}
+
 // runTranscodeCommand executes the ffmpeg command and handles errors
 func (c *Server) runTranscodeCommand(ctx context.Context, w http.ResponseWriter, path string, ffmpegArgs []string) {
 	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
-	cmd.Stdout = w
+	output := &transcodeResponseWriter{ResponseWriter: w}
+	cmd.Stdout = output
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
 		logging.Log.Error("Failed to start ffmpeg", "path", path, "error", err)
@@ -160,8 +174,18 @@ func (c *Server) runTranscodeCommand(ctx context.Context, w http.ResponseWriter,
 
 	if err := cmd.Wait(); err != nil {
 		if ctx.Err() == nil {
-			logging.Log.Error("ffmpeg failed", "path", path, "error", err)
-			http.Error(w, fmt.Sprintf("Unplayable: ffmpeg failed: %v", err), http.StatusUnsupportedMediaType)
+			logging.Log.Error(
+				"ffmpeg failed",
+				"path",
+				path,
+				"error",
+				err,
+				"output",
+				strings.TrimSpace(stderr.String()),
+			)
+			if output.bytesWritten == 0 {
+				http.Error(w, fmt.Sprintf("Unplayable: ffmpeg failed: %v", err), http.StatusUnsupportedMediaType)
+			}
 		} else {
 			logging.Log.Debug("ffmpeg finished (client disconnected)", "path", path)
 		}
