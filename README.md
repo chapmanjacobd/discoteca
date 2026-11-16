@@ -9,6 +9,7 @@ go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
 disco add library.db ./audio
 disco add library.db ./video --scan-subtitles
+disco calibre-import library.db --calibre-web-dir ~/calibre-web
 disco serve library.db
 ```
 
@@ -186,6 +187,45 @@ Flags:
         Extract speech-to-text from audio/video files for caption search
   --speech-recognition-engine
         Speech recognition engine to use
+```
+
+</details>
+
+### calibre-import
+
+Import a Calibre library into a database
+
+Examples:
+
+```bash
+$ disco calibre-import my_videos.db --library ~/Calibre
+$ disco calibre-import my_videos.db --calibre-web-dir ~/calibre-web --one-format
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco calibre-import --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --library
+        Calibre library directory or metadata.db
+  --calibre-web-dir
+        Calibre-Web directory containing app.db (reads config_calibre_dir)
+  --format-priority
+        Preferred formats in order, comma-separated; used by --one-format (default: epub,azw3,mobi,azw,pdf,...)
+  --one-format
+        Import only the highest-priority format for each book
+  --include-missing
+        Import formats recorded in Calibre even when the file is missing on disk
+  --prune
+        Mark media under the library as deleted when no longer in the Calibre catalog
 ```
 
 </details>

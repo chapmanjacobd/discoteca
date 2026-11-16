@@ -623,6 +623,55 @@ func (c *Server) tryServeSmallImage(w http.ResponseWriter, path string) bool {
 	return false
 }
 
+// siblingCoverNames are image files that ebook and media tools place next to a
+// media file. Calibre writes cover.jpg into every book folder.
+var siblingCoverNames = []string{
+	"cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
+	"folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
+	"poster.jpg", "poster.jpeg", "poster.png", "poster.webp",
+}
+
+// findSiblingCover returns a cover image that lives next to path, or an empty
+// string when no candidate exists.
+func findSiblingCover(path string) string {
+	dir := filepath.Dir(path)
+	stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	candidates := make([]string, 0, len(siblingCoverNames)+3)
+	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp"} {
+		candidates = append(candidates, stem+ext)
+	}
+	candidates = append(candidates, siblingCoverNames...)
+
+	for _, name := range candidates {
+		candidate := filepath.Join(dir, name)
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// tryServeSiblingCover serves a sidecar cover image for media that has no
+// embedded thumbnail (for example a Calibre book folder with cover.jpg).
+func (c *Server) tryServeSiblingCover(w http.ResponseWriter, path string) bool {
+	cover := findSiblingCover(path)
+	if cover == "" {
+		return false
+	}
+	info, err := os.Stat(cover)
+	if err != nil || info.IsDir() || info.Size() > 10*1024*1024 {
+		return false
+	}
+	data, err := os.ReadFile(cover)
+	if err != nil {
+		return false
+	}
+	contentType := fileutil.GetContentTypeFromExt(strings.ToLower(filepath.Ext(cover)))
+	c.writeThumbnailResponse(w, data, contentType)
+	return true
+}
+
 // generateFallbackThumbnail creates a thumbnail for video or audio files using ffmpeg.
 // For video, it seeks to 25s and falls back to the first frame for short clips.
 // It retries at 85s if the frame is too dark. For audio, it tries to extract
@@ -699,6 +748,12 @@ func (c *Server) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Handle image files
 	if mediaType == "image" && c.tryServeSmallImage(w, path) {
+		return
+	}
+
+	// Prefer a sidecar cover (Calibre, audiobook folders) over generated
+	// thumbnails, which cannot be produced for text-only formats.
+	if c.tryServeSiblingCover(w, path) {
 		return
 	}
 

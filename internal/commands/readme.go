@@ -56,6 +56,7 @@ func writeIntro(sb *strings.Builder) {
 	sb.WriteString("\n")
 	sb.WriteString("disco add library.db ./audio\n")
 	sb.WriteString("disco add library.db ./video --scan-subtitles\n")
+	sb.WriteString("disco calibre-import library.db --calibre-web-dir ~/calibre-web\n")
 	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
 	sb.WriteString("## CLI changes\n\n")
@@ -167,6 +168,10 @@ var subcommandExamples = map[string][]string{
 	"add": {
 		"disco add my_videos.db ~/Videos",
 		"disco add --video-only my_videos.db /mnt/media",
+	},
+	"calibre-import": {
+		"disco calibre-import my_videos.db --library ~/Calibre",
+		"disco calibre-import my_videos.db --calibre-web-dir ~/calibre-web --one-format",
 	}, "print": {
 		"disco print my_videos.db",
 		"disco print my_videos.db -u size --reverse",
