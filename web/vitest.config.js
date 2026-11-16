@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    setupFiles: ['./tests/setup.js'],
     css: false,
     maxThreads: os.cpus().length,
     minThreads: Math.min(os.cpus().length, 4),
