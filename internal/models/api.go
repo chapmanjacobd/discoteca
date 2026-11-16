@@ -16,9 +16,12 @@ type GenreStat struct {
 }
 
 type DatabaseInfo struct {
-	Databases []string `json:"databases"`
-	ReadOnly  bool     `json:"read_only"`
-	Dev       bool     `json:"dev"`
+	Databases         []string `json:"databases"`
+	ReadOnly          bool     `json:"read_only"`
+	Dev               bool     `json:"dev"`
+	DownloadAvailable bool     `json:"download_available"`
+	DownloadCommand   string   `json:"download_command,omitempty"`
+	DownloadDir       string   `json:"download_dir,omitempty"`
 }
 
 type PlayResponse struct {

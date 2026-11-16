@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chapmanjacobd/discoteca/internal/config"
 	"github.com/chapmanjacobd/discoteca/internal/db"
+	"github.com/chapmanjacobd/discoteca/internal/downloader"
 	"github.com/chapmanjacobd/discoteca/internal/logging"
 )
 
@@ -104,6 +106,9 @@ func (c *Server) execDB(ctx context.Context, dbPath string, fn func(ctx context.
 
 // Close closes all cached database connections
 func (c *Server) Close() error {
+	if c.downloadManager != nil {
+		c.downloadManager.Close()
+	}
 	var errs []error
 	c.dbCache.Range(func(key, value any) bool {
 		if sqlDB, ok := value.(*sql.DB); ok {
@@ -190,6 +195,23 @@ func (c *Server) runMaintenance(ctx context.Context) {
 	}()
 }
 
+// initDownloader enables the URL downloader when lb or lb-wrapper is available.
+func (c *Server) initDownloader() {
+	dir := strings.TrimSpace(c.DownloadDir)
+	if dir == "" {
+		dir = config.GetDownloadDir()
+	}
+	manager, err := downloader.NewManager(c.DownloadCommand, dir)
+	if err != nil {
+		logging.Log.Warn("Downloads disabled", "error", err)
+		c.downloadManager = nil
+		return
+	}
+	c.downloadManager = manager
+	cfg := manager.Config()
+	logging.Log.Info("Downloads enabled", "command", cfg.Command, "kind", cfg.Kind, "dir", cfg.DownloadDir)
+}
+
 // checkFfmpeg checks if ffmpeg is available in PATH
 func (c *Server) checkFfmpeg() {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
@@ -263,6 +285,9 @@ func (c *Server) Run(ctx context.Context) error {
 
 	// Check for ffmpeg
 	c.checkFfmpeg()
+
+	// Enable URL downloads when a downloader command is available.
+	c.initDownloader()
 
 	handler := c.Mux()
 

@@ -22,6 +22,7 @@
             <div id="search-container">
                 <span id="search-icon">🔍</span>
                 <input type="text" id="search-input" placeholder="Search..." autocomplete="off" />
+                <button id="download-button" class="hidden" title="Download this URL">⬇️</button>
                 <div id="search-suggestions" class="hidden"></div>
                 <div id="results-info">
                     <span id="results-count"></span>
@@ -674,6 +675,147 @@
                             </div>
                         </details>
                     </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Modal -->
+        <div id="download-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Download URL</h2>
+                    <button class="close-modal" title="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="setting-item" style="display: block; padding-top: 0">
+                        <label for="download-url">URL</label>
+                        <input
+                            type="text"
+                            id="download-url"
+                            readonly
+                            style="width: 100%; margin-top: 0.5rem"
+                        />
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="download-db">Library database</label>
+                        <select id="download-db"></select>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="download-media-type">Download type</label>
+                        <select id="download-media-type">
+                            <option value="auto">Auto</option>
+                            <option value="video">Video</option>
+                            <option value="audio">Audio</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="download-subtitles">Subtitles</label>
+                        <select id="download-subtitles">
+                            <option value="download">Download</option>
+                            <option value="none">None</option>
+                            <option value="auto">Auto-translate</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-item hidden" id="download-audio-format-row">
+                        <label for="download-audio-format">Audio format</label>
+                        <select id="download-audio-format">
+                            <option value="opus">Opus</option>
+                            <option value="mp3">MP3</option>
+                            <option value="m4a">M4A</option>
+                            <option value="flac">FLAC</option>
+                            <option value="wav">WAV</option>
+                            <option value="ogg">OGG</option>
+                        </select>
+                    </div>
+
+                    <details style="margin-top: 1rem; cursor: pointer">
+                        <summary
+                            style="
+                                font-size: 0.9rem;
+                                font-weight: 600;
+                                color: var(--text-muted);
+                                margin-bottom: 1rem;
+                            "
+                        >
+                            Advanced
+                        </summary>
+
+                        <div class="setting-item">
+                            <label for="download-cookies-browser">Cookies from browser</label>
+                            <input
+                                type="text"
+                                id="download-cookies-browser"
+                                placeholder="firefox"
+                            />
+                        </div>
+
+                        <div class="setting-item">
+                            <label for="download-cookies-file">Cookies file</label>
+                            <input
+                                type="text"
+                                id="download-cookies-file"
+                                placeholder="/path/to/cookies.txt"
+                            />
+                        </div>
+
+                        <div class="setting-item">
+                            <label for="download-archive">Download archive</label>
+                            <input
+                                type="text"
+                                id="download-archive"
+                                placeholder="/path/to/archive.txt"
+                            />
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="download-extra" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Fetch extra metadata</h3>
+                                <p>Slower; asks the source for more metadata</p>
+                            </div>
+                        </div>
+
+                        <div class="full-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="download-safe" />
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-text">
+                                <h3>Safe domains only</h3>
+                                <p>Skip generic URLs that lb does not recognize</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <p id="download-command-note" class="download-note"></p>
+                    <p id="download-dir-info" class="download-note"></p>
+
+                    <div id="download-status" class="hidden">
+                        <div id="download-state"></div>
+                        <div class="download-progress">
+                            <div id="download-progress-bar"></div>
+                        </div>
+                        <pre id="download-output"></pre>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="download-cancel-button" class="category-btn hidden">
+                        Cancel download
+                    </button>
+                    <button
+                        id="download-start-button"
+                        class="category-btn"
+                        style="background: var(--accent-color); color: #0b1220"
+                    >
+                        Download
+                    </button>
                 </div>
             </div>
         </div>

@@ -1,3 +1,5 @@
+import { DownloadOptions } from './download';
+
 export interface MediaItem {
     path: string;
     name: string;
@@ -152,6 +154,10 @@ export interface State {
     readOnly: boolean;
     dev: boolean;
     databases: string[];
+    downloadAvailable: boolean;
+    downloadCommand: string;
+    downloadDir: string;
+    downloadOptions: DownloadOptions;
     categories: { category: string; count: number }[];
     genres: { genre: string; count: number }[];
     languages: { category: string; count: number }[];

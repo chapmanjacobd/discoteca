@@ -19,6 +19,7 @@ models, and small shared helpers. Nothing in `internal/models` imports
 | `internal/models` | Shared domain and API types plus CLI flag definitions. |
 | `internal/metadata` | ffprobe-driven media metadata extraction. |
 | `internal/calibre` | Read-only Calibre library catalog and file discovery. |
+| `internal/downloader` | lb/lb-wrapper download jobs and post-download import. |
 | `internal/fs` | Filesystem walking and media discovery. |
 | `internal/history` | Playback history persistence. |
 | `internal/categorize` | Keyword-to-category matching shared by CLI and server. |

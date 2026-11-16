@@ -235,6 +235,40 @@ header {
     border-color: var(--accent-color);
 }
 
+#download-button {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--accent-color);
+    color: #0b1220;
+    border: none;
+    border-radius: 4px;
+    padding: 0.35rem 0.5rem;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    z-index: 1;
+}
+
+#download-button:hover {
+    filter: brightness(1.1);
+}
+
+#download-button.downloading {
+    animation: download-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes download-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.45;
+    }
+}
+
 #search-suggestions {
     position: absolute;
     top: 100%;
@@ -1162,6 +1196,60 @@ header {
 
 .close-modal:hover {
     background: var(--hover-color);
+}
+
+.download-note {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin: 0.75rem 0 0;
+}
+
+#download-state {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.download-progress {
+    height: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+#download-progress-bar {
+    height: 100%;
+    width: 0;
+    background: var(--accent-color);
+    transition: width 0.25s ease;
+}
+
+#download-progress-bar.indeterminate {
+    width: 35% !important;
+    animation: download-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes download-indeterminate {
+    0% {
+        margin-left: -35%;
+    }
+    100% {
+        margin-left: 100%;
+    }
+}
+
+#download-output {
+    max-height: 160px;
+    overflow: auto;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.6rem;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
 }
 
 /* -------------------------------------------------------------------------- */

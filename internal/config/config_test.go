@@ -27,6 +27,7 @@ func TestGetDirs(t *testing.T) {
 	}{
 		{"GetCattNowPlayingFile", config.GetCattNowPlayingFile},
 		{"GetConfigDir", config.GetConfigDir},
+		{"GetDownloadDir", config.GetDownloadDir},
 	}
 
 	for _, tt := range tests {

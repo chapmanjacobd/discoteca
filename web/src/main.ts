@@ -5,6 +5,7 @@ import { appUrl } from './base';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
 import { initComplexSorting, loadConfigFromCurrentSort } from './complex-sort';
+import { isDownloadURL, normalizeDownloadOptions } from './download';
 import {
     formatSize,
     formatDuration,
@@ -34,6 +35,26 @@ document.addEventListener('DOMContentLoaded', () => {
     initSessionFromURL();
 
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
+    const downloadButton = document.getElementById('download-button') as HTMLButtonElement | null;
+    const downloadDbSelect = document.getElementById('download-db') as HTMLSelectElement | null;
+    const downloadMediaType = document.getElementById('download-media-type') as HTMLSelectElement | null;
+    const downloadSubtitles = document.getElementById('download-subtitles') as HTMLSelectElement | null;
+    const downloadAudioFormat = document.getElementById('download-audio-format') as HTMLSelectElement | null;
+    const downloadAudioFormatRow = document.getElementById('download-audio-format-row');
+    const downloadCookiesBrowser = document.getElementById('download-cookies-browser') as HTMLInputElement | null;
+    const downloadCookiesFile = document.getElementById('download-cookies-file') as HTMLInputElement | null;
+    const downloadArchive = document.getElementById('download-archive') as HTMLInputElement | null;
+    const downloadExtra = document.getElementById('download-extra') as HTMLInputElement | null;
+    const downloadSafe = document.getElementById('download-safe') as HTMLInputElement | null;
+    const downloadUrlInput = document.getElementById('download-url') as HTMLInputElement | null;
+    const downloadStartButton = document.getElementById('download-start-button') as HTMLButtonElement | null;
+    const downloadCancelButton = document.getElementById('download-cancel-button') as HTMLButtonElement | null;
+    const downloadState = document.getElementById('download-state');
+    const downloadProgressBar = document.getElementById('download-progress-bar');
+    const downloadOutput = document.getElementById('download-output');
+    const downloadStatus = document.getElementById('download-status');
+    const downloadCommandNote = document.getElementById('download-command-note');
+    const downloadDirInfo = document.getElementById('download-dir-info');
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
     const sortBy = document.getElementById('sort-by') as HTMLSelectElement;
@@ -1101,8 +1122,15 @@ document.addEventListener('DOMContentLoaded', () => {
             state.databases = data.databases; // Store in state for filter params
             state.readOnly = data.read_only;
             state.dev = data.dev;
+            state.downloadAvailable = data.download_available === true && !state.readOnly;
+            state.downloadCommand = data.download_command || '';
+            state.downloadDir = data.download_dir || '';
 
             renderDbSettingsList(allDatabases);
+            populateDownloadDatabases();
+            updateDownloadFormVisibility();
+            updateDownloadButton();
+            startDownloadPolling();
             if (state.dev) {
                 setupAutoReload();
             }
@@ -3015,6 +3043,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // survives a navigation out of Trash, fall back to the normal default.
         if (state.page !== 'trash') clearTrashOnlySort();
         state.filters.search = searchInput ? (searchInput as HTMLInputElement).value : '';
+        updateDownloadButton();
         // A sort restored from a URL may not have a visible toolbar option;
         // keep the state value instead of overwriting it with an empty select.
         const selectedSort = sortBy ? sortBy.value : 'default';
@@ -7892,6 +7921,232 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- URL Downloads ---
+    let downloadPollTimer: number | null = null;
+    let downloadPollInFlight = false;
+    let lastDownloadState = 'idle';
+    let lastDownloadStatus: {
+        state: string;
+        progress?: number;
+        progress_text?: string;
+        output?: string[];
+        paths?: string[];
+        imported?: number;
+        error?: string;
+    } = {
+        state: 'idle',
+        progress: -1,
+        output: [],
+        paths: []
+    };
+
+    function updateDownloadButton() {
+        if (!downloadButton) return;
+        const show = state.downloadAvailable && !state.readOnly && isDownloadURL(searchInput.value);
+        downloadButton.classList.toggle('hidden', !show);
+    }
+
+    function databaseDisplayName(path: string): string {
+        const parts = path.split(/[\\/]/);
+        return parts[parts.length - 1] || path;
+    }
+
+    function populateDownloadDatabases() {
+        if (!downloadDbSelect) return;
+        const current = state.downloadOptions.database;
+        downloadDbSelect.innerHTML = state.databases
+            .map(
+                db =>
+                    `<option value="${escapeHtml(db)}">${escapeHtml(databaseDisplayName(db))}</option>`
+            )
+            .join('');
+        if (current && state.databases.includes(current)) {
+            downloadDbSelect.value = current;
+        } else if (state.databases.length > 0) {
+            downloadDbSelect.value = state.databases[0];
+        }
+        state.downloadOptions.database = downloadDbSelect.value;
+    }
+
+    function fillDownloadForm() {
+        const options = state.downloadOptions;
+        if (downloadMediaType) downloadMediaType.value = options.media_type;
+        if (downloadSubtitles) downloadSubtitles.value = options.subtitles;
+        if (downloadAudioFormat) downloadAudioFormat.value = options.audio_format;
+        if (downloadCookiesBrowser) downloadCookiesBrowser.value = options.cookies_from_browser;
+        if (downloadCookiesFile) downloadCookiesFile.value = options.cookies_file;
+        if (downloadArchive) downloadArchive.value = options.download_archive;
+        if (downloadExtra) downloadExtra.checked = options.extra_metadata;
+        if (downloadSafe) downloadSafe.checked = options.safe;
+        updateDownloadFormVisibility();
+    }
+
+    function updateDownloadFormVisibility() {
+        if (downloadAudioFormatRow) {
+            downloadAudioFormatRow.classList.toggle(
+                'hidden',
+                (downloadMediaType?.value || 'auto') !== 'audio'
+            );
+        }
+        if (downloadCommandNote) {
+            if (!state.downloadAvailable) {
+                downloadCommandNote.textContent = 'Downloads are unavailable on this server.';
+            } else if (state.downloadCommand === 'lb-wrapper') {
+                downloadCommandNote.textContent =
+                    'lb-wrapper uses its own video defaults; advanced download options are ignored.';
+            } else {
+                downloadCommandNote.textContent = `Downloader: ${state.downloadCommand || 'lb'}`;
+            }
+        }
+        if (downloadDirInfo) {
+            downloadDirInfo.textContent = state.downloadDir
+                ? `Download directory: ${state.downloadDir}`
+                : '';
+        }
+    }
+
+    function readDownloadForm() {
+        return normalizeDownloadOptions({
+            database: downloadDbSelect?.value || '',
+            media_type: downloadMediaType?.value || 'auto',
+            subtitles: downloadSubtitles?.value || 'download',
+            audio_format: downloadAudioFormat?.value || 'opus',
+            cookies_from_browser: downloadCookiesBrowser?.value || '',
+            cookies_file: downloadCookiesFile?.value || '',
+            download_archive: downloadArchive?.value || '',
+            extra_metadata: downloadExtra?.checked === true,
+            safe: downloadSafe?.checked === true
+        });
+    }
+
+    function saveDownloadOptions() {
+        state.downloadOptions = readDownloadForm();
+        setLocalStorageItem('disco-download-options', state.downloadOptions);
+    }
+
+    function updateDownloadStatusUI(status: typeof lastDownloadStatus) {
+        if (!downloadStatus) return;
+        const previousState = lastDownloadState;
+        lastDownloadState = status.state;
+
+        if (!status || status.state === 'idle') {
+            downloadStatus.classList.add('hidden');
+            if (downloadState) downloadState.textContent = '';
+            if (downloadStartButton) downloadStartButton.disabled = false;
+            downloadCancelButton?.classList.add('hidden');
+            downloadButton?.classList.remove('downloading');
+            return;
+        }
+
+        downloadStatus.classList.remove('hidden');
+        const running = status.state === 'running';
+        if (downloadStartButton) downloadStartButton.disabled = running;
+        downloadCancelButton?.classList.toggle('hidden', !running);
+        downloadButton?.classList.toggle('downloading', running);
+
+        if (downloadState) {
+            if (running) {
+                const pct =
+                    typeof status.progress === 'number' && status.progress >= 0
+                        ? ` (${status.progress.toFixed(0)}%)`
+                        : '';
+                downloadState.textContent = `Downloading${pct}`;
+            } else if (status.state === 'completed') {
+                const imported = status.imported || 0;
+                downloadState.textContent =
+                    imported > 0
+                        ? `Completed — imported ${imported} file${imported === 1 ? '' : 's'}`
+                        : 'Completed — no new media files found';
+            } else if (status.state === 'failed') {
+                downloadState.textContent = `Failed${status.error ? ': ' + status.error : ''}`;
+            } else if (status.state === 'canceled') {
+                downloadState.textContent = 'Canceled';
+            } else {
+                downloadState.textContent = status.state;
+            }
+        }
+
+        if (downloadProgressBar) {
+            const pct =
+                typeof status.progress === 'number'
+                    ? Math.max(0, Math.min(100, status.progress))
+                    : 0;
+            downloadProgressBar.style.width = `${pct}%`;
+            downloadProgressBar.classList.toggle('indeterminate', running && pct <= 0);
+        }
+
+        if (downloadOutput) {
+            const lines = [...(status.output || [])];
+            if (status.paths && status.paths.length > 0) {
+                lines.push('', 'Imported:', ...status.paths);
+            }
+            downloadOutput.textContent = lines.join('\n');
+            downloadOutput.scrollTop = downloadOutput.scrollHeight;
+        }
+
+        if (previousState === 'running' && previousState !== status.state) {
+            if (status.state === 'completed') {
+                const imported = status.imported || 0;
+                showToast(
+                    imported > 0
+                        ? `Downloaded and imported ${imported} file${imported === 1 ? '' : 's'}`
+                        : 'Download complete',
+                    '⬇️'
+                );
+                if (imported > 0) performSearch();
+            } else if (status.state === 'failed') {
+                showToast(status.error || 'Download failed', '⚠️');
+            }
+        }
+    }
+
+    function startDownloadPolling() {
+        if (!state.downloadAvailable || downloadPollTimer !== null || downloadPollInFlight) return;
+        const poll = async () => {
+            downloadPollTimer = null;
+            downloadPollInFlight = true;
+            try {
+                const resp = await fetchAPI('/api/download');
+                if (!resp.ok) return;
+                const status = await resp.json();
+                lastDownloadStatus = status;
+                updateDownloadStatusUI(status);
+                if (status.state === 'running') {
+                    downloadPollTimer = window.setTimeout(poll, 1000);
+                }
+            } catch {
+                downloadPollTimer = window.setTimeout(poll, 3000);
+            } finally {
+                downloadPollInFlight = false;
+            }
+        };
+        downloadPollTimer = window.setTimeout(poll, 100);
+    }
+
+    function openDownloadModal(url: string) {
+        if (!state.downloadAvailable || state.readOnly) {
+            showToast('Downloads are unavailable', '⚠️');
+            return;
+        }
+        if (downloadUrlInput) downloadUrlInput.value = url.trim();
+        populateDownloadDatabases();
+        fillDownloadForm();
+        updateDownloadStatusUI(lastDownloadStatus);
+        openModal('download-modal');
+        startDownloadPolling();
+        downloadStartButton?.focus();
+    }
+
+    function downloadErrorMessage(body: string): string {
+        try {
+            const parsed = JSON.parse(body);
+            if (parsed && typeof parsed.error === 'string') return parsed.error;
+        } catch {
+            // Fall through to the raw body.
+        }
+        return body || 'Download failed';
+    }
+
     // --- Event Listeners ---
     const debouncedSearch = debounce(performSearch, 300);
 
@@ -7903,9 +8158,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function onSearchInput() {
         let val = (searchInput as HTMLInputElement).value;
-        if (val.includes('\\')) {
+        if (!isDownloadURL(val) && val.includes('\\')) {
             val = val.replace(/\\/g, '/');
             (searchInput as HTMLInputElement).value = val;
+        }
+
+        updateDownloadButton();
+        if (isDownloadURL(val)) {
+            searchSuggestions.classList.add('hidden');
+            return;
         }
 
         if (val.startsWith('/') || val.startsWith('./')) {
@@ -7920,12 +8181,23 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.onkeypress = (e) => {
         if (e.key === 'Enter') performSearch();
     };
+    if (downloadButton) {
+        downloadButton.onclick = () => {
+            const url = searchInput.value.trim();
+            if (isDownloadURL(url)) openDownloadModal(url);
+        };
+    }
 
     searchInput.onfocus = () => {
         let val = (searchInput as HTMLInputElement).value;
-        if (val.includes('\\')) {
+        if (!isDownloadURL(val) && val.includes('\\')) {
             val = val.replace(/\\/g, '/');
             (searchInput as HTMLInputElement).value = val;
+        }
+        updateDownloadButton();
+        if (isDownloadURL(val)) {
+            searchSuggestions.classList.add('hidden');
+            return;
         }
 
         if (val.startsWith('/') || val.startsWith('./')) {
@@ -8025,6 +8297,83 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.classList.remove('selected');
             }
         });
+    }
+
+    const downloadOptionControls: Array<HTMLInputElement | HTMLSelectElement | null> = [
+        downloadDbSelect,
+        downloadMediaType,
+        downloadSubtitles,
+        downloadAudioFormat,
+        downloadCookiesBrowser,
+        downloadCookiesFile,
+        downloadArchive,
+        downloadExtra,
+        downloadSafe
+    ];
+    downloadOptionControls.forEach(control => {
+        if (!control) return;
+        control.addEventListener('change', () => {
+            saveDownloadOptions();
+            updateDownloadFormVisibility();
+        });
+        if (control instanceof HTMLInputElement && control.type === 'text') {
+            control.addEventListener('input', () => saveDownloadOptions());
+        }
+    });
+
+    if (downloadStartButton) {
+        downloadStartButton.onclick = async () => {
+            const url = downloadUrlInput?.value.trim() || '';
+            if (!isDownloadURL(url)) {
+                showToast('Enter an http:// or https:// URL', '⚠️');
+                return;
+            }
+            saveDownloadOptions();
+            downloadStartButton.disabled = true;
+            try {
+                const resp = await fetchAPI('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...state.downloadOptions, url })
+                });
+                if (!resp.ok) {
+                    const body = await resp.text();
+                    if (resp.status === 409) {
+                        try {
+                            lastDownloadStatus = JSON.parse(body);
+                            updateDownloadStatusUI(lastDownloadStatus);
+                            startDownloadPolling();
+                        } catch {
+                            showToast(downloadErrorMessage(body), '⚠️');
+                        }
+                    } else {
+                        showToast(downloadErrorMessage(body), '⚠️');
+                    }
+                    return;
+                }
+                lastDownloadStatus = await resp.json();
+                updateDownloadStatusUI(lastDownloadStatus);
+                startDownloadPolling();
+            } catch {
+                showToast('Failed to start download', '⚠️');
+            } finally {
+                downloadStartButton.disabled = lastDownloadStatus.state === 'running';
+            }
+        };
+    }
+
+    if (downloadCancelButton) {
+        downloadCancelButton.onclick = async () => {
+            try {
+                const resp = await fetchAPI('/api/download/cancel', { method: 'POST' });
+                if (!resp.ok) return;
+                lastDownloadStatus = await resp.json();
+                updateDownloadStatusUI(lastDownloadStatus);
+                startDownloadPolling();
+            } catch {
+                showToast('Failed to cancel download', '⚠️');
+            }
+        };
     }
 
     const settingsBtn = document.getElementById('settings-button');
@@ -8642,7 +8991,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'disco-player', 'disco-language', 'disco-theme',
                 'disco-post-playback', 'disco-autoplay', 'disco-local-resume',
                 'disco-limit', 'disco-limit-all', 'disco-excluded-dbs',
-                'disco-play-counts'
+                'disco-play-counts', 'disco-download-options'
             ];
 
             const keys = Object.keys(localStorage);
@@ -9251,6 +9600,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         readUrl(true);
+        updateDownloadButton();
         renderDbSettingsList(state.databases);
         renderMediaTypeList();
         initSidebarPersistence();

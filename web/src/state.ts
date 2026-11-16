@@ -1,4 +1,5 @@
 import { State } from './types';
+import { defaultDownloadOptions, normalizeDownloadOptions } from './download';
 
 const getLocalStorageItem = (key: string, defaultValue: string | null = null): string | null => {
     return localStorage.getItem(key) || defaultValue;
@@ -83,6 +84,10 @@ export const state: State = {
     readOnly: false,
     dev: false,
     databases: [],
+    downloadAvailable: false,
+    downloadCommand: '',
+    downloadDir: '',
+    downloadOptions: normalizeDownloadOptions(getJSONLocalStorageItem('disco-download-options', defaultDownloadOptions)),
     categories: [],
     genres: [],
     languages: [],

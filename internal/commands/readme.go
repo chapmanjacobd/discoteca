@@ -59,6 +59,8 @@ func writeIntro(sb *strings.Builder) {
 	sb.WriteString("disco calibre-import library.db --calibre-web-dir ~/calibre-web\n")
 	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
+	sb.WriteString("## Downloads\n\n")
+	sb.WriteString("Paste an http(s) URL into the search bar and click the download button. Downloads use `lb`, or `lb-wrapper` when `lb` is unavailable. Set `--download-command` to choose a command and `--download-dir` to change the output directory. Downloaded files are imported into the selected database automatically. Downloads are disabled with `--read-only`.\n\n")
 	sb.WriteString("## CLI changes\n\n")
 	sb.WriteString(
 		"- `--timeout`, `--threads`, and `--ignore-errors` were removed; they were accepted but never applied.\n",

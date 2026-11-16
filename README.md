@@ -13,6 +13,10 @@ disco calibre-import library.db --calibre-web-dir ~/calibre-web
 disco serve library.db
 ```
 
+## Downloads
+
+Paste an http(s) URL into the search bar and click the download button. Downloads use `lb`, or `lb-wrapper` when `lb` is unavailable. Set `--download-command` to choose a command and `--download-dir` to change the output directory. Downloaded files are imported into the selected database automatically. Downloads are disabled with `--read-only`.
+
 ## Screenshots
 
 ### Grid View
@@ -3185,6 +3189,10 @@ Flags:
         Address to listen on (loopback by default)
   -p, --port
         Port to listen on
+  --download-command
+        Downloader command: auto, lb, lb-wrapper, or a path
+  --download-dir
+        Directory for downloaded media (default: ~/Downloads/disco)
   --kiwix-host
         Host of the externally managed kiwix-serve
   --kiwix-port

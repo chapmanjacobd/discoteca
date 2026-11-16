@@ -71,6 +71,12 @@ func (c *Server) HandleDatabases(w http.ResponseWriter, _ *http.Request) {
 		ReadOnly:  c.ReadOnly,
 		Dev:       c.Dev,
 	}
+	if c.downloadManager != nil {
+		cfg := c.downloadManager.Config()
+		resp.DownloadAvailable = true
+		resp.DownloadCommand = string(cfg.Kind)
+		resp.DownloadDir = cfg.DownloadDir
+	}
 	sendJSON(w, http.StatusOK, resp)
 }
 

@@ -45,3 +45,12 @@ func GetConfigDir() string {
 	}
 	return filepath.Join(home, ".config", "disco")
 }
+
+// GetDownloadDir returns the default directory for downloaded media.
+func GetDownloadDir() string {
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return filepath.Join(home, "Downloads", "disco")
+	}
+	return filepath.Join(GetConfigDir(), "downloads")
+}
