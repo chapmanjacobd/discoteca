@@ -6,16 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chapmanjacobd/discoteca/internal/calibre"
 	"github.com/chapmanjacobd/discoteca/internal/db"
 	"github.com/chapmanjacobd/discoteca/internal/logging"
 	"github.com/chapmanjacobd/discoteca/internal/media"
+	"github.com/chapmanjacobd/discoteca/internal/metadata"
 	"github.com/chapmanjacobd/discoteca/internal/models"
 	"github.com/chapmanjacobd/discoteca/internal/textutil"
 	"github.com/chapmanjacobd/discoteca/internal/utils"
@@ -32,6 +36,7 @@ type CalibreImportCmd struct {
 	OneFormat      bool     `help:"Import only the highest-priority format for each book"`
 	IncludeMissing bool     `help:"Import formats recorded in Calibre even when the file is missing on disk"`
 	Prune          bool     `help:"Mark media under the library as deleted when no longer in the Calibre catalog"`
+	ProbeMedia     bool     `help:"Run ffprobe on video and audio files to fill duration and codecs (default: on; disable with --probe-media=false)" default:"true" name:"probe-media"`
 }
 
 // defaultCalibreFormatPriority is the order used when --one-format is set and
@@ -89,7 +94,7 @@ func (c *CalibreImportCmd) Run(ctx context.Context) error {
 	}
 	logging.Log.Info("Loaded Calibre catalog", "books", len(books), "library", library.Dir)
 
-	items, importedPaths, skipped := buildCalibreMedia(books, c.FormatPriority, c.OneFormat, c.IncludeMissing)
+	items, importedPaths, skipped := buildCalibreMedia(ctx, books, c.FormatPriority, c.OneFormat, c.IncludeMissing, c.ProbeMedia && !c.Simulate)
 
 	if c.Simulate {
 		fmt.Printf("Would import %d files from %d books into %s (skipped %d missing files)\n",
@@ -143,10 +148,12 @@ func (c *CalibreImportCmd) Run(ctx context.Context) error {
 }
 
 func buildCalibreMedia(
+	ctx context.Context,
 	books []calibre.Book,
 	formatPriority []string,
 	oneFormat bool,
 	includeMissing bool,
+	probeMedia bool,
 ) ([]db.UpsertMediaParams, map[string]bool, int) {
 	priority := make(map[string]int, len(formatPriority))
 	for i, format := range formatPriority {
@@ -222,7 +229,88 @@ func buildCalibreMedia(
 		}
 	}
 
+	if probeMedia {
+		probeCalibreMedia(ctx, items)
+	}
+
 	return items, importedPaths, skipped
+}
+
+func probeCalibreMedia(ctx context.Context, items []db.UpsertMediaParams) {
+	indices := make([]int, 0, len(items))
+	for i := range items {
+		if isProbeableMediaType(items[i].MediaType.String) {
+			indices = append(indices, i)
+		}
+	}
+	if len(indices) == 0 {
+		return
+	}
+
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		logging.Log.Warn("ffprobe not found; skipping media metadata probing", "error", err)
+		return
+	}
+
+	workers := min(len(indices), runtime.NumCPU()*4)
+	logging.Log.Info("Probing media metadata", "count", len(indices), "workers", workers)
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() {
+			for i := range jobs {
+				probeCalibreItem(ctx, &items[i])
+			}
+		})
+	}
+	for _, i := range indices {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+}
+
+func isProbeableMediaType(mediaType string) bool {
+	return mediaType == "video" || mediaType == "audio"
+}
+
+func probeCalibreItem(ctx context.Context, item *db.UpsertMediaParams) {
+	baseType := item.MediaType.String
+	if !isProbeableMediaType(baseType) {
+		return
+	}
+
+	probed, err := metadata.Extract(ctx, item.Path, metadata.ExtractOptions{})
+	if err != nil {
+		logging.Log.Debug("Failed to probe media metadata", "path", item.Path, "error", err)
+		return
+	}
+
+	item.Duration = probed.Media.Duration
+	item.Width = probed.Media.Width
+	item.Height = probed.Media.Height
+	item.Fps = probed.Media.Fps
+	item.VideoCodecs = probed.Media.VideoCodecs
+	item.AudioCodecs = probed.Media.AudioCodecs
+	item.SubtitleCodecs = probed.Media.SubtitleCodecs
+	item.VideoCount = probed.Media.VideoCount
+	item.AudioCount = probed.Media.AudioCount
+	item.SubtitleCount = probed.Media.SubtitleCount
+
+	if !probed.Media.MediaType.Valid {
+		return
+	}
+	switch baseType {
+	case "video":
+		if probed.Media.MediaType.String == "video" {
+			item.MediaType = probed.Media.MediaType
+		}
+	case "audio":
+		if probed.Media.MediaType.String == "audio" || probed.Media.MediaType.String == "audiobook" {
+			item.MediaType = probed.Media.MediaType
+		}
+	}
 }
 
 func calibreFormatRank(format string, priority map[string]int) int {

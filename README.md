@@ -226,6 +226,8 @@ Flags:
         Import formats recorded in Calibre even when the file is missing on disk
   --prune
         Mark media under the library as deleted when no longer in the Calibre catalog
+  --probe-media
+        Run ffprobe on video and audio files to fill duration and codecs (default: on; disable with --probe-media=false)
 ```
 
 </details>

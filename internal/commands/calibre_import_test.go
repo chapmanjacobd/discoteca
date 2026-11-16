@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -249,6 +250,129 @@ func TestCalibreImportIncludeMissingAndOneFormat(t *testing.T) {
 			t.Errorf("expected PDF to win the custom priority, got %q", format)
 		}
 	})
+}
+
+func TestCalibreImportProbesVideoMetadata(t *testing.T) {
+	installMockFFProbe(t, `{
+  "streams": [
+    {"codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080, "avg_frame_rate": "30/1"},
+    {"codec_type": "audio", "codec_name": "aac"}
+  ],
+  "format": {"duration": "123.45", "tags": {"title": "yt-dlp embedded title"}}
+}`)
+
+	libraryDir := createImportLibrary(t, []string{"mp4"}, []string{"MP4"})
+	dbPath := filepath.Join(t.TempDir(), "books.db")
+
+	cmd := &commands.CalibreImportCmd{Database: dbPath, Library: libraryDir, ProbeMedia: true}
+	if err := runImport(t, cmd); err != nil {
+		t.Fatal(err)
+	}
+
+	sqlDB := openMediaDB(t, dbPath)
+	var (
+		title, mediaType, videoCodecs, audioCodecs string
+		duration, width, height                    int64
+	)
+	if err := sqlDB.QueryRow(`
+		SELECT title, media_type, video_codecs, audio_codecs, duration, width, height
+		FROM media
+	`).Scan(&title, &mediaType, &videoCodecs, &audioCodecs, &duration, &width, &height); err != nil {
+		t.Fatal(err)
+	}
+
+	if title != "Test Book" {
+		t.Errorf("Calibre title should win over embedded tags, got %q", title)
+	}
+	if mediaType != "video" {
+		t.Errorf("media_type = %q, want video", mediaType)
+	}
+	if videoCodecs != "h264" || audioCodecs != "aac" {
+		t.Errorf("codecs = %q / %q, want h264 / aac", videoCodecs, audioCodecs)
+	}
+	if duration != 123 || width != 1920 || height != 1080 {
+		t.Errorf("duration=%d width=%d height=%d, want 123/1920/1080", duration, width, height)
+	}
+}
+
+func TestCalibreImportProbesAudiobookDuration(t *testing.T) {
+	installMockFFProbe(t, `{
+  "streams": [
+    {"codec_type": "audio", "codec_name": "aac"}
+  ],
+  "format": {"duration": "7200"}
+}`)
+
+	libraryDir := createImportLibrary(t, []string{"m4b"}, []string{"M4B"})
+	dbPath := filepath.Join(t.TempDir(), "books.db")
+
+	cmd := &commands.CalibreImportCmd{Database: dbPath, Library: libraryDir, ProbeMedia: true}
+	if err := runImport(t, cmd); err != nil {
+		t.Fatal(err)
+	}
+
+	sqlDB := openMediaDB(t, dbPath)
+	var (
+		mediaType string
+		duration  int64
+	)
+	if err := sqlDB.QueryRow(`SELECT media_type, duration FROM media`).Scan(&mediaType, &duration); err != nil {
+		t.Fatal(err)
+	}
+	if mediaType != "audiobook" {
+		t.Errorf("media_type = %q, want audiobook", mediaType)
+	}
+	if duration != 7200 {
+		t.Errorf("duration = %d, want 7200", duration)
+	}
+}
+
+func TestCalibreImportProbeDisabled(t *testing.T) {
+	installMockFFProbe(t, `{
+  "streams": [
+    {"codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080, "avg_frame_rate": "30/1"}
+  ],
+  "format": {"duration": "123.45"}
+}`)
+
+	libraryDir := createImportLibrary(t, []string{"mp4"}, []string{"MP4"})
+	dbPath := filepath.Join(t.TempDir(), "books.db")
+
+	cmd := &commands.CalibreImportCmd{Database: dbPath, Library: libraryDir, ProbeMedia: false}
+	if err := runImport(t, cmd); err != nil {
+		t.Fatal(err)
+	}
+
+	sqlDB := openMediaDB(t, dbPath)
+	var (
+		mediaType   string
+		duration    sql.NullInt64
+		videoCodecs sql.NullString
+	)
+	if err := sqlDB.QueryRow(`SELECT media_type, duration, video_codecs FROM media`).
+		Scan(&mediaType, &duration, &videoCodecs); err != nil {
+		t.Fatal(err)
+	}
+	if mediaType != "video" {
+		t.Errorf("media_type = %q, want video", mediaType)
+	}
+	if duration.Valid || videoCodecs.Valid {
+		t.Errorf("duration/codecs should stay unset, got %v / %v", duration, videoCodecs)
+	}
+}
+
+func installMockFFProbe(t *testing.T, output string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("mock ffprobe needs a POSIX shell")
+	}
+
+	dir := t.TempDir()
+	script := "#!/bin/sh\ncat <<'EOF'\n" + output + "\nEOF\n"
+	if err := os.WriteFile(filepath.Join(dir, "ffprobe"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func TestCalibreImportPreservesPlaybackState(t *testing.T) {
