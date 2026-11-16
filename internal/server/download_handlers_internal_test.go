@@ -36,7 +36,6 @@ func doDownloadRequest(t *testing.T, cmd *Server, method, path, body string) *ht
 	t.Helper()
 	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	cmd.Mux().ServeHTTP(w, req)
 	return w

@@ -19,7 +19,6 @@ func SetupTestServer(dbPath string) *server.Server {
 	cmd := &server.Server{
 		Databases: []string{dbPath},
 	}
-	cmd.APIToken = "test-token"
 	return cmd
 }
 
@@ -48,7 +47,6 @@ func TestServer_HandlePlay_FileNotFound(t *testing.T) {
 		t.Fatalf("json.Marshal failed: %v", err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/play", bytes.NewBuffer(reqBody))
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 
 	// 5. Call handlePlay
@@ -94,7 +92,6 @@ func TestServer_HandleHLSSegment_FileNotFound(t *testing.T) {
 
 	// 4. Create request
 	req := httptest.NewRequest(http.MethodGet, "/api/hls/segment?path="+f1+"&index=0", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 
 	// 5. Call handleHLSSegment
@@ -140,7 +137,6 @@ func TestServer_HandleSubtitles_FileNotFound(t *testing.T) {
 
 	// 4. Create request
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+f1+"&index=0", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 
 	// 5. Call handleSubtitles

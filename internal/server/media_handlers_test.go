@@ -43,7 +43,6 @@ func TestHandleRate(t *testing.T) {
 			"score": 4.5,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/rate", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -68,7 +67,6 @@ func TestHandleRate(t *testing.T) {
 			"score": 3.0,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/rate", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -80,7 +78,6 @@ func TestHandleRate(t *testing.T) {
 
 	t.Run("InvalidMethod", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/rate", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -117,7 +114,6 @@ func TestHandleDelete(t *testing.T) {
 			"restore": false,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/delete", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -142,7 +138,6 @@ func TestHandleDelete(t *testing.T) {
 			"restore": true,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/delete", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -168,7 +163,6 @@ func TestHandleDelete(t *testing.T) {
 			"restore": false,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/delete", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -207,7 +201,6 @@ func TestHandleProgress(t *testing.T) {
 			"completed": false,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -237,7 +230,6 @@ func TestHandleProgress(t *testing.T) {
 			"completed": true,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -265,7 +257,6 @@ func TestHandleProgress(t *testing.T) {
 			"completed": false,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/progress", bytes.NewBuffer(reqBody))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 

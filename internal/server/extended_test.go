@@ -33,7 +33,6 @@ func TestServeExtended_Filters(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/filter-bins?db="+dbPath, nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

@@ -53,7 +53,6 @@ Test subtitle
 
 	t.Run("ValidVTTSubtitle", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+subPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -68,7 +67,6 @@ Test subtitle
 
 	t.Run("MissingPath", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -79,7 +77,6 @@ Test subtitle
 
 	t.Run("UnauthorizedPath", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path=/etc/passwd", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -144,7 +141,6 @@ func TestHandleDU(t *testing.T) {
 
 func (e *streamingTestEnv) testDURootLevel(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -174,7 +170,6 @@ func (e *streamingTestEnv) testDURootLevel(t *testing.T) {
 
 func (e *streamingTestEnv) testDUSpecificPath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -197,7 +192,6 @@ func (e *streamingTestEnv) testDUSpecificPath(t *testing.T) {
 
 func (e *streamingTestEnv) testDUDirectFiles(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos/movies", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -223,7 +217,6 @@ func (e *streamingTestEnv) testDUDirectFiles(t *testing.T) {
 
 func (e *streamingTestEnv) testDUWindowsStylePath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=\\videos\\movies", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -243,7 +236,6 @@ func (e *streamingTestEnv) testDUWindowsStylePath(t *testing.T) {
 
 func (e *streamingTestEnv) testDUMixedStylePath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos\\movies", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -263,7 +255,6 @@ func (e *streamingTestEnv) testDUMixedStylePath(t *testing.T) {
 
 func (e *streamingTestEnv) testDUWindowsAbsolutePath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=C:\\videos\\movies", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -283,7 +274,6 @@ func (e *streamingTestEnv) testDUWindowsAbsolutePath(t *testing.T) {
 
 func (e *streamingTestEnv) testDUWindowsRootPath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=C:\\", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -303,7 +293,6 @@ func (e *streamingTestEnv) testDUWindowsRootPath(t *testing.T) {
 
 func (e *streamingTestEnv) testDUNCPath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=\\\\server\\share\\videos", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -323,7 +312,6 @@ func (e *streamingTestEnv) testDUNCPath(t *testing.T) {
 
 func (e *streamingTestEnv) testDUPathWithDotComponents(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos/./movies/../music", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -343,7 +331,6 @@ func (e *streamingTestEnv) testDUPathWithDotComponents(t *testing.T) {
 
 func (e *streamingTestEnv) testDUPathWithDoubleSeparators(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=/videos//movies", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -363,7 +350,6 @@ func (e *streamingTestEnv) testDUPathWithDoubleSeparators(t *testing.T) {
 
 func (e *streamingTestEnv) testDUWindowsPathWithDotDot(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=\\videos\\movies\\..\\music", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -408,7 +394,6 @@ func TestHandleEpisodes(t *testing.T) {
 
 	t.Run("GroupEpisodes", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/episodes?all=true", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -440,7 +425,6 @@ func TestHandleEpisodes(t *testing.T) {
 
 	t.Run("SortOrdersFolders", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/episodes?all=true&sort=size", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -491,7 +475,6 @@ func TestHandleThumbnailShortVideo(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/thumbnail?path="+videoPath, nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

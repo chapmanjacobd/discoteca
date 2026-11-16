@@ -42,7 +42,6 @@ func TestQueryGroupedTotalCountMatchesItems(t *testing.T) {
 	defer cmd.Close()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/query?group_by=parent&all=true", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	cmd.Mux().ServeHTTP(w, req)
 
@@ -82,7 +81,6 @@ func TestCaptionsViewTotalCountIsPrePagination(t *testing.T) {
 	do := func(url string) ([]models.MediaWithDB, int) {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, url, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		cmd.Mux().ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -127,7 +125,6 @@ func TestDUTotalCountIsPrePagination(t *testing.T) {
 	defer cmd.Close()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=&limit=1", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	cmd.Mux().ServeHTTP(w, req)
 

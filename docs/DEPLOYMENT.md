@@ -74,7 +74,7 @@ All flags apply to the `serve` subcommand.
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--host` | `127.0.0.1` | Listen address. A non-loopback address requires `DISCO_API_TOKEN`. |
+| `--host` | `127.0.0.1` | Listen address. Use `0.0.0.0` to accept connections from other hosts. |
 | `--port` | `5555` | Listen port. |
 | `--search-timeout` | `15s` | Upper bound for one `/api/query` request, including waiting for a search slot. |
 | `--max-concurrent-searches` | `4` | Concurrent `/api/query` searches. Extra requests wait, then receive `503` when the timeout expires. Use `0` to disable the limit. |
@@ -117,19 +117,12 @@ ExecStart=/usr/local/bin/disco serve \
 
 `disco` does not terminate TLS. Put it behind nginx or Caddy on the same host,
 and keep the listen address at the default `127.0.0.1` (or another private
-interface). The server refuses to bind to a non-loopback address unless
-`DISCO_API_TOKEN` is set; a reverse proxy is the recommended remote deployment.
+interface). A reverse proxy is the recommended remote deployment.
 
-Token authentication is optional. A loopback-only server does not require a
-token by default, so a local browser opens without a login prompt. Set
-`DISCO_API_TOKEN` to require authentication; this is mandatory for non-loopback
-binds.
-
-The API token is not embedded in static assets. The client exchanges a token
-for an `HttpOnly`, `SameSite=Strict` session cookie with `POST /api/session`.
-Set `DISCO_API_TOKEN` in the service environment, then open the UI once with
-`?token=<token>` or enter the token at the prompt. Scripts can keep using
-`X-Disco-Token` or `Authorization: Bearer <token>`.
+There is no application-level authentication. The listen address is the access
+control: the default loopback bind accepts only local clients, and binding to
+`0.0.0.0` exposes the UI to every reachable client. If the server is reachable
+from an untrusted network, authenticate at the reverse proxy.
 
 ## External ZIM server
 

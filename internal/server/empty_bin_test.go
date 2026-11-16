@@ -53,7 +53,6 @@ func postEmptyBin(t *testing.T, env *duTestEnv, paths []string) string {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body))
-	req.Header.Set("X-Disco-Token", env.cmd.APIToken)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)

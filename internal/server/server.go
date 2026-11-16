@@ -2,7 +2,6 @@
 package server
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"mime"
 	"net/http"
@@ -82,7 +81,6 @@ type Server struct {
 	MaxLimit              int           `help:"Maximum number of results a client may request per database (0 = unlimited)"                                                     default:"1000"`
 	DBCacheMB             int           `help:"SQLite page cache size in MiB per connection"                                                                                    default:"256"`
 	ApplicationStartTime  int64         `                                                                                                                                                                     kong:"-"`
-	APIToken              string        `                                                                                                                                                                     kong:"-"`
 	thumbnailCache        sync.Map
 	dbCache               sync.Map
 	searchSem             chan struct{}
@@ -97,84 +95,6 @@ type downloadService interface {
 	Status() *downloader.Status
 	Cancel() bool
 	Close()
-}
-
-// authMiddleware validates the API token for authenticated endpoints. When no
-// token is configured (the default for loopback-only servers) all requests are
-// allowed. Scripts may send the token in X-Disco-Token or as a Bearer token;
-// browsers use the HttpOnly session cookie established by POST /api/session.
-func (c *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if c.APIToken == "" {
-			next(w, r)
-			return
-		}
-
-		token := r.Header.Get("X-Disco-Token")
-		if token == "" {
-			if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
-				token = strings.TrimSpace(bearer)
-			}
-		}
-		if token == "" {
-			if cookie, err := r.Cookie(sessionCookieName); err == nil {
-				token = cookie.Value
-			}
-		}
-
-		if !c.tokenMatches(token) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next(w, r)
-	}
-}
-
-const sessionCookieName = "disco_token"
-
-// tokenMatches compares tokens in constant time. An empty configured token
-// disables authentication, so every supplied token matches.
-func (c *Server) tokenMatches(token string) bool {
-	if c.APIToken == "" {
-		return true
-	}
-	return subtle.ConstantTimeCompare([]byte(token), []byte(c.APIToken)) == 1
-}
-
-// HandleSession exchanges an API token for an HttpOnly session cookie. The
-// token is accepted only in the Authorization header so it never appears in a
-// URL that reaches a reverse proxy log.
-func (c *Server) HandleSession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if c.APIToken == "" {
-		http.Error(w, "Session authentication is not configured", http.StatusServiceUnavailable)
-		return
-	}
-
-	bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || !c.tokenMatches(strings.TrimSpace(bearer)) {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	prefix := BasePathFromContext(r.Context())
-	cookiePath := "/"
-	if prefix != "" {
-		cookiePath = prefix + "/"
-	}
-	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    c.APIToken,
-		Path:     cookiePath,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // isPathBlocklisted checks if a path should be denied access. It matches path
@@ -224,9 +144,6 @@ func (c *Server) isPathBlocklisted(path string) bool {
 func (c *Server) registerAPIRoutes(mux *http.ServeMux) {
 	// Health and favicon
 	mux.HandleFunc("/health", c.HandleHealth)
-	// Session exchange is the one API route that validates the token itself;
-	// it must be reachable before a session cookie exists.
-	mux.HandleFunc("/api/session", c.HandleSession)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
 		favicon, err := web.FsRaw.ReadFile("dist/favicon.svg")
 		if err != nil {
@@ -288,7 +205,7 @@ func (c *Server) registerAPIRoutes(mux *http.ServeMux) {
 	}
 
 	for _, route := range apiRoutes {
-		mux.HandleFunc(route.pattern, c.authMiddleware(route.handler))
+		mux.HandleFunc(route.pattern, route.handler)
 	}
 }
 

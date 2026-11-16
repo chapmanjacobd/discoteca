@@ -66,7 +66,6 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 		// The optimization should check the database first and return 404
 		// without attempting ffmpeg conversion
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+videoPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
 		cmd.HandleSubtitles(w, req)
@@ -88,7 +87,6 @@ func TestHandleSubtitles_SubtitleCountOptimization(t *testing.T) {
 		// ffmpeg error messages
 
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+videoPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
 		cmd.HandleSubtitles(w, req)
@@ -152,7 +150,6 @@ func TestHandleSubtitles_WithEmbeddedSubtitles(t *testing.T) {
 		// This will attempt ffmpeg conversion (which may fail for our dummy file,
 		// but the important part is that it tries)
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+videoPath+"&index=0", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
 		cmd.HandleSubtitles(w, req)
@@ -277,7 +274,6 @@ Test subtitle line
 	t.Run("ServesExternalSubtitleFile", func(t *testing.T) {
 		// External subtitle files should be served (possibly via ffmpeg conversion to VTT)
 		req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+subPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 
 		cmd.HandleSubtitles(w, req)
@@ -334,7 +330,6 @@ func TestHandleSubtitles_NoFFmpegCallForZeroCount(t *testing.T) {
 
 	// Make request
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitles?path="+videoPath, nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 
 	cmd.HandleSubtitles(w, req)

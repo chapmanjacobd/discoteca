@@ -35,11 +35,7 @@ describe('Random Media', () => {
         await vi.waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/api/random-clip'),
-                expect.objectContaining({
-                    headers: expect.objectContaining({
-                        'X-Disco-Token': 'mock-test-token'
-                    })
-                })
+                expect.anything()
             );
 
             const pipPlayer = document.getElementById('pip-player');
@@ -78,11 +74,7 @@ describe('Random Media', () => {
         await vi.waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('media_type=image'),
-                expect.objectContaining({
-                    headers: expect.objectContaining({
-                        'X-Disco-Token': 'mock-test-token'
-                    })
-                })
+                expect.anything()
             );
         });
     });

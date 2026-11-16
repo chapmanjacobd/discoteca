@@ -24,39 +24,6 @@ func TestListenAddress(t *testing.T) {
 	}
 }
 
-func TestValidateListenConfig(t *testing.T) {
-	t.Run("loopback does not need a token", func(t *testing.T) {
-		cmd := &Server{Host: "127.0.0.1"}
-		if err := cmd.validateListenConfig(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("non-loopback requires a token", func(t *testing.T) {
-		t.Setenv("DISCO_API_TOKEN", "")
-		cmd := &Server{Host: "0.0.0.0"}
-		if err := cmd.validateListenConfig(); err == nil {
-			t.Fatal("expected an error for an unauthenticated remote bind")
-		}
-	})
-
-	t.Run("non-loopback with a token is allowed", func(t *testing.T) {
-		t.Setenv("DISCO_API_TOKEN", "secret")
-		cmd := &Server{Host: "0.0.0.0"}
-		if err := cmd.validateListenConfig(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("localhost is loopback", func(t *testing.T) {
-		t.Setenv("DISCO_API_TOKEN", "")
-		cmd := &Server{Host: "localhost"}
-		if err := cmd.validateListenConfig(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-}
-
 func TestLoopbackHost(t *testing.T) {
 	for host, want := range map[string]bool{
 		"":            true,
@@ -73,24 +40,4 @@ func TestLoopbackHost(t *testing.T) {
 			t.Errorf("isLoopbackHost(%q) = %v, want %v", host, got, want)
 		}
 	}
-}
-
-func TestSetupAPITokenUsesOnlyTheEnvironment(t *testing.T) {
-	t.Run("uses environment token", func(t *testing.T) {
-		t.Setenv("DISCO_API_TOKEN", "from-env")
-		cmd := &Server{}
-		cmd.setupAPIToken()
-		if cmd.APIToken != "from-env" {
-			t.Fatalf("expected environment token, got %q", cmd.APIToken)
-		}
-	})
-
-	t.Run("leaves token unset when the environment is unset", func(t *testing.T) {
-		t.Setenv("DISCO_API_TOKEN", "")
-		cmd := &Server{Host: "127.0.0.1"}
-		cmd.setupAPIToken()
-		if cmd.APIToken != "" {
-			t.Fatalf("expected authentication to stay disabled, got %q", cmd.APIToken)
-		}
-	})
 }

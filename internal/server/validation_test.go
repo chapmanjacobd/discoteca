@@ -11,9 +11,8 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/testutils"
 )
 
-func newAuthRequest(method, target string, body io.Reader, token string) *http.Request {
+func newAuthRequest(method, target string, body io.Reader) *http.Request {
 	req := httptest.NewRequest(method, target, body)
-	req.Header.Set("X-Disco-Token", token)
 	return req
 }
 
@@ -27,7 +26,7 @@ func TestServer_Validation(t *testing.T) {
 	handler := cmd.Mux()
 
 	t.Run("HandleRate_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/rate", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(http.MethodPost, "/api/rate", bytes.NewBufferString("invalid json"))
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -36,7 +35,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandleProgress_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/progress", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(http.MethodPost, "/api/progress", bytes.NewBufferString("invalid json"))
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -45,7 +44,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandleMarkPlayed_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/mark-played", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(http.MethodPost, "/api/mark-played", bytes.NewBufferString("invalid json"))
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -58,7 +57,6 @@ func TestServer_Validation(t *testing.T) {
 			http.MethodPost,
 			"/api/mark-unplayed",
 			bytes.NewBufferString("invalid json"),
-			cmd.APIToken,
 		)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
@@ -68,7 +66,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandleDelete_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/delete", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(http.MethodPost, "/api/delete", bytes.NewBufferString("invalid json"))
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -77,7 +75,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandlePlay_InvalidMethod", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/play", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/play", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusMethodNotAllowed {
@@ -86,7 +84,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandlePlay_InvalidBody", func(t *testing.T) {
-		req := newAuthRequest(http.MethodPost, "/api/play", bytes.NewBufferString("invalid json"), cmd.APIToken)
+		req := newAuthRequest(http.MethodPost, "/api/play", bytes.NewBufferString("invalid json"))
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -95,7 +93,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandlePlaylistItems_MissingTitle", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/playlists/items", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/playlists/items", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -108,7 +106,6 @@ func TestServer_Validation(t *testing.T) {
 			http.MethodPost,
 			"/api/playlists/items",
 			bytes.NewBufferString("invalid json"),
-			cmd.APIToken,
 		)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
@@ -122,7 +119,6 @@ func TestServer_Validation(t *testing.T) {
 			http.MethodPost,
 			"/api/playlists/reorder",
 			bytes.NewBufferString("invalid json"),
-			cmd.APIToken,
 		)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
@@ -132,7 +128,7 @@ func TestServer_Validation(t *testing.T) {
 	})
 
 	t.Run("HandlePlaylistReorder_InvalidMethod", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/playlists/reorder", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/playlists/reorder", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusMethodNotAllowed {
@@ -151,7 +147,7 @@ func TestServer_HandleHLSSegment_Validation(t *testing.T) {
 	handler := cmd.Mux()
 
 	t.Run("MissingPath", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/hls/segment?index=0", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/hls/segment?index=0", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -160,7 +156,7 @@ func TestServer_HandleHLSSegment_Validation(t *testing.T) {
 	})
 
 	t.Run("MissingIndex", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/hls/segment?path=test.mp4", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/hls/segment?path=test.mp4", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -169,7 +165,7 @@ func TestServer_HandleHLSSegment_Validation(t *testing.T) {
 	})
 
 	t.Run("InvalidIndex", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/hls/segment?path=test.mp4&index=abc", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/hls/segment?path=test.mp4&index=abc", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -189,7 +185,7 @@ func TestServer_HandleHLSPlaylist_Validation(t *testing.T) {
 	handler := cmd.Mux()
 
 	t.Run("MissingPath", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/hls/playlist", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/hls/playlist", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -198,7 +194,7 @@ func TestServer_HandleHLSPlaylist_Validation(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		req := newAuthRequest(http.MethodGet, "/api/hls/playlist?path=nonexistent.mp4", nil, cmd.APIToken)
+		req := newAuthRequest(http.MethodGet, "/api/hls/playlist?path=nonexistent.mp4", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusForbidden {

@@ -81,7 +81,6 @@ func TestHandleDU_WithFilters(t *testing.T) {
 
 func (e *duTestEnv) testVideoOnlyFilter(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=&video=true", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -281,7 +280,6 @@ func (e *duTestEnv) testFileCountsFilterPersistNavigation(t *testing.T) {
 func (e *duTestEnv) doDURequest(t *testing.T, url string) models.DUResponse {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -516,7 +514,6 @@ func (e *duTestEnv) testMixedPathsUnixNavigation(t *testing.T) {
 
 func (e *duTestEnv) testMixedPathsWindowsNavigation(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/du?path=C:\\\\Users\\\\John&include_counts=true", nil)
-	req.Header.Set("X-Disco-Token", e.cmd.APIToken)
 	w := httptest.NewRecorder()
 	e.mux.ServeHTTP(w, req)
 
@@ -531,7 +528,6 @@ func (e *duTestEnv) testMixedPathsWindowsNavigation(t *testing.T) {
 
 	if resp.FolderCount == 0 && resp.FileCount == 0 {
 		req2 := httptest.NewRequest(http.MethodGet, "/api/du?path=C:/Users/John&include_counts=true", nil)
-		req2.Header.Set("X-Disco-Token", e.cmd.APIToken)
 		w2 := httptest.NewRecorder()
 		e.mux.ServeHTTP(w2, req2)
 

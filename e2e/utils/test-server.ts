@@ -112,7 +112,6 @@ export class TestServer {
         env: {
           ...process.env,
           DISCO_DEV: 'true',
-          DISCO_API_TOKEN: 'e2e-test-token'
         },
       });
 

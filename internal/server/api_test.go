@@ -36,14 +36,12 @@ func TestServeAPI_Query(t *testing.T) {
 
 	cmd := &server.Server{
 		Databases: []string{dbPath},
-		APIToken:  "test-token",
 	}
 	defer cmd.Close()
 	mux := cmd.Mux()
 
 	t.Run("ValidQuery", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+dbPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -58,17 +56,6 @@ func TestServeAPI_Query(t *testing.T) {
 
 		if len(results) != 1 {
 			t.Errorf("Expected 1 result, got %d", len(results))
-		}
-	})
-
-	t.Run("InvalidToken", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/query", nil)
-		req.Header.Set("X-Disco-Token", "wrong")
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("Expected 401, got %d", w.Code)
 		}
 	})
 }
@@ -91,7 +78,6 @@ func TestServeAPI_Metadata(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/metadata?db="+dbPath+"&path=/tmp/meta.mp4", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

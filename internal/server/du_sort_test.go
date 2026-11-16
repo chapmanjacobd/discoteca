@@ -51,7 +51,6 @@ func getDU(t *testing.T, env *duTestEnv, query string) models.DUResponse {
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/du"+query, nil)
-	req.Header.Set("X-Disco-Token", env.cmd.APIToken)
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)
 

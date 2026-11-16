@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -126,14 +125,6 @@ func (c *Server) Close() error {
 	return nil
 }
 
-// setupAPIToken enables token authentication only when DISCO_API_TOKEN is set.
-// Loopback-only servers stay open so the local browser does not need to log in.
-// A non-loopback bind without DISCO_API_TOKEN is rejected by
-// validateListenConfig before this runs.
-func (c *Server) setupAPIToken() {
-	c.APIToken = os.Getenv("DISCO_API_TOKEN")
-}
-
 // listenAddress returns the configured host and port as a net address.
 func (c *Server) listenAddress() string {
 	host := c.Host
@@ -152,19 +143,6 @@ func isLoopbackHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
-}
-
-// validateListenConfig refuses an unauthenticated bind on a non-loopback
-// interface.
-func (c *Server) validateListenConfig() error {
-	if !isLoopbackHost(c.Host) && os.Getenv("DISCO_API_TOKEN") == "" {
-		return fmt.Errorf(
-			"refusing to listen on non-loopback address %q without DISCO_API_TOKEN; "+
-				"set DISCO_API_TOKEN or bind to 127.0.0.1 and use a reverse proxy",
-			c.Host,
-		)
-	}
-	return nil
 }
 
 // cacheDatabases connects to all databases and stores them in the cache
@@ -258,9 +236,6 @@ func (c *Server) Run(ctx context.Context) error {
 	db.InitFtsConfig()
 	db.SetCacheSizeMB(c.DBCacheMB)
 
-	if err := c.validateListenConfig(); err != nil {
-		return err
-	}
 	if err := c.validateKiwixConfig(); err != nil {
 		return err
 	}
@@ -272,9 +247,6 @@ func (c *Server) Run(ctx context.Context) error {
 	initMimeTypes()
 
 	c.ApplicationStartTime = time.Now().UnixNano()
-
-	// Setup API token
-	c.setupAPIToken()
 
 	// Connect and cache all databases
 	c.cacheDatabases(ctx)

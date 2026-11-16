@@ -46,7 +46,6 @@ func TestHandleCategories(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/categories", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -107,7 +106,6 @@ func TestHandleGenres(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/genres", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -161,7 +159,6 @@ func TestHandleRatings(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/ratings", nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

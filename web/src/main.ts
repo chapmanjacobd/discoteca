@@ -1,6 +1,6 @@
 import './style.css';
 import Hls from 'hls.js';
-import { fetchAPI, initSessionFromURL } from './api';
+import { fetchAPI } from './api';
 import { appUrl } from './base';
 import { state } from './state';
 import { initSliders, updateSliderLabels, setSliderValues, resetSliders, updateSlidersFromAbsolute } from './ui/Sliders';
@@ -32,8 +32,6 @@ const DEFAULT_CATEGORIES: Record<string, string[]> = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    initSessionFromURL();
-
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
     const downloadButton = document.getElementById('download-button') as HTMLButtonElement | null;
     const downloadDbSelect = document.getElementById('download-db') as HTMLSelectElement | null;
@@ -9581,8 +9579,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupCursorAutoHide();
     setupViewerZoomPan();
 
-    // Flush the current reading position when the page is backgrounded or
-    // closed. The keepalive request still carries the session cookie.
+    // Flush the current reading position when the page is backgrounded or closed.
     window.addEventListener('pagehide', () => activeDocumentTracker?.());
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {

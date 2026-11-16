@@ -32,7 +32,6 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	t.Run("RejectUnauthorizedDatabase", func(t *testing.T) {
 		// Try to query a database path that wasn't configured
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db=/etc/malicious.db", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -51,7 +50,6 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	t.Run("RejectMultipleUnauthorizedDatabases", func(t *testing.T) {
 		// Try to query multiple unauthorized databases
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db=/etc/passwd.db&db=/tmp/evil.db", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -63,7 +61,6 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	t.Run("RejectMixedAuthorizedAndUnauthorized", func(t *testing.T) {
 		// Try to query one valid and one invalid database
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+fixture.DBPath+"&db=/tmp/evil.db", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -75,7 +72,6 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	t.Run("AllowAuthorizedDatabase", func(t *testing.T) {
 		// Query the configured database - should work
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+fixture.DBPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -88,7 +84,6 @@ func TestDatabaseFiltering_Security(t *testing.T) {
 	t.Run("AllowNoDatabaseFilter", func(t *testing.T) {
 		// Query without database filter - should use all configured databases
 		req := httptest.NewRequest(http.MethodGet, "/api/query", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -123,7 +118,6 @@ func TestDatabaseFiltering_FilterBins(t *testing.T) {
 
 	t.Run("FilterBins_RejectUnauthorizedDatabase", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/filter-bins?db=/etc/evil.db", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -134,7 +128,6 @@ func TestDatabaseFiltering_FilterBins(t *testing.T) {
 
 	t.Run("FilterBins_AllowAuthorizedDatabase", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/filter-bins?db="+fixture.DBPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -170,7 +163,6 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 	t.Run("AllowSubsetOfDatabases", func(t *testing.T) {
 		// Query only the first database
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+fixture1.DBPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -182,7 +174,6 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 	t.Run("AllowAllConfiguredDatabases", func(t *testing.T) {
 		// Query both configured databases
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+fixture1.DBPath+"&db="+fixture2.DBPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -202,7 +193,6 @@ func TestDatabaseFiltering_WithMultipleDatabases(t *testing.T) {
 		otherDB.Close()
 
 		req := httptest.NewRequest(http.MethodGet, "/api/query?db="+otherFixture.DBPath, nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 

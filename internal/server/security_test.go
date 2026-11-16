@@ -17,7 +17,6 @@ func TestSecurity_Blocklist(t *testing.T) {
 		Databases: []string{fixture.DBPath},
 	}
 	defer cmd.Close()
-	cmd.APIToken = "test-token"
 
 	testCases := []struct {
 		path     string
@@ -48,7 +47,6 @@ func TestSecurity_Blocklist(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.path, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/raw?path="+tc.path, nil)
-			req.Header.Set("X-Disco-Token", cmd.APIToken)
 			w := httptest.NewRecorder()
 			cmd.HandleRaw(w, req)
 			if w.Code != tc.expected {

@@ -79,18 +79,6 @@ func TestMuxBasePath(t *testing.T) {
 			t.Error("index.html should use relative asset URLs")
 		}
 	})
-
-	t.Run("DoesNotSetTokenCookieOnStaticRequest", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/disco/", nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		for _, cookie := range w.Result().Cookies() {
-			if cookie.Name == "disco_token" {
-				t.Fatalf("static request must not set an authentication token cookie")
-			}
-		}
-	})
 }
 
 func TestMuxForwardedPrefix(t *testing.T) {

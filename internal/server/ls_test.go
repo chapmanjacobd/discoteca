@@ -54,7 +54,6 @@ func TestServer_HandleLs(t *testing.T) {
 
 	t.Run("Absolute Path - Root", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=/", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -95,7 +94,6 @@ func TestServer_HandleLs(t *testing.T) {
 
 	t.Run("Absolute Path - Directory", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=/home/user/music/", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -111,7 +109,6 @@ func TestServer_HandleLs(t *testing.T) {
 	t.Run("Partial Search - ./home/", func(t *testing.T) {
 		// Searching for ./home/ should suggest contents of /home/
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=./home/", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -135,7 +132,6 @@ func TestServer_HandleLs(t *testing.T) {
 	t.Run("Partial Search - Deep context - ./home/user/xk/sync/au", func(t *testing.T) {
 		// This should suggest 'audio/' because it's under 'sync/' and contains 'au'
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=./home/user/xk/sync/au", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -162,7 +158,6 @@ func TestServer_HandleLs(t *testing.T) {
 		// rock has 2 songs, pop has 1. rock should be ranked higher if both match.
 		// Searching for "./music/"
 		req := httptest.NewRequest(http.MethodGet, "/api/ls?path=./music/", nil)
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 

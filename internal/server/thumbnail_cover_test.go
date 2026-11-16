@@ -55,7 +55,6 @@ func TestHandleThumbnailServesSiblingCover(t *testing.T) {
 	mux := cmd.Mux()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/thumbnail?path="+url.QueryEscape(bookPath), nil)
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

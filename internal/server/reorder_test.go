@@ -56,7 +56,6 @@ func TestServeReorder_Playlist(t *testing.T) {
 		t.Fatalf("json.Marshal failed: %v", err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
-	req.Header.Set("X-Disco-Token", cmd.APIToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -118,7 +117,6 @@ func TestServeReorder_Security(t *testing.T) {
 		}
 		body, _ := json.Marshal(reorderReq)
 		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
-		req.Header.Set("X-Disco-Token", cmd.APIToken)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -150,7 +148,6 @@ func TestServeReorder_Security(t *testing.T) {
 		}
 		body, _ := json.Marshal(reorderReq)
 		req := httptest.NewRequest(http.MethodPost, "/api/playlists/reorder", bytes.NewBuffer(body))
-		req.Header.Set("X-Disco-Token", cmd2.APIToken)
 		w := httptest.NewRecorder()
 		mux2.ServeHTTP(w, req)
 

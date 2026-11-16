@@ -35,111 +35,20 @@ func setupPhase7DB(t *testing.T) (string, *sql.DB) {
 }
 
 func securityTestServer(dbPath string) *server.Server {
-	return &server.Server{Databases: []string{dbPath}, APIToken: "test-token"}
+	return &server.Server{Databases: []string{dbPath}}
 }
 
-func authRequest(method, target string, body *bytes.Reader, token string) *http.Request {
+func authRequest(method, target string, body *bytes.Reader) *http.Request {
 	var req *http.Request
 	if body == nil {
 		req = httptest.NewRequest(method, target, nil)
 	} else {
 		req = httptest.NewRequest(method, target, body)
 	}
-	req.Header.Set("X-Disco-Token", token)
 	return req
 }
 
-func TestSessionTokenIsNotExposedByStaticAssets(t *testing.T) {
-	cmd := &server.Server{APIToken: "super-secret-token"}
-	mux := cmd.Mux()
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if strings.Contains(w.Body.String(), "super-secret-token") {
-		t.Fatal("static HTML must not contain the API token")
-	}
-	for _, cookie := range w.Result().Cookies() {
-		if cookie.Name == "disco_token" {
-			t.Fatal("GET / must not set the API token cookie")
-		}
-	}
-
-	js := httptest.NewRecorder()
-	mux.ServeHTTP(js, httptest.NewRequest(http.MethodGet, "/index.js", nil))
-	if js.Code != http.StatusOK {
-		t.Fatalf("expected JS asset 200, got %d", js.Code)
-	}
-	if strings.Contains(js.Body.String(), "super-secret-token") {
-		t.Fatal("static JavaScript must not contain the API token")
-	}
-}
-
-func TestSessionEndpoint(t *testing.T) {
-	cmd := &server.Server{APIToken: "session-token"}
-	mux := cmd.Mux()
-
-	t.Run("wrong token returns 401", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/session", nil)
-		req.Header.Set("Authorization", "Bearer wrong")
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-		if w.Code != http.StatusUnauthorized {
-			t.Fatalf("expected 401, got %d", w.Code)
-		}
-		if len(w.Result().Cookies()) != 0 {
-			t.Fatal("failed session must not set a cookie")
-		}
-	})
-
-	t.Run("right token sets secure HttpOnly cookie", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/session", nil)
-		req.Header.Set("Authorization", "Bearer session-token")
-		req.Header.Set("X-Forwarded-Proto", "https")
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-		if w.Code != http.StatusNoContent {
-			t.Fatalf("expected 204, got %d", w.Code)
-		}
-		cookies := w.Result().Cookies()
-		if len(cookies) != 1 {
-			t.Fatalf("expected one cookie, got %d", len(cookies))
-		}
-		cookie := cookies[0]
-		if cookie.Name != "disco_token" || cookie.Value != "session-token" {
-			t.Fatalf("unexpected session cookie %#v", cookie)
-		}
-		if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode {
-			t.Fatalf("session cookie is missing security flags: %#v", cookie)
-		}
-	})
-
-	t.Run("cookie authenticates API requests", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
-		req.AddCookie(&http.Cookie{Name: "disco_token", Value: "session-token"})
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("expected 200, got %d", w.Code)
-		}
-	})
-
-	t.Run("bearer authenticates API requests", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
-		req.Header.Set("Authorization", "Bearer session-token")
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("expected 200, got %d", w.Code)
-		}
-	})
-}
-
-func TestAPIAccessWithoutToken(t *testing.T) {
+func TestAPIAccess(t *testing.T) {
 	cmd := &server.Server{}
 	mux := cmd.Mux()
 
@@ -148,7 +57,7 @@ func TestAPIAccessWithoutToken(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected unauthenticated loopback access, got %d", w.Code)
+		t.Fatalf("expected API access, got %d", w.Code)
 	}
 }
 
@@ -178,7 +87,7 @@ func TestQueryRejectsUnsafeScoreAndSort(t *testing.T) {
 	} {
 		t.Run(target, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, authRequest(http.MethodGet, target, nil, cmd.APIToken))
+			mux.ServeHTTP(w, authRequest(http.MethodGet, target, nil))
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("expected 400, got %d - %s", w.Code, w.Body.String())
 			}
@@ -189,7 +98,7 @@ func TestQueryRejectsUnsafeScoreAndSort(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(
 			w,
-			authRequest(http.MethodGet, "/api/query?min_score=0&sort=path%20desc", nil, cmd.APIToken),
+			authRequest(http.MethodGet, "/api/query?min_score=0&sort=path%20desc", nil),
 		)
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d - %s", w.Code, w.Body.String())
@@ -222,7 +131,6 @@ func TestMetadataRejectsDatabaseOutsideAllowedList(t *testing.T) {
 		http.MethodGet,
 		"/api/metadata?db="+url.QueryEscape(dbPath)+"&path=/media/a.mp4",
 		nil,
-		cmd.APIToken,
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, allowed)
@@ -235,7 +143,6 @@ func TestMetadataRejectsDatabaseOutsideAllowedList(t *testing.T) {
 		http.MethodGet,
 		"/api/metadata?db="+url.QueryEscape(otherDB)+"&path=/media/a.mp4",
 		nil,
-		cmd.APIToken,
 	)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, rejected)
@@ -265,7 +172,7 @@ func TestEmptyBinRejectsUnlistedAndUntrashedPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
+	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body)))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for an untrashed path, got %d - %s", w.Code, w.Body.String())
 	}
@@ -316,7 +223,7 @@ func TestEmptyBinRejectsPathFromAnotherDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
+	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body)))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for a path outside the configured DBs, got %d - %s", w.Code, w.Body.String())
 	}
@@ -346,7 +253,7 @@ func TestEmptyBinListedPathAndReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
+	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body)))
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d - %s", w.Code, w.Body.String())
 	}
@@ -363,7 +270,7 @@ func TestEmptyBinListedPathAndReadOnly(t *testing.T) {
 
 	cmd.ReadOnly = true
 	w = httptest.NewRecorder()
-	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
+	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body)))
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 in read-only mode, got %d", w.Code)
 	}
@@ -402,7 +309,7 @@ func TestEmptyBinPartialFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body), cmd.APIToken))
+	mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/empty-bin", bytes.NewReader(body)))
 	if w.Code != http.StatusMultiStatus {
 		t.Fatalf("expected 207 partial success, got %d - %s", w.Code, w.Body.String())
 	}
@@ -557,7 +464,7 @@ func TestStreamingRequiresDatabaseMembership(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(
 			w,
-			authRequest(http.MethodGet, "/api/hls/playlist?path="+url.QueryEscape(mediaPath), nil, cmd.APIToken),
+			authRequest(http.MethodGet, "/api/hls/playlist?path="+url.QueryEscape(mediaPath), nil),
 		)
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d - %s", w.Code, w.Body.String())
@@ -568,7 +475,7 @@ func TestStreamingRequiresDatabaseMembership(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(
 			w,
-			authRequest(http.MethodGet, "/api/hls/playlist?path="+url.QueryEscape(unlistedPath), nil, cmd.APIToken),
+			authRequest(http.MethodGet, "/api/hls/playlist?path="+url.QueryEscape(unlistedPath), nil),
 		)
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("expected 403, got %d", w.Code)
@@ -583,7 +490,6 @@ func TestStreamingRequiresDatabaseMembership(t *testing.T) {
 				http.MethodGet,
 				"/api/hls/segment?path="+url.QueryEscape(unlistedPath)+"&index=0",
 				nil,
-				cmd.APIToken,
 			),
 		)
 		if w.Code != http.StatusForbidden {
@@ -594,7 +500,7 @@ func TestStreamingRequiresDatabaseMembership(t *testing.T) {
 	t.Run("play denies an unlisted local file", func(t *testing.T) {
 		body, _ := json.Marshal(map[string]string{"path": unlistedPath})
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/play", bytes.NewReader(body), cmd.APIToken))
+		mux.ServeHTTP(w, authRequest(http.MethodPost, "/api/play", bytes.NewReader(body)))
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("expected 403, got %d", w.Code)
 		}
@@ -615,7 +521,6 @@ func TestStreamingRequiresDatabaseMembership(t *testing.T) {
 				http.MethodGet,
 				"/api/hls/segment?path="+url.QueryEscape(missing)+"&index=0",
 				nil,
-				cmd.APIToken,
 			),
 		)
 		if w.Code != http.StatusNotFound {
@@ -659,7 +564,7 @@ func TestSubtitleSidecarUsesIndexedLookup(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(
 		w,
-		authRequest(http.MethodGet, "/api/subtitles?path="+url.QueryEscape(sidecarPath), nil, cmd.APIToken),
+		authRequest(http.MethodGet, "/api/subtitles?path="+url.QueryEscape(sidecarPath), nil),
 	)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected sidecar subtitle to be served, got %d - %s", w.Code, w.Body.String())
@@ -690,20 +595,20 @@ func TestWriteHandlersReportFailures(t *testing.T) {
 	}
 
 	t.Run("total failure returns 500", func(t *testing.T) {
-		cmd := &server.Server{Databases: []string{invalidDB}, APIToken: "test-token"}
+		cmd := &server.Server{Databases: []string{invalidDB}}
 		defer cmd.Close()
 		w := httptest.NewRecorder()
-		cmd.Mux().ServeHTTP(w, authRequest(http.MethodPost, "/api/rate", makeBody(), cmd.APIToken))
+		cmd.Mux().ServeHTTP(w, authRequest(http.MethodPost, "/api/rate", makeBody()))
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("expected 500, got %d - %s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("partial failure returns 207 and still updates", func(t *testing.T) {
-		cmd := &server.Server{Databases: []string{dbPath, invalidDB}, APIToken: "test-token"}
+		cmd := &server.Server{Databases: []string{dbPath, invalidDB}}
 		defer cmd.Close()
 		w := httptest.NewRecorder()
-		cmd.Mux().ServeHTTP(w, authRequest(http.MethodPost, "/api/rate", makeBody(), cmd.APIToken))
+		cmd.Mux().ServeHTTP(w, authRequest(http.MethodPost, "/api/rate", makeBody()))
 		if w.Code != http.StatusMultiStatus {
 			t.Fatalf("expected 207, got %d - %s", w.Code, w.Body.String())
 		}
@@ -721,7 +626,7 @@ func TestWriteHandlersReportFailures(t *testing.T) {
 		defer cmd.Close()
 		body, _ := json.Marshal(map[string]any{"path": "/media/unknown.mp4", "score": 3})
 		w := httptest.NewRecorder()
-		cmd.Mux().ServeHTTP(w, authRequest(http.MethodPost, "/api/rate", bytes.NewReader(body), cmd.APIToken))
+		cmd.Mux().ServeHTTP(w, authRequest(http.MethodPost, "/api/rate", bytes.NewReader(body)))
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("expected 404, got %d - %s", w.Code, w.Body.String())
 		}
@@ -749,7 +654,7 @@ func TestRequireWriteMethods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.method+" "+tt.target, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, authRequest(tt.method, tt.target, nil, cmd.APIToken))
+			mux.ServeHTTP(w, authRequest(tt.method, tt.target, nil))
 			if w.Code != tt.want {
 				t.Fatalf("expected %d, got %d - %s", tt.want, w.Code, w.Body.String())
 			}
