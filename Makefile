@@ -57,6 +57,7 @@ macos-deps:
 go-deps:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	go install gotest.tools/gotestsum@latest
+	go install golang.org/x/tools/cmd/deadcode@latest
 
 deps-update:
 	go get -u ./...
