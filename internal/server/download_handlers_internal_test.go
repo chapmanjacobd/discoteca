@@ -71,7 +71,13 @@ func TestHandleDownloadStart(t *testing.T) {
 	cmd := &Server{Databases: []string{"/tmp/library.db"}, downloadManager: stub}
 	defer cmd.Close()
 
-	w := doDownloadRequest(t, cmd, http.MethodPost, "/api/download", `{"url":"https://example.test/video","database":"/tmp/library.db","media_type":"video"}`)
+	w := doDownloadRequest(
+		t,
+		cmd,
+		http.MethodPost,
+		"/api/download",
+		`{"url":"https://example.test/video","database":"/tmp/library.db","media_type":"video"}`,
+	)
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202: %s", w.Code, w.Body.String())
 	}
@@ -93,7 +99,13 @@ func TestHandleDownloadRejectsUnknownDatabase(t *testing.T) {
 	cmd := &Server{Databases: []string{"/tmp/library.db"}, downloadManager: stub}
 	defer cmd.Close()
 
-	w := doDownloadRequest(t, cmd, http.MethodPost, "/api/download", `{"url":"https://example.test/video","database":"/tmp/other.db"}`)
+	w := doDownloadRequest(
+		t,
+		cmd,
+		http.MethodPost,
+		"/api/download",
+		`{"url":"https://example.test/video","database":"/tmp/other.db"}`,
+	)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 	}

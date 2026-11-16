@@ -60,29 +60,9 @@ func writeIntro(sb *strings.Builder) {
 	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
 	sb.WriteString("## Downloads\n\n")
-	sb.WriteString("Paste an http(s) URL into the search bar and click the download button. Downloads use `lb`, or `lb-wrapper` when `lb` is unavailable. Set `--download-command` to choose a command and `--download-dir` to change the output directory. Downloaded files are imported into the selected database automatically. Downloads are disabled with `--read-only`.\n\n")
-	sb.WriteString("## CLI changes\n\n")
 	sb.WriteString(
-		"- `--timeout`, `--threads`, and `--ignore-errors` were removed; they were accepted but never applied.\n",
+		"Paste an http(s) URL into the search bar and click the download button. Downloads use `lb`, or `lb-wrapper` when `lb` is unavailable. Set `--download-command` to choose a command and `--download-dir` to change the output directory. Downloaded files are imported into the selected database automatically. Downloads are disabled with `--read-only`.\n\n",
 	)
-	sb.WriteString("- `--frequency` is only exposed by `stats`. `--facet` requires `--frequency`.\n")
-	sb.WriteString("- `print` and `du` now scan files and directories passed on the command line.\n")
-	sb.WriteString(
-		"- `check` applies path/media filters to database rows before marking files deleted; scan roots are still walked fully.\n",
-	)
-	sb.WriteString(
-		"- `dedupe` applies path/search/time/deleted/media filters while selecting candidates and only supports `--trash` as a post-action.\n",
-	)
-	sb.WriteString(
-		"- `add` exposes path/media filters, but not database-only filters such as playback state or search history.\n",
-	)
-	sb.WriteString(
-		"- `merge-dbs` applies `--where` to `media` only; use `--where-table TABLE=CLAUSE` for other tables.\n",
-	)
-	sb.WriteString(
-		"- `similar-files` and `similar-folders` no longer expose sort flags; `cluster-sort` emits JSON with `--json`.\n",
-	)
-	sb.WriteString("- Unknown `--columns` values are rejected instead of printing blank cells.\n\n")
 }
 
 func writeScreenshots(sb *strings.Builder) {

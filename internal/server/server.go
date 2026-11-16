@@ -66,7 +66,7 @@ type Server struct {
 	Host                  string        `help:"Address to listen on (loopback by default)"                                                                                      default:"127.0.0.1"`
 	Port                  int           `help:"Port to listen on"                                                                                                               default:"5555"      short:"p"`
 	DownloadCommand       string        `help:"Downloader command: auto, lb, lb-wrapper, or a path"                                                                             default:"auto"`
-	DownloadDir           string        `help:"Directory for downloaded media (default: ~/Downloads/disco)"                                                                      default:""`
+	DownloadDir           string        `help:"Directory for downloaded media (default: ~/Downloads/disco)"                                                                     default:""`
 	KiwixHost             string        `help:"Host of the externally managed kiwix-serve"                                                                                      default:"127.0.0.1"`
 	KiwixPort             int           `help:"Port of the externally managed kiwix-serve (0 disables kiwix-serve)"                                                             default:"8181"`
 	ZimanticHost          string        `help:"Host of the externally managed zimantic"                                                                                         default:"127.0.0.1"`

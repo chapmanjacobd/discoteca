@@ -136,6 +136,7 @@ func TestOpenAndBooks(t *testing.T) {
 		}
 		if book.Files[0].Format != "EPUB" ||
 			book.Files[0].Path != filepath.Join(libraryDir, "Alice", "Test Book (1)", "Test Book - Alice.epub") {
+
 			t.Errorf("file = %#v", book.Files[0])
 		}
 

@@ -164,8 +164,8 @@ func Resolve(command, downloadDir string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("failed to resolve download directory: %w", err)
 	}
-	if err := os.MkdirAll(absDir, 0o755); err != nil {
-		return Config{}, fmt.Errorf("failed to create download directory: %w", err)
+	if mkErr := os.MkdirAll(absDir, 0o755); mkErr != nil {
+		return Config{}, fmt.Errorf("failed to create download directory: %w", mkErr)
 	}
 
 	command = strings.TrimSpace(command)
@@ -503,7 +503,7 @@ func snapshotFiles(root string) map[string]struct{} {
 	files := make(map[string]struct{})
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // skip unreadable entries instead of aborting the snapshot
 		}
 		if !d.IsDir() {
 			files[path] = struct{}{}

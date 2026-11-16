@@ -2,6 +2,7 @@ package downloader_test
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -116,9 +117,7 @@ func TestDownloadAndImport(t *testing.T) {
 	}
 	defer sqlDB.Close()
 
-	var (
-		path, mediaType string
-	)
+	var path, mediaType string
 	if err := sqlDB.QueryRow(`SELECT path, media_type FROM media`).Scan(&path, &mediaType); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +133,8 @@ func TestDownloadAndImport(t *testing.T) {
 	if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM media`).Scan(&mediaCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM captions WHERE text LIKE '%downloaded caption%'`).Scan(&captionCount); err != nil {
+	if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM captions WHERE text LIKE '%downloaded caption%'`).
+		Scan(&captionCount); err != nil {
 		t.Fatal(err)
 	}
 	if mediaCount != 1 {
@@ -230,9 +230,21 @@ func TestOptionsNormalize(t *testing.T) {
 		{name: "valid", options: downloader.Options{URL: "https://example.test/x", MediaType: "video"}},
 		{name: "file scheme", options: downloader.Options{URL: "file:///etc/passwd"}, wantErr: true},
 		{name: "missing scheme", options: downloader.Options{URL: "example.test/x"}, wantErr: true},
-		{name: "bad media type", options: downloader.Options{URL: "https://example.test/x", MediaType: "image"}, wantErr: true},
-		{name: "bad subtitles", options: downloader.Options{URL: "https://example.test/x", Subtitles: "maybe"}, wantErr: true},
-		{name: "bad audio format", options: downloader.Options{URL: "https://example.test/x", MediaType: "audio", AudioFormat: "wma"}, wantErr: true},
+		{
+			name:    "bad media type",
+			options: downloader.Options{URL: "https://example.test/x", MediaType: "image"},
+			wantErr: true,
+		},
+		{
+			name:    "bad subtitles",
+			options: downloader.Options{URL: "https://example.test/x", Subtitles: "maybe"},
+			wantErr: true,
+		},
+		{
+			name:    "bad audio format",
+			options: downloader.Options{URL: "https://example.test/x", MediaType: "audio", AudioFormat: "wma"},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -259,10 +271,14 @@ func TestManagerRejectsBusy(t *testing.T) {
 	}
 	defer manager.Close()
 
-	if _, err := manager.Start(downloader.Options{URL: "https://example.test/x", Database: filepath.Join(dir, "x.db")}); err != nil {
+	if _, err := manager.Start(
+		downloader.Options{URL: "https://example.test/x", Database: filepath.Join(dir, "x.db")},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.Start(downloader.Options{URL: "https://example.test/y", Database: filepath.Join(dir, "x.db")}); err != downloader.ErrBusy {
+	if _, err := manager.Start(
+		downloader.Options{URL: "https://example.test/y", Database: filepath.Join(dir, "x.db")},
+	); !errors.Is(err, downloader.ErrBusy) {
 		t.Fatalf("second Start error = %v, want ErrBusy", err)
 	}
 	manager.Cancel()

@@ -211,27 +211,10 @@ func (l *Library) loadAuthors(ctx context.Context, books []Book, byID map[int64]
 		FROM books_authors_link ba
 		JOIN authors a ON a.id = ba.author
 		ORDER BY ba.book, ba.id`
-
-	rows, err := l.conn.QueryContext(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to query Calibre authors: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var bookID int64
-		var name string
-		if err := rows.Scan(&bookID, &name); err != nil {
-			return fmt.Errorf("failed to scan Calibre author: %w", err)
-		}
-		if idx, ok := byID[bookID]; ok {
-			if name = strings.TrimSpace(name); name != "" {
-				books[idx].Authors = append(books[idx].Authors, name)
-			}
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("failed to read Calibre authors: %w", err)
+	if err := l.loadBookNames(ctx, query, books, byID, func(book *Book, name string) {
+		book.Authors = append(book.Authors, name)
+	}); err != nil {
+		return fmt.Errorf("failed to load Calibre authors: %w", err)
 	}
 	return nil
 }
@@ -242,10 +225,26 @@ func (l *Library) loadTags(ctx context.Context, books []Book, byID map[int64]int
 		FROM books_tags_link bt
 		JOIN tags t ON t.id = bt.tag
 		ORDER BY bt.book, t.name`
+	if err := l.loadBookNames(ctx, query, books, byID, func(book *Book, name string) {
+		book.Tags = append(book.Tags, name)
+	}); err != nil {
+		return fmt.Errorf("failed to load Calibre tags: %w", err)
+	}
+	return nil
+}
 
+// loadBookNames reads a book-to-name link table and adds each name to the
+// matching book through appendName.
+func (l *Library) loadBookNames(
+	ctx context.Context,
+	query string,
+	books []Book,
+	byID map[int64]int,
+	appendName func(*Book, string),
+) error {
 	rows, err := l.conn.QueryContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to query Calibre tags: %w", err)
+		return fmt.Errorf("failed to query Calibre link table: %w", err)
 	}
 	defer rows.Close()
 
@@ -253,16 +252,16 @@ func (l *Library) loadTags(ctx context.Context, books []Book, byID map[int64]int
 		var bookID int64
 		var name string
 		if err := rows.Scan(&bookID, &name); err != nil {
-			return fmt.Errorf("failed to scan Calibre tag: %w", err)
+			return fmt.Errorf("failed to scan Calibre link name: %w", err)
 		}
 		if idx, ok := byID[bookID]; ok {
 			if name = strings.TrimSpace(name); name != "" {
-				books[idx].Tags = append(books[idx].Tags, name)
+				appendName(&books[idx], name)
 			}
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("failed to read Calibre tags: %w", err)
+		return fmt.Errorf("failed to read Calibre link names: %w", err)
 	}
 	return nil
 }
