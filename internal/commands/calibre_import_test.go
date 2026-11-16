@@ -145,7 +145,8 @@ func TestCalibreImportCmd(t *testing.T) {
 	}
 
 	var playlistCount int
-	if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM playlists WHERE path = ? AND extractor_key = 'Calibre'`, libraryDir).Scan(&playlistCount); err != nil {
+	if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM playlists WHERE path = ? AND extractor_key = 'Calibre'`, libraryDir).
+		Scan(&playlistCount); err != nil {
 		t.Fatal(err)
 	}
 	if playlistCount != 1 {

@@ -22,7 +22,11 @@ func createLibrary(t *testing.T) string {
 		"Test Book - Alice.pdf",
 		"cover.jpg",
 	} {
-		if err := os.WriteFile(filepath.Join(libraryDir, "Alice", "Test Book (1)", name), []byte("dummy"), 0o644); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(libraryDir, "Alice", "Test Book (1)", name),
+			[]byte("dummy"),
+			0o644,
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -130,7 +134,8 @@ func TestOpenAndBooks(t *testing.T) {
 		if len(book.Files) != 3 {
 			t.Fatalf("expected 3 formats, got %d", len(book.Files))
 		}
-		if book.Files[0].Format != "EPUB" || book.Files[0].Path != filepath.Join(libraryDir, "Alice", "Test Book (1)", "Test Book - Alice.epub") {
+		if book.Files[0].Format != "EPUB" ||
+			book.Files[0].Path != filepath.Join(libraryDir, "Alice", "Test Book (1)", "Test Book - Alice.epub") {
 			t.Errorf("file = %#v", book.Files[0])
 		}
 
@@ -149,10 +154,10 @@ func TestLibraryFromCalibreWebDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sqlDB.Close()
-	if _, err := sqlDB.Exec(`CREATE TABLE settings (config_calibre_dir TEXT)`); err != nil {
+	if _, err = sqlDB.Exec(`CREATE TABLE settings (config_calibre_dir TEXT)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sqlDB.Exec(`INSERT INTO settings (config_calibre_dir) VALUES (?)`, libraryDir); err != nil {
+	if _, err = sqlDB.Exec(`INSERT INTO settings (config_calibre_dir) VALUES (?)`, libraryDir); err != nil {
 		t.Fatal(err)
 	}
 

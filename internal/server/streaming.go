@@ -149,6 +149,7 @@ func (c *Server) buildFormatArgs(strategy media.TranscodeStrategy) []string {
 
 type transcodeResponseWriter struct {
 	http.ResponseWriter
+
 	bytesWritten int64
 }
 

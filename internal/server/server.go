@@ -61,25 +61,25 @@ type Server struct {
 	models.PostActionFlags  `embed:""`
 	models.FTSFlags         `embed:""`
 
-	Databases             []string      `help:"SQLite database files"                                                           required:"true" arg:"" type:"existingfile"`
-	Host                  string        `help:"Address to listen on (loopback by default)"                                                                                 default:"127.0.0.1"`
-	Port                  int           `help:"Port to listen on"                                                                                                          default:"5555"      short:"p"`
-	KiwixHost             string        `help:"Host of the externally managed kiwix-serve"                                                                                 default:"127.0.0.1"`
-	KiwixPort             int           `help:"Port of the externally managed kiwix-serve (0 disables kiwix-serve)"                                                       default:"8181"`
-	ZimanticHost          string        `help:"Host of the externally managed zimantic"                                                                                    default:"127.0.0.1"`
-	ZimanticPort          int           `help:"Port of the externally managed zimantic (0 disables zimantic; overrides kiwix-serve)"                                        default:"0"`
+	Databases             []string      `help:"SQLite database files"                                                                required:"true" arg:"" type:"existingfile"`
+	Host                  string        `help:"Address to listen on (loopback by default)"                                                                                      default:"127.0.0.1"`
+	Port                  int           `help:"Port to listen on"                                                                                                               default:"5555"      short:"p"`
+	KiwixHost             string        `help:"Host of the externally managed kiwix-serve"                                                                                      default:"127.0.0.1"`
+	KiwixPort             int           `help:"Port of the externally managed kiwix-serve (0 disables kiwix-serve)"                                                             default:"8181"`
+	ZimanticHost          string        `help:"Host of the externally managed zimantic"                                                                                         default:"127.0.0.1"`
+	ZimanticPort          int           `help:"Port of the externally managed zimantic (0 disables zimantic; overrides kiwix-serve)"                                            default:"0"`
 	TrustForwardedPrefix  bool          `help:"Trust X-Forwarded-Prefix from non-loopback peers"`
 	PublicDir             string        `help:"Override embedded web assets with local directory"`
-	BasePath              string        `help:"URL prefix when served behind a reverse proxy (for example /disco)"                                                         default:""`
+	BasePath              string        `help:"URL prefix when served behind a reverse proxy (for example /disco)"                                                              default:""`
 	Dev                   bool          `help:"Enable development mode (auto-reload)"`
 	ReadOnly              bool          `help:"Disable write operations (progress tracking, playlist modifications, deletions)"`
 	NoBrowser             bool          `help:"Don't open browser on startup"`
-	SearchTimeout         time.Duration `help:"Timeout for a single /api/query search"                                                                                     default:"15s"`
-	MaxConcurrentSearches int           `help:"Maximum concurrent /api/query searches (0 = unlimited)"                                                                     default:"4"`
-	MaxLimit              int           `help:"Maximum number of results a client may request per database (0 = unlimited)"                                                default:"1000"`
-	DBCacheMB             int           `help:"SQLite page cache size in MiB per connection"                                                                               default:"256"`
-	ApplicationStartTime  int64         `                                                                                                                                                                kong:"-"`
-	APIToken              string        `                                                                                                                                                                kong:"-"`
+	SearchTimeout         time.Duration `help:"Timeout for a single /api/query search"                                                                                          default:"15s"`
+	MaxConcurrentSearches int           `help:"Maximum concurrent /api/query searches (0 = unlimited)"                                                                          default:"4"`
+	MaxLimit              int           `help:"Maximum number of results a client may request per database (0 = unlimited)"                                                     default:"1000"`
+	DBCacheMB             int           `help:"SQLite page cache size in MiB per connection"                                                                                    default:"256"`
+	ApplicationStartTime  int64         `                                                                                                                                                                     kong:"-"`
+	APIToken              string        `                                                                                                                                                                     kong:"-"`
 	thumbnailCache        sync.Map
 	dbCache               sync.Map
 	searchSem             chan struct{}

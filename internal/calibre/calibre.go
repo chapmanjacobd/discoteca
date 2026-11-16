@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strings"
 
+	// Register the SQLite driver used to open Calibre's metadata.db.
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -310,7 +311,7 @@ func (l *Library) bookFilePath(bookPath, name, format string) string {
 	return filepath.Join(l.Dir, filepath.FromSlash(bookPath), fileName)
 }
 
-func resolveLibraryPath(path string) (string, string, error) {
+func resolveLibraryPath(path string) (libraryDir, metadataPath string, err error) {
 	if strings.TrimSpace(path) == "" {
 		return "", "", errors.New("calibre library path is empty")
 	}
@@ -324,7 +325,6 @@ func resolveLibraryPath(path string) (string, string, error) {
 		return "", "", fmt.Errorf("calibre library not found: %w", err)
 	}
 
-	var metadataPath string
 	if info.IsDir() {
 		metadataPath = filepath.Join(absPath, MetadataFilename)
 	} else if strings.EqualFold(filepath.Base(absPath), MetadataFilename) {

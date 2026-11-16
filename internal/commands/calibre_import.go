@@ -28,15 +28,15 @@ import (
 type CalibreImportCmd struct {
 	models.CoreFlags `embed:""`
 
-	Database string `help:"SQLite database file to import into"                        required:"true" arg:""`
-	Library  string `help:"Calibre library directory or metadata.db"                   type:"path"`
-	WebDir   string `help:"Calibre-Web directory containing app.db (reads config_calibre_dir)" type:"path" name:"calibre-web-dir"`
+	Database string `help:"SQLite database file to import into"                                required:"true" arg:""`
+	Library  string `help:"Calibre library directory or metadata.db"                                                  type:"path"`
+	WebDir   string `help:"Calibre-Web directory containing app.db (reads config_calibre_dir)"                        type:"path" name:"calibre-web-dir"`
 
-	FormatPriority []string `help:"Preferred formats in order, comma-separated; used by --one-format (default: epub,azw3,mobi,azw,pdf,...)" name:"format-priority"`
+	FormatPriority []string `help:"Preferred formats in order, comma-separated; used by --one-format (default: epub,azw3,mobi,azw,pdf,...)"          name:"format-priority"`
 	OneFormat      bool     `help:"Import only the highest-priority format for each book"`
 	IncludeMissing bool     `help:"Import formats recorded in Calibre even when the file is missing on disk"`
 	Prune          bool     `help:"Mark media under the library as deleted when no longer in the Calibre catalog"`
-	ProbeMedia     bool     `help:"Run ffprobe on video and audio files to fill duration and codecs (default: on; disable with --probe-media=false)" default:"true" name:"probe-media"`
+	ProbeMedia     bool     `help:"Run ffprobe on video and audio files to fill duration and codecs (default: on; disable with --probe-media=false)" name:"probe-media"     default:"true"`
 }
 
 // defaultCalibreFormatPriority is the order used when --one-format is set and
@@ -94,7 +94,12 @@ func (c *CalibreImportCmd) Run(ctx context.Context) error {
 	}
 	logging.Log.Info("Loaded Calibre catalog", "books", len(books), "library", library.Dir)
 
-	items, importedPaths, skipped := buildCalibreMedia(ctx, books, c.FormatPriority, c.OneFormat, c.IncludeMissing, c.ProbeMedia && !c.Simulate)
+	items, importedPaths, skipped := buildCalibreMedia(ctx, books, calibreMediaOptions{
+		formatPriority: c.FormatPriority,
+		oneFormat:      c.OneFormat,
+		includeMissing: c.IncludeMissing,
+		probeMedia:     c.ProbeMedia && !c.Simulate,
+	})
 
 	if c.Simulate {
 		fmt.Printf("Would import %d files from %d books into %s (skipped %d missing files)\n",
@@ -108,7 +113,7 @@ func (c *CalibreImportCmd) Run(ctx context.Context) error {
 	}
 	defer sqlDB.Close()
 
-	if _, err := queries.InsertPlaylist(ctx, db.InsertPlaylistParams{
+	if _, err = queries.InsertPlaylist(ctx, db.InsertPlaylistParams{
 		Path:         sql.NullString{String: library.Dir, Valid: true},
 		ExtractorKey: sql.NullString{String: "Calibre", Valid: true},
 	}); err != nil {
@@ -118,7 +123,7 @@ func (c *CalibreImportCmd) Run(ctx context.Context) error {
 	const batchSize = 500
 	for start := 0; start < len(items); start += batchSize {
 		end := min(start+batchSize, len(items))
-		if err := queries.BulkUpsertMedia(ctx, items[start:end]); err != nil {
+		if err = queries.BulkUpsertMedia(ctx, items[start:end]); err != nil {
 			return fmt.Errorf("failed to import Calibre media: %w", err)
 		}
 	}
@@ -147,16 +152,20 @@ func (c *CalibreImportCmd) Run(ctx context.Context) error {
 	return nil
 }
 
+type calibreMediaOptions struct {
+	formatPriority []string
+	oneFormat      bool
+	includeMissing bool
+	probeMedia     bool
+}
+
 func buildCalibreMedia(
 	ctx context.Context,
 	books []calibre.Book,
-	formatPriority []string,
-	oneFormat bool,
-	includeMissing bool,
-	probeMedia bool,
+	opts calibreMediaOptions,
 ) ([]db.UpsertMediaParams, map[string]bool, int) {
-	priority := make(map[string]int, len(formatPriority))
-	for i, format := range formatPriority {
+	priority := make(map[string]int, len(opts.formatPriority))
+	for i, format := range opts.formatPriority {
 		if _, exists := priority[format]; !exists {
 			priority[format] = i
 		}
@@ -182,7 +191,7 @@ func buildCalibreMedia(
 		candidates := make([]candidate, 0, len(book.Files))
 		for _, file := range book.Files {
 			info, statErr := os.Stat(file.Path)
-			if statErr != nil && !includeMissing {
+			if statErr != nil && !opts.includeMissing {
 				skipped++
 				logging.Log.Debug("Skipping Calibre file missing on disk", "path", file.Path)
 				continue
@@ -200,7 +209,7 @@ func buildCalibreMedia(
 			return calibreFormatRank(a.file.Format, priority) - calibreFormatRank(b.file.Format, priority)
 		})
 
-		if oneFormat && len(candidates) > 1 {
+		if opts.oneFormat && len(candidates) > 1 {
 			candidates = candidates[:1]
 		}
 
@@ -229,7 +238,7 @@ func buildCalibreMedia(
 		}
 	}
 
-	if probeMedia {
+	if opts.probeMedia {
 		probeCalibreMedia(ctx, items)
 	}
 

@@ -217,7 +217,7 @@ func TestHandleZimView(t *testing.T) {
 
 func writeZimFile(t *testing.T, path string) string {
 	t.Helper()
-	header := make([]byte, 24)
+	header := make([]byte, 24, 28)
 	copy(header, "ZIM\x04")
 	// UUID bytes must be 11111111-2222-3333-4444-555555555555.
 	copy(header[8:], []byte{

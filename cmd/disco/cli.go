@@ -8,7 +8,7 @@ import (
 // CLI defines the command-line interface
 type CLI struct {
 	Add            commands.AddCmd            `help:"Add media to database"                               cmd:""`
-	CalibreImport  commands.CalibreImportCmd  `help:"Import a Calibre library into a database"             cmd:"" aliases:"calibre" name:"calibre-import"`
+	CalibreImport  commands.CalibreImportCmd  `help:"Import a Calibre library into a database"            cmd:"" aliases:"calibre"      name:"calibre-import"`
 	Check          commands.CheckCmd          `help:"Check for missing files and mark as deleted"         cmd:""`
 	Print          commands.PrintCmd          `help:"Print media information"                             cmd:""`
 	Search         commands.SearchCmd         `help:"Search media using FTS"                              cmd:""`
