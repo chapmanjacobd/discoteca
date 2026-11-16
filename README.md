@@ -103,7 +103,7 @@ disco serve library.db
 
 ### Web & Proxy
 
-- `kiwix-serve` - ZIM file serving (Wikipedia offline)
+- `kiwix-serve` or `zimantic` - ZIM file serving and search (Wikipedia offline)
 
 See [INSTALL.md](docs/INSTALL.md) for installation instructions on your platform.
 See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, nginx, and URL-prefix setup.
@@ -3158,7 +3158,11 @@ Flags:
   --kiwix-host
         Host of the externally managed kiwix-serve
   --kiwix-port
-        Port of the externally managed kiwix-serve (0 disables ZIM support)
+        Port of the externally managed kiwix-serve (0 disables kiwix-serve)
+  --zimantic-host
+        Host of the externally managed zimantic
+  --zimantic-port
+        Port of the externally managed zimantic (0 disables zimantic; overrides kiwix-serve)
   --trust-forwarded-prefix
         Trust X-Forwarded-Prefix from non-loopback peers
   --public-dir

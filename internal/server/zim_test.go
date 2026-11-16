@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -210,6 +211,133 @@ func TestHandleZimView(t *testing.T) {
 		disabled.HandleZimView(w, req)
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("expected 503, got %d", w.Code)
+		}
+	})
+}
+
+func writeZimFile(t *testing.T, path string) string {
+	t.Helper()
+	header := make([]byte, 24)
+	copy(header, "ZIM\x04")
+	// UUID bytes must be 11111111-2222-3333-4444-555555555555.
+	copy(header[8:], []byte{
+		0x11, 0x11, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33,
+		0x44, 0x44, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+	})
+	header = append(header, []byte("body")...)
+	if err := os.WriteFile(path, header, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return "11111111-2222-3333-4444-555555555555"
+}
+
+func TestHandleZimProxyZimanticStripsProxyPrefix(t *testing.T) {
+	var gotPath string
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("mock zimantic response"))
+	}))
+	defer targetServer.Close()
+
+	cmd := &server.Server{
+		Databases:    []string{"/tmp/unused.db"},
+		KiwixPort:    8181,
+		ZimanticHost: "127.0.0.1",
+		ZimanticPort: serverPort(t, targetServer),
+	}
+	defer cmd.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/zim/proxy/{rest...}", cmd.HandleZimProxy)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/zim/proxy/content/zim%3Atest%3Abook/", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 from zimantic, got %d", w.Code)
+	}
+	if gotPath != "/content/zim:test:book/" {
+		t.Fatalf("expected the proxy prefix stripped, got %q", gotPath)
+	}
+}
+
+func TestHandleZimViewZimantic(t *testing.T) {
+	fixture := testutils.Setup(t)
+	defer fixture.Cleanup()
+
+	zimPath := filepath.Join(fixture.TempDir, "testy_2024-01.zim")
+	uuid := writeZimFile(t, zimPath)
+	insertZimMedia(t, fixture.DBPath, zimPath)
+
+	libraryJSON := fmt.Sprintf(`[
+  {"key": "zim:library:testy-abcdef12", "provider": "zim", "title": "Testy", "provider_id": %q}
+]`, uuid)
+
+	zimanticServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/library.json" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Total-Count", "1")
+		_, _ = w.Write([]byte(libraryJSON))
+	}))
+	defer zimanticServer.Close()
+
+	cmd := &server.Server{
+		Databases:    []string{fixture.DBPath},
+		ZimanticHost: "127.0.0.1",
+		ZimanticPort: serverPort(t, zimanticServer),
+	}
+	defer cmd.Close()
+
+	t.Run("matching UUID returns the zimantic viewer", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+zimPath, nil)
+		w := httptest.NewRecorder()
+		cmd.HandleZimView(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d - %s", w.Code, w.Body.String())
+		}
+		body := w.Body.String()
+		if !strings.Contains(body, "<iframe") {
+			t.Error("expected an iframe")
+		}
+		if !strings.Contains(body, "/api/zim/proxy/content/zim%3Alibrary%3Atesty-abcdef12/") {
+			t.Errorf("expected the zimantic content URL, got %s", body)
+		}
+	})
+
+	t.Run("unknown ZIM returns 404", func(t *testing.T) {
+		libraryJSON = "[]"
+		other := filepath.Join(fixture.TempDir, "other.zim")
+		writeZimFile(t, other)
+		insertZimMedia(t, fixture.DBPath, other)
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+other, nil)
+		w := httptest.NewRecorder()
+		cmd.HandleZimView(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d - %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("unreachable zimantic returns 503", func(t *testing.T) {
+		unreachable := &server.Server{
+			Databases:    []string{fixture.DBPath},
+			ZimanticHost: "127.0.0.1",
+			ZimanticPort: freePort(t),
+		}
+		defer unreachable.Close()
+		req := httptest.NewRequest(http.MethodGet, "/api/zim/view?path="+zimPath, nil)
+		w := httptest.NewRecorder()
+		unreachable.HandleZimView(w, req)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected 503, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "zimantic is not reachable") {
+			t.Errorf("expected a clear unreachable message, got %q", w.Body.String())
 		}
 	})
 }

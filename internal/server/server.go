@@ -65,7 +65,9 @@ type Server struct {
 	Host                  string        `help:"Address to listen on (loopback by default)"                                                                                 default:"127.0.0.1"`
 	Port                  int           `help:"Port to listen on"                                                                                                          default:"5555"      short:"p"`
 	KiwixHost             string        `help:"Host of the externally managed kiwix-serve"                                                                                 default:"127.0.0.1"`
-	KiwixPort             int           `help:"Port of the externally managed kiwix-serve (0 disables ZIM support)"                                                        default:"8181"`
+	KiwixPort             int           `help:"Port of the externally managed kiwix-serve (0 disables kiwix-serve)"                                                       default:"8181"`
+	ZimanticHost          string        `help:"Host of the externally managed zimantic"                                                                                    default:"127.0.0.1"`
+	ZimanticPort          int           `help:"Port of the externally managed zimantic (0 disables zimantic; overrides kiwix-serve)"                                        default:"0"`
 	TrustForwardedPrefix  bool          `help:"Trust X-Forwarded-Prefix from non-loopback peers"`
 	PublicDir             string        `help:"Override embedded web assets with local directory"`
 	BasePath              string        `help:"URL prefix when served behind a reverse proxy (for example /disco)"                                                         default:""`

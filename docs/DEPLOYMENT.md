@@ -83,7 +83,9 @@ All flags apply to the `serve` subcommand.
 | `--read-only` | off | Disable progress updates, playlist changes, and deletions. |
 | `--no-browser` | off | Required for headless deployments. |
 | `--kiwix-host` | `127.0.0.1` | Host of the externally managed `kiwix-serve`. |
-| `--kiwix-port` | `8181` | Port of the externally managed `kiwix-serve`. `0` disables ZIM support. |
+| `--kiwix-port` | `8181` | Port of the externally managed `kiwix-serve`. `0` disables `kiwix-serve`. |
+| `--zimantic-host` | `127.0.0.1` | Host of the externally managed `zimantic`. |
+| `--zimantic-port` | `0` | Port of the externally managed `zimantic`. A positive value selects `zimantic` and overrides `kiwix-serve`. |
 | `--trust-forwarded-prefix` | off | Trust `X-Forwarded-Prefix` even when the peer is not loopback. |
 
 Memory is dominated by the databases, the unbounded thumbnail cache, and any
@@ -131,8 +133,51 @@ Set `DISCO_API_TOKEN` in the service environment, then open the UI once with
 
 ## External ZIM server
 
-discoteca does not start, stop, wait for, or clean up `kiwix-serve`. Run it as a
-separate service and tell discoteca which host and port to proxy to:
+discoteca does not start, stop, wait for, or clean up the ZIM server. Run
+`kiwix-serve` or `zimantic` as a separate service and tell discoteca which host
+and port to proxy to. A positive `--zimantic-port` selects `zimantic` and takes
+precedence over `--kiwix-port`.
+
+The ZIM file must also appear in a discoteca database; `/api/zim/view` rejects
+files that are not listed. When neither server is configured, ZIM routes return
+`503`.
+
+### zimantic
+
+`zimantic` serves local ZIM files directly, so it does not need `kiwix-serve`.
+Configure a ZIM collection and set `web_base_path` to the discoteca proxy route
+in `~/.config/zimantic/config.toml`:
+
+```toml
+web_base_path = "/api/zim/proxy"
+
+[[collections]]
+type = "zim"
+name = "library"
+path = "/var/lib/disco/zims"
+```
+
+Then run both services:
+
+```bash
+# Terminal 1
+zimantic serve --port 8090
+
+# Terminal 2
+disco serve --zimantic-port 8090 /var/lib/disco/library.db
+```
+
+discoteca strips the `/api/zim/proxy` prefix before forwarding to `zimantic`,
+which serves its routes at the root. `web_base_path` makes `zimantic` generate
+links that point back through the proxy. If discoteca is mounted below a prefix,
+include it, for example `web_base_path = "/disco/api/zim/proxy"` with
+`--base-path /disco`.
+
+`/api/zim/view` matches a ZIM file to its `zimantic` source by the ZIM UUID, then
+by title and source key. A ZIM that `zimantic` has not discovered returns `404`;
+an unreachable `zimantic` returns `503`.
+
+### kiwix-serve
 
 ```bash
 # Terminal 1: one or more ZIM files
@@ -144,12 +189,9 @@ kiwix-serve --port=8181 \
 disco serve --kiwix-host 127.0.0.1 --kiwix-port 8181 /var/lib/disco/library.db
 ```
 
-The external server must use the same `--urlRootLocation` as the proxy route.
-If discoteca is mounted below a prefix, include it, for example
-`--urlRootLocation=/disco/api/zim/proxy/` with `--base-path /disco`. The ZIM file
-must also appear in a discoteca database; `/api/zim/view` rejects files that are
-not listed. `--kiwix-port 0` disables ZIM support and returns `503` on ZIM
-routes.
+`kiwix-serve` must use the same `--urlRootLocation` as the proxy route. If
+discoteca is mounted below a prefix, include it, for example
+`--urlRootLocation=/disco/api/zim/proxy/` with `--base-path /disco`.
 
 ## Upgrades and reversibility
 

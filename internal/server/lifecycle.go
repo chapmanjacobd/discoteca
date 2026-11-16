@@ -242,6 +242,9 @@ func (c *Server) Run(ctx context.Context) error {
 	if err := c.validateKiwixConfig(); err != nil {
 		return err
 	}
+	if err := c.validateZimanticConfig(); err != nil {
+		return err
+	}
 
 	// Initialize MIME types
 	initMimeTypes()
