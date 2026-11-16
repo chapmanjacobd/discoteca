@@ -11,7 +11,7 @@
     "test:debug": "playwright test --debug",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
-    "install": "playwright install --with-deps"
+    "install:browsers": "playwright install --with-deps"
   },
   "repository": {
     "type": "git",
@@ -25,9 +25,8 @@
   },
   "homepage": "https://github.com/chapmanjacobd/discoteca#readme",
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^25.3.5",
-    "sqlite3": "^5.1.7",
     "typescript": "^5.9.3"
   }
 }

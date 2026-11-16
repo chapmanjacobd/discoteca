@@ -113,7 +113,7 @@ install:
 
 e2e-install:
 	npm install --prefix e2e
-	npm run install --prefix e2e
+	npm run install:browsers --prefix e2e
 
 e2e-init: build
 	./e2e/fixtures/init-db.sh $(BINARY_NAME)$(EXE)
