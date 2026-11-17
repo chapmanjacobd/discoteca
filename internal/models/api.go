@@ -19,6 +19,7 @@ type DatabaseInfo struct {
 	Databases         []string `json:"databases"`
 	ReadOnly          bool     `json:"read_only"`
 	Dev               bool     `json:"dev"`
+	MaxLimit          int      `json:"max_limit"`
 	DownloadAvailable bool     `json:"download_available"`
 	DownloadCommand   string   `json:"download_command,omitempty"`
 	DownloadDir       string   `json:"download_dir,omitempty"`

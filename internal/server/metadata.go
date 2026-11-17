@@ -70,6 +70,7 @@ func (c *Server) HandleDatabases(w http.ResponseWriter, _ *http.Request) {
 		Databases: c.Databases,
 		ReadOnly:  c.ReadOnly,
 		Dev:       c.Dev,
+		MaxLimit:  c.MaxLimit,
 	}
 	if c.downloadManager != nil {
 		cfg := c.downloadManager.Config()
