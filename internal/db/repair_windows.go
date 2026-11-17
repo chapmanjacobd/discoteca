@@ -5,12 +5,12 @@ package db
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/sys/windows"
 )
 
@@ -41,11 +41,10 @@ func Repair(ctx context.Context, dbPath string) error {
 
 	sqliteTool := "sqlite3"
 	if _, err := exec.LookPath(sqliteTool); err != nil {
-		if _, err := exec.LookPath("sqlite3.exe"); err == nil {
-			sqliteTool = "sqlite3.exe"
-		} else {
-			return fmt.Errorf("sqlite3 command line tool is required for auto-repair. Please ensure it is in your PATH")
+		if _, err := exec.LookPath("sqlite3.exe"); err != nil {
+			return errors.New("sqlite3 command line tool is required for auto-repair. Please ensure it is in your PATH")
 		}
+		sqliteTool = "sqlite3.exe"
 	}
 	Log.Debug("Using sqlite3 tool", "path", sqliteTool)
 
@@ -114,7 +113,7 @@ func Repair(ctx context.Context, dbPath string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("all recovery attempts failed to produce a healthy database")
+	return errors.New("all recovery attempts failed to produce a healthy database")
 }
 
 func acquireCrossProcessLock(dbPath string) (*os.File, error) {
