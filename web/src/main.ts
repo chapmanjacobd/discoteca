@@ -5300,7 +5300,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const doc = iframe.contentDocument;
             if (doc) {
                 const inner = doc.querySelector('#content-frame');
-                if (inner instanceof HTMLIFrameElement) return inner;
+                // Cross-realm `instanceof HTMLIFrameElement` is false, so use
+                // the tag name to detect the nested content frame.
+                if (inner && inner.tagName === 'IFRAME') return inner as HTMLIFrameElement;
             }
         } catch {
             // Cross-origin document; use the outer frame as-is.
@@ -5509,9 +5511,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const doc = iframe.contentDocument;
                 if (doc) {
                     const inner = doc.querySelector('#content-frame');
-                    if (inner instanceof HTMLIFrameElement) {
+                    if (inner && inner.tagName === 'IFRAME') {
                         wrapper = {
-                            inner,
+                            inner: inner as HTMLIFrameElement,
                             select: doc.querySelector('.toc-nav select') as HTMLSelectElement | null
                         };
                     }
@@ -8490,6 +8492,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // -----------------------------------------------------------------------
     // Document/Text View Settings Modal
     // -----------------------------------------------------------------------
+    const readerStyleSheets = new WeakMap<Document, CSSStyleSheet>();
+    const watchedContentFrames = new WeakSet<HTMLIFrameElement>();
+
     function applyDocumentViewSettings() {
         const s = state.documentView;
         const container = document.getElementById('document-container');
@@ -8533,10 +8538,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Apply to same-origin document iframes. PDFs rendered by the browser
         // plugin are opaque; the container theme still applies around them.
-        container.querySelectorAll('iframe').forEach((frame: HTMLIFrameElement) => {
+        const applyToFrame = (frame: HTMLIFrameElement) => {
             try {
                 const doc = frame.contentDocument || frame.contentWindow?.document;
-                if (!doc) return;
+                const win = frame.contentWindow;
+                if (!doc || !win) return;
+
+                // Constructed stylesheets bypass the document CSP without
+                // weakening it. Fall back to a <style> element when the
+                // browser does not support them.
+                if ('adoptedStyleSheets' in doc && typeof (win as any).CSSStyleSheet === 'function') {
+                    let sheet = readerStyleSheets.get(doc);
+                    if (!sheet) {
+                        sheet = new (win as any).CSSStyleSheet();
+                        readerStyleSheets.set(doc, sheet);
+                    }
+                    sheet.replaceSync(css);
+                    if (!doc.adoptedStyleSheets.includes(sheet)) {
+                        doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
+                    }
+                    return;
+                }
+
                 let styleEl = doc.getElementById('disco-reader-style') as HTMLStyleElement | null;
                 if (!styleEl) {
                     styleEl = doc.createElement('style');
@@ -8546,6 +8569,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 styleEl.textContent = css;
             } catch {
                 // Cross-origin documents cannot be styled.
+            }
+        };
+
+        container.querySelectorAll('iframe').forEach((frame: HTMLIFrameElement) => {
+            applyToFrame(frame);
+
+            // Converted EPUBs and HTML folders render the book inside a nested
+            // #content-frame. Style that document too, and reapply whenever a
+            // chapter loads.
+            const contentFrame = getDocumentContentFrame(frame);
+            if (contentFrame === frame) return;
+            applyToFrame(contentFrame);
+            if (!watchedContentFrames.has(contentFrame)) {
+                watchedContentFrames.add(contentFrame);
+                contentFrame.addEventListener('load', () => applyDocumentViewSettings());
             }
         });
     }
