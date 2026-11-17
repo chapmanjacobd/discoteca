@@ -33,6 +33,7 @@ expect.extend({
   toHaveNoErrorToast,
 });
 
+
 /**
  * Wait for media player to be ready
  */
@@ -169,6 +170,34 @@ export const test = base.extend<{
       }
     }
   },
+});
+
+// Mute every video/audio element, including ones the app inserts later, so
+// tests never play sound on the machine running them.
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => {
+    const muteMedia = (el: HTMLMediaElement) => {
+      el.muted = true;
+      el.volume = 0;
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('video, audio').forEach(el => muteMedia(el as HTMLMediaElement));
+
+      const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          for (const node of Array.from(mutation.addedNodes)) {
+            if (!(node instanceof Element)) continue;
+            if (node.matches('video, audio')) {
+              muteMedia(node as HTMLMediaElement);
+            }
+            node.querySelectorAll('video, audio').forEach(el => muteMedia(el as HTMLMediaElement));
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  });
 });
 
 export { expect };
