@@ -153,6 +153,7 @@ export interface State {
     playerMode: 'pip' | 'theatre';
     readOnly: boolean;
     dev: boolean;
+    maxLimit: number;
     databases: string[];
     downloadAvailable: boolean;
     downloadCommand: string;

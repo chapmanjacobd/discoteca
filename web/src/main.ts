@@ -115,6 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let searchAbortController = null;
     let suggestionAbortController = null;
     let selectedSuggestionIndex = -1;
+    let renderObserver: IntersectionObserver | null = null;
+    const RENDER_CHUNK_SIZE = 250;
+    const GROUP_RENDER_CHUNK_SIZE = 40;
 
     // --- State Management ---
 
@@ -472,6 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.filters.created = [];
         state.filters.downloaded = [];
         state.filters.media_types = [];
+        state.filters.min_score = '';
+        state.filters.max_score = '';
+        state.filters.playlist = null;
         state.filters.unplayed = false;
         state.filters.unfinished = false;
         state.filters.completed = false;
@@ -751,6 +757,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return Math.floor(Math.random() * 0xffffffff) + 1;
     }
 
+    // The server clamps requests above --max-limit. Clamp client-side too so
+    // the pager and page math reflect what the server actually returns.
+    function clampLimit(limit: number): number {
+        if (!Number.isFinite(limit) || limit < 1) return 99;
+        if (state.maxLimit > 0 && limit > state.maxLimit) return state.maxLimit;
+        return Math.floor(limit);
+    }
+
     // time_deleted is a Trash-only sort (and hidden everywhere else). Clear it
     // whenever a view that does not support it becomes active.
     function clearTrashOnlySort() {
@@ -776,9 +790,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state.databases || state.databases.length === 0) return;
         if (included.length === 1 && included[0] === '__none__') {
             state.filters.excludedDbs = [...state.databases];
+            localStorage.setItem('disco-excluded-dbs', String(JSON.stringify(state.filters.excludedDbs)));
             return;
         }
-        state.filters.excludedDbs = state.databases.filter(db => !included.includes(db));
+        // Old/shared URLs can name a database that no longer exists. Ignore
+        // unknown paths rather than excluding every real database.
+        const known = new Set(state.databases);
+        const valid = included.filter(db => known.has(db));
+        if (valid.length === 0) return;
+        state.filters.excludedDbs = state.databases.filter(db => !valid.includes(db));
         localStorage.setItem('disco-excluded-dbs', String(JSON.stringify(state.filters.excludedDbs)));
     }
 
@@ -937,7 +957,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const limitParam = params.get('limit');
         if (limitParam) {
             const limit = parseInt(limitParam);
-            if (!isNaN(limit) && limit > 0) state.filters.limit = limit;
+            if (!isNaN(limit) && limit > 0) state.filters.limit = clampLimit(limit);
             state.filters.all = false;
         } else if (hasExplicitState && !state.filters.all) {
             state.filters.limit = 99;
@@ -1120,6 +1140,10 @@ document.addEventListener('DOMContentLoaded', () => {
             state.databases = data.databases; // Store in state for filter params
             state.readOnly = data.read_only;
             state.dev = data.dev;
+            state.maxLimit = Number(data.max_limit) || 0;
+            if (limitInput && state.maxLimit > 0) {
+                limitInput.max = String(state.maxLimit);
+            }
             state.downloadAvailable = data.download_available === true && !state.readOnly;
             state.downloadCommand = data.download_command || '';
             state.downloadDir = data.download_dir || '';
@@ -2472,9 +2496,8 @@ document.addEventListener('DOMContentLoaded', () => {
         state.totalCount = filtered.length;
         resultsCount.textContent = `${filtered.length} folders found (${currentMedia.length} files)`;
         resultsContainer.className = 'similarity-view';
-        resultsContainer.innerHTML = '';
 
-        filtered.forEach((group, gIdx) => {
+        const createGroup = (group: any) => {
             const groupEl = document.createElement('div');
             groupEl.className = 'similarity-group';
 
@@ -2522,8 +2545,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             groupEl.appendChild(filesGrid);
-            resultsContainer.appendChild(groupEl);
-        });
+            return groupEl;
+        };
+
+        renderChunked(resultsContainer, filtered, createGroup, GROUP_RENDER_CHUNK_SIZE);
 
         paginationContainer.classList.add('hidden');
         updateNavActiveStates();
@@ -3049,7 +3074,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.filters.sort === 'random' && !state.filters.randomSeed) {
             state.filters.randomSeed = createRandomSeed();
         }
-        state.filters.limit = limitInput ? (parseInt(limitInput.value) || 100) : 100;
+        state.filters.limit = clampLimit(limitInput ? (parseInt(limitInput.value) || 100) : 100);
+        if (limitInput) limitInput.value = String(state.filters.limit);
         state.filters.all = limitAll ? limitAll.checked : false;
 
         const signature = buildSearchSignature();
@@ -3264,7 +3290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             console.error('Search failed:', err);
-            resultsContainer.innerHTML = `<div class="error">Search failed: ${escapeHtml(err.message)}</div>`;
+            resultsContainer.innerHTML = `<div class="error">Search failed: ${escapeHtml(errorMessage(err))}</div>`;
         }
     }
     async function fetchTrash() {
@@ -3537,9 +3563,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Remove from current view if applicable
                         currentMedia = currentMedia.filter(m => m.path !== path);
                         renderResults();
-                    }
-                    if (state.autoplay) {
-                        playSibling(1);
                     }
                 } else {
                     errorToast(new Error(resp.statusText), 'Playback failed');
@@ -4346,7 +4369,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function handleMediaError(item, el) {
+    async function handleMediaError(item, el, autoSkip = true) {
         if (pipLoading) pipLoading.classList.add('hidden');
 
         if (!state.playback.item || state.playback.item.path !== item.path) {
@@ -4441,10 +4464,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Auto-skip to next (up to 30 consecutive errors)
+        // Auto-skip to next (up to 30 consecutive errors) unless this was a
+        // fresh user-opened item. Clicking a missing file should report it and
+        // close, not silently start a different file.
         state.playback.consecutiveErrors = (state.playback.consecutiveErrors || 0) + 1;
 
-        if (state.autoplay && state.playback.consecutiveErrors <= 30) {
+        if (autoSkip && state.autoplay && state.playback.consecutiveErrors <= 30) {
             if (state.playback.skipTimeout) {
                 clearTimeout(state.playback.skipTimeout);
             }
@@ -4977,7 +5002,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     el.playbackRate = state.playbackRate;
                     seekToProgress(el, localPos);
                 } else {
-                    handleMediaError(item, el);
+                    handleMediaError(item, el, !isNewSession);
                 }
             };
 
@@ -5068,13 +5093,25 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             // 1. Add embedded tracks from metadata
+            let hasSubtitleCodecs = false;
+            let hasExternalSubtitleCodec = false;
             if (item.subtitle_codecs) {
-                const codecs = item.subtitle_codecs.split(';');
+                const codecs = item.subtitle_codecs.split(';').filter(Boolean);
+                hasSubtitleCodecs = codecs.length > 0;
                 codecs.forEach((codec, index) => {
                     // Check if this is an external subtitle (stored with format "Language (ext)" or just "ext")
                     // External subtitles are identified by having a file extension pattern
                     const extMatch = codec.match(/\((srt|vtt|ass|ssa|lrc|idx|sub)\)$/i);
                     const isExt = extMatch !== null;
+                    if (isExt) hasExternalSubtitleCodec = true;
+
+                    // The server can only stream text subtitles as WebVTT.
+                    // Image-based tracks (PGS/VobSub) always fail conversion, so
+                    // don't request them and don't offer a dead track.
+                    if (/\((pgs|vobsub|dvd|dvb|sup)\)/i.test(codec)) {
+                        return;
+                    }
+
                     const fileExt = extMatch ? extMatch[1].toLowerCase() : null;
 
                     // Use the codec name as-is (it's already in "Language (codec)" format from backend)
@@ -5095,9 +5132,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 2. Always check for external subtitle file (sibling with same name)
-            // This is a fallback for when external subtitles weren't scanned during import
-            if (!type.includes('image')) {
+            // 2. Check for an unscanned external subtitle/lyric file. Skip this
+            // when the database already knows about subtitles, and for visual
+            // formats (animated GIFs are classified as video) where a subtitle
+            // request can only fail.
+            const pathExt = path.split('.').pop()?.toLowerCase() || '';
+            const isVisualOnly = type.includes('image') || ['gif', 'jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'svg', 'ico'].includes(pathExt);
+            if (!isVisualOnly && !hasSubtitleCodecs && !hasExternalSubtitleCodec) {
                 addTrack(appUrl(`/api/subtitles?path=${encodeURIComponent(path)}`), 'External', 'auto');
             }
 
@@ -5123,7 +5164,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('disco-muted', String(el.muted));
             };
 
-            el.onerror = () => handleMediaError(item, el);
+            el.onerror = () => handleMediaError(item, el, !isNewSession);
 
             // Auto-Loop short media
             if (state.autoLoopMaxDuration > 0 && item.duration > 0 && item.duration <= state.autoLoopMaxDuration) {
@@ -5142,20 +5183,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 handlePostPlayback(item);
             };
 
-            // Try to fetch lyrics (server will look for siblings)
-            if (!type.includes('image')) {
-                const track = document.createElement('track');
-                track.kind = 'subtitles';
-                track.src = appUrl(`/api/subtitles?path=${encodeURIComponent(path)}`);
-                (track as any).srclang = state.language || 'en';
-                el.appendChild(track);
-
-                track.onload = () => {
-                    const textTrack = el.textTracks[0];
-                    if (textTrack && textTrack.cues && textTrack.cues.length > 0) {
-                        textTrack.mode = 'hidden';
-                    }
-                };
+            // Attach known external lyric/subtitle files. Do this only when the
+            // database lists an external track: requesting /api/subtitles for
+            // every audio file made the server run ffmpeg against the audio
+            // container and reject it with 415.
+            if (item.subtitle_codecs) {
+                item.subtitle_codecs.split(';').filter(Boolean).forEach((codec) => {
+                    const extMatch = codec.match(/\((srt|vtt|ass|ssa|lrc)\)$/i);
+                    if (!extMatch) return;
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles';
+                    track.label = codec;
+                    (track as any).srclang = state.language || 'en';
+                    track.src = appUrl(`/api/subtitles?path=${encodeURIComponent(path)}&ext=${extMatch[1].toLowerCase()}`);
+                    track.onload = () => {
+                        const textTrack = el.textTracks[0];
+                        if (textTrack && textTrack.cues && textTrack.cues.length > 0) {
+                            textTrack.mode = 'hidden';
+                        }
+                    };
+                    el.appendChild(track);
+                });
             }
         } else if (type.includes('image')) {
             el = document.createElement('img');
@@ -5164,7 +5212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     startSlideshow();
                 }
             };
-            el.onerror = () => handleMediaError(item, el);
+            el.onerror = () => handleMediaError(item, el, !isNewSession);
             el.src = url;
             // Handle cached images where load fires synchronously before handler is attached
             if (el.complete) {
@@ -6105,6 +6153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPagination() {
         if (state.filters.all || state.page === 'curation') {
             paginationContainer.classList.add('hidden');
+            if (state.filters.all) pageInfo.textContent = 'All results';
             return;
         }
 
@@ -6412,6 +6461,64 @@ document.addEventListener('DOMContentLoaded', () => {
         paginationContainer.classList.add('hidden');
     }
 
+    // Rendering tens of thousands of cards synchronously blocks the main
+    // thread for seconds. Append the first chunk immediately and load the rest
+    // as the sentinel approaches the viewport.
+    function cancelChunkedRender() {
+        if (renderObserver) {
+            renderObserver.disconnect();
+            renderObserver = null;
+        }
+    }
+
+    function renderChunked(
+        container: HTMLElement,
+        items: any[],
+        create: (item: any, index: number) => Node,
+        chunkSize: number,
+    ) {
+        cancelChunkedRender();
+        container.innerHTML = '';
+
+        if (!('IntersectionObserver' in window)) {
+            const fragment = document.createDocumentFragment();
+            items.forEach((item, index) => fragment.appendChild(create(item, index)));
+            container.appendChild(fragment);
+            return;
+        }
+
+        let index = 0;
+        const sentinel = document.createElement('div');
+        sentinel.className = 'render-sentinel';
+        sentinel.setAttribute('aria-hidden', 'true');
+
+        const appendChunk = () => {
+            cancelChunkedRender();
+            if (sentinel.parentElement === container) sentinel.remove();
+
+            const end = Math.min(index + chunkSize, items.length);
+            const fragment = document.createDocumentFragment();
+            for (; index < end; index++) {
+                fragment.appendChild(create(items[index], index));
+            }
+            container.appendChild(fragment);
+
+            if (index < items.length) {
+                container.appendChild(sentinel);
+                const observer = new IntersectionObserver((entries) => {
+                    if (entries.some(entry => entry.isIntersecting)) {
+                        observer.disconnect();
+                        appendChunk();
+                    }
+                }, { rootMargin: '1200px' });
+                renderObserver = observer;
+                observer.observe(sentinel);
+            }
+        };
+
+        appendChunk();
+    }
+
     function renderResults() {
         if (!currentMedia) currentMedia = [];
 
@@ -6481,6 +6588,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             resultsContainer.style.minHeight = '';
             paginationContainer.classList.add('hidden');
+            pageInfo.textContent = 'Page 1';
             return;
         }
 
@@ -6498,15 +6606,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const fragment = document.createDocumentFragment();
         resultsContainer.className = 'grid';
-
-        currentMedia.forEach((item, index) => {
-            fragment.appendChild(createMediaCard(item, index));
-        });
-
-        resultsContainer.innerHTML = '';
-        resultsContainer.appendChild(fragment);
+        renderChunked(resultsContainer, currentMedia, createMediaCard, RENDER_CHUNK_SIZE);
         renderPagination();
         updateNowPlayingButton();
 
@@ -6798,7 +6899,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         const tbody = table.querySelector('tbody');
-        currentMedia.forEach((item, index) => {
+        const createRow = (item: any, index: number) => {
             const tr = document.createElement('tr');
             tr.onclick = () => playMedia(item);
             (tr as HTMLElement).dataset.path = item.path;
@@ -6980,8 +7081,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
 
-            tbody.appendChild(tr);
-        });
+            return tr;
+        };
+
+        renderChunked(tbody as HTMLElement, currentMedia, createRow, RENDER_CHUNK_SIZE);
 
         table.querySelectorAll('th[data-sort]').forEach(th => {
             (th as HTMLElement).onclick = () => {
@@ -7143,6 +7246,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helpers ---
+    function errorMessage(err: any): string {
+        const raw = err && err.message ? String(err.message) : String(err);
+        try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed.error === 'string') return parsed.error;
+        } catch {
+            // Not JSON; use the original message.
+        }
+        return raw;
+    }
+
     function errorToast(err: any, fallbackMsg) {
         console.error('errorToast:', fallbackMsg, err);
         const lowerMsg = (err.message || '').toLowerCase();
@@ -7236,8 +7350,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Keyboard Shortcuts ---
     window.addEventListener('keydown', (e) => {
-        // Don't trigger shortcuts if user is typing in an input
-        if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).tagName === 'SELECT') {
+        const target = e.target as HTMLElement;
+        const isTypingTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
+
+        // Don't trigger shortcuts if user is typing in an input. Escape is the
+        // exception: it should still close the topmost dialog (for example the
+        // Settings modal after checking a checkbox) instead of appearing dead.
+        if (isTypingTarget) {
+            if (e.key === 'Escape') {
+                const allModals = document.querySelectorAll('.modal:not(.hidden)');
+                if (allModals.length > 0) {
+                    const topmostModal = allModals[allModals.length - 1] as HTMLElement;
+                    if (topmostModal.id !== 'document-modal') {
+                        closeModal(topmostModal.id);
+                        e.preventDefault();
+                    }
+                }
+            }
             return;
         }
 
@@ -9128,9 +9257,10 @@ document.addEventListener('DOMContentLoaded', () => {
         allMediaBtn.onclick = () => {
             state.page = 'search';
             state.currentPage = 1;
-
-            updateNavActiveStates();
-            performSearch();
+            // "All Media" means no filters. Previously this only changed the
+            // page, so a previous media-type, rating, history, or playlist
+            // filter silently kept narrowing the "all" view.
+            resetFilters();
         };
     }
 
@@ -9260,14 +9390,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateNavActiveStates();
                 performSearch();
             } else {
-                // Disk Usage is a global view. Do not carry over a search or a
-                // directory left behind by an earlier DU session, otherwise the
-                // first screen can be an empty filtered subdirectory.
+                // Disk Usage is a global view. Do not carry over a search,
+                // media filters, or a directory left behind by an earlier
+                // session, otherwise the first screen can be an empty
+                // filtered subdirectory.
                 state.page = 'du';
                 state.currentPage = 1;
                 state.duPath = '';
-                state.filters.search = '';
-                if (searchInput) (searchInput as HTMLInputElement).value = '';
+                resetFilters(true);
+                state.filters.sort = 'default';
+                state.filters.reverse = false;
+                if (sortBy) sortBy.value = 'default';
                 updateNavActiveStates();
                 fetchDU('');
             }

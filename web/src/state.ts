@@ -83,6 +83,7 @@ export const state: State = {
     playerMode: (getLocalStorageItem('disco-default-view', 'pip') as 'pip' | 'theatre'),
     readOnly: false,
     dev: false,
+    maxLimit: 0,
     databases: [],
     downloadAvailable: false,
     downloadCommand: '',
