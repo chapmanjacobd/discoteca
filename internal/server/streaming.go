@@ -779,12 +779,12 @@ func (c *Server) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 		thumb, contentType, err := c.generatePDFThumbnail(r.Context(), path)
 		if err != nil {
 			logging.Log.Warn("PDF thumbnail generation failed", "path", path, "error", err)
-			http.NotFound(w, r)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if len(thumb) == 0 {
 			logging.Log.Debug("PDF has no thumbnail", "path", path)
-			http.NotFound(w, r)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		c.writeThumbnailResponse(w, thumb, contentType)
@@ -794,27 +794,27 @@ func (c *Server) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 		thumb, contentType, err := c.generateEpubThumbnail(path)
 		if err != nil {
 			logging.Log.Warn("EPUB thumbnail generation failed", "path", path, "error", err)
-			http.NotFound(w, r)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if len(thumb) == 0 {
 			logging.Log.Debug("EPUB has no thumbnail", "path", path)
-			http.NotFound(w, r)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		c.writeThumbnailResponse(w, thumb, contentType)
 		return
 
 	case ".txt", ".md", ".markdown", ".rtf":
-		http.NotFound(w, r)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	// Default: handle video/audio with ffmpeg
 	thumb, err := c.generateFallbackThumbnail(r.Context(), path, mediaType)
-	if err != nil {
+	if err != nil || len(thumb) == 0 {
 		logging.Log.Debug("Thumbnail generation failed", "path", path, "error", err)
-		http.NotFound(w, r)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
