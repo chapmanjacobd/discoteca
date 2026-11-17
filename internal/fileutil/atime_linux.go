@@ -15,5 +15,3 @@ func GetAccessTime(info os.FileInfo) time.Time {
 	}
 	return info.ModTime()
 }
-
-// GetDeviceID returns the device ID of a file
