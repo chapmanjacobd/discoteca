@@ -395,6 +395,65 @@ func TestHistoricalUsageFacetsAndQuarters(t *testing.T) {
 	}
 }
 
+func TestFTSFullTermSearchAndShortTerms(t *testing.T) {
+	dbPath := newPhase3DB(t, "fts-search", true)
+	insertPhase3Rows(t, dbPath,
+		`INSERT INTO media (path, path_tokenized, title) VALUES (?,?,?)`,
+		[]any{"/media/deuces_wild.pdf", "media deuces wild pdf", "Deuces Wild"},
+		[]any{"/media/other.pdf", "media other pdf", "Other"},
+		[]any{"/media/ab-file.mkv", "media ab file mkv", "Alpha Beta"},
+		[]any{"/media/zzz-file.mkv", "media zzz file mkv", "Zulu"},
+	)
+
+	ctx := context.Background()
+	search := func(term string) []models.MediaWithDB {
+		t.Helper()
+		flags := models.GlobalFlags{
+			FTSFlags:    models.FTSFlags{FTS: true},
+			FilterFlags: models.FilterFlags{Search: []string{term}},
+			QueryFlags:  models.QueryFlags{All: true},
+		}
+		got, err := query.MediaQuery(ctx, []string{dbPath}, flags)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	// The full term must be used, not only its first three characters.
+	assertPaths(t, search("deuces_wild.pdf"), []string{"/media/deuces_wild.pdf"})
+	assertPaths(t, search("other.pdf"), []string{"/media/other.pdf"})
+	assertPaths(t, search("zzzzqqqxxx"), []string{})
+
+	// Short terms are applied with LIKE instead of being dropped.
+	assertPaths(t, search("ab"), []string{"/media/ab-file.mkv"})
+	assertPaths(t, search(`"ab"`), []string{"/media/ab-file.mkv"})
+
+	// A query with no operands must not degrade to "show everything".
+	assertPaths(t, search("OR"), []string{})
+	assertPaths(t, search("OR AND"), []string{})
+}
+
+func TestFTSQueryUsesFullTerms(t *testing.T) {
+	dbPath := newPhase3DB(t, "fts-query", true)
+	insertPhase3Rows(t, dbPath,
+		`INSERT INTO media (path, path_tokenized, title) VALUES (?,?,?)`,
+		[]any{"/media/deuces_wild.pdf", "media deuces wild pdf", "Deuces Wild"},
+		[]any{"/media/sebedeus.opus", "media sebedeus opus", "Sebedeus"},
+	)
+
+	flags := models.GlobalFlags{
+		FTSFlags:    models.FTSFlags{FTS: true},
+		FilterFlags: models.FilterFlags{Search: []string{"deuces_wild.pdf"}},
+		QueryFlags:  models.QueryFlags{All: true},
+	}
+	got, err := query.MediaQuery(context.Background(), []string{dbPath}, flags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPaths(t, got, []string{"/media/deuces_wild.pdf"})
+}
+
 func TestDatabasesHaveFTSRequiresEveryDatabase(t *testing.T) {
 	ctx := context.Background()
 	withFTS := newPhase3DB(t, "fts-yes", true)

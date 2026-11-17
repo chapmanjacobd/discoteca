@@ -7,8 +7,12 @@ import (
 
 // HybridSearchQuery holds the split query components for hybrid FTS+LIKE search
 type HybridSearchQuery struct {
-	// FTS terms: individual words searched via FTS5 (works with detail=none)
+	// FTS terms: individual words of at least 3 characters searched via FTS5.
+	// Trigram tokenization requires at least 3 characters.
 	FTSTerms []string
+	// ShortTerms: individual words shorter than 3 characters. These cannot be
+	// searched with a trigram FTS index and are matched with LIKE instead.
+	ShortTerms []string
 	// Phrases: exact phrases searched via LIKE (trigram-optimized)
 	Phrases []string
 	// Original query for reference
@@ -34,6 +38,8 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 			if len(phrase) >= 3 {
 				// Trigram index requires at least 3 characters
 				result.Phrases = append(result.Phrases, phrase)
+			} else {
+				result.ShortTerms = append(result.ShortTerms, phrase)
 			}
 		}
 	}
@@ -60,8 +66,10 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 			continue
 		}
 
-		// Skip very short terms (trigram needs 3+ chars)
+		// Trigram FTS needs 3+ chars. Keep shorter terms for the LIKE path so
+		// they are still applied instead of silently returning everything.
 		if len(term) < 3 {
+			result.ShortTerms = append(result.ShortTerms, term)
 			continue
 		}
 
@@ -71,9 +79,11 @@ func ParseHybridSearchQuery(query string) *HybridSearchQuery {
 	return result
 }
 
-// BuildFTSQuery constructs the FTS MATCH query from terms
-// For trigram + detail=none, we use first 3 chars of each word for filtering
-// This is a loose filter - actual matching is done by LIKE for phrases
+// BuildFTSQuery constructs the FTS MATCH query from terms.
+// Trigram tokenization makes quoted terms behave as case-insensitive substring
+// matches for terms of 3+ characters, so the full term is used here. Truncating
+// terms to three characters turns every longer search into a loose prefix match
+// and makes exact filename searches unreliable.
 func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
 	if len(h.FTSTerms) == 0 {
 		return ""
@@ -94,11 +104,11 @@ func (h *HybridSearchQuery) BuildFTSQuery(joinOp string) string {
 			continue
 		}
 
-		// Use the first 3 characters as a trigram prefilter. The SQL layer
-		// still applies the normal field predicates, so this is intentionally
-		// a loose candidate filter.
-		if len(term) > 3 {
-			term = term[:3]
+		// Trigram tokenization cannot match terms shorter than 3 characters.
+		// ParseHybridSearchQuery routes those to ShortTerms, but guard against
+		// direct construction as well.
+		if len(term) < 3 {
+			continue
 		}
 		if term != "" {
 			// Quote the term so FTS5 treats characters such as '[', ']',

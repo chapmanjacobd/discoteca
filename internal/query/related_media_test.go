@@ -55,7 +55,7 @@ func TestExpandRelatedMedia_WithSearchTerms(t *testing.T) {
 		content='media',
 		content_rowid='rowid',
 		tokenize='trigram',
-		detail='none'
+		detail='full'
 	);
 	CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
 		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
@@ -205,7 +205,7 @@ func TestExpandRelatedMedia_WithPhrases(t *testing.T) {
 		content='media',
 		content_rowid='rowid',
 		tokenize='trigram',
-		detail='none'
+		detail='full'
 	);
 	CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
 		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)
@@ -348,7 +348,7 @@ func TestExpandRelatedMedia_NoSearchTerms(t *testing.T) {
 		content='media',
 		content_rowid='rowid',
 		tokenize='trigram',
-		detail='none'
+		detail='full'
 	);
 	CREATE TRIGGER media_ai AFTER INSERT ON media BEGIN
 		INSERT INTO media_fts(rowid, path, path_tokenized, title, description)

@@ -8,10 +8,11 @@ import (
 
 func TestParseHybridSearchQuery(t *testing.T) {
 	tests := []struct {
-		name         string
-		query        string
-		wantFTSTerms []string
-		wantPhrases  []string
+		name           string
+		query          string
+		wantFTSTerms   []string
+		wantShortTerms []string
+		wantPhrases    []string
 	}{
 		{
 			name:         "simple term search",
@@ -38,10 +39,18 @@ func TestParseHybridSearchQuery(t *testing.T) {
 			wantPhrases:  []string{"machine learning", "deep learning"},
 		},
 		{
-			name:         "short phrase ignored",
-			query:        `"ab" video`,
-			wantFTSTerms: []string{"video"},
-			wantPhrases:  []string{}, // "ab" is < 3 chars
+			name:           "short terms kept for LIKE",
+			query:          "ab cd video",
+			wantFTSTerms:   []string{"video"},
+			wantShortTerms: []string{"ab", "cd"},
+			wantPhrases:    []string{},
+		},
+		{
+			name:           "short phrase kept for LIKE",
+			query:          `"ab" video`,
+			wantFTSTerms:   []string{"video"},
+			wantShortTerms: []string{"ab"},
+			wantPhrases:    []string{},
 		},
 		{
 			name:         "single quotes",
@@ -72,6 +81,17 @@ func TestParseHybridSearchQuery(t *testing.T) {
 				}
 			}
 
+			// Check short terms
+			if len(got.ShortTerms) != len(tt.wantShortTerms) {
+				t.Errorf("ShortTerms = %v, want %v", got.ShortTerms, tt.wantShortTerms)
+				return
+			}
+			for i, term := range got.ShortTerms {
+				if term != tt.wantShortTerms[i] {
+					t.Errorf("ShortTerms[%d] = %q, want %q", i, term, tt.wantShortTerms[i])
+				}
+			}
+
 			// Check phrases
 			if len(got.Phrases) != len(tt.wantPhrases) {
 				t.Errorf("Phrases = %v, want %v", got.Phrases, tt.wantPhrases)
@@ -97,31 +117,37 @@ func TestHybridSearchQuery_BuildFTSQuery(t *testing.T) {
 			name:      "simple OR join",
 			terms:     []string{"video", "tutorial"},
 			joinOp:    " OR ",
-			wantQuery: `"vid" OR "tut"`,
+			wantQuery: `"video" OR "tutorial"`,
 		},
 		{
 			name:      "simple AND join",
 			terms:     []string{"video", "tutorial"},
 			joinOp:    " AND ",
-			wantQuery: `"vid" AND "tut"`,
+			wantQuery: `"video" AND "tutorial"`,
 		},
 		{
 			name:      "with boolean operators",
 			terms:     []string{"video", "OR", "tutorial"},
 			joinOp:    "OR",
-			wantQuery: `"vid" OR "tut"`,
+			wantQuery: `"video" OR "tutorial"`,
 		},
 		{
 			name:      "path with FTS special characters",
 			terms:     []string{"/home/xk/sync/audio/Starfish", "1994", "[mp3]/"},
 			joinOp:    " AND ",
-			wantQuery: `"/ho" AND "199" AND "[mp"`,
+			wantQuery: `"/home/xk/sync/audio/Starfish" AND "1994" AND "[mp3]/"`,
 		},
 		{
 			name:      "embedded double quote",
 			terms:     []string{`fo"obar`},
 			joinOp:    "OR",
-			wantQuery: `"fo"""`,
+			wantQuery: `"fo""obar"`,
+		},
+		{
+			name:      "short terms are not sent to FTS",
+			terms:     []string{"ab", "video"},
+			joinOp:    " AND ",
+			wantQuery: `"video"`,
 		},
 		{
 			name:      "empty terms",

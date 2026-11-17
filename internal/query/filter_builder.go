@@ -443,6 +443,37 @@ func (fb *FilterBuilder) buildFTSSearchClauses(
 		pattern := "%" + phrase + "%"
 		*args = append(*args, pattern, pattern, pattern)
 	}
+
+	// Trigram FTS cannot match terms shorter than three characters. Apply
+	// those terms with LIKE so they narrow the results instead of being
+	// silently ignored (which used to return the entire library).
+	if len(hybrid.ShortTerms) > 0 {
+		shortClauses := make([]string, 0, len(hybrid.ShortTerms))
+		for _, term := range hybrid.ShortTerms {
+			shortClauses = append(shortClauses,
+				fmt.Sprintf(
+					"(%s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\' OR %s LIKE ? ESCAPE '\\')",
+					fb.col("path"), fb.col("title"), fb.col("path_tokenized"),
+				),
+			)
+			pattern := likeContainsPattern(term)
+			*args = append(*args, pattern, pattern, pattern)
+		}
+		*whereClauses = append(*whereClauses, "("+strings.Join(shortClauses, joinOp)+")")
+	}
+
+	// A non-empty query made only of boolean operators has no operands. Do
+	// not treat that as an empty search: "OR" should not return everything.
+	if strings.TrimSpace(queryStr) != "" && !hybrid.HasFTSTerms() &&
+		len(hybrid.ShortTerms) == 0 && len(hybrid.Phrases) == 0 {
+		*whereClauses = append(*whereClauses, "1 = 0")
+	}
+}
+
+// likeContainsPattern escapes LIKE metacharacters and wraps term in wildcards.
+func likeContainsPattern(term string) string {
+	literal := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(term)
+	return "%" + literal + "%"
 }
 
 func (fb *FilterBuilder) buildLikeSearchClauses(
