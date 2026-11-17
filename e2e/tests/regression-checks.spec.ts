@@ -15,6 +15,7 @@ test.describe('Regression checks', () => {
 
   test('leaving trash resets the hidden deleted sort', async ({ mediaPage, sidebarPage, server }) => {
     await mediaPage.page.goto(server.getBaseUrl() + '/#mode=trash');
+    await mediaPage.waitForMediaToLoad();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_deleted');
 
     await sidebarPage.openSidebar();
@@ -23,12 +24,14 @@ test.describe('Regression checks', () => {
     expect(mediaPage.page.url()).not.toContain('time_deleted');
 
     await mediaPage.page.goto(server.getBaseUrl() + '/#mode=trash');
+    await mediaPage.waitForMediaToLoad();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_deleted');
     await sidebarPage.openSidebar();
     await mediaPage.page.locator('#history-btn').click();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_last_played');
 
     await mediaPage.page.goto(server.getBaseUrl() + '/#mode=trash');
+    await mediaPage.waitForMediaToLoad();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_deleted');
     await sidebarPage.openSidebar();
     await mediaPage.page.locator('#du-btn').click();

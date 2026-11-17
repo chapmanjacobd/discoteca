@@ -255,10 +255,7 @@ func paginateCaptionGroups(
 	}
 
 	if !flags.All && flags.Limit > 0 {
-		start := flags.Offset
-		if start > len(order) {
-			start = len(order)
-		}
+		start := min(flags.Offset, len(order))
 		end := min(start+flags.Limit, len(order))
 		order = order[start:end]
 	}

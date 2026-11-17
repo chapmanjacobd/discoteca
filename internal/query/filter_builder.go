@@ -466,6 +466,7 @@ func (fb *FilterBuilder) buildFTSSearchClauses(
 	// not treat that as an empty search: "OR" should not return everything.
 	if strings.TrimSpace(queryStr) != "" && !hybrid.HasFTSTerms() &&
 		len(hybrid.ShortTerms) == 0 && len(hybrid.Phrases) == 0 {
+
 		*whereClauses = append(*whereClauses, "1 = 0")
 	}
 }

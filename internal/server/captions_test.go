@@ -16,6 +16,7 @@ import (
 	"github.com/chapmanjacobd/discoteca/internal/server"
 )
 
+//nolint:cyclop // one fixture drives many independent endpoint assertions
 func TestHandleDU_CaptionsView(t *testing.T) {
 	// Create temporary test database
 	tmpDB, err := os.CreateTemp(t.TempDir(), "disco_test_*.db")
