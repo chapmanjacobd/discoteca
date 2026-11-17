@@ -329,9 +329,7 @@ test.describe('Settings Persistence', () => {
 });
 
 test.describe('Playback Controls', () => {
-  test('theatre mode toggle works', async ({ mediaPage, viewerPage, server, browserName }) => {
-    test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
-
+  test('theatre mode toggle works', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Play a media using POM
@@ -393,7 +391,7 @@ test.describe('Playback Controls', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Play a media using POM
-    const firstCard = mediaPage.getFirstMediaCardByType('video');
+    const firstCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await firstCard.click();
     await viewerPage.waitForPlayer();
 
@@ -429,13 +427,11 @@ test.describe('Playback Controls', () => {
     expect(await viewerPage.isPlaying()).toBe(true);
   });
 
-  test('seek functionality works', async ({ mediaPage, viewerPage, server, browserName }) => {
-    test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
-
+  test('seek functionality works', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Play a media using POM
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
 
     // Wait for media to be ready using POM
@@ -454,6 +450,11 @@ test.describe('Playback Controls', () => {
     // Ensure we have enough duration for seeking using POM
     const duration = await viewerPage.getDuration();
     const seekPos = Math.min(10, duration > 2 ? duration - 1 : 0);
+
+    // Seek while paused: WebKit can restart a playing clip from zero when
+    // currentTime is assigned mid-playback.
+    await viewerPage.pause();
+    await mediaPage.page.waitForTimeout(300);
 
     // Seek forward via JavaScript using POM
     await viewerPage.seekTo(seekPos);

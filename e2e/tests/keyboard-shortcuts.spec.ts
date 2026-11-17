@@ -50,15 +50,14 @@ test.describe('Keyboard Shortcuts', () => {
       expect(playerVisible || docVisible).toBe(true);
     });
 
-    test('ArrowRight seeks forward 5 seconds', async ({ mediaPage, viewerPage, server, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
-
+    test('ArrowRight seeks forward 5 seconds', async ({ mediaPage, viewerPage, server }) => {
       await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card using POM
-      const card = mediaPage.getFirstMediaCardByType('video');
+      // Use the longer fixture so the 5s seek does not wrap a looping clip
+      const card = mediaPage.getMediaCardByText('video', /test_video1/);
       await card.click();
       await viewerPage.waitForPlayer();
+      await viewerPage.waitForMediaData();
 
       // Wait for media to be ready
       await mediaPage.page.waitForTimeout(1000);
@@ -76,19 +75,19 @@ test.describe('Keyboard Shortcuts', () => {
       expect(newTime).toBeGreaterThan(initialTime);
     });
 
-    test('ArrowLeft seeks backward 5 seconds', async ({ mediaPage, viewerPage, server, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
-
+    test('ArrowLeft seeks backward 5 seconds', async ({ mediaPage, viewerPage, server }) => {
       await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card using POM
-      const card = mediaPage.getFirstMediaCardByType('video');
+      // Use the longer fixture so the seek does not wrap a looping clip
+      const card = mediaPage.getMediaCardByText('video', /test_video1/);
       await card.click();
       await viewerPage.waitForPlayer();
+      await viewerPage.waitForMediaData();
 
       // Wait for media and seek forward first using POM
       await mediaPage.page.waitForTimeout(1000);
-      await viewerPage.seekTo(15);
+      await viewerPage.pause();
+      await viewerPage.seekTo(8);
       await mediaPage.page.waitForTimeout(500);
 
       // Get initial time using POM
@@ -206,15 +205,14 @@ test.describe('Keyboard Shortcuts', () => {
       await viewerPage.waitForHidden();
     });
 
-    test('Space key toggles play/pause', async ({ mediaPage, viewerPage, server, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
-
+    test('Space key toggles play/pause', async ({ mediaPage, viewerPage, server }) => {
       await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card using POM
-      const card = mediaPage.getFirstMediaCardByType('video');
+      // Use the longer fixture so looping cannot race the toggle
+      const card = mediaPage.getMediaCardByText('video', /test_video1/);
       await card.click();
       await viewerPage.waitForPlayer();
+      await viewerPage.waitForMediaData();
       await mediaPage.page.waitForTimeout(1000);
 
       // Get initial paused state using POM
@@ -233,10 +231,11 @@ test.describe('Keyboard Shortcuts', () => {
     test('k key toggles play/pause', async ({ mediaPage, viewerPage, server }) => {
       await mediaPage.goto(server.getBaseUrl());
 
-      // Click first video/audio card using POM
-      const card = mediaPage.getFirstMediaCardByType('video');
+      // Use the longer fixture so looping cannot race the toggle
+      const card = mediaPage.getMediaCardByText('video', /test_video1/);
       await card.click();
       await viewerPage.waitForPlayer();
+      await viewerPage.waitForMediaData();
       await mediaPage.page.waitForTimeout(1000);
 
       // Get initial paused state using POM

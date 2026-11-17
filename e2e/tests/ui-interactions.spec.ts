@@ -66,9 +66,7 @@ test.describe('Fullscreen Toggle', () => {
     await expect(viewerPage.playerContainer).toBeVisible();
   });
 
-  test('Escape exits player fullscreen', async ({ mediaPage, viewerPage, server, browserName }) => {
-    test.skip(browserName === 'webkit', 'WebKit headless does not support the Fullscreen API');
-
+  test('Escape exits player fullscreen', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Click first non-document media card to open player using POM

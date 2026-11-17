@@ -9,7 +9,6 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
   test.use({ readOnly: true });
 
   test.describe('Document Viewer Fullscreen Edge Cases', () => {
-    test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless does not support the Fullscreen API used by these tests');
     test('f -> w -> f: exit fullscreen via f even after closing modal', async ({ mediaPage, viewerPage, server }) => {
       await mediaPage.goto(server.getBaseUrl());
 

@@ -169,7 +169,19 @@ export class ViewerPage extends BasePage {
   async play(): Promise<void> {
     const media = this.videoElement.or(this.audioElement);
     if (await media.count() > 0) {
-      await media.evaluate((el: HTMLMediaElement) => el.play());
+      // Don't call play() when already playing: an extra pending play promise
+      // can restart a short looping clip after the test pauses it in WebKit.
+      await media.evaluate((el: HTMLMediaElement) => {
+        if (!el.paused) return;
+        el.play().catch(() => {});
+      });
+
+      await this.page.waitForFunction(() => {
+        const video = document.querySelector('#pip-player video') as HTMLVideoElement;
+        const audio = document.querySelector('#pip-player audio') as HTMLAudioElement;
+        const el = video || audio;
+        return el && !el.paused;
+      }, { timeout: 5000 });
     }
   }
 
@@ -323,7 +335,9 @@ export class ViewerPage extends BasePage {
       const video = document.querySelector('#pip-player video') as HTMLVideoElement;
       const audio = document.querySelector('#pip-player audio') as HTMLAudioElement;
       const media = video || audio;
-      return media && media.readyState >= 3;
+      // HAVE_METADATA is enough to know duration and start playback. Very
+      // short looping clips may never reach HAVE_FUTURE_DATA in WebKit.
+      return media && media.readyState >= 1;
     }, { timeout });
   }
 
@@ -515,7 +529,9 @@ export class ViewerPage extends BasePage {
       const video = document.querySelector('#pip-player video') as HTMLVideoElement;
       const audio = document.querySelector('#pip-player audio') as HTMLAudioElement;
       const media = video || audio;
-      return media && media.readyState >= 3;
+      // HAVE_METADATA is enough to know duration and start playback. Very
+      // short looping clips may never reach HAVE_FUTURE_DATA in WebKit.
+      return media && media.readyState >= 1;
     }, { timeout });
   }
 

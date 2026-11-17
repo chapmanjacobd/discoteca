@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Progress Sync with POM', () => {
-  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures used by these tests');
 
   // localResume is enabled by default (localStorage !== 'false')
   // No need to set it explicitly

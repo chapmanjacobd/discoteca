@@ -10,12 +10,7 @@ test.describe('Combined Filters and Views', () => {
   ];
 
   for (const mode of modes) {
-    test(`mode: ${mode.name} - switching views and filtering`, async ({ mediaPage, sidebarPage, viewerPage, server, browserName }) => {
-      test.skip(
-        mode.name === 'History' && browserName === 'webkit',
-        'WebKit headless cannot decode the H.264 fixtures used to populate history'
-      );
-
+    test(`mode: ${mode.name} - switching views and filtering`, async ({ mediaPage, sidebarPage, viewerPage, server }) => {
       // Set up test data for Trash and History modes
       if (mode.name === 'Trash') {
         // Go to home, delete a file to populate trash

@@ -13,9 +13,7 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     });
   });
 
-  test('In Progress page shows media with local progress', async ({ mediaPage, viewerPage, server, browserName }) => {
-    test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
-
+  test('In Progress page shows media with local progress', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl(), 20000);
 
     // Play a video to create local progress using POM

@@ -9,7 +9,6 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Progress Synchronization', () => {
-  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures used by these tests');
 
   test('localStorage progress structure is created on playback', async ({ mediaPage, viewerPage, server }) => {
     console.log('=== Testing progress structure creation ===');

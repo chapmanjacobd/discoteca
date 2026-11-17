@@ -5,7 +5,6 @@ import { test, expect } from '../fixtures';
  * Tests both local resume mode and server-based progress tracking
  */
 test.describe('Playhead Resume', () => {
-  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures used by these tests');
 
   test('resumes from local progress when localResume is enabled', async ({ mediaPage, viewerPage, sidebarPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
