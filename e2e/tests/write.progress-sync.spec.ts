@@ -9,6 +9,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Progress Synchronization', () => {
+  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures used by these tests');
 
   test('localStorage progress structure is created on playback', async ({ mediaPage, viewerPage, server }) => {
     console.log('=== Testing progress structure creation ===');
@@ -16,7 +17,7 @@ test.describe('Progress Synchronization', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open first video using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const videoPath = await videoCard.getAttribute('data-path') || '';
     console.log('Testing with video:', videoPath);
 
@@ -45,7 +46,7 @@ test.describe('Progress Synchronization', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open first video using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const videoPath = await videoCard.getAttribute('data-path') || '';
     console.log('Testing concurrent updates for:', videoPath);
 
@@ -80,7 +81,7 @@ test.describe('Progress Synchronization', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open first video using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const videoPath = await videoCard.getAttribute('data-path') || '';
 
     await videoCard.click();
@@ -112,7 +113,7 @@ test.describe('Progress Synchronization', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open first video using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const videoPath = await videoCard.getAttribute('data-path') || '';
 
     // Set progress using POM
@@ -206,7 +207,7 @@ test.describe('Progress Synchronization', () => {
     await mediaPage.removeLocalStorageItem('disco-progress');
 
     // Open video using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await videoCard.click();
     await viewerPage.waitForPlayer();
     await mediaPage.page.waitForTimeout(500);
@@ -228,7 +229,7 @@ test.describe('Progress Synchronization', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open first video using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const videoPath = await videoCard.getAttribute('data-path') || '';
 
     // Set initial progress using POM

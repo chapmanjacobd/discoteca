@@ -5,6 +5,7 @@ import { test, expect } from '../fixtures';
  * Tests both local resume mode and server-based progress tracking
  */
 test.describe('Playhead Resume', () => {
+  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures used by these tests');
 
   test('resumes from local progress when localResume is enabled', async ({ mediaPage, viewerPage, sidebarPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());
@@ -34,7 +35,7 @@ test.describe('Playhead Resume', () => {
     await mediaPage.page.waitForTimeout(500);
 
     // Find and play first video using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await mediaCard.click();
     await viewerPage.waitForPlayer();
 
@@ -44,8 +45,9 @@ test.describe('Playhead Resume', () => {
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(500);
 
-    // Let it play for 3 seconds using POM
-    await mediaPage.page.waitForTimeout(3000);
+    // Let it play until enough progress has accumulated to be saved
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
 
     // Get current playback position using POM
     const playheadBefore = await viewerPage.getCurrentTime();
@@ -109,15 +111,16 @@ test.describe('Playhead Resume', () => {
     await mediaPage.page.waitForTimeout(500);
 
     // Play video using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await mediaCard.click();
     await viewerPage.waitForPlayer();
     await viewerPage.waitForMediaData();
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(500);
 
-    // Let it play for 3 seconds using POM
-    await mediaPage.page.waitForTimeout(3000);
+    // Let it play until enough progress has accumulated to be saved
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
 
     const playheadBefore = await viewerPage.getCurrentTime();
     console.log(`Playhead before close: ${playheadBefore}s`);
@@ -151,7 +154,7 @@ test.describe('Playhead Resume', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Play video to create server progress using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const mediaPath = await mediaCard.getAttribute('data-path');
     console.log(`Testing with media: ${mediaPath}`);
 
@@ -161,8 +164,9 @@ test.describe('Playhead Resume', () => {
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(500);
 
-    // Let it play for 5 seconds to ensure server progress is saved
-    await mediaPage.page.waitForTimeout(5000);
+    // Let it play until enough progress has accumulated to be saved
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
 
     const playheadBefore = await viewerPage.getCurrentTime();
     console.log(`Playhead before close: ${playheadBefore}s`);
@@ -211,7 +215,7 @@ test.describe('Playhead Resume', () => {
     await mediaPage.page.waitForTimeout(500);
 
     // Play video using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const mediaPath = await mediaCard.getAttribute('data-path') || '';
     console.log(`Testing with media: ${mediaPath}`);
 
@@ -221,8 +225,9 @@ test.describe('Playhead Resume', () => {
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(500);
 
-    // Let it play for 3 seconds
-    await mediaPage.page.waitForTimeout(3000);
+    // Let it play until enough progress has accumulated to be saved
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
 
     const playheadBefore = await viewerPage.getCurrentTime();
     console.log(`Playhead before close: ${playheadBefore}s`);
@@ -259,15 +264,16 @@ test.describe('Playhead Resume', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Play video using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await mediaCard.click();
     await viewerPage.waitForPlayer();
     await viewerPage.waitForMediaData();
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(500);
 
-    // Let it play for 4 seconds
-    await mediaPage.page.waitForTimeout(4000);
+    // Let it play until enough progress has accumulated to be saved
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
 
     const playhead = await viewerPage.getCurrentTime();
     console.log(`Playhead: ${playhead}s`);
@@ -286,7 +292,7 @@ test.describe('Playhead Resume', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Play video using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await mediaCard.click();
     await viewerPage.waitForPlayer();
     await viewerPage.waitForMediaData();

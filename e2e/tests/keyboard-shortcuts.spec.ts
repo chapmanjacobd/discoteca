@@ -50,7 +50,9 @@ test.describe('Keyboard Shortcuts', () => {
       expect(playerVisible || docVisible).toBe(true);
     });
 
-    test('ArrowRight seeks forward 5 seconds', async ({ mediaPage, viewerPage, server }) => {
+    test('ArrowRight seeks forward 5 seconds', async ({ mediaPage, viewerPage, server, browserName }) => {
+      test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
+
       await mediaPage.goto(server.getBaseUrl());
 
       // Click first video/audio card using POM
@@ -74,7 +76,9 @@ test.describe('Keyboard Shortcuts', () => {
       expect(newTime).toBeGreaterThan(initialTime);
     });
 
-    test('ArrowLeft seeks backward 5 seconds', async ({ mediaPage, viewerPage, server }) => {
+    test('ArrowLeft seeks backward 5 seconds', async ({ mediaPage, viewerPage, server, browserName }) => {
+      test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
+
       await mediaPage.goto(server.getBaseUrl());
 
       // Click first video/audio card using POM
@@ -202,7 +206,9 @@ test.describe('Keyboard Shortcuts', () => {
       await viewerPage.waitForHidden();
     });
 
-    test('Space key toggles play/pause', async ({ mediaPage, viewerPage, server }) => {
+    test('Space key toggles play/pause', async ({ mediaPage, viewerPage, server, browserName }) => {
+      test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
+
       await mediaPage.goto(server.getBaseUrl());
 
       // Click first video/audio card using POM
@@ -325,9 +331,13 @@ test.describe('Keyboard Shortcuts', () => {
       await viewerPage.waitForPlayer();
       await mediaPage.page.waitForTimeout(500);
 
-      // Grant clipboard permissions
+      // Grant clipboard permissions (not supported by WebKit)
       const context = mediaPage.page.context();
-      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+      try {
+        await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+      } catch {
+        test.skip(true, 'Clipboard permissions are not supported in this browser');
+      }
 
       // Press 'c' to copy path
       await mediaPage.page.keyboard.press('c');
@@ -393,7 +403,7 @@ test.describe('Keyboard Shortcuts', () => {
       // Check if toast appeared (subtitle toggle message) using POM
       if (await mediaPage.toast.isVisible()) {
         const toastText = await mediaPage.getToastMessage();
-        expect(toastText).toMatch(/Subtitles: (Off|Track)/);
+        expect(toastText).toMatch(/Subtitles: (Off|Track|External)/);
       }
     });
   });

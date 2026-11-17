@@ -35,7 +35,7 @@ test.describe('CLI: Search-DB Command', () => {
     const v1 = createValidVideo('v.mp4');
     await cli.runAndVerify(['add', testDbPath, v1]);
 
-    const result = await cli.runAndVerify(['search-db', '-w', "type = 'video'", testDbPath, 'media', '.']);
+    const result = await cli.runAndVerify(['search-db', '-w', "media_type = 'video'", testDbPath, 'media', '.']);
     expect(result.stdout).toContain('v.mp4');
   });
 });

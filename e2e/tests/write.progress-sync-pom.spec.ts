@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Progress Sync with POM', () => {
+  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures used by these tests');
 
   // localResume is enabled by default (localStorage !== 'false')
   // No need to set it explicitly
@@ -9,7 +10,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open media and let it play briefly
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
 
     // Wait for video to load and start playing
@@ -27,7 +28,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.page.waitForTimeout(500);
 
     // Play for a short time
-    await mediaPage.page.waitForTimeout(3000);
+    await viewerPage.waitForPlaybackPosition(2);
 
     // Get current position
     const position = await viewerPage.getCurrentTime();
@@ -38,7 +39,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.page.waitForTimeout(500);
 
     // Re-open same media
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
 
     // Should resume from approximately the same position
@@ -53,7 +54,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open media
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
 
     // Wait for video to load
@@ -64,8 +65,10 @@ test.describe('Progress Sync with POM', () => {
       return v && v.duration > 0;
     }, { timeout: 10000 });
 
-    // Play for a bit
-    await mediaPage.page.waitForTimeout(2000);
+    // Ensure playback is running, then let progress accumulate
+    await viewerPage.play();
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
     const position = await viewerPage.getCurrentTime();
 
     // Refresh page
@@ -73,7 +76,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.waitForMediaToLoad();
 
     // Re-open same media
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
     await mediaPage.page.waitForTimeout(1000);
 
@@ -86,7 +89,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open media
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
 
     // Wait for video to load
@@ -133,8 +136,10 @@ test.describe('Progress Sync with POM', () => {
     await viewerPage.play();
     await mediaPage.page.waitForTimeout(500);
 
-    // Play for a bit
-    await mediaPage.page.waitForTimeout(3000);
+    // Ensure playback is running, then let progress accumulate
+    await viewerPage.play();
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
     const position = await viewerPage.getCurrentTime();
     expect(position).toBeGreaterThan(0);
 
@@ -154,7 +159,7 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open and play media briefly
-    const firstCard = mediaPage.getFirstMediaCardByType('video');
+    const firstCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const videoPath = await firstCard.getAttribute('data-path');
     
     await firstCard.click();
@@ -162,7 +167,8 @@ test.describe('Progress Sync with POM', () => {
 
     // Ensure video is playing
     await viewerPage.play();
-    await mediaPage.page.waitForTimeout(3000);
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
     await viewerPage.close();
 
     // Reload to refresh results with new progress
@@ -184,12 +190,12 @@ test.describe('Progress Sync with POM', () => {
     await mediaPage.goto(server.getBaseUrl());
 
     // Open and play media
-    await mediaPage.openFirstMediaByType('video');
+    await mediaPage.getMediaCardByText('video', /test_video1/).click();
     await viewerPage.waitForPlayer();
     
     // Ensure video is playing
     await viewerPage.play();
-    await mediaPage.page.waitForTimeout(3000);
+    await viewerPage.waitForPlaybackPosition(2);
     const position = await viewerPage.getCurrentTime();
     expect(position).toBeGreaterThan(0);
     await viewerPage.close();
@@ -213,7 +219,7 @@ test.describe('Progress Sync with POM', () => {
         await mediaPage.waitForMediaToLoad();
         
         // Re-open and check position is 0
-        await mediaPage.openFirstMediaByType('video');
+        await mediaPage.getMediaCardByText('video', /test_video1/).click();
         await viewerPage.waitForPlayer();
         await mediaPage.page.waitForTimeout(1000);
         

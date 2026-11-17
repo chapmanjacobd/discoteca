@@ -30,6 +30,9 @@ func PrintMedia(flags models.DisplayFlags, columns []string, media []models.Medi
 		return err
 	}
 	if flags.JSON {
+		if media == nil {
+			media = []models.MediaWithDB{}
+		}
 		return fileutil.PrintJSON(media)
 	}
 

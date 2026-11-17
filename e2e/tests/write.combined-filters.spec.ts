@@ -10,7 +10,12 @@ test.describe('Combined Filters and Views', () => {
   ];
 
   for (const mode of modes) {
-    test(`mode: ${mode.name} - switching views and filtering`, async ({ mediaPage, sidebarPage, viewerPage, server }) => {
+    test(`mode: ${mode.name} - switching views and filtering`, async ({ mediaPage, sidebarPage, viewerPage, server, browserName }) => {
+      test.skip(
+        mode.name === 'History' && browserName === 'webkit',
+        'WebKit headless cannot decode the H.264 fixtures used to populate history'
+      );
+
       // Set up test data for Trash and History modes
       if (mode.name === 'Trash') {
         // Go to home, delete a file to populate trash
@@ -100,8 +105,9 @@ test.describe('Combined Filters and Views', () => {
       }
 
       // 3. Apply a search filter using POM
-      // Search for 'test' which matches our test files (test_video1, test_image1, etc.)
-      await mediaPage.search('test');
+      // Search for 'media' which matches every fixture path and therefore the
+      // item selected in this mode, regardless of which card comes first.
+      await mediaPage.search('media');
 
       // Verify we are STILL in the same mode using POM
       const pageAfterFilter = await mediaPage.page.evaluate(() => (window as any).disco.state.page);

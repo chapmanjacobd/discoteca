@@ -20,7 +20,13 @@ test.describe('Basic Navigation (Read-Only)', () => {
 
     // Should show DU toolbar using POM
     await expect(mediaPage.getDUTToolbar()).toBeVisible();
-    await expect(mediaPage.getDUPathInput()).toBeVisible();
+    // Path input is hidden on mobile in favour of breadcrumbs
+    const pathInput = mediaPage.getDUPathInput();
+    if (await pathInput.isVisible()) {
+      await expect(pathInput).toBeVisible();
+    } else {
+      await expect(mediaPage.page.locator('#du-breadcrumbs')).toBeVisible();
+    }
   });
 
   test('navigates to Captions view', async ({ mediaPage, sidebarPage, server }) => {

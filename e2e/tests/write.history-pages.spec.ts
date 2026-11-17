@@ -13,11 +13,13 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     });
   });
 
-  test('In Progress page shows media with local progress', async ({ mediaPage, viewerPage, server }) => {
+  test('In Progress page shows media with local progress', async ({ mediaPage, viewerPage, server, browserName }) => {
+    test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
+
     await mediaPage.goto(server.getBaseUrl(), 20000);
 
     // Play a video to create local progress using POM
-    const mediaCard = mediaPage.getFirstMediaCardByType('video');
+    const mediaCard = mediaPage.getMediaCardByText('video', /test_video1/);
     const mediaPath = await mediaCard.getAttribute('data-path');
     console.log(`Testing In Progress with: ${mediaPath}`);
 
@@ -35,8 +37,10 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     }
 
     // Let it play briefly to accumulate progress
-    // Progress is throttled to save once per second, so wait at least 2 seconds
-    await mediaPage.page.waitForTimeout(2500);
+    // Progress is throttled to save once per second, so wait until a save
+    // after the first second has had a chance to run.
+    await viewerPage.waitForPlaybackPosition(2);
+    await mediaPage.page.waitForTimeout(300);
 
     // Check video position before closing using POM
     const videoPosBeforeClose = await viewerPage.getCurrentTime();
@@ -76,7 +80,7 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     await mediaPage.goto(server.getBaseUrl(), 20000);
 
     // Play a video to create progress using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await videoCard.click();
     await viewerPage.waitForPlayer();
     await mediaPage.page.waitForTimeout(2000);
@@ -283,7 +287,7 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     await mediaPage.goto(server.getBaseUrl(), 20000);
 
     // Play a video to create progress using POM
-    const videoCard = mediaPage.getFirstMediaCardByType('video');
+    const videoCard = mediaPage.getMediaCardByText('video', /test_video1/);
     await videoCard.click();
     await viewerPage.waitForPlayer();
     await mediaPage.page.waitForTimeout(2000);

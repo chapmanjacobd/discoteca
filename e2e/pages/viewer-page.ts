@@ -196,6 +196,16 @@ export class ViewerPage extends BasePage {
   }
 
   /**
+   * Wait for playback to advance to at least minSeconds
+   */
+  async waitForPlaybackPosition(minSeconds: number, timeout: number = 15000): Promise<void> {
+    await this.page.waitForFunction((min) => {
+      const media = document.querySelector('#pip-player video, #pip-player audio') as HTMLMediaElement | null;
+      return media !== null && media.currentTime >= min;
+    }, minSeconds, { timeout });
+  }
+
+  /**
    * Get current playback time
    */
   async getCurrentTime(): Promise<number> {

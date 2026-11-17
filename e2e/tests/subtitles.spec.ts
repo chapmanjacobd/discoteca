@@ -108,7 +108,7 @@ test.describe('Subtitles', () => {
     // Toast should appear with subtitle state using POM
     if (await mediaPage.toast.isVisible()) {
       const toastText = await mediaPage.getToastMessage();
-      expect(toastText).toMatch(/Subtitles: (Off|Track)/);
+      expect(toastText).toMatch(/Subtitles: (Off|Track|External)/);
     }
   });
 

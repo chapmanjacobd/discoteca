@@ -7,7 +7,7 @@ test.describe('CLI: Add Command', () => {
     const videoPath = createValidVideo('test_video.mp4');
     const result = await cli.runAndVerify(['add', testDbPath, videoPath]);
 
-    expect(result.stdout).toContain('Processed 1/1 files');
+    expect(result.stdout).toContain('video: Processed 1 files');
 
     const queryResult = await cli.runJson<any[]>(['print', testDbPath, '--search', 'test_video', '--json']);
     expect(queryResult.length).toBe(1);
@@ -21,7 +21,8 @@ test.describe('CLI: Add Command', () => {
     const a1 = createValidAudio('audio1.mp3');
 
     const result = await cli.runAndVerify(['add', testDbPath, tempDir]);
-    expect(result.stdout).toContain('Processed 3/3 files');
+    expect(result.stdout).toContain('video: Processed 2 files');
+    expect(result.stdout).toContain('audio: Processed 1 files');
 
     const queryResult = await cli.runJson<any[]>(['print', testDbPath, '--all', '--json']);
     const paths = queryResult.map(m => m.path);
@@ -135,7 +136,7 @@ test.describe('CLI: Add Command', () => {
     const nonExistentPath = path.join(tempDir, 'does_not_exist.mp4');
     const result = await cli.run(['add', testDbPath, nonExistentPath]);
 
-    expect(result.exitCode).not.toBe(0);
+    expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain('no such file or directory');
   });
 

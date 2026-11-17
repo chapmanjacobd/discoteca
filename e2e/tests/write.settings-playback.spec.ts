@@ -427,7 +427,9 @@ test.describe('Playback Controls', () => {
     expect(await viewerPage.isPlaying()).toBe(true);
   });
 
-  test('seek functionality works', async ({ mediaPage, viewerPage, server }) => {
+  test('seek functionality works', async ({ mediaPage, viewerPage, server, browserName }) => {
+    test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Play a media using POM

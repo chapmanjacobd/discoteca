@@ -83,6 +83,14 @@ test.describe('Regression checks', () => {
       await dialog.dismiss();
     });
 
+    // Simulate an unauthenticated API without needing a token-protected
+    // server; the app should show the auth error instead of reloading.
+    await page.route('**/api/**', route => route.fulfill({
+      status: 401,
+      contentType: 'text/plain',
+      body: 'Unauthorized',
+    }));
+
     await page.goto(server.getBaseUrl(), { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
 

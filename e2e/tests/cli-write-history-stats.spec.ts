@@ -48,7 +48,7 @@ test.describe('CLI: Stats Command', () => {
     createValidVideo('v2.mp4');
     await cli.runAndVerify(['add', testDbPath, tempDir]);
 
-    const result = await cli.runAndVerify(['stats', 'created', testDbPath]);
+    const result = await cli.runAndVerify(['stats', testDbPath]);
     expect(result.stdout).toMatch(/\d+/);
   });
 
@@ -56,7 +56,7 @@ test.describe('CLI: Stats Command', () => {
     createValidVideo('v1.mp4');
     await cli.runAndVerify(['add', testDbPath, tempDir]);
 
-    const result = await cli.runJson<any>(['stats', 'created', '-j', testDbPath]);
+    const result = await cli.runJson<any>(['stats', '-j', testDbPath]);
     expect(result).toBeTruthy();
   });
 });

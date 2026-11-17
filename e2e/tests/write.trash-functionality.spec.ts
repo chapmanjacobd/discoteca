@@ -9,6 +9,7 @@ test.describe('Trash Functionality', () => {
 
     // Sidebar trash button should be visible in normal (non-read-only) mode
     // Note: on desktop, sidebar is always visible; on mobile, we need to open it
+    await sidebarPage.openSidebar();
     const trashBtn = sidebarPage.getTrashButton();
     await expect(trashBtn).toBeVisible();
   });

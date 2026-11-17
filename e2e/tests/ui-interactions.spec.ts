@@ -66,7 +66,9 @@ test.describe('Fullscreen Toggle', () => {
     await expect(viewerPage.playerContainer).toBeVisible();
   });
 
-  test('Escape exits player fullscreen', async ({ mediaPage, viewerPage, server }) => {
+  test('Escape exits player fullscreen', async ({ mediaPage, viewerPage, server, browserName }) => {
+    test.skip(browserName === 'webkit', 'WebKit headless does not support the Fullscreen API');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Click first non-document media card to open player using POM
@@ -244,6 +246,8 @@ test.describe('Metadata Modal', () => {
   });
 
   test('metadata modal closes when clicking outside', async ({ mediaPage, viewerPage, server }) => {
+    test.skip((mediaPage.page.viewportSize()?.width ?? 1920) <= 768, 'The outside click lands on the mobile header');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Click first media card using POM

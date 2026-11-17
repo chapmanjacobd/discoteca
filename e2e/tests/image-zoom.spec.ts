@@ -2,6 +2,7 @@ import { test, expect } from '../fixtures';
 
 test.describe('Image Zoom and Pan', () => {
   test.use({ readOnly: true });
+  test.skip(({ browserName }) => browserName === 'webkit', 'WebKit headless does not support the Fullscreen API used by these tests');
 
   test('zooms in on image with mouse wheel in fullscreen', async ({ mediaPage, viewerPage, server }) => {
     await mediaPage.goto(server.getBaseUrl());

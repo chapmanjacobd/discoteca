@@ -22,7 +22,12 @@ test.describe('Page Navigation with POM', () => {
 
     // Should show DU toolbar
     await expect(mediaPage.page.locator('#du-toolbar')).toBeVisible();
-    await expect(mediaPage.page.locator('#du-path-input')).toBeVisible();
+    // Path input is hidden on mobile in favour of breadcrumbs
+    if (await mediaPage.page.locator('#du-path-input').isVisible()) {
+      await expect(mediaPage.page.locator('#du-path-input')).toBeVisible();
+    } else {
+      await expect(mediaPage.page.locator('#du-breadcrumbs')).toBeVisible();
+    }
   });
 
   test('navigates to Captions view', async ({ mediaPage, sidebarPage, server }) => {
