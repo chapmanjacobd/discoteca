@@ -253,6 +253,20 @@ func (c *Server) checkPathInDB(ctx context.Context, path string) (found, hasSubt
 	return found, hasSubtitles
 }
 
+// isContainerWithSidecarSupport reports whether a sidecar subtitle/lyric can
+// live next to this media file. Audio is included because .lrc/.srt lyrics are
+// commonly stored beside music files; without this, HandleSubtitles tried to
+// remux the audio container itself and ffmpeg failed on every playback.
+func isContainerWithSidecarSupport(ext string) bool {
+	switch ext {
+	case ".mkv", ".mp4", ".m4v", ".mov", ".webm",
+		".mp3", ".m4a", ".aac", ".flac", ".ogg", ".oga", ".opus", ".wav":
+		return true
+	default:
+		return false
+	}
+}
+
 // resolveSidecarSubtitle finds an external subtitle file for a media container
 func (c *Server) resolveSidecarSubtitle(
 	path, requestedExt string,
@@ -364,7 +378,7 @@ func (c *Server) HandleSubtitles(w http.ResponseWriter, r *http.Request) {
 	requestedExt := r.URL.Query().Get("ext")
 
 	// If it's a media container but no index is specified, try to find an external sidecar
-	if streamIndex == "" && (ext == ".mkv" || ext == ".mp4" || ext == ".m4v" || ext == ".mov" || ext == ".webm") {
+	if streamIndex == "" && isContainerWithSidecarSupport(ext) {
 		resolvedPath, resolvedExt, err := c.resolveSidecarSubtitle(path, requestedExt, hasSubtitles)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
