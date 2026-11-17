@@ -275,6 +275,9 @@ test.describe('Filter To Ignore Functionality', () => {
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1000);
 
+      // Re-open the mobile sidebar before touching its sliders
+      await sidebarPage.openSidebar();
+
       // Get video-only duration max
       const durationMaxSlider = mediaPage.page.locator('#duration-max-slider');
       const videoDurationMax = await durationMaxSlider.getAttribute('max');
@@ -327,6 +330,9 @@ test.describe('Filter To Ignore Functionality', () => {
       // Apply video filter
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
+
+      // Re-open the mobile sidebar before touching its sliders
+      await sidebarPage.openSidebar();
 
       // Apply duration filter
       if (initialDurationMax && parseInt(initialDurationMax) > 0) {
@@ -386,6 +392,9 @@ test.describe('Filter To Ignore Functionality', () => {
       // Apply video filter
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
+
+      // Re-open the mobile sidebar before reading/toggling its filters
+      await sidebarPage.openSidebar();
 
       // Get filtered size range
       const filteredSizeMax = await sizeMaxSlider.getAttribute('max');

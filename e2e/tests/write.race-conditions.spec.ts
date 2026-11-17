@@ -310,8 +310,8 @@ test.describe('Race Conditions - Progress Updates & Pagination', () => {
     // Rapidly toggle filters using POM
     await sidebarPage.expandMediaTypeSection();
 
-    for (const type of ['video', 'audio', 'image', 'video']) {
-      await sidebarPage.getMediaTypeButton(type).click();
+    for (const type of ['video', 'audio', 'image', 'video'] as const) {
+      await sidebarPage.setMediaTypeFilter(type);
       // Wait a bit longer for the filter to be applied
       await mediaPage.page.waitForTimeout(300);
     }

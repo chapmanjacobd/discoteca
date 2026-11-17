@@ -302,6 +302,7 @@ test.describe('DU Mode Filters and Sorting', () => {
       expect(filteredFileCount).not.toBe(initialFileCount);
 
       // Clear filter by clicking again
+      await sidebarPage.openSidebar();
       await sidebarPage.getMediaTypeButton('video').click();
       await mediaPage.page.waitForTimeout(1500);
 

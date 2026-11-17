@@ -272,6 +272,7 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     expect(inProgressActive1).toBe(true);
 
     // Click In Progress again using POM
+    await sidebarPage.openSidebar();
     await inProgressBtn.click();
     await mediaPage.page.waitForTimeout(1000);
 
@@ -317,12 +318,11 @@ test.describe('History Pages - In Progress / Unplayed / Completed', () => {
     }
   });
 
-  test('In Progress shows mark-played button for unplayed media', async ({ mediaPage, server }) => {
+  test('In Progress shows mark-played button for unplayed media', async ({ mediaPage, sidebarPage, server }) => {
     await mediaPage.goto(server.getBaseUrl(), 20000);
 
     // Navigate to In Progress using POM
-    await mediaPage.expandDetailsSection('details-history');
-    await mediaPage.clickCategoryButton('#history-in-progress-btn');
+    await sidebarPage.openHistoryInProgress();
     await mediaPage.page.waitForTimeout(2000);
 
     // Check if mark-played buttons exist using POM

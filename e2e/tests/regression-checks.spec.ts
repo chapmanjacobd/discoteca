@@ -13,21 +13,24 @@ test.describe('Regression checks', () => {
     await expect(mediaPage.page.locator('.media-card').filter({ hasText: '.vtt' })).toHaveCount(0);
   });
 
-  test('leaving trash resets the hidden deleted sort', async ({ mediaPage, server }) => {
+  test('leaving trash resets the hidden deleted sort', async ({ mediaPage, sidebarPage, server }) => {
     await mediaPage.page.goto(server.getBaseUrl() + '/#mode=trash');
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_deleted');
 
+    await sidebarPage.openSidebar();
     await mediaPage.page.locator('#all-media-btn').click();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('default');
     expect(mediaPage.page.url()).not.toContain('time_deleted');
 
     await mediaPage.page.goto(server.getBaseUrl() + '/#mode=trash');
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_deleted');
+    await sidebarPage.openSidebar();
     await mediaPage.page.locator('#history-btn').click();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_last_played');
 
     await mediaPage.page.goto(server.getBaseUrl() + '/#mode=trash');
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('time_deleted');
+    await sidebarPage.openSidebar();
     await mediaPage.page.locator('#du-btn').click();
     await expect(mediaPage.page.locator('#sort-by')).toHaveValue('default');
     expect(mediaPage.page.url()).not.toContain('time_deleted');

@@ -329,7 +329,9 @@ test.describe('Settings Persistence', () => {
 });
 
 test.describe('Playback Controls', () => {
-  test('theatre mode toggle works', async ({ mediaPage, viewerPage, server }) => {
+  test('theatre mode toggle works', async ({ mediaPage, viewerPage, server, browserName }) => {
+    test.skip(browserName === 'webkit', 'WebKit headless cannot decode the H.264 fixtures');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Play a media using POM
