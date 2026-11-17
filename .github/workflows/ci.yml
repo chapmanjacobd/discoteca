@@ -10,6 +10,13 @@ on:
 
 permissions: {}
 
+# Pushing a release tag for a commit that was just pushed to main starts a
+# second identical run. Key the group by commit so the tag run cancels the
+# duplicate branch run.
+concurrency:
+  group: ci-${{ github.sha }}
+  cancel-in-progress: true
+
 env:
   GO_VERSION: '1.27.4'
   NODE_VERSION: '26.13.1'
