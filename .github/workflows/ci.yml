@@ -25,7 +25,6 @@ jobs:
       BUILD_TAGS: fts5
     strategy:
       fail-fast: true
-      max-parallel: 1
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     timeout-minutes: 60
