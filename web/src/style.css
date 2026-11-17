@@ -2267,6 +2267,19 @@ body.has-pip #content {
         overflow-x: hidden;
     }
 
+    /* Details view is wider than a phone. Scroll the table horizontally
+       instead of clipping the Progress/Type/Plays/Action columns. */
+    #results-container.details-view {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #results-container.details-view .details-table {
+        width: max-content;
+        min-width: 100%;
+    }
+
     #toolbar {
         flex-wrap: wrap;
         gap: 0.5rem;
