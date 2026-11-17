@@ -1,4 +1,4 @@
-.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build release-checksums release-linux-matrix cross-deps benchmark benchstat profiles screenshots deadcode
+.PHONY: build build-fts5 test test-race cover webtest webcover e2e clean fmt lint install all readme dev ubuntu-deps go-deps web-install webbuild e2e-install e2e-init e2e-cli e2e-web release-build release-checksums release-linux-matrix cross-deps benchmark benchstat profiles screenshots deadcode deps-update go-deps-update web-deps-update e2e-deps-update
 
 BINARY_NAME=disco
 BUILD_TAGS=fts5
@@ -59,9 +59,17 @@ go-deps:
 	go install gotest.tools/gotestsum@latest
 	go install golang.org/x/tools/cmd/deadcode@latest
 
-deps-update:
+deps-update: go-deps-update web-deps-update e2e-deps-update
+
+go-deps-update:
 	go get -u ./...
 	go mod tidy
+
+web-deps-update:
+	cd web && npm update
+
+e2e-deps-update:
+	cd e2e && npm update
 
 web-install:
 	cd web && npm install

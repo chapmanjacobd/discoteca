@@ -31,17 +31,17 @@ describe('Aspect Ratio Cycling', () => {
         document.dispatchEvent(aEvent);
 
         // Should now be 16:9
-        expect(video.style.aspectRatio).toBe('16/9');
+        expect(video.style.aspectRatio.replace(/\s+/g, '')).toBe('16/9');
         expect(video.style.objectFit).toBe('contain');
 
         // Press 'a' again to cycle to 4:3
         document.dispatchEvent(aEvent);
-        expect(video.style.aspectRatio).toBe('4/3');
+        expect(video.style.aspectRatio.replace(/\s+/g, '')).toBe('4/3');
         expect(video.style.objectFit).toBe('contain');
 
         // Press 'a' again to cycle to 21:9
         document.dispatchEvent(aEvent);
-        expect(video.style.aspectRatio).toBe('21/9');
+        expect(video.style.aspectRatio.replace(/\s+/g, '')).toBe('21/9');
         expect(video.style.objectFit).toBe('contain');
     });
 
@@ -103,7 +103,7 @@ describe('Aspect Ratio Cycling', () => {
 
         for (const expected of expectedModes) {
             document.dispatchEvent(aEvent);
-            expect(video.style.aspectRatio).toBe(expected.aspectRatio);
+            expect(video.style.aspectRatio.replace(/\s+/g, '')).toBe(expected.aspectRatio);
             expect(video.style.objectFit).toBe(expected.objectFit);
         }
     });

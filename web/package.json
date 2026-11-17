@@ -10,15 +10,15 @@
     "cover": "vitest run --coverage --pool=threads"
   },
   "devDependencies": {
-    "@types/node": "^25.4.0",
-    "@vitest/coverage-v8": "^4.0.18",
-    "happy-dom": "^20.7.0",
-    "jsdom": "^28.1.0",
-    "typescript": "^5.9.3",
-    "vite": "^8.0.0",
-    "vitest": "^4.0.18"
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.0",
+    "happy-dom": "^21.0.4",
+    "jsdom": "^31.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
-    "hls.js": "^1.6.15"
+    "hls.js": "^1.7.4"
   }
 }
