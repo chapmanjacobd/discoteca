@@ -301,8 +301,13 @@ func createWrapperHTML(initialSrc string, htmlFiles []string, htmlDir, originalP
 
 		val := escapeURLPath("/api/epub/" + filepath.Join(originalPrefix, rel))
 
-		fmt.Fprintf(&tocOptions, `<option value="%s">%s</option>`,
-			html.EscapeString(val), html.EscapeString(baseName))
+		selected := ""
+		if initialSrc != "" && val == initialSrc {
+			selected = " selected"
+		}
+
+		fmt.Fprintf(&tocOptions, `<option value="%s"%s>%s</option>`,
+			html.EscapeString(val), selected, html.EscapeString(baseName))
 	}
 
 	wrapper := fmt.Sprintf(`<!DOCTYPE html>
