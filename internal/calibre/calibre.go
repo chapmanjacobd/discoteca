@@ -348,7 +348,14 @@ func readOnlyDSN(path string) string {
 	if err != nil {
 		absPath = path
 	}
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(absPath)}
+	slashPath := filepath.ToSlash(absPath)
+	// A file URL needs an absolute path beginning with "/". Windows drive
+	// paths such as C:/books/metadata.db would otherwise be parsed as a URL
+	// authority ("C:").
+	if !strings.HasPrefix(slashPath, "/") {
+		slashPath = "/" + slashPath
+	}
+	u := url.URL{Scheme: "file", Path: slashPath}
 	return u.String() + "?mode=ro"
 }
 
