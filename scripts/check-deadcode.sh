@@ -20,6 +20,7 @@ awk -F': unreachable func: ' '
 	/: unreachable func: / {
 		file = $1
 		sub(/:[0-9]+:[0-9]+$/, "", file)
+		gsub(/\\/, "/", file)
 		if (file ~ /^internal\/testutils\//) {
 			next
 		}
