@@ -109,7 +109,6 @@ export interface State {
         reverse: boolean;
         randomSeed: number;
         limit: number;
-        all: boolean;
         excludedDbs: string[];
         sizes: any[];
         durations: any[];

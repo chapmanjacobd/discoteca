@@ -108,9 +108,11 @@ export class BasePage {
    */
   async openSidebar(): Promise<void> {
     if (!(await this.menuToggle.isVisible())) return;
-    if (await this.sidebar.isVisible()) return;
+    const isOpen = await this.sidebar.evaluate(el => el.classList.contains('mobile-open'));
+    if (isOpen) return;
     await this.menuToggle.click();
     await this.sidebar.waitFor({ state: 'visible' });
+    await expect(this.sidebar).toHaveClass(/mobile-open/);
   }
 
   /**
@@ -118,7 +120,8 @@ export class BasePage {
    */
   async closeSidebar(): Promise<void> {
     if (!(await this.menuToggle.isVisible())) return;
-    if (!(await this.sidebar.isVisible())) return;
+    const isOpen = await this.sidebar.evaluate(el => el.classList.contains('mobile-open'));
+    if (!isOpen) return;
     // The open sidebar covers the menu toggle, so close it through the
     // overlay instead (which is what a user taps outside the drawer).
     await this.page.evaluate(() => {

@@ -13,7 +13,6 @@ describe('Pagination Limit', () => {
         window.disco.state.filters.limit = 10;
         window.disco.state.currentPage = 1;
         window.disco.state.page = 'search';
-        window.disco.state.filters.all = false;
 
         // Mock current media (last item of page 1)
         const item = { path: 'file10.mp4', media_type: 'video/mp4' };
@@ -42,7 +41,6 @@ describe('Pagination Limit', () => {
         window.disco.state.filters.limit = 10;
         window.disco.state.currentPage = 1;
         window.disco.state.page = 'search';
-        window.disco.state.filters.all = false;
 
         // Mock current media (last item of page 1)
         const item = { path: 'file10.mp4', media_type: 'video/mp4' };
@@ -98,7 +96,6 @@ describe('Pagination Limit', () => {
     it('hides pagination only on curation page', async () => {
         window.disco.state.totalCount = 100;
         window.disco.state.filters.limit = 10;
-        window.disco.state.filters.all = false;
 
         // Test curation page - pagination should be hidden
         window.disco.state.page = 'curation';
@@ -137,14 +134,18 @@ describe('Pagination Limit', () => {
         expect(paginationContainer.classList.contains('hidden')).toBe(false);
     });
 
-    it('hides pagination when filters.all is true', async () => {
-        window.disco.state.totalCount = 100;
-        window.disco.state.filters.limit = 10;
-        window.disco.state.filters.all = true;
+    it('clamps page size to 1000', async () => {
+        global.fetch.mockClear();
+        document.getElementById('limit').value = 5000;
+        window.disco.state.filters.limit = 5000;
         window.disco.state.page = 'search';
 
-        window.disco.renderPagination();
-        const paginationContainer = document.getElementById('pagination-container');
-        expect(paginationContainer.classList.contains('hidden')).toBe(true);
+        await window.disco.performSearch();
+
+        expect(window.disco.state.filters.limit).toBe(1000);
+        expect(document.getElementById('limit').value).toBe('1000');
+        const query = global.fetch.mock.calls.map(call => String(call[0])).find(url => url.includes('/api/query'));
+        expect(query).toContain('limit=1000');
+        expect(query).not.toContain('all=true');
     });
 });

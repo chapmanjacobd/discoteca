@@ -58,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortBy = document.getElementById('sort-by') as HTMLSelectElement;
     const sortReverseBtn = document.getElementById('sort-reverse-btn');
     const limitInput = document.getElementById('limit') as HTMLInputElement;
-    const limitAll = document.getElementById('limit-all') as HTMLInputElement;
     const viewGrid = document.getElementById('view-grid');
     const viewDetails = document.getElementById('view-details');
     const categoryList = document.getElementById('category-list');
@@ -198,7 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     if (limitInput) limitInput.value = state.filters.limit.toString();
-    if (limitAll) limitAll.checked = state.filters.all;
 
     // Search type toggle (FTS vs Substring)
     if (settingSearchType) {
@@ -758,10 +756,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // The server clamps requests above --max-limit. Clamp client-side too so
-    // the pager and page math reflect what the server actually returns.
+    // the pager and page math reflect what the server actually returns. Never
+    // request more than 1000 results per page, even when the server is
+    // configured without a limit.
+    const MAX_PAGE_LIMIT = 1000;
+
     function clampLimit(limit: number): number {
         if (!Number.isFinite(limit) || limit < 1) return 99;
-        if (state.maxLimit > 0 && limit > state.maxLimit) return state.maxLimit;
+        const maxLimit = state.maxLimit > 0 ? Math.min(state.maxLimit, MAX_PAGE_LIMIT) : MAX_PAGE_LIMIT;
+        if (limit > maxLimit) return maxLimit;
         return Math.floor(limit);
     }
 
@@ -848,11 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
             params.set('random_seed', String(state.filters.randomSeed));
         }
         if (state.filters.reverse) params.set('reverse', 'true');
-        if (state.filters.all) {
-            params.set('all', 'true');
-        } else if (state.filters.limit !== 99) {
-            params.set('limit', String(state.filters.limit));
-        }
+        if (state.filters.limit !== 99) params.set('limit', String(state.filters.limit));
         if (state.currentPage > 1) params.set('page', String(state.currentPage));
         if (state.view) params.set('view', String(state.view));
 
@@ -953,13 +952,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.filters.randomSeed) {
             localStorage.setItem('disco-random-seed', String(state.filters.randomSeed));
         }
-        state.filters.all = params.get('all') === 'true';
         const limitParam = params.get('limit');
         if (limitParam) {
             const limit = parseInt(limitParam);
             if (!isNaN(limit) && limit > 0) state.filters.limit = clampLimit(limit);
-            state.filters.all = false;
-        } else if (hasExplicitState && !state.filters.all) {
+        } else if (hasExplicitState) {
             state.filters.limit = 99;
         }
 
@@ -1067,7 +1064,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settingSearchType) settingSearchType.checked = state.filters.searchType === 'fts';
         if (searchInput) (searchInput as HTMLInputElement).value = state.filters.search;
         if (limitInput) limitInput.value = String(state.filters.limit);
-        if (limitAll) limitAll.checked = state.filters.all;
         if (sortBy) sortBy.value = state.filters.sort === 'custom' ? 'custom' : state.filters.sort;
         if (sortReverseBtn) sortReverseBtn.classList.toggle('active', state.filters.reverse);
         if (viewGrid) viewGrid.classList.toggle('active', state.view === 'grid');
@@ -1141,8 +1137,8 @@ document.addEventListener('DOMContentLoaded', () => {
             state.readOnly = data.read_only;
             state.dev = data.dev;
             state.maxLimit = Number(data.max_limit) || 0;
-            if (limitInput && state.maxLimit > 0) {
-                limitInput.max = String(state.maxLimit);
+            if (limitInput) {
+                limitInput.max = String(state.maxLimit > 0 ? Math.min(state.maxLimit, MAX_PAGE_LIMIT) : MAX_PAGE_LIMIT);
             }
             state.downloadAvailable = data.download_available === true && !state.readOnly;
             state.downloadCommand = data.download_command || '';
@@ -1516,10 +1512,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sortPlaylistItems();
         state.totalCount = currentMedia.length;
 
-        if (!state.filters.all) {
-            const start = (state.currentPage - 1) * state.filters.limit;
-            currentMedia = currentMedia.slice(start, start + state.filters.limit);
-        }
+        const start = (state.currentPage - 1) * state.filters.limit;
+        currentMedia = currentMedia.slice(start, start + state.filters.limit);
 
         renderResults();
         syncUrl();
@@ -1857,12 +1851,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (duSort !== 'default') params.append('sort', duSort);
             if (state.filters.reverse) params.append('reverse', 'true');
 
-            if (state.filters.all) {
-                params.append('all', String('true'));
-            } else {
-                params.append('limit', String(state.filters.limit));
-                params.append('offset', String((state.currentPage - 1) * state.filters.limit));
-            }
+            params.append('limit', String(state.filters.limit));
+            params.append('offset', String((state.currentPage - 1) * state.filters.limit));
 
             // Request filter bins to update slider ranges
             params.append('include_counts', String('true'));
@@ -3052,7 +3042,6 @@ document.addEventListener('DOMContentLoaded', () => {
             f.reverse,
             f.randomSeed,
             f.limit,
-            f.all,
             getIncludedDatabases(),
             f.excludedDbs
         ]);
@@ -3076,7 +3065,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         state.filters.limit = clampLimit(limitInput ? (parseInt(limitInput.value) || 100) : 100);
         if (limitInput) limitInput.value = String(state.filters.limit);
-        state.filters.all = limitAll ? limitAll.checked : false;
 
         const signature = buildSearchSignature();
         if (!preservePage && lastSearchSignature !== null && signature !== lastSearchSignature) {
@@ -3114,9 +3102,6 @@ document.addEventListener('DOMContentLoaded', () => {
         searchAbortController = new AbortController();
 
         localStorage.setItem('disco-limit', String(state.filters.limit));
-        localStorage.setItem('disco-limit-all', String(state.filters.all));
-
-        if (limitInput) limitInput.disabled = state.filters.all;
 
         const skeletonTimeout = setTimeout(() => {
             if (state.page === 'search' || state.page === 'trash' || state.page === 'history' || state.page === 'playlist' || state.page === 'captions') {
@@ -3138,12 +3123,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             appendFilterParams(params);
 
-            if (state.filters.all) {
-                params.append('all', String('true'));
-            } else {
-                params.append('limit', String(state.filters.limit.toString()));
-                params.append('offset', String(((state.currentPage - 1)) * state.filters.limit).toString());
-            }
+            params.append('limit', String(state.filters.limit.toString()));
+            params.append('offset', String(((state.currentPage - 1)) * state.filters.limit).toString());
 
             // Always send the selected search mode. Omitting it used to make
             // the server default to substring even when the UI said FTS.
@@ -3167,14 +3148,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (xTotalCount) {
                 const totalCount = parseInt(xTotalCount, 10);
                 state.totalCount = totalCount;
-                if (!state.filters.all) {
-                    const totalPages = Math.max(1, Math.ceil(totalCount / state.filters.limit));
-                    if (state.currentPage > totalPages) {
-                        state.currentPage = totalPages;
-                        if (allowPageClampRetry) {
-                            clearTimeout(skeletonTimeout);
-                            return performSearch(false);
-                        }
+                const totalPages = Math.max(1, Math.ceil(totalCount / state.filters.limit));
+                if (state.currentPage > totalPages) {
+                    state.currentPage = totalPages;
+                    if (allowPageClampRetry) {
+                        clearTimeout(skeletonTimeout);
+                        return performSearch(false);
                     }
                 }
             }
@@ -3349,7 +3328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchNextItem() {
-        if (state.filters.all || state.page === 'curation' || state.view === 'details' || state.page === 'captions') {
+        if (state.page === 'curation' || state.view === 'details' || state.page === 'captions') {
             return;
         }
 
@@ -3887,7 +3866,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Handle pagination for both delete and non-delete operations
-        if (nextIndex >= currentMedia.length && !state.filters.all && state.page === 'search') {
+        if (nextIndex >= currentMedia.length && state.page === 'search') {
             const totalPages = Math.ceil(state.totalCount / state.filters.limit);
             if (state.currentPage < totalPages) {
                 // End of current page, fetch next
@@ -3899,7 +3878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 return;
             }
-        } else if (nextIndex < 0 && state.currentPage > 1 && !state.filters.all && state.page === 'search') {
+        } else if (nextIndex < 0 && state.currentPage > 1 && state.page === 'search') {
             // Beginning of current page, fetch previous
             state.currentPage--;
             performSearch(true, true).then(() => {
@@ -6151,9 +6130,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPagination() {
-        if (state.filters.all || state.page === 'curation') {
+        if (state.page === 'curation') {
             paginationContainer.classList.add('hidden');
-            if (state.filters.all) pageInfo.textContent = 'All results';
             return;
         }
 
@@ -6182,7 +6160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showSkeletons() {
-        const count = state.filters.all ? 20 : Math.min(state.filters.limit, 20);
+        const count = Math.min(state.filters.limit, 20);
         resultsContainer.innerHTML = '';
         resultsContainer.className = 'grid';
         for (let i = 0; i < count; i++) {
@@ -9117,7 +9095,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const keysToKeep = [
                 'disco-player', 'disco-language', 'disco-theme',
                 'disco-post-playback', 'disco-autoplay', 'disco-local-resume',
-                'disco-limit', 'disco-limit-all', 'disco-excluded-dbs',
+                'disco-limit', 'disco-excluded-dbs',
                 'disco-play-counts', 'disco-download-options'
             ];
 
@@ -9572,10 +9550,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentPage = 1;
         performSearch();
     }, 500);
-    if (limitAll) limitAll.onchange = () => {
-        state.currentPage = 1;
-        performSearch();
-    };
 
     if (viewGrid) {
         viewGrid.onclick = () => {

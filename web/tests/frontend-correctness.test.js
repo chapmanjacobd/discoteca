@@ -90,7 +90,6 @@ describe('URL schema', () => {
         state.filters.sort = 'size';
         state.filters.reverse = true;
         state.filters.limit = 25;
-        state.filters.all = false;
         state.currentPage = 2;
         state.view = 'details';
 
@@ -214,24 +213,23 @@ describe('Disk usage mode', () => {
         await setupTestEnvironment();
     });
 
-    it('omits limit/offset when all is requested', async () => {
+    it('paginates disk usage results', async () => {
         const state = window.disco.state;
         state.databases = ['test.db'];
         state.filters.excludedDbs = [];
-        state.filters.all = true;
         state.filters.limit = 50;
+        state.currentPage = 2;
         state.filters.sort = 'size';
         state.filters.reverse = true;
 
         await window.disco.fetchDU('');
 
         const url = lastFetchUrl();
-        expect(url).toContain('all=true');
-        expect(url).not.toContain('limit=');
-        expect(url).not.toContain('offset=');
+        expect(url).not.toContain('all=true');
+        expect(url).toContain('limit=50');
+        expect(url).toContain('offset=50');
         expect(url).toContain('sort=size');
         expect(url).toContain('reverse=true');
-        expect(document.getElementById('pagination-container').classList.contains('hidden')).toBe(true);
         expect(document.getElementById('results-count').textContent).toContain('total');
     });
 
@@ -239,7 +237,6 @@ describe('Disk usage mode', () => {
         const state = window.disco.state;
         state.databases = ['test.db'];
         state.filters.excludedDbs = [];
-        state.filters.all = false;
         state.filters.sort = 'custom';
         state.filters.customSortFields = 'size DESC';
         state.filters.reverse = true;
@@ -443,7 +440,6 @@ describe('Playlist and group pagination', () => {
             { path: 'c.mp4', media_type: 'video/mp4' }
         ];
         state.filters.limit = 2;
-        state.filters.all = false;
         state.currentPage = 1;
 
         window.disco.filterPlaylistItems();
@@ -462,7 +458,6 @@ describe('Playlist and group pagination', () => {
             { path: 'Beta.mp4', media_type: 'video/mp4' }
         ];
         state.filters.limit = 99;
-        state.filters.all = false;
         state.currentPage = 1;
         state.filters.search = 'beta';
 
@@ -566,7 +561,6 @@ describe('Media type usage', () => {
                 { path: 'one.png', media_type: 'image/png' },
                 { path: 'two.png', media_type: 'image/png' }
             ];
-            state.filters.all = true;
 
             await window.disco.openActivePlayer({ path: 'one.png', media_type: 'image/png' });
 
@@ -585,7 +579,6 @@ describe('Media type usage', () => {
         state.filters.sort = 'media_type';
         state.filters.reverse = false;
         state.filters.limit = 99;
-        state.filters.all = false;
         state.currentPage = 1;
 
         window.disco.filterPlaylistItems();

@@ -22,7 +22,6 @@ describe('Race condition between progress update and search', () => {
 
         window.disco.state.filters.unplayed = true;
         window.disco.state.autoplay = true;
-        window.disco.state.filters.all = false; // Ensure pagination can happen
         window.disco.state.page = 'search';
         window.disco.state.readOnly = false; // Ensure server sync happens
         window.disco.state.localResume = true; // Ensure local progress is saved

@@ -32,7 +32,6 @@ export const state: State = {
         reverse: getLocalStorageItem('disco-reverse') === 'true',
         randomSeed: Number(getLocalStorageItem('disco-random-seed', '')) || 0,
         limit: parseInt(getLocalStorageItem('disco-limit', '99')!),
-        all: getLocalStorageItem('disco-limit-all') === 'true',
         excludedDbs: getJSONLocalStorageItem('disco-excluded-dbs', []),
         sizes: getJSONLocalStorageItem('disco-filter-sizes', []),
         durations: getJSONLocalStorageItem('disco-filter-durations', []),
