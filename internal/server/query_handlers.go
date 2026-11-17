@@ -215,7 +215,11 @@ func (c *Server) handleQueryCaptionsView(
 	}
 
 	totalCount := len(media)
-	media = c.applyPagination(media, flags)
+	if aggregate {
+		media, totalCount = paginateCaptionGroups(media, flags)
+	} else {
+		media = c.applyPagination(media, flags)
+	}
 
 	if media == nil {
 		media = []models.MediaWithDB{}
@@ -230,6 +234,40 @@ func (c *Server) handleQueryCaptionsView(
 	w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
 	w.Header().Set("Content-Type", "application/json")
 	c.encodeQueryResponse(w, media, filterCounts, includeCounts)
+}
+
+// paginateCaptionGroups paginates aggregated caption rows by media path rather
+// than by caption row. The UI groups rows into one card per media item, so
+// paginating rows made a media item with captions on both sides of a page
+// boundary appear on two consecutive pages. totalCount is the number of media
+// items, not the number of caption rows.
+func paginateCaptionGroups(
+	media []models.MediaWithDB,
+	flags models.GlobalFlags,
+) ([]models.MediaWithDB, int) {
+	order := make([]string, 0, len(media))
+	groups := make(map[string][]models.MediaWithDB)
+	for _, item := range media {
+		if _, ok := groups[item.Path]; !ok {
+			order = append(order, item.Path)
+		}
+		groups[item.Path] = append(groups[item.Path], item)
+	}
+
+	if !flags.All && flags.Limit > 0 {
+		start := flags.Offset
+		if start > len(order) {
+			start = len(order)
+		}
+		end := min(start+flags.Limit, len(order))
+		order = order[start:end]
+	}
+
+	result := make([]models.MediaWithDB, 0, len(media))
+	for _, path := range order {
+		result = append(result, groups[path]...)
+	}
+	return result, len(groups)
 }
 
 // captionMediaFilterFlags removes filters already handled by the caption SQL

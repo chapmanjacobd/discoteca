@@ -3,6 +3,7 @@ package server_test
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -172,6 +173,55 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 		// Should return all 5 captions
 		if len(media) != 5 {
 			t.Errorf("Expected 5 captions with all=true, got %d", len(media))
+		}
+	})
+
+	t.Run("Aggregate pagination does not duplicate media across pages", func(t *testing.T) {
+		page := func(offset int) ([]models.MediaWithDB, int) {
+			url := fmt.Sprintf("/api/query?captions=true&aggregate=true&limit=2&offset=%d", offset)
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			w := httptest.NewRecorder()
+			cmd.HandleQuery(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+			}
+			var media []models.MediaWithDB
+			if err := json.Unmarshal(w.Body.Bytes(), &media); err != nil {
+				t.Fatalf("Failed to unmarshal response: %v", err)
+			}
+			var total int
+			if _, err := fmt.Sscanf(w.Header().Get("X-Total-Count"), "%d", &total); err != nil {
+				t.Fatalf("bad X-Total-Count: %v", err)
+			}
+			return media, total
+		}
+
+		first, total := page(0)
+		if total != 3 {
+			t.Fatalf("X-Total-Count = %d, want 3 media items", total)
+		}
+		if len(first) != 3 {
+			t.Fatalf("page 1 row count = %d, want 3 rows for 2 media", len(first))
+		}
+		firstPaths := map[string]bool{}
+		for _, item := range first {
+			firstPaths[item.Path] = true
+		}
+		if len(firstPaths) != 2 {
+			t.Fatalf("page 1 has %d media paths, want 2", len(firstPaths))
+		}
+
+		second, total := page(2)
+		if total != 3 {
+			t.Fatalf("page 2 X-Total-Count = %d, want 3", total)
+		}
+		if len(second) == 0 {
+			t.Fatal("page 2 unexpectedly empty")
+		}
+		for _, item := range second {
+			if firstPaths[item.Path] {
+				t.Errorf("media %q appears on both pages", item.Path)
+			}
 		}
 	})
 }
