@@ -1103,7 +1103,7 @@ header {
 #toast {
     position: fixed;
     top: 4.75rem;
-    left: 1.5rem;
+    right: 1.5rem;
     max-width: 400px;
     background: color-mix(in srgb, var(--card-bg), transparent 20%);
     border: 1px solid var(--border-color);
@@ -1122,13 +1122,13 @@ header {
     white-space: pre-wrap;
     word-break: break-all;
     opacity: 1;
-    transform: translateX(0) translateY(0);
+    transform: translateY(0);
     transition: opacity 0.2s ease-out, transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 #toast.hidden {
     opacity: 0;
-    transform: translateX(-100%) translateY(-10px);
+    transform: translateY(-10px);
     pointer-events: none;
     transition: opacity 0.2s ease-in, transform 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19);
 }
@@ -2432,6 +2432,11 @@ body.has-pip #content {
         top: auto;
         bottom: 1.2rem;
         max-width: none;
+        transform: none;
+    }
+
+    #toast.hidden {
+        transform: translateY(10px);
     }
 
     .media-actions {
