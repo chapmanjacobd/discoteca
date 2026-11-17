@@ -3564,7 +3564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const media = pipViewer.querySelector('video, audio');
-        if (!isComplete && media && ((media as any).seeking || (media as any).readyState < 3)) {
+        if (!isComplete && media && ((media as any).seeking || (media as any).readyState < 2)) {
             return state.playback.pendingUpdate;
         }
 
