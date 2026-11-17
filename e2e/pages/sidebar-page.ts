@@ -74,6 +74,7 @@ export class SidebarPage extends BasePage {
    */
   async openHistoryInProgress(): Promise<void> {
     await this.openSidebar();
+    await this.ensureHistoryDetailsOpen();
     await this.historyInProgressButton.waitFor({ state: 'visible' });
     await this.historyInProgressButton.click();
   }
@@ -83,6 +84,7 @@ export class SidebarPage extends BasePage {
    */
   async openHistoryUnplayed(): Promise<void> {
     await this.openSidebar();
+    await this.ensureHistoryDetailsOpen();
     await this.historyUnplayedButton.waitFor({ state: 'visible' });
     await this.historyUnplayedButton.click();
   }
@@ -92,8 +94,21 @@ export class SidebarPage extends BasePage {
    */
   async openHistoryCompleted(): Promise<void> {
     await this.openSidebar();
+    await this.ensureHistoryDetailsOpen();
     await this.historyCompletedButton.waitFor({ state: 'visible' });
     await this.historyCompletedButton.click();
+  }
+
+  /**
+   * Expand the History section when the sidebar starts with it collapsed.
+   */
+  private async ensureHistoryDetailsOpen(): Promise<void> {
+    const details = this.page.locator('#details-history');
+    if (await details.count() === 0) return;
+    const isOpen = await details.evaluate((el) => (el as HTMLDetailsElement).open);
+    if (!isOpen) {
+      await details.locator('summary').click();
+    }
   }
 
   /**
