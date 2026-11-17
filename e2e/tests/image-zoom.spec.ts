@@ -3,7 +3,9 @@ import { test, expect } from '../fixtures';
 test.describe('Image Zoom and Pan', () => {
   test.use({ readOnly: true });
 
-  test('zooms in on image with mouse wheel in fullscreen', async ({ mediaPage, viewerPage, server }) => {
+  test('zooms in on image with mouse wheel in fullscreen', async ({ mediaPage, viewerPage, server, isMobile }) => {
+    test.skip(isMobile, 'Image zoom uses the desktop wheel and Fullscreen API');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Open an image
@@ -40,7 +42,9 @@ test.describe('Image Zoom and Pan', () => {
     }
   });
 
-  test('double click toggles fullscreen, not zoom', async ({ mediaPage, viewerPage, server }) => {
+  test('double click toggles fullscreen, not zoom', async ({ mediaPage, viewerPage, server, isMobile }) => {
+    test.skip(isMobile, 'iOS Safari does not expose the Fullscreen API for images');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Open an image
@@ -95,7 +99,9 @@ test.describe('Image Zoom and Pan', () => {
     expect(afterWheelTransform).toBe(initialTransform);
   });
 
-  test('click to zoom out when zoomed in', async ({ mediaPage, viewerPage, server }) => {
+  test('click to zoom out when zoomed in', async ({ mediaPage, viewerPage, server, isMobile }) => {
+    test.skip(isMobile, 'Image zoom uses the desktop wheel and Fullscreen API');
+
     await mediaPage.goto(server.getBaseUrl());
 
     // Open an image

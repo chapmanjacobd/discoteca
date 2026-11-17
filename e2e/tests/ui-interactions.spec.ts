@@ -77,6 +77,16 @@ test.describe('Fullscreen Toggle', () => {
     await mediaPage.page.keyboard.press('f');
     await mediaPage.page.waitForTimeout(1000);
 
+    // iOS does not expose element fullscreen for the player, so Escape
+    // behaves like the normal close shortcut there.
+    const isMobile = await mediaPage.page.evaluate(() => window.innerWidth <= 768);
+    if (isMobile) {
+      await mediaPage.page.keyboard.press('Escape');
+      await mediaPage.page.waitForTimeout(300);
+      await expect(viewerPage.playerContainer).toBeHidden();
+      return;
+    }
+
     // Press Escape
     await mediaPage.page.keyboard.press('Escape');
     await mediaPage.page.waitForTimeout(1000);

@@ -216,14 +216,25 @@ export class MediaPage extends BasePage {
    * Switch to grid view
    */
   async switchToGridView(): Promise<void> {
+    await this.closeSidebar();
     await this.viewGridButton.click();
     await this.viewGridButton.waitFor({ state: 'visible' });
+  }
+
+  /**
+   * Switch to group view
+   */
+  async switchToGroupView(): Promise<void> {
+    await this.closeSidebar();
+    await this.viewGroupButton.click();
+    await this.viewGroupButton.waitFor({ state: 'visible' });
   }
 
   /**
    * Switch to details view
    */
   async switchToDetailsView(): Promise<void> {
+    await this.closeSidebar();
     await this.viewDetailsButton.click();
     await this.viewDetailsButton.waitFor({ state: 'visible' });
   }
@@ -565,6 +576,7 @@ export class MediaPage extends BasePage {
    * Click category button (for backward compatibility)
    */
   async clickCategoryButton(selector: string): Promise<void> {
+    await this.openSidebar();
     const btn = this.page.locator(selector);
     await btn.click();
   }

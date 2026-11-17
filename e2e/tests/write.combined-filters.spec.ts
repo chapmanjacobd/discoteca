@@ -76,7 +76,7 @@ test.describe('Combined Filters and Views', () => {
       }
 
       // 2. Switch to Group view using POM
-      await mediaPage.page.locator('#view-group').click();
+      await mediaPage.switchToGroupView();
       await mediaPage.page.waitForTimeout(500);
 
       // Special check for captions + group using POM

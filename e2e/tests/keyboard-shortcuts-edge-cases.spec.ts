@@ -9,7 +9,9 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
   test.use({ readOnly: true });
 
   test.describe('Document Viewer Fullscreen Edge Cases', () => {
-    test('f -> w -> f: exit fullscreen via f even after closing modal', async ({ mediaPage, viewerPage, server }) => {
+    test('f -> w -> f: exit fullscreen via f even after closing modal', async ({ mediaPage, viewerPage, server, isMobile }) => {
+      test.skip(isMobile, 'iOS Safari does not expose the Fullscreen API for document modals');
+
       await mediaPage.goto(server.getBaseUrl());
 
       // Open first text document using POM
@@ -40,7 +42,9 @@ test.describe('Keyboard Shortcuts Edge Cases', () => {
       expect(await viewerPage.isFullscreenActive()).toBe(false);
     });
 
-    test('f -> Escape -> f: re-enter fullscreen after exiting with Escape', async ({ mediaPage, viewerPage, server }) => {
+    test('f -> Escape -> f: re-enter fullscreen after exiting with Escape', async ({ mediaPage, viewerPage, server, isMobile }) => {
+      test.skip(isMobile, 'iOS Safari does not expose the Fullscreen API for document modals');
+
       await mediaPage.goto(server.getBaseUrl());
 
       // Open first text document using POM

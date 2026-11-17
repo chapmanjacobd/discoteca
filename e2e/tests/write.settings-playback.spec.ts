@@ -337,6 +337,13 @@ test.describe('Playback Controls', () => {
     await viewerPage.waitForPlayer();
     await mediaPage.page.waitForTimeout(1000);
 
+    // Theatre mode is intentionally hidden on phones.
+    const isMobile = await mediaPage.page.evaluate(() => window.innerWidth <= 768);
+    if (isMobile) {
+      await expect(viewerPage.theatreBtn).toBeHidden();
+      return;
+    }
+
     // Click theatre mode button using POM
     await viewerPage.toggleTheatreMode();
     await mediaPage.page.waitForTimeout(500);

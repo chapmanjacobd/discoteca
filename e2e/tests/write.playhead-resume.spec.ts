@@ -64,6 +64,7 @@ test.describe('Playhead Resume', () => {
     // Play the same media again using POM
     await mediaCard.click();
     await viewerPage.waitForPlayer();
+    await viewerPage.waitForMediaData();
     await mediaPage.page.waitForTimeout(1000);
 
     // Should resume from saved position (with some tolerance) using POM
