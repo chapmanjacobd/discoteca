@@ -47,6 +47,7 @@ func TestHandleCategorizeDeleteCategory(t *testing.T) {
 		Databases: []string{tmpDB.Name()},
 		ReadOnly:  false,
 	}
+	t.Cleanup(func() { _ = cmd.Close() })
 
 	t.Run("DeleteCategory removes all keywords in category", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/categorize/category?category=Genre", nil)

@@ -115,6 +115,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 		Databases: []string{tmpDB.Name()},
 		ReadOnly:  false,
 	}
+	t.Cleanup(func() { _ = cmd.Close() })
 
 	t.Run("ApplyCategorization updates media categories", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/apply", nil)
@@ -259,6 +260,7 @@ func TestHandleCategorizeApply(t *testing.T) {
 		emptyCmd := &server.Server{
 			Databases: []string{emptyDB.Name()},
 		}
+		t.Cleanup(func() { _ = emptyCmd.Close() })
 
 		req := httptest.NewRequest(http.MethodPost, "/api/categorize/apply", nil)
 		w := httptest.NewRecorder()

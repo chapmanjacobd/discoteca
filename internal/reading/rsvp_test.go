@@ -31,6 +31,7 @@ func TestGenerateRSVPAss(t *testing.T) {
 func TestExtractText(t *testing.T) {
 	// Test plain text
 	tmpFile, _ := os.CreateTemp(t.TempDir(), "test*.txt")
+	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 	content := "Test content"
 	os.WriteFile(tmpFile.Name(), []byte(content), 0o644)
@@ -45,6 +46,7 @@ func TestExtractText(t *testing.T) {
 
 	// Test empty file
 	emptyFile, _ := os.CreateTemp(t.TempDir(), "empty*.txt")
+	emptyFile.Close()
 	defer os.Remove(emptyFile.Name())
 	text, err = reading.ExtractText(context.Background(), emptyFile.Name())
 	if err != nil {
@@ -64,6 +66,7 @@ func TestExtractText(t *testing.T) {
 	ebookConvertPath, _ := exec.LookPath("ebook-convert")
 	if ebookConvertPath != "" {
 		badPdf, _ := os.CreateTemp(t.TempDir(), "bad*.pdf")
+		badPdf.Close()
 		defer os.Remove(badPdf.Name())
 		os.WriteFile(badPdf.Name(), []byte("not a pdf"), 0o644)
 		_, err = reading.ExtractText(context.Background(), badPdf.Name())
@@ -72,6 +75,7 @@ func TestExtractText(t *testing.T) {
 		}
 
 		badEpub, _ := os.CreateTemp(t.TempDir(), "bad*.epub")
+		badEpub.Close()
 		defer os.Remove(badEpub.Name())
 		os.WriteFile(badEpub.Name(), []byte("not a zip"), 0o644)
 		_, err = reading.ExtractText(context.Background(), badEpub.Name())

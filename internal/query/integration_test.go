@@ -585,8 +585,9 @@ func TestNatSortAndReverseTies(t *testing.T) {
 func TestMediaQueryCountMatchesPostProcessing(t *testing.T) {
 	dbPath := newPhase3DB(t, "counts", false)
 	insertPhase3Rows(t, dbPath, `INSERT INTO media (path) VALUES (?)`,
-		[]any{"/show/one/e1.mkv"}, []any{"/show/one/e2.mkv"},
-		[]any{"/show/two/e1.mkv"}, []any{"/show/two/e2.mkv"}, []any{"/show/two/e3.mkv"})
+		[]any{filepath.FromSlash("/show/one/e1.mkv")}, []any{filepath.FromSlash("/show/one/e2.mkv")},
+		[]any{filepath.FromSlash("/show/two/e1.mkv")}, []any{filepath.FromSlash("/show/two/e2.mkv")},
+		[]any{filepath.FromSlash("/show/two/e3.mkv")})
 	ctx := context.Background()
 
 	groups := models.GlobalFlags{
@@ -654,8 +655,8 @@ func TestMediaQueryCountMatchesPostProcessing(t *testing.T) {
 func TestFetchSiblingsHonorsMaxSortAndDeletedFilter(t *testing.T) {
 	dbPath := newPhase3DB(t, "siblings", false)
 	insertPhase3Rows(t, dbPath, `INSERT INTO media (path, time_deleted) VALUES (?,?)`,
-		[]any{"/show/e1.mkv", 0}, []any{"/show/e2.mkv", 0},
-		[]any{"/show/e3.mkv", 0}, []any{"/show/e4-deleted.mkv", 100})
+		[]any{filepath.FromSlash("/show/e1.mkv"), 0}, []any{filepath.FromSlash("/show/e2.mkv"), 0},
+		[]any{filepath.FromSlash("/show/e3.mkv"), 0}, []any{filepath.FromSlash("/show/e4-deleted.mkv"), 100})
 	ctx := context.Background()
 
 	flags := models.GlobalFlags{

@@ -64,9 +64,11 @@ func TestFolderStatsDirtyBitAndRefresh(t *testing.T) {
 	ctx := context.Background()
 	sqlDB, dbPath := newInitializedDB(t)
 
-	insertMedia(t, sqlDB, "/media/a/one.mkv", 100, 10)
-	insertMedia(t, sqlDB, "/media/a/two.mkv", 200, 20)
-	insertMedia(t, sqlDB, "/media/b/three.mp3", 50, 5)
+	mediaA := filepath.FromSlash("/media/a")
+	mediaRenamed := filepath.FromSlash("/media/renamed")
+	insertMedia(t, sqlDB, filepath.FromSlash("/media/a/one.mkv"), 100, 10)
+	insertMedia(t, sqlDB, filepath.FromSlash("/media/a/two.mkv"), 200, 20)
+	insertMedia(t, sqlDB, filepath.FromSlash("/media/b/three.mp3"), 50, 5)
 
 	if dirtyBit(t, sqlDB) != 1 {
 		t.Fatal("dirty bit should be set after media inserts")
@@ -79,9 +81,9 @@ func TestFolderStatsDirtyBitAndRefresh(t *testing.T) {
 		t.Error("dirty bit should be cleared after a successful refresh")
 	}
 
-	count, size, duration, found := folderStat(t, sqlDB, "/media/a")
+	count, size, duration, found := folderStat(t, sqlDB, mediaA)
 	if !found || count != 2 || size != 300 || duration != 30 {
-		t.Errorf("/media/a = (%d, %d, %d, %v), want (2, 300, 30, true)", count, size, duration, found)
+		t.Errorf("%s = (%d, %d, %d, %v), want (2, 300, 30, true)", mediaA, count, size, duration, found)
 	}
 
 	// Once FTS is current too, a clean folder_stats view should not request a
@@ -101,13 +103,13 @@ func TestFolderStatsDirtyBitAndRefresh(t *testing.T) {
 	if err = db.RefreshFolderStats(ctx, sqlDB); err != nil {
 		t.Fatal(err)
 	}
-	countAgain, sizeAgain, durationAgain, foundAgain := folderStat(t, sqlDB, "/media/a")
+	countAgain, sizeAgain, durationAgain, foundAgain := folderStat(t, sqlDB, mediaA)
 	if !foundAgain || countAgain != count || sizeAgain != size || durationAgain != duration {
-		t.Errorf("no-op refresh changed /media/a: got (%d, %d, %d)", countAgain, sizeAgain, durationAgain)
+		t.Errorf("no-op refresh changed %s: got (%d, %d, %d)", mediaA, countAgain, sizeAgain, durationAgain)
 	}
 
 	// Adding a folder sets the dirty bit and a refresh must pick it up.
-	insertMedia(t, sqlDB, "/media/c/four.mkv", 10, 1)
+	insertMedia(t, sqlDB, filepath.FromSlash("/media/c/four.mkv"), 10, 1)
 	if dirtyBit(t, sqlDB) != 1 {
 		t.Error("dirty bit should be set after adding a folder")
 	}
@@ -121,25 +123,28 @@ func TestFolderStatsDirtyBitAndRefresh(t *testing.T) {
 	if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
 		t.Fatal(err)
 	}
-	if count, _, _, found := folderStat(t, sqlDB, "/media/c"); !found || count != 1 {
-		t.Errorf("/media/c = (%d, found=%v), want (1, true)", count, found)
+	mediaC := filepath.FromSlash("/media/c")
+	if count, _, _, found := folderStat(t, sqlDB, mediaC); !found || count != 1 {
+		t.Errorf("%s = (%d, found=%v), want (1, true)", mediaC, count, found)
 	}
 
 	// Renaming a folder drops the stale parent and creates the new one.
-	insertMedia(t, sqlDB, "/media/d/five.mkv", 7, 1)
+	insertMedia(t, sqlDB, filepath.FromSlash("/media/d/five.mkv"), 7, 1)
 	if _, err := sqlDB.Exec(
-		"UPDATE media SET path = '/media/renamed/one.mkv' WHERE path = '/media/a/one.mkv'",
+		"UPDATE media SET path = ? WHERE path = ?",
+		filepath.FromSlash("/media/renamed/one.mkv"),
+		filepath.FromSlash("/media/a/one.mkv"),
 	); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.RefreshFolderStats(ctx, sqlDB); err != nil {
 		t.Fatal(err)
 	}
-	if count, _, _, found := folderStat(t, sqlDB, "/media/a"); !found || count != 1 {
-		t.Errorf("/media/a after rename = (%d, found=%v), want (1, true)", count, found)
+	if count, _, _, found := folderStat(t, sqlDB, mediaA); !found || count != 1 {
+		t.Errorf("%s after rename = (%d, found=%v), want (1, true)", mediaA, count, found)
 	}
-	if count, _, _, found := folderStat(t, sqlDB, "/media/renamed"); !found || count != 1 {
-		t.Errorf("/media/renamed = (%d, found=%v), want (1, true)", count, found)
+	if count, _, _, found := folderStat(t, sqlDB, mediaRenamed); !found || count != 1 {
+		t.Errorf("%s = (%d, found=%v), want (1, true)", mediaRenamed, count, found)
 	}
 
 	// Deleting all media must remove all stale folder rows.

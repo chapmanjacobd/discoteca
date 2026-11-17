@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -331,6 +332,9 @@ func TestEmptyBinPartialFailure(t *testing.T) {
 }
 
 func TestEpubRequiresDatabaseMembershipAndContainsAssets(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake ebook-convert needs a POSIX shell")
+	}
 	dbPath, sqlDB := setupPhase7DB(t)
 	defer sqlDB.Close()
 

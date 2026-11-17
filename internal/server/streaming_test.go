@@ -376,11 +376,16 @@ func TestHandleEpisodes(t *testing.T) {
 	db.InitDB(context.Background(), sqlDB)
 
 	_, err := sqlDB.Exec(`INSERT INTO media (path, title, media_type, size, time_deleted) VALUES
-		('/shows/MyShow/MyShow.S01E01.mp4', 'Episode 1', 'video', 300, 0),
-		('/shows/MyShow/MyShow.S01E02.mp4', 'Episode 2', 'video', 200, 0),
-		('/shows/MyShow/MyShow.S01E03.mp4', 'Episode 3', 'video', 100, 0),
-		('/shows/MyShow/MyShow.S01E01.en.vtt', 'Episode 1 captions', '', 50, 0),
-		('/shows/Other/Other.mp4', 'Other', 'video', 10, 0)`)
+		(?, 'Episode 1', 'video', 300, 0),
+		(?, 'Episode 2', 'video', 200, 0),
+		(?, 'Episode 3', 'video', 100, 0),
+		(?, 'Episode 1 captions', '', 50, 0),
+		(?, 'Other', 'video', 10, 0)`,
+		filepath.FromSlash("/shows/MyShow/MyShow.S01E01.mp4"),
+		filepath.FromSlash("/shows/MyShow/MyShow.S01E02.mp4"),
+		filepath.FromSlash("/shows/MyShow/MyShow.S01E03.mp4"),
+		filepath.FromSlash("/shows/MyShow/MyShow.S01E01.en.vtt"),
+		filepath.FromSlash("/shows/Other/Other.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,7 +440,7 @@ func TestHandleEpisodes(t *testing.T) {
 		if err := json.NewDecoder(w.Body).Decode(&groups); err != nil {
 			t.Fatal(err)
 		}
-		if len(groups) < 2 || groups[0].Path != "/shows/Other" {
+		if len(groups) < 2 || groups[0].Path != filepath.FromSlash("/shows/Other") {
 			t.Fatalf("expected /shows/Other first for size sort, got %+v", groups)
 		}
 	})
