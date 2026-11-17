@@ -1186,6 +1186,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function activateSuggestion(path: string, isDir: boolean, name: string) {
+        if (isDir) {
+            if ((searchInput as HTMLInputElement).value.startsWith('./')) {
+                const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
+                const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + name + '/';
+                (searchInput as HTMLInputElement).value = newPath;
+            } else {
+                const newPath = path.endsWith('/') ? path : path + '/';
+                (searchInput as HTMLInputElement).value = newPath;
+            }
+            searchInput.focus();
+            fetchSuggestions((searchInput as HTMLInputElement).value);
+            performSearch();
+            return;
+        }
+
+        const item = state.lastSuggestions.find(s => s.path === path);
+        if (!item) return;
+        if (state.player === 'browser') {
+            openActivePlayer(item, true);
+        } else {
+            playMedia(item);
+        }
+
+        const parts = path.split('/');
+        parts.pop();
+        (searchInput as HTMLInputElement).value = parts.join('/') + '/';
+        searchSuggestions.classList.add('hidden');
+        performSearch();
+    }
+
     function renderSuggestions(items) {
         if (!items || items.length === 0) {
             searchSuggestions.classList.add('hidden');
@@ -1228,38 +1259,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchSuggestions.querySelectorAll('.suggestion-item').forEach(el => {
             (el as HTMLElement).onclick = () => {
-                const path = (el as HTMLElement).dataset.path;
-                const isDir = (el as HTMLElement).dataset.isDir === 'true';
-                if (isDir) {
-                    if ((searchInput as HTMLInputElement).value.startsWith('./')) {
-                        const newName = (el as HTMLElement).dataset.name;
-                        const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
-                        const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + newName + '/';
-                        (searchInput as HTMLInputElement).value = newPath;
-                    } else {
-                        const newPath = path.endsWith('/') ? path : path + '/';
-                        (searchInput as HTMLInputElement).value = newPath;
-                    }
-                    searchInput.focus();
-                    fetchSuggestions((searchInput as HTMLInputElement).value);
-                    performSearch();
-                } else {
-                    const item = state.lastSuggestions.find(s => s.path === path);
-                    if (item) {
-                        if (state.player === 'browser') {
-                            openActivePlayer(item, true);
-                        } else {
-                            playMedia(item);
-                        }
-                        // Set searchbar to parent
-                        const parts = path.split('/');
-                        parts.pop();
-                        const parent = parts.join('/') + '/';
-                        (searchInput as HTMLInputElement).value = parent;
-                        searchSuggestions.classList.add('hidden');
-                        performSearch();
-                    }
-                }
+                const item = el as HTMLElement;
+                activateSuggestion(
+                    item.dataset.path || '',
+                    item.dataset.isDir === 'true',
+                    item.dataset.name || ''
+                );
             };
         });
     }
@@ -8340,26 +8345,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedSuggestionIndex === -1) {
                 selectedSuggestionIndex = 0;
             }
-            const el = items[selectedSuggestionIndex];
-            const path = (el as HTMLElement).dataset.path;
-            const isDir = (el as HTMLElement).dataset.isDir === 'true';
-            if (isDir) {
-                if ((searchInput as HTMLInputElement).value.startsWith('./')) {
-                    const newName = (el as HTMLElement).dataset.name;
-                    const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
-                    const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + newName + '/';
-                    (searchInput as HTMLInputElement).value = newPath;
-                } else {
-                    const newPath = path.endsWith('/') ? path : path + '/';
-                    (searchInput as HTMLInputElement).value = newPath;
-                }
-                fetchSuggestions((searchInput as HTMLInputElement).value);
-                performSearch();
-            } else {
-                (searchInput as HTMLInputElement).value = path;
-                searchSuggestions.classList.add('hidden');
-                performSearch();
-            }
+            const el = items[selectedSuggestionIndex] as HTMLElement;
+            activateSuggestion(
+                el.dataset.path || '',
+                el.dataset.isDir === 'true',
+                el.dataset.name || ''
+            );
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             selectedSuggestionIndex = (selectedSuggestionIndex + 1) % items.length;
@@ -8370,26 +8361,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSelectedSuggestion(items);
         } else if (e.key === 'Enter' && selectedSuggestionIndex >= 0) {
             e.preventDefault();
-            const el = items[selectedSuggestionIndex];
-            const path = (el as HTMLElement).dataset.path;
-            const isDir = (el as HTMLElement).dataset.isDir === 'true';
-            if (isDir) {
-                if ((searchInput as HTMLInputElement).value.startsWith('./')) {
-                    const newName = (el as HTMLElement).dataset.name;
-                    const lastSlash = (searchInput as HTMLInputElement).value.lastIndexOf('/');
-                    const newPath = (searchInput as HTMLInputElement).value.substring(0, lastSlash + 1) + newName + '/';
-                    (searchInput as HTMLInputElement).value = newPath;
-                } else {
-                    const newPath = path.endsWith('/') ? path : path + '/';
-                    (searchInput as HTMLInputElement).value = newPath;
-                }
-                fetchSuggestions((searchInput as HTMLInputElement).value);
-                performSearch();
-            } else {
-                (searchInput as HTMLInputElement).value = path;
-                searchSuggestions.classList.add('hidden');
-                performSearch();
-            }
+            const el = items[selectedSuggestionIndex] as HTMLElement;
+            activateSuggestion(
+                el.dataset.path || '',
+                el.dataset.isDir === 'true',
+                el.dataset.name || ''
+            );
         } else if (e.key === 'Escape') {
             searchSuggestions.classList.add('hidden');
         }
