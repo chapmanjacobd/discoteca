@@ -50,7 +50,12 @@ func TestReadmeExamplesParse(t *testing.T) {
 			}
 
 			parser := newTestParser(t)
-			if _, err := parser.Parse(fields[1:]); err != nil {
+			resolved := resolveNestedArgs(fields[1:], collectFlatNames(parser))
+			if resolved.Group != "" && !resolved.Matched {
+				t.Errorf("example uses unknown nested command: %s", example)
+				continue
+			}
+			if _, err := parser.Parse(resolved.Args); err != nil {
 				t.Errorf("example does not parse: %s: %v", example, err)
 			}
 		}

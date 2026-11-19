@@ -40,18 +40,49 @@ func run() int {
 	}
 
 	args := os.Args[1:]
-	// Multitool dispatch: if binary name matches a command, use it as the first argument
+	flatNames := collectFlatNames(parser)
+
+	// Multitool dispatch: if binary name matches a command or nested group,
+	// use it as the first argument.
 	binaryName := filepath.Base(os.Args[0])
 	// Strip disco- prefix if present (e.g. disco-add -> add)
 	binaryName = strings.TrimPrefix(binaryName, "disco-")
 
 	if binaryName != "disco" && binaryName != "main" && !strings.HasPrefix(binaryName, "go_build_") {
-		for _, cmd := range parser.Model.Node.Children {
-			if cmd.Name == binaryName {
-				args = append([]string{binaryName}, args...)
-				break
-			}
+		if flatNames[binaryName] || isNestedGroupName(binaryName) {
+			args = append([]string{binaryName}, args...)
 		}
+	}
+
+	resolved := resolveNestedArgs(args, flatNames)
+	if resolved.Matched {
+		args = resolved.Args
+	} else if resolved.Group != "" {
+		group := nestedHelpPrefix(args)
+		if group == "" {
+			group = resolved.Group
+		}
+		switch {
+		case hasHelpFlag(args[1:]):
+			printGroupHelp(os.Stdout, parser, group)
+			return 0
+		case len(args) == 1:
+			printGroupHelp(os.Stderr, parser, group)
+			return 1
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown command: disco %s\n\n", joinCommandPath(args))
+			printGroupHelp(os.Stderr, parser, group)
+			return 1
+		}
+	}
+
+	if len(args) == 0 {
+		printCommandOverview(os.Stderr, parser)
+		return 1
+	}
+	if len(args) == 1 && hasHelpFlag(args) {
+		printCommandOverview(os.Stdout, parser)
+		return 0
 	}
 
 	ctx, err := parser.Parse(args)

@@ -7,9 +7,9 @@ Golang implementation of xklb/library
 ```bash
 go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest
 
-disco add library.db ./audio
-disco add library.db ./video --scan-subtitles
-disco calibre-import library.db --calibre-web-dir ~/calibre-web
+disco database add library.db ./audio
+disco database add library.db ./video --scan-subtitles
+disco database import calibre library.db --calibre-web-dir ~/calibre-web
 disco serve library.db
 ```
 
@@ -118,21 +118,97 @@ go build -tags "fts5" -o disco ./cmd/disco
 
 ## Usage
 
-### add
+Commands are organized by workflow. Nested paths are canonical; the shorter flat command name remains available as an alias.
+For example, `disco database add` and `disco add` run the same command.
+
+## Commands
+
+### Media collection
+
+- `disco database add` - Add media to database
+- `disco database import calibre` - Import a Calibre library into a database
+- `disco database import mpv-watchlater` - Import mpv watchlater files to history
+- `disco database check` - Check for missing files and mark as deleted
+
+### Playback
+
+- `disco play video` - Watch videos with mpv
+- `disco play audio` - Listen to audio with mpv
+- `disco open` - Open files with default application
+- `disco browse` - Open URLs in browser
+- `disco playback now` - Show current mpv playback status
+- `disco playback next` - Skip to next file in mpv
+- `disco playback pause` - Toggle mpv pause state
+- `disco playback seek` - Seek mpv playback
+- `disco playback stop` - Stop mpv playback
+
+### Search and reporting
+
+- `disco print` - Print media information
+- `disco search` - Search media using FTS
+- `disco captions` - Search captions using FTS
+- `disco database playlists` - List scan roots (playlists)
+- `disco database stats` - Show library statistics
+- `disco database history` - Show playback history
+- `disco database history add` - Add paths to playback history
+
+### Database management
+
+- `disco database search` - Search arbitrary database table
+- `disco database dedupe` - Dedupe similar media
+- `disco database merge` - Merge multiple SQLite databases
+- `disco database optimize` - Optimize database (VACUUM, ANALYZE, FTS optimize)
+- `disco database repair` - Repair malformed database using sqlite3
+
+### File and folder analysis
+
+- `disco file check` - Check media files for corruption
+- `disco file hash` - Calculate a hash based on small file segments
+- `disco file similar` - Find similar files
+- `disco folder similar` - Find similar folders
+- `disco folder large` - Show big directories aggregation
+- `disco folder categorize` - Auto-group media into categories
+
+### Filesystem inspection
+
+- `disco filesystem list` - Show information about files
+- `disco filesystem usage` - Show disk usage aggregation
+
+### Text processing
+
+- `disco text sort regex` - Sort by splitting lines and sorting words
+- `disco text sort cluster` - Group items by similarity
+
+### Web
+
+- `disco serve` - Start Web UI server
+
+### Help and maintenance
+
+- `disco readme` - Print README content
+- `disco explode` - Create symlinks for all subcommands (busybox-style)
+- `disco update` - Check for and install updates from GitHub
+- `disco version` - Show version and build information
+
+## Command reference
+
+### database add
 
 Add media to database
+
+Flat alias: `disco add`
 
 Examples:
 
 ```bash
-$ disco add my_videos.db ~/Videos
-$ disco add --video-only my_videos.db /mnt/media
+$ disco database add my_videos.db ~/Videos
+$ disco database add --video-only my_videos.db /mnt/media
 ```
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco add --help
+$ disco database add --help
 
 Flags:
   -v, --verbose
@@ -195,21 +271,23 @@ Flags:
 
 </details>
 
-### calibre-import
+### database import calibre
 
 Import a Calibre library into a database
+
+Flat alias: `disco calibre-import`
 
 Examples:
 
 ```bash
-$ disco calibre-import my_videos.db --library ~/Calibre
-$ disco calibre-import my_videos.db --calibre-web-dir ~/calibre-web --one-format
+$ disco database import calibre my_videos.db --library ~/Calibre
+$ disco database import calibre my_videos.db --calibre-web-dir ~/calibre-web --one-format
 ```
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco calibre-import --help
+$ disco database import calibre --help
 
 Flags:
   -v, --verbose
@@ -236,14 +314,106 @@ Flags:
 
 </details>
 
-### check
+### database import mpv-watchlater
 
-Check for missing files and mark as deleted
+Import mpv watchlater files to history
+
+Flat alias: `disco mpv-watchlater`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco check --help
+$ disco database import mpv-watchlater --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  --watch-later-dir
+        Mpv watch_later directory
+```
+
+</details>
+
+### database check
+
+Check for missing files and mark as deleted
+
+Flat alias: `disco check`
+
+Examples:
+
+```bash
+$ disco database check my_videos.db ~/Videos
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco database check --help
 
 Flags:
   -v, --verbose
@@ -290,6 +460,881 @@ Flags:
         Run ffprobe on image files (default: skip)
   --dry-run
         Don't actually mark files as deleted
+```
+
+</details>
+
+### play video
+
+Watch videos with mpv
+
+Flat alias: `disco watch`
+
+Examples:
+
+```bash
+$ disco play video my_videos.db
+$ disco play video my_videos.db -r --limit 10
+$ disco play video my_videos.db --size '>1GB'
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco play video --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -q, --query
+        Raw SQL query (overrides all query building)
+  -L, --limit
+        Limit results per database
+  -a, --all
+        Return all results (no limit)
+  --offset
+        Skip N results
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  -u, --sort-by
+        Sort by field (default, path, or a column)
+  -V, --reverse
+        Reverse sort order
+  -n, --nat-sort
+        Use natural sorting
+  -r, --random
+        Random order
+  -k, --re-rank
+        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
+  -c, --columns
+        Columns to display
+  -j, --json
+        Output results as JSON
+  --summarize
+        Print aggregate statistics
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --no-fts
+        Disable full-text search, use substring search only
+  -R, --related
+        Find media related to the first result
+  -O, --play-in-order
+        Play media in order
+  --no-play-in-order
+        Don't play media in order
+  --loop
+        Loop playback
+  -M, --mute
+        Start playback muted
+  --override-player
+        Override default player (e.g. --player 'vlc')
+  --start
+        Start playback at specific time/percentage
+  --end
+        Stop playback at specific time/percentage
+  --volume
+        Set initial volume (0-100)
+  --fullscreen
+        Start in fullscreen
+  --no-subtitles
+        Disable subtitles
+  --subtitle-mix
+        Probability to play no-subtitle content
+  -4, --interdimensional-cable
+        Duration to play (in seconds) while changing the channel
+  --speed
+        Playback speed
+  --save-playhead
+        Save playback position on quit
+  --mpv-socket
+        Mpv socket path
+  --watch-later-dir
+        Mpv watch_later directory
+  --player-args-sub
+        Player arguments for videos with subtitles
+  --player-args-no-sub
+        Player arguments for videos without subtitles
+  --cast
+        Cast to chromecast groups
+  --cast-device
+        Chromecast device name
+  --cast-with-local
+        Play music locally at the same time as chromecast
+  --cmd-0
+        Command to run if mpv exits with code 0
+  --cmd-1
+        Command to run if mpv exits with code 1
+  --cmd-2
+        Command to run if mpv exits with code 2
+  --cmd-3
+        Command to run if mpv exits with code 3
+  --cmd-4
+        Command to run if mpv exits with code 4
+  --cmd-5
+        Command to run if mpv exits with code 5
+  --cmd-6
+        Command to run if mpv exits with code 6
+  --cmd-7
+        Command to run if mpv exits with code 7
+  --cmd-8
+        Command to run if mpv exits with code 8
+  --cmd-9
+        Command to run if mpv exits with code 9
+  --cmd-10
+        Command to run if mpv exits with code 10
+  --cmd-11
+        Command to run if mpv exits with code 11
+  --cmd-12
+        Command to run if mpv exits with code 12
+  --cmd-13
+        Command to run if mpv exits with code 13
+  --cmd-14
+        Command to run if mpv exits with code 14
+  --cmd-15
+        Command to run if mpv exits with code 15
+  --cmd-20
+        Command to run if mpv exits with code 20
+  --cmd-127
+        Command to run if mpv exits with code 127
+  -I, --interactive
+        Interactive decision making after playback
+  --trash
+        Trash files after action
+  --post-action
+        Post-action: none, delete, mark-deleted, move, copy
+  --delete-files
+        Delete files after action
+  --delete-rows
+        Delete rows from database
+  --mark-deleted
+        Mark as deleted in database
+  --move-to
+        Move files to directory
+  --copy-to
+        Copy files to directory
+  --action-limit
+        Stop after N files
+  --action-size
+        Stop after N bytes (e.g., 10GB)
+  --track-history
+        Track playback history
+```
+
+</details>
+
+### play audio
+
+Listen to audio with mpv
+
+Flat alias: `disco listen`
+
+Examples:
+
+```bash
+$ disco play audio my_music.db
+$ disco play audio my_music.db --random
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco play audio --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -q, --query
+        Raw SQL query (overrides all query building)
+  -L, --limit
+        Limit results per database
+  -a, --all
+        Return all results (no limit)
+  --offset
+        Skip N results
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  -u, --sort-by
+        Sort by field (default, path, or a column)
+  -V, --reverse
+        Reverse sort order
+  -n, --nat-sort
+        Use natural sorting
+  -r, --random
+        Random order
+  -k, --re-rank
+        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
+  -c, --columns
+        Columns to display
+  -j, --json
+        Output results as JSON
+  --summarize
+        Print aggregate statistics
+  --fts
+        Use FTS5 full-text search
+  --fts-table
+        FTS table name
+  --no-fts
+        Disable full-text search, use substring search only
+  -R, --related
+        Find media related to the first result
+  -O, --play-in-order
+        Play media in order
+  --no-play-in-order
+        Don't play media in order
+  --loop
+        Loop playback
+  -M, --mute
+        Start playback muted
+  --override-player
+        Override default player (e.g. --player 'vlc')
+  --start
+        Start playback at specific time/percentage
+  --end
+        Stop playback at specific time/percentage
+  --volume
+        Set initial volume (0-100)
+  --fullscreen
+        Start in fullscreen
+  --no-subtitles
+        Disable subtitles
+  --subtitle-mix
+        Probability to play no-subtitle content
+  -4, --interdimensional-cable
+        Duration to play (in seconds) while changing the channel
+  --speed
+        Playback speed
+  --save-playhead
+        Save playback position on quit
+  --mpv-socket
+        Mpv socket path
+  --watch-later-dir
+        Mpv watch_later directory
+  --player-args-sub
+        Player arguments for videos with subtitles
+  --player-args-no-sub
+        Player arguments for videos without subtitles
+  --cast
+        Cast to chromecast groups
+  --cast-device
+        Chromecast device name
+  --cast-with-local
+        Play music locally at the same time as chromecast
+  --cmd-0
+        Command to run if mpv exits with code 0
+  --cmd-1
+        Command to run if mpv exits with code 1
+  --cmd-2
+        Command to run if mpv exits with code 2
+  --cmd-3
+        Command to run if mpv exits with code 3
+  --cmd-4
+        Command to run if mpv exits with code 4
+  --cmd-5
+        Command to run if mpv exits with code 5
+  --cmd-6
+        Command to run if mpv exits with code 6
+  --cmd-7
+        Command to run if mpv exits with code 7
+  --cmd-8
+        Command to run if mpv exits with code 8
+  --cmd-9
+        Command to run if mpv exits with code 9
+  --cmd-10
+        Command to run if mpv exits with code 10
+  --cmd-11
+        Command to run if mpv exits with code 11
+  --cmd-12
+        Command to run if mpv exits with code 12
+  --cmd-13
+        Command to run if mpv exits with code 13
+  --cmd-14
+        Command to run if mpv exits with code 14
+  --cmd-15
+        Command to run if mpv exits with code 15
+  --cmd-20
+        Command to run if mpv exits with code 20
+  --cmd-127
+        Command to run if mpv exits with code 127
+  -I, --interactive
+        Interactive decision making after playback
+  --trash
+        Trash files after action
+  --post-action
+        Post-action: none, delete, mark-deleted, move, copy
+  --delete-files
+        Delete files after action
+  --delete-rows
+        Delete rows from database
+  --mark-deleted
+        Mark as deleted in database
+  --move-to
+        Move files to directory
+  --copy-to
+        Copy files to directory
+  --action-limit
+        Stop after N files
+  --action-size
+        Stop after N bytes (e.g., 10GB)
+  --track-history
+        Track playback history
+```
+
+</details>
+
+### open
+
+Open files with default application
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco open --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  -u, --sort-by
+        Sort by field (default, path, or a column)
+  -V, --reverse
+        Reverse sort order
+  -n, --nat-sort
+        Use natural sorting
+  -r, --random
+        Random order
+  -k, --re-rank
+        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
+  --trash
+        Trash files after action
+  --post-action
+        Post-action: none, delete, mark-deleted, move, copy
+  --delete-files
+        Delete files after action
+  --delete-rows
+        Delete rows from database
+  --mark-deleted
+        Mark as deleted in database
+  --move-to
+        Move files to directory
+  --copy-to
+        Copy files to directory
+  --action-limit
+        Stop after N files
+  --action-size
+        Stop after N bytes (e.g., 10GB)
+  --track-history
+        Track playback history
+```
+
+</details>
+
+### browse
+
+Open URLs in browser
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco browse --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  -u, --sort-by
+        Sort by field (default, path, or a column)
+  -V, --reverse
+        Reverse sort order
+  -n, --nat-sort
+        Use natural sorting
+  -r, --random
+        Random order
+  -k, --re-rank
+        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
+  --browser
+        Browser to use
+```
+
+</details>
+
+### playback now
+
+Show current mpv playback status
+
+Flat alias: `disco now`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco playback now --help
+
+Flags:
+  --mpv-socket
+        Mpv socket path
+  --cast-device
+        Chromecast device name
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+```
+
+</details>
+
+### playback next
+
+Skip to next file in mpv
+
+Flat alias: `disco next`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco playback next --help
+
+Flags:
+  --mpv-socket
+        Mpv socket path
+  --cast-device
+        Chromecast device name
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+```
+
+</details>
+
+### playback pause
+
+Toggle mpv pause state
+
+Flat alias: `disco pause`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco playback pause --help
+
+Flags:
+  --mpv-socket
+        Mpv socket path
+  --cast-device
+        Chromecast device name
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+```
+
+</details>
+
+### playback seek
+
+Seek mpv playback
+
+Flat alias: `disco seek`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco playback seek --help
+
+Flags:
+  --mpv-socket
+        Mpv socket path
+  --cast-device
+        Chromecast device name
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+```
+
+</details>
+
+### playback stop
+
+Stop mpv playback
+
+Flat alias: `disco stop`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco playback stop --help
+
+Flags:
+  --mpv-socket
+        Mpv socket path
+  --cast-device
+        Chromecast device name
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
 ```
 
 </details>
@@ -657,14 +1702,16 @@ Flags:
 
 </details>
 
-### search-captions
+### captions
 
 Search captions using FTS
+
+Flat alias: `disco search-captions`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco search-captions --help
+$ disco captions --help
 
 Flags:
   -v, --verbose
@@ -745,14 +1792,16 @@ Flags:
 
 </details>
 
-### playlists
+### database playlists
 
 List scan roots (playlists)
 
+Flat alias: `disco playlists`
+
 <details><summary>All Options</summary>
 
 ```bash
-$ disco playlists --help
+$ disco database playlists --help
 
 Flags:
   -v, --verbose
@@ -767,58 +1816,16 @@ Flags:
 
 </details>
 
-### search-db
+### database stats
 
-Search arbitrary database table
+Show library statistics
 
-<details><summary>All Options</summary>
-
-```bash
-$ disco search-db --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --search
-        Search terms (space-separated for AND)
-  -s, --include
-        Include rows matching pattern
-  -E, --exclude
-        Exclude rows matching pattern
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  -L, --limit
-        Limit printed rows (does not affect destructive actions)
-  -a, --all
-        Print all rows (no limit)
-  --offset
-        Skip N printed rows
-  -j, --json
-        Output results as JSON
-  --delete-rows
-        Delete matching rows
-  --mark-deleted
-        Mark matching rows as deleted
-  --all-rows
-        Allow --delete-rows/--mark-deleted without a predicate (whole table)
-```
-
-</details>
-
-### media-check
-
-Check media files for corruption
+Flat alias: `disco stats`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco media-check --help
+$ disco database stats --help
 
 Flags:
   -v, --verbose
@@ -905,82 +1912,6 @@ Flags:
         Exclude online media
   --probe-images
         Run ffprobe on image files (default: skip)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  --chunk-size
-        Chunk size in seconds. If set, recommended to use >0.1 seconds
-  --gap
-        Width between chunks to skip. Values greater than 1 are treated as number of seconds
-  --delete-corrupt
-        Delete media whose corruption ratio is >= this value (e.g. 0.5 or 50%)
-  --full-scan-if-corrupt
-        Full scan as a second pass when the quick-scan corruption ratio is >= this value (e.g. 0.2 or 20%)
-  --full-scan
-        Decode the full media file
-```
-
-</details>
-
-### files-info
-
-Show information about files
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco files-info --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
   --created-after
         Created after date (YYYY-MM-DD)
   --created-before
@@ -1001,53 +1932,37 @@ Flags:
         Last played after date (YYYY-MM-DD)
   --played-before
         Last played before date (YYYY-MM-DD)
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  --facet
+        Time facet for --frequency (watched, deleted, created, modified); requires --frequency
+  -f, --frequency
+        Group statistics by time frequency (daily, weekly, monthly, quarterly, yearly, decadally, hourly, minutely)
   -j, --json
         Output results as JSON
 ```
 
 </details>
 
-### disk-usage
+### database history
 
-Show disk usage aggregation
+Show playback history
+
+Flat alias: `disco history`
 
 Examples:
 
 ```bash
-$ disco du my_videos.db
-$ disco du my_videos.db --depth 2
+$ disco database history my_videos.db
+$ disco database history my_videos.db --in-progress
 ```
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco disk-usage --help
+$ disco database history --help
 
 Flags:
   -v, --verbose
@@ -1182,66 +2097,98 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
-  -B, --big-dirs
-        Aggregate by parent directory
-  --file-counts
-        Filter by number of files in directory (e.g., >5, 10%1)
-  --group-by-extensions
-        Group by file extensions
-  --group-by-size
-        Group by size buckets
-  --group-by-parent
-        Group media by parent directory with counts and totals
-  -D, --depth
-        Aggregate at specific directory depth
-  --min-depth
-        Minimum depth for aggregation
-  --max-depth
-        Maximum depth for aggregation
-  --parents
-        Include parent directories in aggregation
-  --folders-only
-        Only show folders
-  --files-only
-        Only show files
-  --folder-sizes
-        Filter folders by total size
-  --regex-sort
-        Sort by splitting lines and sorting words
-  --regexs
-        Regex patterns for line splitting
-  --word-sorts
-        Word sorting strategies
-  --line-sorts
-        Line sorting strategies
-  --preprocess
-        Remove junk common to filenames and URLs
-  --stop-words
-        List of words to ignore
-  --duplicates
-        Filter for duplicate words (true/false)
-  --unique-only
-        Filter for unique words (true/false)
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --no-fts
-        Disable full-text search, use substring search only
-  -R, --related
-        Find media related to the first result
+  --delete-rows
+        Delete matching history rows
 ```
 
 </details>
 
-### dedupe
+### database history add
 
-Dedupe similar media
+Add paths to playback history
+
+Flat alias: `disco history-add`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco dedupe --help
+$ disco database history add --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --done
+        Mark as done
+```
+
+</details>
+
+### database search
+
+Search arbitrary database table
+
+Flat alias: `disco search-db`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco database search --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --search
+        Search terms (space-separated for AND)
+  -s, --include
+        Include rows matching pattern
+  -E, --exclude
+        Exclude rows matching pattern
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  -L, --limit
+        Limit printed rows (does not affect destructive actions)
+  -a, --all
+        Print all rows (no limit)
+  --offset
+        Skip N printed rows
+  -j, --json
+        Output results as JSON
+  --delete-rows
+        Delete matching rows
+  --mark-deleted
+        Mark matching rows as deleted
+  --all-rows
+        Allow --delete-rows/--mark-deleted without a predicate (whole table)
+```
+
+</details>
+
+### database dedupe
+
+Dedupe similar media
+
+Flat alias: `disco dedupe`
+
+Examples:
+
+```bash
+$ disco database dedupe my_videos.db
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco database dedupe --help
 
 Flags:
   -v, --verbose
@@ -1384,14 +2331,560 @@ Flags:
 
 </details>
 
-### big-dirs
+### database merge
 
-Show big directories aggregation
+Merge multiple SQLite databases
+
+Flat alias: `disco merge-dbs`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco big-dirs --help
+$ disco database merge --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -t, --only-tables
+        Comma separated specific table(s)
+  --primary-keys
+        Comma separated primary keys
+  --business-keys
+        Comma separated business keys
+  --upsert
+        Upsert rows on conflict
+  --ignore
+        Ignore rows on conflict (only-new-rows)
+  --only-target-columns
+        Only copy columns that exist in target
+  --skip-columns
+        Columns to skip during merge
+  -w, --where
+        SQL where clause(s) applied to the media table
+  --where-table
+        Per-table WHERE clause TABLE=CLAUSE (repeatable)
+```
+
+</details>
+
+### database optimize
+
+Optimize database (VACUUM, ANALYZE, FTS optimize)
+
+Flat alias: `disco optimize`
+
+Examples:
+
+```bash
+$ disco database optimize my_videos.db
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco database optimize --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+```
+
+</details>
+
+### database repair
+
+Repair malformed database using sqlite3
+
+Flat alias: `disco repair`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco database repair --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+```
+
+</details>
+
+### file check
+
+Check media files for corruption
+
+Flat alias: `disco media-check`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco file check --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  --hide-deleted
+        Exclude deleted files from results
+  --only-deleted
+        Include only deleted files in results
+  --chunk-size
+        Chunk size in seconds. If set, recommended to use >0.1 seconds
+  --gap
+        Width between chunks to skip. Values greater than 1 are treated as number of seconds
+  --delete-corrupt
+        Delete media whose corruption ratio is >= this value (e.g. 0.5 or 50%)
+  --full-scan-if-corrupt
+        Full scan as a second pass when the quick-scan corruption ratio is >= this value (e.g. 0.2 or 20%)
+  --full-scan
+        Decode the full media file
+```
+
+</details>
+
+### file hash
+
+Calculate a hash based on small file segments
+
+Flat alias: `disco sample-hash`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco file hash --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --hash-gap
+        Gap between segments (0.0-1.0 as percentage of file size, or absolute bytes if >1)
+  --hash-chunk-size
+        Size of each segment to hash
+  --hash-threads
+        Number of threads to use for hashing a single file
+  -j, --json
+        Output results as JSON
+```
+
+</details>
+
+### file similar
+
+Find similar files
+
+Flat alias: `disco similar-files`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco file similar --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  -c, --columns
+        Columns to display
+  -j, --json
+        Output results as JSON
+  --summarize
+        Print aggregate statistics
+  --similar
+        Find similar files or folders
+  --sizes-delta
+        Size difference threshold (%)
+  --counts-delta
+        File count difference threshold (%)
+  --durations-delta
+        Duration difference threshold (%)
+  --filter-names
+        Cluster by name similarity
+  --filter-sizes
+        Cluster by size similarity
+  --filter-counts
+        Cluster by count similarity
+  --filter-durations
+        Cluster by duration similarity
+  --total-sizes
+        Compare total sizes (folders only)
+  --total-durations
+        Compare total durations (folders only)
+  --name-full-path
+        Match folder names using full paths
+  --only-duplicates
+        Only show duplicate items
+  --only-originals
+        Only show original items
+```
+
+</details>
+
+### folder similar
+
+Find similar folders
+
+Flat alias: `disco similar-folders`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco folder similar --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  -s, --include
+        Include paths matching pattern
+  -E, --exclude
+        Exclude paths matching pattern
+  --regex
+        Filter paths by regex pattern
+  --path-contains
+        Path must contain all these strings
+  --paths
+        Exact paths to include
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  -c, --columns
+        Columns to display
+  -j, --json
+        Output results as JSON
+  --summarize
+        Print aggregate statistics
+  --similar
+        Find similar files or folders
+  --sizes-delta
+        Size difference threshold (%)
+  --counts-delta
+        File count difference threshold (%)
+  --durations-delta
+        Duration difference threshold (%)
+  --filter-names
+        Cluster by name similarity
+  --filter-sizes
+        Cluster by size similarity
+  --filter-counts
+        Cluster by count similarity
+  --filter-durations
+        Cluster by duration similarity
+  --total-sizes
+        Compare total sizes (folders only)
+  --total-durations
+        Compare total durations (folders only)
+  --name-full-path
+        Match folder names using full paths
+  --only-duplicates
+        Only show duplicate items
+  --only-originals
+        Only show original items
+```
+
+</details>
+
+### folder large
+
+Show big directories aggregation
+
+Flat alias: `disco big-dirs`
+
+Examples:
+
+```bash
+$ disco folder large my_videos.db
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco folder large --help
 
 Flags:
   -v, --verbose
@@ -1578,14 +3071,16 @@ Flags:
 
 </details>
 
-### categorize
+### folder categorize
 
 Auto-group media into categories
+
+Flat alias: `disco categorize`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco categorize --help
+$ disco folder categorize --help
 
 Flags:
   -v, --verbose
@@ -1732,322 +3227,141 @@ Flags:
 
 </details>
 
-### similar-files
+### filesystem list
 
-Find similar files
+Show information about files
 
-<details><summary>All Options</summary>
-
-```bash
-$ disco similar-files --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  -c, --columns
-        Columns to display
-  -j, --json
-        Output results as JSON
-  --summarize
-        Print aggregate statistics
-  --similar
-        Find similar files or folders
-  --sizes-delta
-        Size difference threshold (%)
-  --counts-delta
-        File count difference threshold (%)
-  --durations-delta
-        Duration difference threshold (%)
-  --filter-names
-        Cluster by name similarity
-  --filter-sizes
-        Cluster by size similarity
-  --filter-counts
-        Cluster by count similarity
-  --filter-durations
-        Cluster by duration similarity
-  --total-sizes
-        Compare total sizes (folders only)
-  --total-durations
-        Compare total durations (folders only)
-  --name-full-path
-        Match folder names using full paths
-  --only-duplicates
-        Only show duplicate items
-  --only-originals
-        Only show original items
-```
-
-</details>
-
-### similar-folders
-
-Find similar folders
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco similar-folders --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  -c, --columns
-        Columns to display
-  -j, --json
-        Output results as JSON
-  --summarize
-        Print aggregate statistics
-  --similar
-        Find similar files or folders
-  --sizes-delta
-        Size difference threshold (%)
-  --counts-delta
-        File count difference threshold (%)
-  --durations-delta
-        Duration difference threshold (%)
-  --filter-names
-        Cluster by name similarity
-  --filter-sizes
-        Cluster by size similarity
-  --filter-counts
-        Cluster by count similarity
-  --filter-durations
-        Cluster by duration similarity
-  --total-sizes
-        Compare total sizes (folders only)
-  --total-durations
-        Compare total durations (folders only)
-  --name-full-path
-        Match folder names using full paths
-  --only-duplicates
-        Only show duplicate items
-  --only-originals
-        Only show original items
-```
-
-</details>
-
-### watch
-
-Watch videos with mpv
+Flat alias: `disco files-info`
 
 Examples:
 
 ```bash
-$ disco watch my_videos.db
-$ disco watch my_videos.db -r --limit 10
-$ disco watch my_videos.db --size '>1GB'
+$ disco filesystem list my_videos.db
 ```
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco watch --help
+$ disco filesystem list --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --search
+        Search terms (space-separated for AND, | for OR)
+  -S, --size
+        Size range (e.g., >100MB, 1GB%10)
+  -d, --duration
+        Duration range (e.g., >1hour, 30min%10)
+  --modified
+        Filter by modification time
+  --created
+        Filter by creation time
+  --downloaded
+        Filter by download time
+  --duration-from-size
+        Constrain media to duration of videos which match any size constraints
+  --watched
+        Filter by watched status (true/false)
+  --unfinished
+        Has playhead but not finished
+  -P, --partial
+        Filter by partial playback status
+  --play-count-min
+        Minimum play count
+  --play-count-max
+        Maximum play count
+  --completed
+        Show only completed items
+  --in-progress
+        Show only items in progress
+  --with-captions
+        Show only items with captions
+  --flexible-search
+        Flexible search (fuzzy)
+  --exact
+        Exact match for search
+  -w, --where
+        SQL where clause(s)
+  --exists
+        Filter out non-existent files
+  -o, --fetch-siblings
+        Fetch siblings of matched files (each, all, if-audiobook)
+  --fetch-siblings-max
+        Maximum number of siblings to fetch
+  --created-after
+        Created after date (YYYY-MM-DD)
+  --created-before
+        Created before date (YYYY-MM-DD)
+  --modified-after
+        Modified after date (YYYY-MM-DD)
+  --modified-before
+        Modified before date (YYYY-MM-DD)
+  --downloaded-after
+        Downloaded after date (YYYY-MM-DD)
+  --downloaded-before
+        Downloaded before date (YYYY-MM-DD)
+  --deleted-after
+        Deleted after date (YYYY-MM-DD)
+  --deleted-before
+        Deleted before date (YYYY-MM-DD)
+  --played-after
+        Last played after date (YYYY-MM-DD)
+  --played-before
+        Last played before date (YYYY-MM-DD)
+  --category
+        Filter by category
+  --genre
+        Filter by genre
+  --language
+        Filter by language
+  -e, --ext
+        Filter by extensions (e.g., .mp4,.mkv)
+  --video-only
+        Only video files
+  --audio-only
+        Only audio files
+  --image-only
+        Only image files
+  --text-only
+        Only text/ebook files
+  --portrait
+        Only portrait orientation files
+  --scan-subtitles
+        Scan for external subtitles during import
+  --online-media-only
+        Exclude local media
+  --local-media-only
+        Exclude online media
+  --probe-images
+        Run ffprobe on image files (default: skip)
+  -j, --json
+        Output results as JSON
+```
+
+</details>
+
+### filesystem usage
+
+Show disk usage aggregation
+
+Flat alias: `disco disk-usage`
+
+Examples:
+
+```bash
+$ disco filesystem usage my_videos.db
+$ disco filesystem usage my_videos.db --depth 2
+```
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco filesystem usage --help
 
 Flags:
   -v, --verbose
@@ -2182,6 +3496,46 @@ Flags:
         Output results as JSON
   --summarize
         Print aggregate statistics
+  -B, --big-dirs
+        Aggregate by parent directory
+  --file-counts
+        Filter by number of files in directory (e.g., >5, 10%1)
+  --group-by-extensions
+        Group by file extensions
+  --group-by-size
+        Group by size buckets
+  --group-by-parent
+        Group media by parent directory with counts and totals
+  -D, --depth
+        Aggregate at specific directory depth
+  --min-depth
+        Minimum depth for aggregation
+  --max-depth
+        Maximum depth for aggregation
+  --parents
+        Include parent directories in aggregation
+  --folders-only
+        Only show folders
+  --files-only
+        Only show files
+  --folder-sizes
+        Filter folders by total size
+  --regex-sort
+        Sort by splitting lines and sorting words
+  --regexs
+        Regex patterns for line splitting
+  --word-sorts
+        Word sorting strategies
+  --line-sorts
+        Line sorting strategies
+  --preprocess
+        Remove junk common to filenames and URLs
+  --stop-words
+        List of words to ignore
+  --duplicates
+        Filter for duplicate words (true/false)
+  --unique-only
+        Filter for unique words (true/false)
   --fts
         Use FTS5 full-text search
   --fts-table
@@ -2190,125 +3544,20 @@ Flags:
         Disable full-text search, use substring search only
   -R, --related
         Find media related to the first result
-  -O, --play-in-order
-        Play media in order
-  --no-play-in-order
-        Don't play media in order
-  --loop
-        Loop playback
-  -M, --mute
-        Start playback muted
-  --override-player
-        Override default player (e.g. --player 'vlc')
-  --start
-        Start playback at specific time/percentage
-  --end
-        Stop playback at specific time/percentage
-  --volume
-        Set initial volume (0-100)
-  --fullscreen
-        Start in fullscreen
-  --no-subtitles
-        Disable subtitles
-  --subtitle-mix
-        Probability to play no-subtitle content
-  -4, --interdimensional-cable
-        Duration to play (in seconds) while changing the channel
-  --speed
-        Playback speed
-  --save-playhead
-        Save playback position on quit
-  --mpv-socket
-        Mpv socket path
-  --watch-later-dir
-        Mpv watch_later directory
-  --player-args-sub
-        Player arguments for videos with subtitles
-  --player-args-no-sub
-        Player arguments for videos without subtitles
-  --cast
-        Cast to chromecast groups
-  --cast-device
-        Chromecast device name
-  --cast-with-local
-        Play music locally at the same time as chromecast
-  --cmd-0
-        Command to run if mpv exits with code 0
-  --cmd-1
-        Command to run if mpv exits with code 1
-  --cmd-2
-        Command to run if mpv exits with code 2
-  --cmd-3
-        Command to run if mpv exits with code 3
-  --cmd-4
-        Command to run if mpv exits with code 4
-  --cmd-5
-        Command to run if mpv exits with code 5
-  --cmd-6
-        Command to run if mpv exits with code 6
-  --cmd-7
-        Command to run if mpv exits with code 7
-  --cmd-8
-        Command to run if mpv exits with code 8
-  --cmd-9
-        Command to run if mpv exits with code 9
-  --cmd-10
-        Command to run if mpv exits with code 10
-  --cmd-11
-        Command to run if mpv exits with code 11
-  --cmd-12
-        Command to run if mpv exits with code 12
-  --cmd-13
-        Command to run if mpv exits with code 13
-  --cmd-14
-        Command to run if mpv exits with code 14
-  --cmd-15
-        Command to run if mpv exits with code 15
-  --cmd-20
-        Command to run if mpv exits with code 20
-  --cmd-127
-        Command to run if mpv exits with code 127
-  -I, --interactive
-        Interactive decision making after playback
-  --trash
-        Trash files after action
-  --post-action
-        Post-action: none, delete, mark-deleted, move, copy
-  --delete-files
-        Delete files after action
-  --delete-rows
-        Delete rows from database
-  --mark-deleted
-        Mark as deleted in database
-  --move-to
-        Move files to directory
-  --copy-to
-        Copy files to directory
-  --action-limit
-        Stop after N files
-  --action-size
-        Stop after N bytes (e.g., 10GB)
-  --track-history
-        Track playback history
 ```
 
 </details>
 
-### listen
+### text sort regex
 
-Listen to audio with mpv
+Sort by splitting lines and sorting words
 
-Examples:
-
-```bash
-$ disco listen my_music.db
-$ disco listen my_music.db --random
-```
+Flat alias: `disco regex-sort`
 
 <details><summary>All Options</summary>
 
 ```bash
-$ disco listen --help
+$ disco text sort regex --help
 
 Flags:
   -v, --verbose
@@ -2317,627 +3566,54 @@ Flags:
         Dry run; don't actually do anything
   -y, --no-confirm
         Don't ask for confirmation
-  -q, --query
-        Raw SQL query (overrides all query building)
-  -L, --limit
-        Limit results per database
-  -a, --all
-        Return all results (no limit)
-  --offset
-        Skip N results
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  -c, --columns
-        Columns to display
+  --regexs
+        Regex patterns for line splitting
+  --word-sorts
+        Word sorting strategies
+  --line-sorts
+        Line sorting strategies
+  --preprocess
+        Remove junk common to filenames and URLs
+  --stop-words
+        List of words to ignore
+  --duplicates
+        Filter for duplicate words (true/false)
+  --unique-only
+        Filter for unique words (true/false)
+  --output-path
+        Output file path (default stdout)
+```
+
+</details>
+
+### text sort cluster
+
+Group items by similarity
+
+Flat alias: `disco cluster-sort`
+
+<details><summary>All Options</summary>
+
+```bash
+$ disco text sort cluster --help
+
+Flags:
+  -v, --verbose
+        Enable verbose logging (-v for info, -vv for debug)
+  --simulate
+        Dry run; don't actually do anything
+  -y, --no-confirm
+        Don't ask for confirmation
+  --duplicates
+        Filter for duplicate words (true/false)
+  --unique-only
+        Filter for unique words (true/false)
+  --output-path
+        Output file path (default stdout)
+  --clusters
+        Number of clusters (default: sqrt(number of lines))
   -j, --json
         Output results as JSON
-  --summarize
-        Print aggregate statistics
-  --fts
-        Use FTS5 full-text search
-  --fts-table
-        FTS table name
-  --no-fts
-        Disable full-text search, use substring search only
-  -R, --related
-        Find media related to the first result
-  -O, --play-in-order
-        Play media in order
-  --no-play-in-order
-        Don't play media in order
-  --loop
-        Loop playback
-  -M, --mute
-        Start playback muted
-  --override-player
-        Override default player (e.g. --player 'vlc')
-  --start
-        Start playback at specific time/percentage
-  --end
-        Stop playback at specific time/percentage
-  --volume
-        Set initial volume (0-100)
-  --fullscreen
-        Start in fullscreen
-  --no-subtitles
-        Disable subtitles
-  --subtitle-mix
-        Probability to play no-subtitle content
-  -4, --interdimensional-cable
-        Duration to play (in seconds) while changing the channel
-  --speed
-        Playback speed
-  --save-playhead
-        Save playback position on quit
-  --mpv-socket
-        Mpv socket path
-  --watch-later-dir
-        Mpv watch_later directory
-  --player-args-sub
-        Player arguments for videos with subtitles
-  --player-args-no-sub
-        Player arguments for videos without subtitles
-  --cast
-        Cast to chromecast groups
-  --cast-device
-        Chromecast device name
-  --cast-with-local
-        Play music locally at the same time as chromecast
-  --cmd-0
-        Command to run if mpv exits with code 0
-  --cmd-1
-        Command to run if mpv exits with code 1
-  --cmd-2
-        Command to run if mpv exits with code 2
-  --cmd-3
-        Command to run if mpv exits with code 3
-  --cmd-4
-        Command to run if mpv exits with code 4
-  --cmd-5
-        Command to run if mpv exits with code 5
-  --cmd-6
-        Command to run if mpv exits with code 6
-  --cmd-7
-        Command to run if mpv exits with code 7
-  --cmd-8
-        Command to run if mpv exits with code 8
-  --cmd-9
-        Command to run if mpv exits with code 9
-  --cmd-10
-        Command to run if mpv exits with code 10
-  --cmd-11
-        Command to run if mpv exits with code 11
-  --cmd-12
-        Command to run if mpv exits with code 12
-  --cmd-13
-        Command to run if mpv exits with code 13
-  --cmd-14
-        Command to run if mpv exits with code 14
-  --cmd-15
-        Command to run if mpv exits with code 15
-  --cmd-20
-        Command to run if mpv exits with code 20
-  --cmd-127
-        Command to run if mpv exits with code 127
-  -I, --interactive
-        Interactive decision making after playback
-  --trash
-        Trash files after action
-  --post-action
-        Post-action: none, delete, mark-deleted, move, copy
-  --delete-files
-        Delete files after action
-  --delete-rows
-        Delete rows from database
-  --mark-deleted
-        Mark as deleted in database
-  --move-to
-        Move files to directory
-  --copy-to
-        Copy files to directory
-  --action-limit
-        Stop after N files
-  --action-size
-        Stop after N bytes (e.g., 10GB)
-  --track-history
-        Track playback history
-```
-
-</details>
-
-### stats
-
-Show library statistics
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco stats --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  --facet
-        Time facet for --frequency (watched, deleted, created, modified); requires --frequency
-  -f, --frequency
-        Group statistics by time frequency (daily, weekly, monthly, quarterly, yearly, decadally, hourly, minutely)
-  -j, --json
-        Output results as JSON
-```
-
-</details>
-
-### history
-
-Show playback history
-
-Examples:
-
-```bash
-$ disco history my_videos.db
-$ disco history my_videos.db --in-progress
-```
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco history --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -q, --query
-        Raw SQL query (overrides all query building)
-  -L, --limit
-        Limit results per database
-  -a, --all
-        Return all results (no limit)
-  --offset
-        Skip N results
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  -c, --columns
-        Columns to display
-  -j, --json
-        Output results as JSON
-  --summarize
-        Print aggregate statistics
-  --delete-rows
-        Delete matching history rows
-```
-
-</details>
-
-### history-add
-
-Add paths to playback history
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco history-add --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --done
-        Mark as done
-```
-
-</details>
-
-### mpv-watchlater
-
-Import mpv watchlater files to history
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco mpv-watchlater --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --created-after
-        Created after date (YYYY-MM-DD)
-  --created-before
-        Created before date (YYYY-MM-DD)
-  --modified-after
-        Modified after date (YYYY-MM-DD)
-  --modified-before
-        Modified before date (YYYY-MM-DD)
-  --downloaded-after
-        Downloaded after date (YYYY-MM-DD)
-  --downloaded-before
-        Downloaded before date (YYYY-MM-DD)
-  --deleted-after
-        Deleted after date (YYYY-MM-DD)
-  --deleted-before
-        Deleted before date (YYYY-MM-DD)
-  --played-after
-        Last played after date (YYYY-MM-DD)
-  --played-before
-        Last played before date (YYYY-MM-DD)
-  --hide-deleted
-        Exclude deleted files from results
-  --only-deleted
-        Include only deleted files in results
-  --watch-later-dir
-        Mpv watch_later directory
 ```
 
 </details>
@@ -3221,52 +3897,6 @@ Flags:
         Maximum number of results a client may request per database (0 = unlimited)
   --db-cache-mb
         SQLite page cache size in MiB per connection
-```
-
-</details>
-
-### optimize
-
-Optimize database (VACUUM, ANALYZE, FTS optimize)
-
-Examples:
-
-```bash
-$ disco optimize my_videos.db
-```
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco optimize --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-```
-
-</details>
-
-### repair
-
-Repair malformed database using sqlite3
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco repair --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
 ```
 
 </details>
@@ -3615,476 +4245,6 @@ Flags:
         Number of threads to use for hashing a single file
   --databases
         Specific database paths to query (must be in server's allowed list). Can be specified multiple times.
-```
-
-</details>
-
-### regex-sort
-
-Sort by splitting lines and sorting words
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco regex-sort --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --regexs
-        Regex patterns for line splitting
-  --word-sorts
-        Word sorting strategies
-  --line-sorts
-        Line sorting strategies
-  --preprocess
-        Remove junk common to filenames and URLs
-  --stop-words
-        List of words to ignore
-  --duplicates
-        Filter for duplicate words (true/false)
-  --unique-only
-        Filter for unique words (true/false)
-  --output-path
-        Output file path (default stdout)
-```
-
-</details>
-
-### cluster-sort
-
-Group items by similarity
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco cluster-sort --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --duplicates
-        Filter for duplicate words (true/false)
-  --unique-only
-        Filter for unique words (true/false)
-  --output-path
-        Output file path (default stdout)
-  --clusters
-        Number of clusters (default: sqrt(number of lines))
-  -j, --json
-        Output results as JSON
-```
-
-</details>
-
-### sample-hash
-
-Calculate a hash based on small file segments
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco sample-hash --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  --hash-gap
-        Gap between segments (0.0-1.0 as percentage of file size, or absolute bytes if >1)
-  --hash-chunk-size
-        Size of each segment to hash
-  --hash-threads
-        Number of threads to use for hashing a single file
-  -j, --json
-        Output results as JSON
-```
-
-</details>
-
-### open
-
-Open files with default application
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco open --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  --trash
-        Trash files after action
-  --post-action
-        Post-action: none, delete, mark-deleted, move, copy
-  --delete-files
-        Delete files after action
-  --delete-rows
-        Delete rows from database
-  --mark-deleted
-        Mark as deleted in database
-  --move-to
-        Move files to directory
-  --copy-to
-        Copy files to directory
-  --action-limit
-        Stop after N files
-  --action-size
-        Stop after N bytes (e.g., 10GB)
-  --track-history
-        Track playback history
-```
-
-</details>
-
-### browse
-
-Open URLs in browser
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco browse --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -s, --include
-        Include paths matching pattern
-  -E, --exclude
-        Exclude paths matching pattern
-  --regex
-        Filter paths by regex pattern
-  --path-contains
-        Path must contain all these strings
-  --paths
-        Exact paths to include
-  --search
-        Search terms (space-separated for AND, | for OR)
-  -S, --size
-        Size range (e.g., >100MB, 1GB%10)
-  -d, --duration
-        Duration range (e.g., >1hour, 30min%10)
-  --modified
-        Filter by modification time
-  --created
-        Filter by creation time
-  --downloaded
-        Filter by download time
-  --duration-from-size
-        Constrain media to duration of videos which match any size constraints
-  --watched
-        Filter by watched status (true/false)
-  --unfinished
-        Has playhead but not finished
-  -P, --partial
-        Filter by partial playback status
-  --play-count-min
-        Minimum play count
-  --play-count-max
-        Maximum play count
-  --completed
-        Show only completed items
-  --in-progress
-        Show only items in progress
-  --with-captions
-        Show only items with captions
-  --flexible-search
-        Flexible search (fuzzy)
-  --exact
-        Exact match for search
-  -w, --where
-        SQL where clause(s)
-  --exists
-        Filter out non-existent files
-  -o, --fetch-siblings
-        Fetch siblings of matched files (each, all, if-audiobook)
-  --fetch-siblings-max
-        Maximum number of siblings to fetch
-  --category
-        Filter by category
-  --genre
-        Filter by genre
-  --language
-        Filter by language
-  -e, --ext
-        Filter by extensions (e.g., .mp4,.mkv)
-  --video-only
-        Only video files
-  --audio-only
-        Only audio files
-  --image-only
-        Only image files
-  --text-only
-        Only text/ebook files
-  --portrait
-        Only portrait orientation files
-  --scan-subtitles
-        Scan for external subtitles during import
-  --online-media-only
-        Exclude local media
-  --local-media-only
-        Exclude online media
-  --probe-images
-        Run ffprobe on image files (default: skip)
-  -u, --sort-by
-        Sort by field (default, path, or a column)
-  -V, --reverse
-        Reverse sort order
-  -n, --nat-sort
-        Use natural sorting
-  -r, --random
-        Random order
-  -k, --re-rank
-        Add key/value pairs re-rank sorting by multiple attributes (COLUMN=WEIGHT)
-  --browser
-        Browser to use
-```
-
-</details>
-
-### now
-
-Show current mpv playback status
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco now --help
-
-Flags:
-  --mpv-socket
-        Mpv socket path
-  --cast-device
-        Chromecast device name
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-```
-
-</details>
-
-### next
-
-Skip to next file in mpv
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco next --help
-
-Flags:
-  --mpv-socket
-        Mpv socket path
-  --cast-device
-        Chromecast device name
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-```
-
-</details>
-
-### stop
-
-Stop mpv playback
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco stop --help
-
-Flags:
-  --mpv-socket
-        Mpv socket path
-  --cast-device
-        Chromecast device name
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-```
-
-</details>
-
-### pause
-
-Toggle mpv pause state
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco pause --help
-
-Flags:
-  --mpv-socket
-        Mpv socket path
-  --cast-device
-        Chromecast device name
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-```
-
-</details>
-
-### seek
-
-Seek mpv playback
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco seek --help
-
-Flags:
-  --mpv-socket
-        Mpv socket path
-  --cast-device
-        Chromecast device name
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-```
-
-</details>
-
-### merge-dbs
-
-Merge multiple SQLite databases
-
-<details><summary>All Options</summary>
-
-```bash
-$ disco merge-dbs --help
-
-Flags:
-  -v, --verbose
-        Enable verbose logging (-v for info, -vv for debug)
-  --simulate
-        Dry run; don't actually do anything
-  -y, --no-confirm
-        Don't ask for confirmation
-  -t, --only-tables
-        Comma separated specific table(s)
-  --primary-keys
-        Comma separated primary keys
-  --business-keys
-        Comma separated business keys
-  --upsert
-        Upsert rows on conflict
-  --ignore
-        Ignore rows on conflict (only-new-rows)
-  --only-target-columns
-        Only copy columns that exist in target
-  --skip-columns
-        Columns to skip during merge
-  -w, --where
-        SQL where clause(s) applied to the media table
-  --where-table
-        Per-table WHERE clause TABLE=CLAUSE (repeatable)
 ```
 
 </details>

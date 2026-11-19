@@ -41,7 +41,8 @@ func (c *ReadmeCmd) Run(ctx *kong.Context) error {
 	writeBinaries(&sb)
 	writeBuildFromSource(&sb)
 	writeUsage(&sb)
-	writeSubcommands(&sb, ctx)
+	writeCommandOverview(&sb, ctx)
+	writeCommandReference(&sb, ctx)
 
 	fmt.Print(sb.String())
 	return nil
@@ -54,9 +55,9 @@ func writeIntro(sb *strings.Builder) {
 	sb.WriteString("```bash\n")
 	sb.WriteString("go install -tags fts5 github.com/chapmanjacobd/discoteca/cmd/disco@latest\n")
 	sb.WriteString("\n")
-	sb.WriteString("disco add library.db ./audio\n")
-	sb.WriteString("disco add library.db ./video --scan-subtitles\n")
-	sb.WriteString("disco calibre-import library.db --calibre-web-dir ~/calibre-web\n")
+	sb.WriteString("disco database add library.db ./audio\n")
+	sb.WriteString("disco database add library.db ./video --scan-subtitles\n")
+	sb.WriteString("disco database import calibre library.db --calibre-web-dir ~/calibre-web\n")
 	sb.WriteString("disco serve library.db\n")
 	sb.WriteString("```\n\n")
 	sb.WriteString("## Downloads\n\n")
@@ -144,17 +145,25 @@ func writeBuildFromSource(sb *strings.Builder) {
 
 func writeUsage(sb *strings.Builder) {
 	sb.WriteString("## Usage\n\n")
+	sb.WriteString(
+		"Commands are organized by workflow. Nested paths are canonical; the shorter flat command name remains available as an alias.\n",
+	)
+	sb.WriteString("For example, `disco database add` and `disco add` run the same command.\n\n")
 }
 
 var subcommandExamples = map[string][]string{
 	"add": {
-		"disco add my_videos.db ~/Videos",
-		"disco add --video-only my_videos.db /mnt/media",
+		"disco database add my_videos.db ~/Videos",
+		"disco database add --video-only my_videos.db /mnt/media",
 	},
 	"calibre-import": {
-		"disco calibre-import my_videos.db --library ~/Calibre",
-		"disco calibre-import my_videos.db --calibre-web-dir ~/calibre-web --one-format",
-	}, "print": {
+		"disco database import calibre my_videos.db --library ~/Calibre",
+		"disco database import calibre my_videos.db --calibre-web-dir ~/calibre-web --one-format",
+	},
+	"check": {
+		"disco database check my_videos.db ~/Videos",
+	},
+	"print": {
 		"disco print my_videos.db",
 		"disco print my_videos.db -u size --reverse",
 		"disco print my_videos.db --big-dirs -u count",
@@ -164,28 +173,37 @@ var subcommandExamples = map[string][]string{
 		"disco search my_videos.db --search cyberpunk --video-only",
 	},
 	"watch": {
-		"disco watch my_videos.db",
-		"disco watch my_videos.db -r --limit 10",
-		"disco watch my_videos.db --size '>1GB'",
+		"disco play video my_videos.db",
+		"disco play video my_videos.db -r --limit 10",
+		"disco play video my_videos.db --size '>1GB'",
 	},
 	"listen": {
-		"disco listen my_music.db",
-		"disco listen my_music.db --random",
+		"disco play audio my_music.db",
+		"disco play audio my_music.db --random",
 	},
 	"serve": {
 		"disco serve my_videos.db my_music.db",
 		"disco serve --read-only my_videos.db",
 	},
+	"dedupe": {
+		"disco database dedupe my_videos.db",
+	},
+	"big-dirs": {
+		"disco folder large my_videos.db",
+	},
+	"files-info": {
+		"disco filesystem list my_videos.db",
+	},
 	"disk-usage": {
-		"disco du my_videos.db",
-		"disco du my_videos.db --depth 2",
+		"disco filesystem usage my_videos.db",
+		"disco filesystem usage my_videos.db --depth 2",
 	},
 	"history": {
-		"disco history my_videos.db",
-		"disco history my_videos.db --in-progress",
+		"disco database history my_videos.db",
+		"disco database history my_videos.db --in-progress",
 	},
 	"optimize": {
-		"disco optimize my_videos.db",
+		"disco database optimize my_videos.db",
 	},
 }
 
@@ -195,27 +213,64 @@ func SubcommandExamples() map[string][]string {
 	return subcommandExamples
 }
 
-func writeSubcommands(sb *strings.Builder, ctx *kong.Context) {
+func readmeNodes(ctx *kong.Context) map[string]*kong.Node {
+	nodes := make(map[string]*kong.Node, len(ctx.Model.Children))
 	for _, node := range ctx.Model.Children {
 		if node.Hidden {
 			continue
 		}
-		writeSubcommand(sb, node)
+		nodes[node.Name] = node
+	}
+	return nodes
+}
+
+func writeCommandOverview(sb *strings.Builder, ctx *kong.Context) {
+	sb.WriteString("## Commands\n\n")
+	nodes := readmeNodes(ctx)
+	for _, category := range CommandCatalog() {
+		fmt.Fprintf(sb, "### %s\n\n", category.Name)
+		for _, spec := range category.Commands {
+			node := nodes[spec.Name]
+			if node == nil {
+				continue
+			}
+			fmt.Fprintf(sb, "- `disco %s` - %s\n", CommandDisplayPath(spec), node.Help)
+		}
+		sb.WriteString("\n")
 	}
 }
 
-func writeSubcommand(sb *strings.Builder, node *kong.Node) {
-	fmt.Fprintf(sb, "### %s\n\n", node.Name)
+func writeCommandReference(sb *strings.Builder, ctx *kong.Context) {
+	sb.WriteString("## Command reference\n\n")
+	nodes := readmeNodes(ctx)
+	for _, category := range CommandCatalog() {
+		for _, spec := range category.Commands {
+			node := nodes[spec.Name]
+			if node == nil {
+				continue
+			}
+			writeSubcommand(sb, node, spec)
+		}
+	}
+}
+
+func writeSubcommand(sb *strings.Builder, node *kong.Node, spec CommandSpec) {
+	path := CommandDisplayPath(spec)
+	fmt.Fprintf(sb, "### %s\n\n", path)
 	fmt.Fprintf(sb, "%s\n\n", node.Help)
 
-	if ex, ok := SubcommandExamples()[node.Name]; ok {
-		writeExamples(sb, node.Name, ex)
+	if spec.Path != "" && spec.Path != spec.Name {
+		fmt.Fprintf(sb, "Flat alias: `disco %s`\n\n", spec.Name)
 	}
 
-	writeSubcommandOptions(sb, node)
+	if ex, ok := SubcommandExamples()[node.Name]; ok {
+		writeExamples(sb, ex)
+	}
+
+	writeSubcommandOptions(sb, node, path)
 }
 
-func writeExamples(sb *strings.Builder, _ string, examples []string) {
+func writeExamples(sb *strings.Builder, examples []string) {
 	sb.WriteString("Examples:\n\n```bash\n")
 	for _, line := range examples {
 		fmt.Fprintf(sb, "$ %s\n", line)
@@ -223,10 +278,10 @@ func writeExamples(sb *strings.Builder, _ string, examples []string) {
 	sb.WriteString("```\n\n")
 }
 
-func writeSubcommandOptions(sb *strings.Builder, node *kong.Node) {
+func writeSubcommandOptions(sb *strings.Builder, node *kong.Node, path string) {
 	sb.WriteString("<details><summary>All Options</summary>\n\n")
 	sb.WriteString("```bash\n")
-	fmt.Fprintf(sb, "$ disco %s --help\n", node.Name)
+	fmt.Fprintf(sb, "$ disco %s --help\n", path)
 
 	if len(node.Flags) > 0 {
 		sb.WriteString("\nFlags:\n")
