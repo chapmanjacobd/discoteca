@@ -192,6 +192,106 @@ func TestMigratePreservesChildRowsAndConvertsMediaID(t *testing.T) {
 	assertCanonicalFTSSchema(t, f.db)
 }
 
+func TestMigrateMergesDuplicatePlaylistPaths(t *testing.T) {
+	f := newLegacyFixture(t)
+	populateLegacySchema(t, f)
+
+	// Older databases identified playlists by (path, extractor_config), so
+	// changing the config left duplicate rows for the same path. The canonical
+	// schema identifies playlists by path alone.
+	f.exec(t, `ALTER TABLE playlists RENAME TO playlists_legacy`)
+	f.exec(t, `CREATE TABLE playlists (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		time_created INTEGER DEFAULT (strftime('%s', 'now')),
+		time_modified INTEGER,
+		time_deleted INTEGER,
+		hours_update_delay INTEGER DEFAULT '70',
+		path TEXT NOT NULL,
+		extractor_key TEXT,
+		extractor_config TEXT DEFAULT '{}',
+		title TEXT
+	)`)
+	f.exec(t, `CREATE UNIQUE INDEX playlists_uniq_path_idx ON playlists (path, extractor_config)`)
+	f.exec(t, `INSERT INTO playlists (id, path, title, extractor_key, extractor_config)
+		SELECT id, path, title, extractor_key, extractor_config FROM playlists_legacy`)
+	f.exec(t, `DROP TABLE playlists_legacy`)
+
+	f.exec(t, `INSERT INTO playlists (id, path, title, extractor_key, extractor_config)
+		VALUES (2, '/playlists/one', 'One (new)', 'Local', '{"prog": "library"}')`)
+	f.exec(t, `INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
+		VALUES (2, '/media/c.jpg', 1, 1000)`)
+	f.exec(t, `INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
+		VALUES (2, '/media/a.mkv', 9, 1000)`)
+
+	f.exec(t, `INSERT INTO playlists (id, path, title, extractor_key, extractor_config, time_deleted)
+		VALUES (3, '/playlists/two', 'Live', 'Local', '{}', 0)`)
+	f.exec(t, `INSERT INTO playlists (id, path, title, extractor_key, extractor_config, time_deleted)
+		VALUES (4, '/playlists/two', 'Deleted', 'Local', '{"prog": "library"}', 123)`)
+
+	ctx := context.Background()
+	if err := db.Migrate(ctx, f.db); err != nil {
+		t.Fatalf("Migrate failed: %v", err)
+	}
+
+	if got := f.queryInt(t, "SELECT count(*) FROM playlists WHERE path = '/playlists/one'"); got != 1 {
+		t.Fatalf("playlist rows for path = %d, want 1", got)
+	}
+
+	var id int64
+	var title string
+	if err := f.db.QueryRow(
+		"SELECT id, title FROM playlists WHERE path = '/playlists/one'",
+	).Scan(&id, &title); err != nil {
+		t.Fatal(err)
+	}
+	if id != 2 {
+		t.Errorf("kept playlist id = %d, want 2 (the most recent row)", id)
+	}
+	if title != "One (new)" {
+		t.Errorf("kept playlist title = %q, want the most recent row's title", title)
+	}
+
+	rows, err := f.db.Query(
+		"SELECT media_path, track_number FROM playlist_items WHERE playlist_id = 2 ORDER BY media_path",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	var got []string
+	for rows.Next() {
+		var mediaPath string
+		var trackNumber sql.NullInt64
+		if err := rows.Scan(&mediaPath, &trackNumber); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, fmt.Sprintf("%s=%d", mediaPath, trackNumber.Int64))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/media/a.mkv=9", "/media/b.mp3=2", "/media/c.jpg=1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("playlist_items = %v, want %v", got, want)
+	}
+
+	var liveID int64
+	var liveTitle string
+	var liveDeleted int64
+	if err := f.db.QueryRow(
+		"SELECT id, title, COALESCE(time_deleted, 0) FROM playlists WHERE path = '/playlists/two'",
+	).Scan(&liveID, &liveTitle, &liveDeleted); err != nil {
+		t.Fatal(err)
+	}
+	if liveID != 3 || liveTitle != "Live" || liveDeleted != 0 {
+		t.Errorf("kept soft-deleted-path row = (id=%d, title=%q, time_deleted=%d), "+
+			"want the live row (id=3, title=\"Live\", time_deleted=0)", liveID, liveTitle, liveDeleted)
+	}
+
+	assertNoForeignKeyViolations(t, f.db)
+}
+
 func assertNoForeignKeyViolations(t *testing.T, sqlDB *sql.DB) {
 	t.Helper()
 	rows, err := sqlDB.Query("PRAGMA foreign_key_check")

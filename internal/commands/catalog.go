@@ -187,10 +187,7 @@ func NestedHelpPrefix(args []string) []string {
 		if nested.Parts[0] != group {
 			continue
 		}
-		limit := len(nested.Parts)
-		if len(args) < limit {
-			limit = len(args)
-		}
+		limit := min(len(args), len(nested.Parts))
 		for length := limit; length >= 2; length-- {
 			matched := true
 			for i := 1; i < length; i++ {

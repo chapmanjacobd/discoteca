@@ -935,7 +935,93 @@ func populatePathTokenized(ctx context.Context, db dbExecer) error {
 	return tx.Commit()
 }
 
+// mergeDuplicatePlaylistPaths collapses playlist rows that share a path. Older
+// databases identified playlists by (path, extractor_config), so changing a
+// playlist's extractor config left several rows for one path. The canonical
+// schema identifies playlists by path alone, and its unique constraint would
+// reject those rows during migration.
+//
+// The most recently inserted live row is kept. Items belonging to the other
+// rows are moved to it; items it already has win, including their track
+// number.
+func mergeDuplicatePlaylistPaths(ctx context.Context, db dbExecer) error {
+	exists, err := tableExists(ctx, db, "playlists")
+	if err != nil || !exists {
+		return err
+	}
+
+	hasItems, err := tableExists(ctx, db, "playlist_items")
+	if err != nil {
+		return err
+	}
+
+	// Prefer a live row over a soft-deleted one so collapsing cannot make an
+	// active playlist disappear.
+	keepOrder := "0"
+	hasTimeDeleted, err := columnExists(ctx, db, "playlists", "time_deleted")
+	if err != nil {
+		return err
+	}
+	if hasTimeDeleted {
+		keepOrder = "COALESCE(candidate.time_deleted, 0)"
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		CREATE TEMP TABLE playlist_duplicates AS
+		SELECT duplicate_id, keep_id FROM (
+			SELECT p.id AS duplicate_id,
+				(SELECT candidate.id FROM playlists candidate
+				 WHERE candidate.path = p.path
+				 ORDER BY %s, candidate.id DESC
+				 LIMIT 1) AS keep_id
+			FROM playlists p
+		) WHERE duplicate_id <> keep_id
+	`, keepOrder)); err != nil {
+		return fmt.Errorf("failed to find duplicate playlists: %w", err)
+	}
+
+	if hasItems {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT OR IGNORE INTO playlist_items (playlist_id, media_path, track_number, time_added)
+			SELECT d.keep_id, pi.media_path, pi.track_number, pi.time_added
+			FROM playlist_items pi
+			JOIN playlist_duplicates d ON d.duplicate_id = pi.playlist_id
+		`); err != nil {
+			return fmt.Errorf("failed to move playlist items to the surviving playlist: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM playlist_items
+			WHERE playlist_id IN (SELECT duplicate_id FROM playlist_duplicates)
+		`); err != nil {
+			return fmt.Errorf("failed to remove items from duplicate playlists: %w", err)
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM playlists
+		WHERE id IN (SELECT duplicate_id FROM playlist_duplicates)
+	`); err != nil {
+		return fmt.Errorf("failed to delete duplicate playlists: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DROP TABLE playlist_duplicates"); err != nil {
+		return fmt.Errorf("failed to drop duplicate playlist map: %w", err)
+	}
+
+	return tx.Commit()
+}
+
 func migrateTables(ctx context.Context, db dbExecer) error {
+	if err := mergeDuplicatePlaylistPaths(ctx, db); err != nil {
+		return err
+	}
+
 	if err := migrateStrictTables(ctx, db); err != nil {
 		return err
 	}
