@@ -90,6 +90,59 @@ func TestQueries(t *testing.T) {
 	t.Run("StrictEnforcement", func(t *testing.T) { env.testStrictEnforcement(ctx, t) })
 }
 
+func TestInsertPlaylistExtractorConfig(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name   string
+		config sql.NullString
+		want   string
+	}{
+		{
+			name: "omitted config preserves existing config",
+			want: `{"threads": 3}`,
+		},
+		{
+			name:   "provided config replaces existing config",
+			config: sql.NullString{String: `{"threads": 8}`, Valid: true},
+			want:   `{"threads": 8}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sqlDB, q := setupDB(t)
+			defer sqlDB.Close()
+
+			path := "/library/video"
+			if _, err := q.InsertPlaylist(ctx, db.InsertPlaylistParams{
+				Path:            sql.NullString{String: path, Valid: true},
+				ExtractorConfig: sql.NullString{String: `{"threads": 3}`, Valid: true},
+			}); err != nil {
+				t.Fatalf("initial InsertPlaylist failed: %v", err)
+			}
+
+			if _, err := q.InsertPlaylist(ctx, db.InsertPlaylistParams{
+				Path:            sql.NullString{String: path, Valid: true},
+				ExtractorKey:    sql.NullString{String: "Local", Valid: true},
+				ExtractorConfig: tt.config,
+			}); err != nil {
+				t.Fatalf("second InsertPlaylist failed: %v", err)
+			}
+
+			var got sql.NullString
+			if err := sqlDB.QueryRow(
+				"SELECT extractor_config FROM playlists WHERE path = ?",
+				path,
+			).Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got.String != tt.want {
+				t.Errorf("extractor_config = %q, want %q", got.String, tt.want)
+			}
+		})
+	}
+}
+
 func (e *queriesTestEnv) testUpsertAndGet(ctx context.Context, t *testing.T) {
 	err := e.q.UpsertMedia(ctx, db.UpsertMediaParams{
 		Path:  "test.mp4",
