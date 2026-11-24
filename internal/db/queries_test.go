@@ -90,21 +90,38 @@ func TestQueries(t *testing.T) {
 	t.Run("StrictEnforcement", func(t *testing.T) { env.testStrictEnforcement(ctx, t) })
 }
 
-func TestInsertPlaylistExtractorConfig(t *testing.T) {
+func TestInsertPlaylistPreservesOmittedMetadata(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
-		name   string
-		config sql.NullString
-		want   string
+		name       string
+		key        sql.NullString
+		config     sql.NullString
+		wantKey    string
+		wantConfig string
 	}{
 		{
-			name: "omitted config preserves existing config",
-			want: `{"threads": 3}`,
+			name:       "omitted key and config preserve existing values",
+			wantKey:    "youtube",
+			wantConfig: `{"threads": 3}`,
 		},
 		{
-			name:   "provided config replaces existing config",
-			config: sql.NullString{String: `{"threads": 8}`, Valid: true},
-			want:   `{"threads": 8}`,
+			name:       "provided key and config replace existing values",
+			key:        sql.NullString{String: "Local", Valid: true},
+			config:     sql.NullString{String: `{"threads": 8}`, Valid: true},
+			wantKey:    "Local",
+			wantConfig: `{"threads": 8}`,
+		},
+		{
+			name:       "omitted key preserves while config replaces",
+			config:     sql.NullString{String: `{"threads": 8}`, Valid: true},
+			wantKey:    "youtube",
+			wantConfig: `{"threads": 8}`,
+		},
+		{
+			name:       "omitted config preserves while key replaces",
+			key:        sql.NullString{String: "Local", Valid: true},
+			wantKey:    "Local",
+			wantConfig: `{"threads": 3}`,
 		},
 	}
 
@@ -116,6 +133,7 @@ func TestInsertPlaylistExtractorConfig(t *testing.T) {
 			path := "/library/video"
 			if _, err := q.InsertPlaylist(ctx, db.InsertPlaylistParams{
 				Path:            sql.NullString{String: path, Valid: true},
+				ExtractorKey:    sql.NullString{String: "youtube", Valid: true},
 				ExtractorConfig: sql.NullString{String: `{"threads": 3}`, Valid: true},
 			}); err != nil {
 				t.Fatalf("initial InsertPlaylist failed: %v", err)
@@ -123,21 +141,24 @@ func TestInsertPlaylistExtractorConfig(t *testing.T) {
 
 			if _, err := q.InsertPlaylist(ctx, db.InsertPlaylistParams{
 				Path:            sql.NullString{String: path, Valid: true},
-				ExtractorKey:    sql.NullString{String: "Local", Valid: true},
+				ExtractorKey:    tt.key,
 				ExtractorConfig: tt.config,
 			}); err != nil {
 				t.Fatalf("second InsertPlaylist failed: %v", err)
 			}
 
-			var got sql.NullString
+			var gotKey, gotConfig sql.NullString
 			if err := sqlDB.QueryRow(
-				"SELECT extractor_config FROM playlists WHERE path = ?",
+				"SELECT extractor_key, extractor_config FROM playlists WHERE path = ?",
 				path,
-			).Scan(&got); err != nil {
+			).Scan(&gotKey, &gotConfig); err != nil {
 				t.Fatal(err)
 			}
-			if got.String != tt.want {
-				t.Errorf("extractor_config = %q, want %q", got.String, tt.want)
+			if gotKey.String != tt.wantKey {
+				t.Errorf("extractor_key = %q, want %q", gotKey.String, tt.wantKey)
+			}
+			if gotConfig.String != tt.wantConfig {
+				t.Errorf("extractor_config = %q, want %q", gotConfig.String, tt.wantConfig)
 			}
 		})
 	}

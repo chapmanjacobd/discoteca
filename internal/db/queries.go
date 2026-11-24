@@ -763,7 +763,7 @@ type InsertPlaylistParams struct {
 
 // InsertPlaylist inserts a new playlist or updates existing
 func (q *Queries) InsertPlaylist(ctx context.Context, arg InsertPlaylistParams) (int64, error) {
-	const query = `INSERT INTO playlists (path, title, extractor_key, extractor_config) VALUES (?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET title = COALESCE(excluded.title, playlists.title), extractor_key = excluded.extractor_key, extractor_config = COALESCE(excluded.extractor_config, playlists.extractor_config) RETURNING id`
+	const query = `INSERT INTO playlists (path, title, extractor_key, extractor_config) VALUES (?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET title = COALESCE(excluded.title, playlists.title), extractor_key = COALESCE(excluded.extractor_key, playlists.extractor_key), extractor_config = COALESCE(excluded.extractor_config, playlists.extractor_config) RETURNING id`
 	var id int64
 	err := q.db.QueryRowContext(ctx, query, arg.Path, arg.Title, arg.ExtractorKey, arg.ExtractorConfig).Scan(&id)
 	return id, err
