@@ -113,7 +113,8 @@ func TestE2E_HistoryAdd(t *testing.T) {
 	sqlDB2 := fixture.GetDB()
 	defer sqlDB2.Close()
 	var count int
-	err := sqlDB2.QueryRow("SELECT COUNT(*) FROM history WHERE media_path = ? AND done = 1", dummyPath).Scan(&count)
+	err := sqlDB2.QueryRow("SELECT COUNT(*) FROM history h JOIN media m ON m.id = h.media_id WHERE m.path = ? AND h.done = 1", dummyPath).
+		Scan(&count)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +327,8 @@ Another caption here.
 		t.Fatalf("Expected media to be imported into the database, but found 0")
 	}
 
-	err = sqlDB.QueryRow("SELECT COUNT(*) FROM captions WHERE media_path = ?", videoPath).Scan(&count)
+	err = sqlDB.QueryRow("SELECT COUNT(*) FROM captions c JOIN media m ON m.id = c.media_id WHERE m.path = ?", videoPath).
+		Scan(&count)
 	if err != nil {
 		t.Fatalf("failed to query captions: %v", err)
 	}

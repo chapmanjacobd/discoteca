@@ -38,7 +38,7 @@ func (q *Queries) SearchCaptions(ctx context.Context, arg SearchCaptionsParams) 
 	}
 
 	query := `
-SELECT c.media_path, c.time, c.text, m.title, m.media_type, m.size, m.duration
+SELECT m.path, c.time, c.text, m.title, m.media_type, m.size, m.duration
 FROM captions c
 JOIN (
     SELECT rowid, rank FROM captions_fts
@@ -46,7 +46,7 @@ JOIN (
     ORDER BY rank
     LIMIT ?
 ) fts ON c.rowid = fts.rowid
-JOIN media m ON c.media_path = m.path
+JOIN media m ON c.media_id = m.id
 WHERE m.time_deleted = 0
 AND (? = 0 OR m.media_type = 'video')
 AND (? = 0 OR m.media_type IN ('audio', 'audiobook'))
@@ -102,16 +102,16 @@ func (q *Queries) SearchCaptionsSubstring(
 	}
 
 	const query = `
-SELECT c.media_path, c.time, c.text, m.title, m.media_type, m.size, m.duration
+SELECT m.path, c.time, c.text, m.title, m.media_type, m.size, m.duration
 FROM captions c
-JOIN media m ON c.media_path = m.path
+JOIN media m ON c.media_id = m.id
 WHERE m.time_deleted = 0
 AND c.text LIKE ? ESCAPE '\'
 AND (? = 0 OR m.media_type = 'video')
 AND (? = 0 OR m.media_type IN ('audio', 'audiobook'))
 AND (? = 0 OR m.media_type = 'image')
 AND (? = 0 OR m.media_type = 'text')
-ORDER BY c.media_path, c.time
+ORDER BY m.path, c.time
 LIMIT ?
 `
 	pattern := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(arg.Query)

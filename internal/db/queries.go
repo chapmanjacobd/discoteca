@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -821,9 +822,21 @@ type AddPlaylistItemParams struct {
 
 // AddPlaylistItem adds a media item to a playlist
 func (q *Queries) AddPlaylistItem(ctx context.Context, arg AddPlaylistItemParams) error {
-	const query = `INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added) VALUES (?, ?, ?, unixepoch()) ON CONFLICT(playlist_id, media_path) DO UPDATE SET track_number = excluded.track_number`
-	_, err := q.db.ExecContext(ctx, query, arg.PlaylistID, arg.MediaPath, arg.TrackNumber)
-	return err
+	const query = `INSERT INTO playlist_items (playlist_id, media_id, track_number, time_added)
+		SELECT ?, id, ?, unixepoch() FROM media WHERE path = ?
+		ON CONFLICT(playlist_id, media_id) DO UPDATE SET track_number = excluded.track_number`
+	res, err := q.db.ExecContext(ctx, query, arg.PlaylistID, arg.TrackNumber, arg.MediaPath)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("media not found: %s", arg.MediaPath)
+	}
+	return nil
 }
 
 // RemovePlaylistItemParams are parameters for RemovePlaylistItem
@@ -834,7 +847,7 @@ type RemovePlaylistItemParams struct {
 
 // RemovePlaylistItem removes a media item from a playlist
 func (q *Queries) RemovePlaylistItem(ctx context.Context, arg RemovePlaylistItemParams) error {
-	const query = `DELETE FROM playlist_items WHERE playlist_id = ? AND media_path = ?`
+	const query = `DELETE FROM playlist_items WHERE playlist_id = ? AND media_id = (SELECT id FROM media WHERE path = ?)`
 	_, err := q.db.ExecContext(ctx, query, arg.PlaylistID, arg.MediaPath)
 	return err
 }
@@ -849,7 +862,7 @@ type GetPlaylistItemsRow struct {
 
 // GetPlaylistItems retrieves all items in a playlist
 func (q *Queries) GetPlaylistItems(ctx context.Context, playlistID int64) ([]GetPlaylistItemsRow, error) {
-	const query = `SELECT m.path, m.path_tokenized, m.title, m.duration, m.size, m.time_created, m.time_modified, m.time_deleted, m.time_first_played, m.time_last_played, m.play_count, m.playhead, m.media_type, m.width, m.height, m.fps, m.video_codecs, m.audio_codecs, m.subtitle_codecs, m.video_count, m.audio_count, m.subtitle_count, m.album, m.artist, m.genre, m.categories, m.description, m.language, m.time_downloaded, m.score, pi.track_number, pi.time_added FROM media m JOIN playlist_items pi ON m.path = pi.media_path WHERE pi.playlist_id = ? AND m.time_deleted = 0 ORDER BY pi.track_number, pi.time_added, m.path`
+	const query = `SELECT m.path, m.path_tokenized, m.title, m.duration, m.size, m.time_created, m.time_modified, m.time_deleted, m.time_first_played, m.time_last_played, m.play_count, m.playhead, m.media_type, m.width, m.height, m.fps, m.video_codecs, m.audio_codecs, m.subtitle_codecs, m.video_count, m.audio_count, m.subtitle_count, m.album, m.artist, m.genre, m.categories, m.description, m.language, m.time_downloaded, m.score, pi.track_number, pi.time_added FROM media m JOIN playlist_items pi ON m.id = pi.media_id WHERE pi.playlist_id = ? AND m.time_deleted = 0 ORDER BY pi.track_number, pi.time_added, m.path`
 	rows, err := q.db.QueryContext(ctx, query, playlistID)
 	if err != nil {
 		return nil, err
@@ -919,9 +932,19 @@ type InsertCaptionParams struct {
 
 // InsertCaption inserts a caption for a media item
 func (q *Queries) InsertCaption(ctx context.Context, arg InsertCaptionParams) error {
-	const query = `INSERT INTO captions (media_path, time, text) VALUES (?, ?, ?)`
-	_, err := q.db.ExecContext(ctx, query, arg.MediaPath, arg.Time, arg.Text)
-	return err
+	const query = `INSERT INTO captions (media_id, time, text) SELECT id, ?, ? FROM media WHERE path = ?`
+	res, err := q.db.ExecContext(ctx, query, arg.Time, arg.Text, arg.MediaPath)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("media not found: %s", arg.MediaPath)
+	}
+	return nil
 }
 
 // InsertHistoryParams are parameters for InsertHistory
@@ -934,14 +957,24 @@ type InsertHistoryParams struct {
 
 // InsertHistory inserts a history entry
 func (q *Queries) InsertHistory(ctx context.Context, arg InsertHistoryParams) error {
-	const query = `INSERT INTO history (media_path, time_played, playhead, done) VALUES (?, ?, ?, ?)`
-	_, err := q.db.ExecContext(ctx, query, arg.MediaPath, arg.TimePlayed, arg.Playhead, arg.Done)
-	return err
+	const query = `INSERT INTO history (media_id, time_played, playhead, done) SELECT id, ?, ?, ? FROM media WHERE path = ?`
+	res, err := q.db.ExecContext(ctx, query, arg.TimePlayed, arg.Playhead, arg.Done, arg.MediaPath)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("media not found: %s", arg.MediaPath)
+	}
+	return nil
 }
 
 // GetHistoryCount retrieves the history count for a media item
 func (q *Queries) GetHistoryCount(ctx context.Context, mediaPath string) (int64, error) {
-	const query = `SELECT COUNT(*) FROM history WHERE media_path = ?`
+	const query = `SELECT COUNT(*) FROM history h JOIN media m ON m.id = h.media_id WHERE m.path = ?`
 	var count int64
 	err := q.db.QueryRowContext(ctx, query, mediaPath).Scan(&count)
 	return count, err
@@ -949,7 +982,7 @@ func (q *Queries) GetHistoryCount(ctx context.Context, mediaPath string) (int64,
 
 // GetCaptionsForMedia retrieves all captions for a media item
 func (q *Queries) GetCaptionsForMedia(ctx context.Context, mediaPath string) ([]Captions, error) {
-	const query = `SELECT media_path, time, text FROM captions WHERE media_path = ? ORDER BY time`
+	const query = `SELECT m.path, c.time, c.text FROM captions c JOIN media m ON m.id = c.media_id WHERE m.path = ? ORDER BY c.time`
 	rows, err := q.db.QueryContext(ctx, query, mediaPath)
 	if err != nil {
 		return nil, err
@@ -972,7 +1005,7 @@ func (q *Queries) GetCaptionsForMedia(ctx context.Context, mediaPath string) ([]
 
 // GetAllCaptions retrieves random captions
 func (q *Queries) GetAllCaptions(ctx context.Context, limit int64) ([]GetAllCaptionsRow, error) {
-	const query = `SELECT c.media_path, c.time, c.text, m.title, m.media_type, m.size, m.duration FROM captions c JOIN media m ON c.media_path = m.path WHERE m.time_deleted = 0 AND c.text IS NOT NULL AND c.text != '' ORDER BY RANDOM() LIMIT ?`
+	const query = `SELECT m.path, c.time, c.text, m.title, m.media_type, m.size, m.duration FROM captions c JOIN media m ON c.media_id = m.id WHERE m.time_deleted = 0 AND c.text IS NOT NULL AND c.text != '' ORDER BY RANDOM() LIMIT ?`
 	rows, err := q.db.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
@@ -1007,7 +1040,7 @@ func (q *Queries) GetAllCaptionsOrdered(
 	ctx context.Context,
 	arg GetAllCaptionsOrderedParams,
 ) ([]GetAllCaptionsOrderedRow, error) {
-	const query = `SELECT c.media_path, c.time, c.text, m.title, m.media_type, m.size, m.duration FROM captions c JOIN media m ON c.media_path = m.path WHERE m.time_deleted = 0 AND c.text IS NOT NULL AND c.text != '' AND ((CAST(? AS INT) = 0 AND CAST(? AS INT) = 0 AND CAST(? AS INT) = 0 AND CAST(? AS INT) = 0) OR (CAST(? AS INT) = 1 AND m.media_type = 'video') OR (CAST(? AS INT) = 1 AND m.media_type IN ('audio', 'audiobook')) OR (CAST(? AS INT) = 1 AND m.media_type = 'image') OR (CAST(? AS INT) = 1 AND m.media_type = 'text')) ORDER BY c.media_path, c.time LIMIT ?`
+	const query = `SELECT m.path, c.time, c.text, m.title, m.media_type, m.size, m.duration FROM captions c JOIN media m ON c.media_id = m.id WHERE m.time_deleted = 0 AND c.text IS NOT NULL AND c.text != '' AND ((CAST(? AS INT) = 0 AND CAST(? AS INT) = 0 AND CAST(? AS INT) = 0 AND CAST(? AS INT) = 0) OR (CAST(? AS INT) = 1 AND m.media_type = 'video') OR (CAST(? AS INT) = 1 AND m.media_type IN ('audio', 'audiobook')) OR (CAST(? AS INT) = 1 AND m.media_type = 'image') OR (CAST(? AS INT) = 1 AND m.media_type = 'text')) ORDER BY m.path, c.time LIMIT ?`
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.VideoOnly,
 		arg.AudioOnly,

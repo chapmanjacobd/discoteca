@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS playlists (
 
 CREATE TABLE IF NOT EXISTS playlist_items (
     playlist_id INTEGER NOT NULL,
-    media_path TEXT NOT NULL,
+    media_id INTEGER NOT NULL,
     track_number INTEGER,
     time_added INTEGER DEFAULT (unixepoch()),
-    PRIMARY KEY (playlist_id, media_path),
+    PRIMARY KEY (playlist_id, media_id),
     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
-    FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+    FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
 ) STRICT;

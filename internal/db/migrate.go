@@ -103,16 +103,22 @@ func runMigrations(ctx context.Context, db dbExecer) error {
 		return err
 	}
 
-	// Convert legacy media_id references while rowids still point at the
-	// original media rows. Recreating media can reassign rowids.
-	if err := convertColumnsBeforeStrict(ctx, db); err != nil {
-		return fmt.Errorf("failed to convert columns: %w", err)
+	// Convert legacy rowid-based media_id references while rowids still point
+	// at the original media rows. Recreating media can reassign rowids.
+	if err := convertLegacyMediaIDColumns(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert legacy media_id columns: %w", err)
 	}
 
 	// Consolidate metadata and recreate media (dropping dead columns and/or
 	// applying STRICT). Foreign keys are disabled for the whole migration.
 	if err := cleanupMediaTable(ctx, db); err != nil {
 		return err
+	}
+
+	// Resolve path-keyed rows against the recreated media table. This runs
+	// after cleanup so media.id values are final.
+	if err := convertMediaPathColumns(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert media_path columns: %w", err)
 	}
 
 	// Rows that point at missing parents cannot satisfy foreign_key_check.
@@ -286,9 +292,20 @@ func migrateToStrict(ctx context.Context, db dbExecer, tableName, createSQL stri
 	return tx.Commit()
 }
 
-// convertColumnsBeforeStrict handles column type conversions before STRICT
-// migration, e.g. history.media_id (INTEGER) -> history.media_path (TEXT).
-func convertColumnsBeforeStrict(ctx context.Context, db dbExecer) error {
+// convertLegacyMediaIDColumns translates rowid-based media_id references to
+// paths before media is recreated. Recreating media can reassign rowids.
+//
+// An INTEGER PRIMARY KEY id is an alias for rowid, so databases with an id
+// column already hold stable media_id values and are left alone.
+func convertLegacyMediaIDColumns(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "media")
+	if err != nil {
+		return err
+	}
+	if len(columns) == 0 || slices.Contains(columns, "id") {
+		return nil
+	}
+
 	if err := convertHistoryMediaID(ctx, db); err != nil {
 		return fmt.Errorf("failed to convert history.media_id: %w", err)
 	}
@@ -317,15 +334,8 @@ func convertHistoryMediaID(ctx context.Context, db dbExecer) error {
 
 	joinKey := mediaIDJoinKey(ctx, db)
 
-	if _, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS history_orphaned (
-		id INTEGER,
-		media_id INTEGER NOT NULL,
-		time_played INTEGER,
-		playhead INTEGER,
-		done INTEGER,
-		quarantined_at INTEGER DEFAULT (unixepoch())
-	)`); err != nil {
-		return fmt.Errorf("failed to create history_orphaned: %w", err)
+	if err := ensureHistoryOrphanedTable(ctx, db); err != nil {
+		return err
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -389,13 +399,8 @@ func convertCaptionsMediaID(ctx context.Context, db dbExecer) error {
 
 	joinKey := mediaIDJoinKey(ctx, db)
 
-	if _, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS captions_orphaned (
-		media_id INTEGER NOT NULL,
-		time REAL,
-		text TEXT,
-		quarantined_at INTEGER DEFAULT (unixepoch())
-	)`); err != nil {
-		return fmt.Errorf("failed to create captions_orphaned: %w", err)
+	if err := ensureCaptionsOrphanedTable(ctx, db); err != nil {
+		return err
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -445,24 +450,405 @@ func convertCaptionsMediaID(ctx context.Context, db dbExecer) error {
 		return err
 	}
 
-	// Dropping captions also drops its FTS triggers. Recreate and rebuild now
-	// so captions_fts never points at stale rowids. An incompatible table is
-	// left for upgradeFTSTable, which can recreate it safely.
-	if IsFtsEnabled() {
-		matches, err := ftsTableMatches(ctx, db, "captions_fts")
-		if err != nil {
-			return err
-		}
-		if matches {
-			if err := ensureCaptionsFTSTriggers(ctx, db); err != nil {
-				return err
-			}
-			if err := rebuildFTSData(ctx, db, "captions_fts"); err != nil {
-				return err
-			}
-		}
+	return nil
+}
+
+// convertMediaPathColumns resolves path-keyed child tables to media.id.
+//
+// The canonical schema keys child rows by media_id. Databases written by older
+// releases used media_path instead, so each table is rebuilt with the same
+// rows mapped through media.path. Rows that cannot be resolved are preserved
+// in quarantine tables where one exists.
+func convertMediaPathColumns(ctx context.Context, db dbExecer) error {
+	if err := convertHistoryMediaPath(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert history.media_path: %w", err)
+	}
+	if err := convertCaptionsMediaPath(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert captions.media_path: %w", err)
+	}
+	if err := convertPlaylistItemsMediaPath(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert playlist_items.media_path: %w", err)
+	}
+	if err := convertDocumentProgressMediaPath(ctx, db); err != nil {
+		return fmt.Errorf("failed to convert document_progress.media_path: %w", err)
 	}
 	return nil
+}
+
+func convertHistoryMediaPath(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "history")
+	if err != nil {
+		return err
+	}
+	if len(columns) == 0 || !slices.Contains(columns, "media_path") || slices.Contains(columns, "media_id") {
+		return nil
+	}
+
+	if err := ensureHistoryOrphanedTable(ctx, db); err != nil {
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE history_tmp (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		media_id INTEGER NOT NULL,
+		time_played INTEGER DEFAULT (unixepoch()),
+		playhead INTEGER,
+		done INTEGER,
+		FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+	) STRICT`); err != nil {
+		return fmt.Errorf("failed to create history_tmp: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO history_orphaned (id, media_path, time_played, playhead, done)
+		SELECT h.id, h.media_path, h.time_played, h.playhead, h.done
+		FROM history h
+		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = h.media_path)
+	`); err != nil {
+		return fmt.Errorf("failed to quarantine orphaned history rows: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO history_tmp (id, media_id, time_played, playhead, done)
+		SELECT h.id, m.id, h.time_played, h.playhead, h.done
+		FROM history h
+		JOIN media m ON m.path = h.media_path
+	`); err != nil {
+		return fmt.Errorf("failed to convert history media_path to media_id: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DROP TABLE history"); err != nil {
+		return fmt.Errorf("failed to drop old history: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE history_tmp RENAME TO history"); err != nil {
+		return fmt.Errorf("failed to rename history_tmp: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func convertCaptionsMediaPath(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "captions")
+	if err != nil {
+		return err
+	}
+	if len(columns) == 0 || !slices.Contains(columns, "media_path") || slices.Contains(columns, "media_id") {
+		return nil
+	}
+
+	if err := ensureCaptionsOrphanedTable(ctx, db); err != nil {
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE captions_tmp (
+		media_id INTEGER NOT NULL,
+		time REAL,
+		text TEXT,
+		FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+	) STRICT`); err != nil {
+		return fmt.Errorf("failed to create captions_tmp: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO captions_orphaned (media_path, time, text)
+		SELECT c.media_path, c.time, c.text
+		FROM captions c
+		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = c.media_path)
+	`); err != nil {
+		return fmt.Errorf("failed to quarantine orphaned caption rows: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO captions_tmp (media_id, time, text)
+		SELECT m.id, c.time, c.text
+		FROM captions c
+		JOIN media m ON m.path = c.media_path
+	`); err != nil {
+		return fmt.Errorf("failed to convert captions media_path to media_id: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DROP TABLE captions"); err != nil {
+		return fmt.Errorf("failed to drop old captions: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE captions_tmp RENAME TO captions"); err != nil {
+		return fmt.Errorf("failed to rename captions_tmp: %w", err)
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		"CREATE INDEX IF NOT EXISTS idx_captions_media_id ON captions(media_id)",
+	); err != nil {
+		return fmt.Errorf("failed to index captions.media_id: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return rebuildCaptionsFTSIfCanonical(ctx, db)
+}
+
+func convertPlaylistItemsMediaPath(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "playlist_items")
+	if err != nil {
+		return err
+	}
+	if len(columns) == 0 || !slices.Contains(columns, "media_path") || slices.Contains(columns, "media_id") {
+		return nil
+	}
+
+	if err := ensurePlaylistItemsOrphanedTable(ctx, db); err != nil {
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE playlist_items_tmp (
+		playlist_id INTEGER NOT NULL,
+		media_id INTEGER NOT NULL,
+		track_number INTEGER,
+		time_added INTEGER DEFAULT (unixepoch()),
+		PRIMARY KEY (playlist_id, media_id),
+		FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+		FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+	) STRICT`); err != nil {
+		return fmt.Errorf("failed to create playlist_items_tmp: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO playlist_items_orphaned (playlist_id, media_path, track_number, time_added, reason)
+		SELECT pi.playlist_id, pi.media_path, pi.track_number, pi.time_added, 'missing media'
+		FROM playlist_items pi
+		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = pi.media_path)
+	`); err != nil {
+		return fmt.Errorf("failed to quarantine orphaned playlist_items: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO playlist_items_tmp (playlist_id, media_id, track_number, time_added)
+		SELECT pi.playlist_id, m.id, pi.track_number, pi.time_added
+		FROM playlist_items pi
+		JOIN media m ON m.path = pi.media_path
+	`); err != nil {
+		return fmt.Errorf("failed to convert playlist_items media_path to media_id: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DROP TABLE playlist_items"); err != nil {
+		return fmt.Errorf("failed to drop old playlist_items: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE playlist_items_tmp RENAME TO playlist_items"); err != nil {
+		return fmt.Errorf("failed to rename playlist_items_tmp: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func convertDocumentProgressMediaPath(ctx context.Context, db dbExecer) error {
+	columns, err := tableColumns(ctx, db, "document_progress")
+	if err != nil {
+		return err
+	}
+	if len(columns) == 0 || !slices.Contains(columns, "media_path") || slices.Contains(columns, "media_id") {
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE document_progress_tmp (
+		media_id INTEGER PRIMARY KEY,
+		scroll_percent REAL NOT NULL DEFAULT 0,
+		chapter TEXT,
+		time_updated INTEGER NOT NULL DEFAULT (unixepoch()),
+		FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+	) STRICT`); err != nil {
+		return fmt.Errorf("failed to create document_progress_tmp: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO document_progress_tmp (media_id, scroll_percent, chapter, time_updated)
+		SELECT m.id, dp.scroll_percent, dp.chapter, dp.time_updated
+		FROM document_progress dp
+		JOIN media m ON m.path = dp.media_path
+	`); err != nil {
+		return fmt.Errorf("failed to convert document_progress media_path to media_id: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DROP TABLE document_progress"); err != nil {
+		return fmt.Errorf("failed to drop old document_progress: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE document_progress_tmp RENAME TO document_progress"); err != nil {
+		return fmt.Errorf("failed to rename document_progress_tmp: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+const historyOrphanedCreateSQL = `CREATE TABLE history_orphaned (
+	id INTEGER,
+	media_id INTEGER,
+	media_path TEXT,
+	time_played INTEGER,
+	playhead INTEGER,
+	done INTEGER,
+	quarantined_at INTEGER DEFAULT (unixepoch())
+)`
+
+const captionsOrphanedCreateSQL = `CREATE TABLE captions_orphaned (
+	media_id INTEGER,
+	media_path TEXT,
+	time REAL,
+	text TEXT,
+	quarantined_at INTEGER DEFAULT (unixepoch())
+)`
+
+const playlistItemsOrphanedCreateSQL = `CREATE TABLE playlist_items_orphaned (
+	playlist_id INTEGER NOT NULL,
+	media_path TEXT NOT NULL,
+	track_number INTEGER,
+	time_added INTEGER,
+	reason TEXT NOT NULL,
+	quarantined_at INTEGER DEFAULT (unixepoch())
+)`
+
+// ensureHistoryOrphanedTable upgrades the pre-existing quarantine table so it
+// can record both legacy media_id orphans and path-keyed orphans.
+func ensureHistoryOrphanedTable(ctx context.Context, db dbExecer) error {
+	exists, err := tableExists(ctx, db, "history_orphaned")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if _, err := db.ExecContext(ctx, historyOrphanedCreateSQL); err != nil {
+			return fmt.Errorf("failed to create history_orphaned: %w", err)
+		}
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "history_orphaned")
+	if err != nil {
+		return err
+	}
+	if slices.Contains(columns, "media_path") {
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, strings.Replace(historyOrphanedCreateSQL,
+		"CREATE TABLE history_orphaned", "CREATE TABLE history_orphaned_new", 1)); err != nil {
+		return fmt.Errorf("failed to create history_orphaned_new: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO history_orphaned_new
+		(id, media_id, time_played, playhead, done, quarantined_at)
+		SELECT id, media_id, time_played, playhead, done, quarantined_at
+		FROM history_orphaned`); err != nil {
+		return fmt.Errorf("failed to copy legacy history_orphaned rows: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "DROP TABLE history_orphaned"); err != nil {
+		return fmt.Errorf("failed to drop legacy history_orphaned: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE history_orphaned_new RENAME TO history_orphaned"); err != nil {
+		return fmt.Errorf("failed to rename history_orphaned_new: %w", err)
+	}
+	return tx.Commit()
+}
+
+func ensureCaptionsOrphanedTable(ctx context.Context, db dbExecer) error {
+	exists, err := tableExists(ctx, db, "captions_orphaned")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if _, err := db.ExecContext(ctx, captionsOrphanedCreateSQL); err != nil {
+			return fmt.Errorf("failed to create captions_orphaned: %w", err)
+		}
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "captions_orphaned")
+	if err != nil {
+		return err
+	}
+	if slices.Contains(columns, "media_path") {
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, strings.Replace(captionsOrphanedCreateSQL,
+		"CREATE TABLE captions_orphaned", "CREATE TABLE captions_orphaned_new", 1)); err != nil {
+		return fmt.Errorf("failed to create captions_orphaned_new: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO captions_orphaned_new
+		(media_id, time, text, quarantined_at)
+		SELECT media_id, time, text, quarantined_at
+		FROM captions_orphaned`); err != nil {
+		return fmt.Errorf("failed to copy legacy captions_orphaned rows: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "DROP TABLE captions_orphaned"); err != nil {
+		return fmt.Errorf("failed to drop legacy captions_orphaned: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE captions_orphaned_new RENAME TO captions_orphaned"); err != nil {
+		return fmt.Errorf("failed to rename captions_orphaned_new: %w", err)
+	}
+	return tx.Commit()
+}
+
+func ensurePlaylistItemsOrphanedTable(ctx context.Context, db dbExecer) error {
+	if _, err := db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS playlist_items_orphaned ("+
+		"playlist_id INTEGER NOT NULL, media_path TEXT NOT NULL, track_number INTEGER, "+
+		"time_added INTEGER, reason TEXT NOT NULL, quarantined_at INTEGER DEFAULT (unixepoch()))"); err != nil {
+		return fmt.Errorf("failed to create playlist_items_orphaned: %w", err)
+	}
+	return nil
+}
+
+// rebuildCaptionsFTSIfCanonical rebuilds captions_fts when it already uses the
+// canonical schema. A table with the old media_path schema is handled later by
+// upgradeFTSTable.
+func rebuildCaptionsFTSIfCanonical(ctx context.Context, db dbExecer) error {
+	if !IsFtsEnabled() {
+		return nil
+	}
+	matches, err := ftsTableMatches(ctx, db, "captions_fts")
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return nil
+	}
+	if err := ensureCaptionsFTSTriggers(ctx, db); err != nil {
+		return err
+	}
+	return rebuildFTSData(ctx, db, "captions_fts")
 }
 
 var (
@@ -957,7 +1343,7 @@ func mergeDuplicatePlaylistPaths(ctx context.Context, db dbExecer) error {
 
 	// Prefer a live row over a soft-deleted one so collapsing cannot make an
 	// active playlist disappear.
-	keepOrder := "0"
+	keepOrder := "1"
 	hasTimeDeleted, err := columnExists(ctx, db, "playlists", "time_deleted")
 	if err != nil {
 		return err
@@ -988,8 +1374,8 @@ func mergeDuplicatePlaylistPaths(ctx context.Context, db dbExecer) error {
 
 	if hasItems {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT OR IGNORE INTO playlist_items (playlist_id, media_path, track_number, time_added)
-			SELECT d.keep_id, pi.media_path, pi.track_number, pi.time_added
+			INSERT OR IGNORE INTO playlist_items (playlist_id, media_id, track_number, time_added)
+			SELECT d.keep_id, pi.media_id, pi.track_number, pi.time_added
 			FROM playlist_items pi
 			JOIN playlist_duplicates d ON d.duplicate_id = pi.playlist_id
 		`); err != nil {
@@ -1076,33 +1462,33 @@ func strictTableMigrations() []tableMigration {
             ) STRICT`},
 		{"playlist_items", `CREATE TABLE playlist_items (
                 playlist_id INTEGER NOT NULL,
-                media_path TEXT NOT NULL,
+                media_id INTEGER NOT NULL,
                 track_number INTEGER,
                 time_added INTEGER DEFAULT (unixepoch()),
-                PRIMARY KEY (playlist_id, media_path),
+                PRIMARY KEY (playlist_id, media_id),
                 FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
-                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+                FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
             ) STRICT`},
 		{"captions", `CREATE TABLE captions (
-                media_path TEXT NOT NULL,
+                media_id INTEGER NOT NULL,
                 time REAL,
                 text TEXT,
-                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+                FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
             ) STRICT`},
 		{"history", `CREATE TABLE history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                media_path TEXT NOT NULL,
+                media_id INTEGER NOT NULL,
                 time_played INTEGER DEFAULT (unixepoch()),
                 playhead INTEGER,
                 done INTEGER,
-                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+                FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
             ) STRICT`},
 		{"document_progress", `CREATE TABLE document_progress (
-                media_path TEXT PRIMARY KEY,
+                media_id INTEGER PRIMARY KEY,
                 scroll_percent REAL NOT NULL DEFAULT 0,
                 chapter TEXT,
                 time_updated INTEGER NOT NULL DEFAULT (unixepoch()),
-                FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+                FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
             ) STRICT`},
 		{"custom_keywords", `CREATE TABLE custom_keywords (
                 category TEXT NOT NULL,
@@ -1133,7 +1519,7 @@ func deleteOrphanedDocumentProgress(ctx context.Context, db dbExecer) error {
 	}
 	if _, err := db.ExecContext(
 		ctx,
-		"DELETE FROM document_progress WHERE media_path NOT IN (SELECT path FROM media)",
+		"DELETE FROM document_progress WHERE media_id NOT IN (SELECT id FROM media)",
 	); err != nil {
 		return fmt.Errorf("failed to remove orphaned document progress: %w", err)
 	}
@@ -1274,7 +1660,7 @@ func ftsTableMatches(ctx context.Context, db dbExecer, tableName string) (bool, 
 		expectedColumns = []string{"path", "path_tokenized", "title", "description", "time_deleted"}
 		expectedSQLParts = append(expectedSQLParts, "content='media'", "content_rowid='rowid'")
 	case "captions_fts":
-		expectedColumns = []string{"media_path", "text"}
+		expectedColumns = []string{"media_id", "text"}
 		expectedSQLParts = append(expectedSQLParts, "content='captions'")
 	default:
 		return false, fmt.Errorf("unknown FTS table %s", tableName)
@@ -1391,7 +1777,7 @@ func ftsCreateSQL(tableName string) string {
 				);`
 	case "captions_fts":
 		return `CREATE VIRTUAL TABLE captions_fts USING fts5(
-					media_path UNINDEXED,
+					media_id UNINDEXED,
 					text,
 					content='captions',
 					tokenize = 'trigram',
@@ -1461,17 +1847,17 @@ func mediaFTSTriggerSQLs() []triggerDef {
 func captionsFTSTriggerSQLs() []triggerDef {
 	return []triggerDef{
 		{"captions_ai", `CREATE TRIGGER IF NOT EXISTS captions_ai AFTER INSERT ON captions BEGIN
-			INSERT INTO captions_fts(rowid, media_path, text)
-			VALUES (new.rowid, new.media_path, new.text);
+			INSERT INTO captions_fts(rowid, media_id, text)
+			VALUES (new.rowid, new.media_id, new.text);
 		END;`},
 		{"captions_ad", `CREATE TRIGGER IF NOT EXISTS captions_ad AFTER DELETE ON captions BEGIN
 			DELETE FROM captions_fts WHERE rowid = old.rowid;
 		END;`},
 		{"captions_au", `CREATE TRIGGER IF NOT EXISTS captions_au AFTER UPDATE ON captions BEGIN
-			INSERT INTO captions_fts(captions_fts, rowid, media_path, text)
-			VALUES('delete', old.rowid, old.media_path, old.text);
-			INSERT INTO captions_fts(rowid, media_path, text)
-			VALUES (new.rowid, new.media_path, new.text);
+			INSERT INTO captions_fts(captions_fts, rowid, media_id, text)
+			VALUES('delete', old.rowid, old.media_id, old.text);
+			INSERT INTO captions_fts(rowid, media_id, text)
+			VALUES (new.rowid, new.media_id, new.text);
 		END;`},
 	}
 }
@@ -1536,15 +1922,8 @@ func quarantineOrphanPlaylistItems(ctx context.Context, db dbExecer) error {
 		return err
 	}
 
-	if _, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS playlist_items_orphaned (
-		playlist_id INTEGER NOT NULL,
-		media_path TEXT NOT NULL,
-		track_number INTEGER,
-		time_added INTEGER,
-		reason TEXT NOT NULL,
-		quarantined_at INTEGER DEFAULT (unixepoch())
-	)`); err != nil {
-		return fmt.Errorf("failed to create playlist_items_orphaned: %w", err)
+	if err := ensurePlaylistItemsOrphanedTable(ctx, db); err != nil {
+		return err
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -1555,13 +1934,14 @@ func quarantineOrphanPlaylistItems(ctx context.Context, db dbExecer) error {
 
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO playlist_items_orphaned (playlist_id, media_path, track_number, time_added, reason)
-		SELECT pi.playlist_id, pi.media_path, pi.track_number, pi.time_added,
+		SELECT pi.playlist_id, COALESCE(m.path, ''), pi.track_number, pi.time_added,
 			CASE
-				WHEN NOT EXISTS (SELECT 1 FROM media m WHERE m.path = pi.media_path) THEN 'missing media'
+				WHEN m.id IS NULL THEN 'missing media'
 				ELSE 'missing playlist'
 			END
 		FROM playlist_items pi
-		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = pi.media_path)
+		LEFT JOIN media m ON m.id = pi.media_id
+		WHERE m.id IS NULL
 		   OR NOT EXISTS (SELECT 1 FROM playlists p WHERE p.id = pi.playlist_id)
 	`); err != nil {
 		return fmt.Errorf("failed to quarantine orphaned playlist_items: %w", err)
@@ -1569,7 +1949,7 @@ func quarantineOrphanPlaylistItems(ctx context.Context, db dbExecer) error {
 
 	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM playlist_items
-		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.path = playlist_items.media_path)
+		WHERE NOT EXISTS (SELECT 1 FROM media m WHERE m.id = playlist_items.media_id)
 		   OR NOT EXISTS (SELECT 1 FROM playlists p WHERE p.id = playlist_items.playlist_id)
 	`); err != nil {
 		return fmt.Errorf("failed to remove orphaned playlist_items: %w", err)

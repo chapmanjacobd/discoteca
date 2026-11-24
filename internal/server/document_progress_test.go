@@ -154,7 +154,7 @@ func checkDocumentProgressRoundTrip(t *testing.T, env *documentProgressTestEnv) 
 	var stored float64
 	var chapter sql.NullString
 	if err := dbConn.QueryRow(
-		"SELECT scroll_percent, chapter FROM document_progress WHERE media_path = ?",
+		"SELECT dp.scroll_percent, dp.chapter FROM document_progress dp JOIN media m ON m.id = dp.media_id WHERE m.path = ?",
 		env.bookPath,
 	).Scan(&stored, &chapter); err != nil {
 		t.Fatalf("query failed: %v", err)

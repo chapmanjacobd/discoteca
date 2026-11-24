@@ -68,10 +68,10 @@ func TestCaptionsViewTotalCountIsPrePagination(t *testing.T) {
 		('/video/one.mp4', 'One'), ('/video/two.mp4', 'Two')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := conn.Exec(`INSERT INTO captions (media_path, time, text) VALUES
-		('/video/one.mp4', 1.0, 'alpha one'),
-		('/video/one.mp4', 2.0, 'alpha two'),
-		('/video/two.mp4', 3.0, 'alpha three')`); err != nil {
+	if _, err := conn.Exec(`INSERT INTO captions (media_id, time, text) VALUES
+		((SELECT id FROM media WHERE path = '/video/one.mp4'), 1.0, 'alpha one'),
+		((SELECT id FROM media WHERE path = '/video/one.mp4'), 2.0, 'alpha two'),
+		((SELECT id FROM media WHERE path = '/video/two.mp4'), 3.0, 'alpha three')`); err != nil {
 		t.Fatal(err)
 	}
 

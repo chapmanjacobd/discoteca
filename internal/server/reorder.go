@@ -166,7 +166,7 @@ func (c *Server) updateTrackNumbers(ctx context.Context, items []playlistItem) (
 			for _, item := range group.items {
 				res, execErr := tx.ExecContext(
 					ctx,
-					"UPDATE playlist_items SET track_number = ? WHERE playlist_id = ? AND media_path = ?",
+					"UPDATE playlist_items SET track_number = ? WHERE playlist_id = ? AND media_id = (SELECT id FROM media WHERE path = ?)",
 					item.TrackNumber,
 					item.PlaylistID,
 					item.MediaPath,

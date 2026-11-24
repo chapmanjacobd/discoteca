@@ -476,9 +476,9 @@ func TestMediaQuery(t *testing.T) {
 	defer os.Remove(dbPath2)
 
 	schema := `
-	CREATE TABLE media (path TEXT PRIMARY KEY, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER);
-	CREATE TABLE history (id INTEGER PRIMARY KEY AUTOINCREMENT, media_path TEXT NOT NULL, time_played INTEGER, playhead INTEGER, done INTEGER);
-	CREATE TABLE captions (media_path TEXT NOT NULL, time REAL, text TEXT);
+	CREATE TABLE media (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE, time_deleted INTEGER DEFAULT 0, size INTEGER, duration INTEGER);
+	CREATE TABLE history (id INTEGER PRIMARY KEY AUTOINCREMENT, media_id INTEGER NOT NULL, time_played INTEGER, playhead INTEGER, done INTEGER);
+	CREATE TABLE captions (media_id INTEGER NOT NULL, time REAL, text TEXT);
 	`
 	for _, dbPath := range []string{dbPath1, dbPath2} {
 		dbConn, _ := sql.Open("sqlite3", dbPath)

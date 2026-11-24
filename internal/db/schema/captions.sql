@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS captions (
-    media_path TEXT NOT NULL,
+    media_id INTEGER NOT NULL,
     time REAL,
     text TEXT,
-    FOREIGN KEY (media_path) REFERENCES media(path) ON DELETE CASCADE
+    FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS idx_captions_path ON captions(media_path);
+CREATE INDEX IF NOT EXISTS idx_captions_media_id ON captions(media_id);

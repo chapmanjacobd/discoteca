@@ -36,5 +36,5 @@ CREATE INDEX IF NOT EXISTS idx_media_is_deduped ON media(is_deduped) WHERE is_de
 CREATE INDEX IF NOT EXISTS idx_media_unprocessed ON media(path) WHERE is_deduped = 0 OR is_deduped IS NULL;
 
 -- History indexes
-CREATE INDEX IF NOT EXISTS idx_history_path ON history(media_path);
+CREATE INDEX IF NOT EXISTS idx_history_media_id ON history(media_id);
 CREATE INDEX IF NOT EXISTS idx_history_time ON history(time_played);

@@ -547,7 +547,7 @@ func (fb *FilterBuilder) buildMiscellaneousFilters(whereClauses *[]string, args 
 	if fb.Flags.WithCaptions {
 		*whereClauses = append(
 			*whereClauses,
-			fmt.Sprintf("%s IN (SELECT DISTINCT media_path FROM captions)", fb.col("path")),
+			fmt.Sprintf("%s IN (SELECT media_id FROM captions)", fb.col("id")),
 		)
 	}
 

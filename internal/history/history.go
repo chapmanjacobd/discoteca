@@ -90,7 +90,11 @@ func DeleteHistoryByPaths(ctx context.Context, dbPath string, paths []string) er
 	defer func() { _ = tx.Rollback() }()
 
 	for _, path := range paths {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM history WHERE media_path = ?", path); err != nil {
+		if _, err := tx.ExecContext(
+			ctx,
+			"DELETE FROM history WHERE media_id = (SELECT id FROM media WHERE path = ?)",
+			path,
+		); err != nil {
 			return err
 		}
 		// Also reset playhead/play_count in media table?

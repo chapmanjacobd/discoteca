@@ -154,7 +154,11 @@ func (q *Queries) bulkInsertCaptionsBatch(ctx context.Context, batch []InsertCap
 		args = append(args, item.MediaPath, item.Time, item.Text)
 	}
 
-	query := fmt.Sprintf("INSERT INTO captions (media_path, time, text) VALUES %s", strings.Join(placeholders, ", "))
+	query := fmt.Sprintf(`WITH new_captions(media_path, time, text) AS (VALUES %s)
+		INSERT INTO captions (media_id, time, text)
+		SELECT m.id, n.time, n.text
+		FROM new_captions n
+		JOIN media m ON m.path = n.media_path`, strings.Join(placeholders, ", "))
 
 	_, err := q.db.ExecContext(ctx, query, args...)
 	return err

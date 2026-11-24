@@ -52,7 +52,7 @@ func (c *Server) handleGetDocumentProgress(w http.ResponseWriter, r *http.Reques
 			var timeUpdated int64
 			err := sqlDB.QueryRowContext(
 				ctx,
-				"SELECT scroll_percent, chapter, time_updated FROM document_progress WHERE media_path = ?",
+				"SELECT dp.scroll_percent, dp.chapter, dp.time_updated FROM document_progress dp JOIN media m ON m.id = dp.media_id WHERE m.path = ?",
 				path,
 			).Scan(&scrollPercent, &chapter, &timeUpdated)
 			if errors.Is(err, sql.ErrNoRows) {
@@ -123,9 +123,9 @@ func (c *Server) handlePostDocumentProgress(w http.ResponseWriter, r *http.Reque
 			// media row existing, so databases that do not contain this path
 			// are left untouched instead of failing the whole request.
 			res, err := sqlDB.ExecContext(ctx, `
-			INSERT INTO document_progress (media_path, scroll_percent, chapter, time_updated)
-			SELECT path, ?, ?, ? FROM media WHERE path = ?
-			ON CONFLICT(media_path) DO UPDATE SET
+			INSERT INTO document_progress (media_id, scroll_percent, chapter, time_updated)
+			SELECT id, ?, ?, ? FROM media WHERE path = ?
+			ON CONFLICT(media_id) DO UPDATE SET
 				scroll_percent = excluded.scroll_percent,
 				chapter = excluded.chapter,
 				time_updated = excluded.time_updated`,

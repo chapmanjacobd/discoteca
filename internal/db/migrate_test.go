@@ -154,22 +154,27 @@ func TestMigratePreservesChildRowsAndConvertsMediaID(t *testing.T) {
 		t.Errorf("playlist_items_orphaned rows = %d, want 1", got)
 	}
 
-	var historyPath string
-	if err := f.db.QueryRow("SELECT media_path FROM history WHERE id = 1").Scan(&historyPath); err != nil {
+	var historyMediaID int64
+	if err := f.db.QueryRow("SELECT media_id FROM history WHERE id = 1").Scan(&historyMediaID); err != nil {
 		t.Fatal(err)
 	}
-	if historyPath != "/media/b.mp3" {
-		t.Errorf("history media_path = %q, want /media/b.mp3", historyPath)
+	var expectedHistoryMediaID int64
+	if err := f.db.QueryRow("SELECT id FROM media WHERE path = '/media/b.mp3'").
+		Scan(&expectedHistoryMediaID); err != nil {
+		t.Fatal(err)
+	}
+	if historyMediaID != expectedHistoryMediaID {
+		t.Errorf("history media_id = %d, want %d (/media/b.mp3)", historyMediaID, expectedHistoryMediaID)
 	}
 
-	var captionPath string
+	var captionMediaID int64
 	if err := f.db.QueryRow(
-		"SELECT media_path FROM captions WHERE text = 'hello world'",
-	).Scan(&captionPath); err != nil {
+		"SELECT media_id FROM captions WHERE text = 'hello world'",
+	).Scan(&captionMediaID); err != nil {
 		t.Fatal(err)
 	}
-	if captionPath != "/media/b.mp3" {
-		t.Errorf("caption media_path = %q, want /media/b.mp3", captionPath)
+	if captionMediaID != expectedHistoryMediaID {
+		t.Errorf("caption media_id = %d, want %d (/media/b.mp3)", captionMediaID, expectedHistoryMediaID)
 	}
 
 	if got := f.queryInt(t, "SELECT count(*) FROM history_orphaned WHERE media_id = 999"); got != 1 {
@@ -189,6 +194,128 @@ func TestMigratePreservesChildRowsAndConvertsMediaID(t *testing.T) {
 	}
 
 	assertFTSPaths(t, f.db)
+	assertCanonicalFTSSchema(t, f.db)
+}
+
+func TestMigrateConvertsMediaPathColumnsToMediaID(t *testing.T) {
+	f := newLegacyFixture(t)
+
+	f.exec(t, `
+CREATE TABLE media (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT UNIQUE NOT NULL,
+    title TEXT,
+    duration INTEGER,
+    size INTEGER,
+    time_deleted INTEGER DEFAULT 0,
+    media_type TEXT
+)`)
+
+	f.exec(t, `
+CREATE TABLE history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    media_path TEXT NOT NULL,
+    time_played INTEGER,
+    playhead INTEGER,
+    done INTEGER
+)`)
+
+	f.exec(t, `
+CREATE TABLE captions (
+    media_path TEXT NOT NULL,
+    time REAL,
+    text TEXT
+)`)
+
+	f.exec(t, `
+CREATE TABLE playlists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT UNIQUE,
+    title TEXT
+)`)
+
+	f.exec(t, `
+CREATE TABLE playlist_items (
+    playlist_id INTEGER NOT NULL,
+    media_path TEXT NOT NULL,
+    track_number INTEGER,
+    time_added INTEGER,
+    PRIMARY KEY (playlist_id, media_path)
+)`)
+
+	f.exec(t, `
+CREATE TABLE document_progress (
+    media_path TEXT PRIMARY KEY,
+    scroll_percent REAL NOT NULL DEFAULT 0,
+    chapter TEXT,
+    time_updated INTEGER NOT NULL DEFAULT (unixepoch())
+)`)
+
+	f.exec(t, `INSERT INTO media (id, path, title, duration, media_type)
+		VALUES (10, '/media/a.mkv', 'Alpha', 120, 'video')`)
+	f.exec(t, `INSERT INTO media (id, path, title, duration, media_type)
+		VALUES (50, '/media/b.mp3', 'Beta', 30, 'audio')`)
+
+	f.exec(t, `INSERT INTO history (id, media_path, time_played, playhead, done)
+		VALUES (1, '/media/b.mp3', 1000, 15, 0)`)
+	f.exec(t, `INSERT INTO history (id, media_path, time_played, playhead, done)
+		VALUES (2, '/media/missing.mp3', 2000, 3, 0)`)
+	f.exec(t, `INSERT INTO captions (media_path, time, text) VALUES ('/media/b.mp3', 1.5, 'hello world')`)
+	f.exec(t, `INSERT INTO captions (media_path, time, text) VALUES ('/media/missing.mp3', 2.5, 'orphan caption')`)
+
+	f.exec(t, `INSERT INTO playlists (id, path, title) VALUES (1, '/playlists/one', 'One')`)
+	f.exec(t, `INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
+		VALUES (1, '/media/a.mkv', 1, 1000)`)
+	f.exec(t, `INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
+		VALUES (1, '/media/b.mp3', 2, 1000)`)
+	f.exec(t, `INSERT INTO playlist_items (playlist_id, media_path, track_number, time_added)
+		VALUES (1, '/media/missing.mkv', 3, 1000)`)
+
+	f.exec(t, `INSERT INTO document_progress (media_path, scroll_percent, chapter, time_updated)
+		VALUES ('/media/a.mkv', 0.25, 'one', 1000)`)
+	f.exec(t, `INSERT INTO document_progress (media_path, scroll_percent, chapter, time_updated)
+		VALUES ('/media/missing.epub', 0.5, 'gone', 2000)`)
+
+	if err := db.Migrate(context.Background(), f.db); err != nil {
+		t.Fatalf("Migrate failed: %v", err)
+	}
+
+	if got := f.queryInt(t, "SELECT count(*) FROM history WHERE media_id = 50"); got != 1 {
+		t.Errorf("history rows with media_id = 50: %d, want 1", got)
+	}
+	if got := f.queryInt(t, "SELECT count(*) FROM history_orphaned WHERE media_path = '/media/missing.mp3'"); got != 1 {
+		t.Errorf("history_orphaned rows = %d, want 1", got)
+	}
+	if got := f.queryInt(t, "SELECT count(*) FROM captions WHERE media_id = 50"); got != 1 {
+		t.Errorf("captions rows with media_id = 50: %d, want 1", got)
+	}
+	if got := f.queryInt(
+		t,
+		"SELECT count(*) FROM captions_orphaned WHERE media_path = '/media/missing.mp3'",
+	); got != 1 {
+		t.Errorf("captions_orphaned rows = %d, want 1", got)
+	}
+	if got := f.queryInt(t, "SELECT count(*) FROM playlist_items WHERE media_id = 50"); got != 1 {
+		t.Errorf("playlist_items rows with media_id = 50: %d, want 1", got)
+	}
+	if got := f.queryInt(
+		t,
+		"SELECT count(*) FROM playlist_items_orphaned WHERE media_path = '/media/missing.mkv'",
+	); got != 1 {
+		t.Errorf("playlist_items_orphaned rows = %d, want 1", got)
+	}
+	if got := f.queryInt(t, "SELECT count(*) FROM document_progress WHERE media_id = 10"); got != 1 {
+		t.Errorf("document_progress rows with media_id = 10: %d, want 1", got)
+	}
+	if got := f.queryInt(t, "SELECT count(*) FROM document_progress"); got != 1 {
+		t.Errorf("document_progress rows = %d, want 1 (orphan removed)", got)
+	}
+
+	assertNoForeignKeyViolations(t, f.db)
+
+	if err := db.InitDB(context.Background(), f.db); err != nil {
+		t.Fatalf("InitDB after Migrate failed: %v", err)
+	}
 	assertCanonicalFTSSchema(t, f.db)
 }
 
@@ -252,7 +379,7 @@ func TestMigrateMergesDuplicatePlaylistPaths(t *testing.T) {
 	}
 
 	rows, err := f.db.Query(
-		"SELECT media_path, track_number FROM playlist_items WHERE playlist_id = 2 ORDER BY media_path",
+		"SELECT m.path, pi.track_number FROM playlist_items pi JOIN media m ON m.id = pi.media_id WHERE pi.playlist_id = 2 ORDER BY m.path",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -333,8 +460,9 @@ func assertFTSPaths(t *testing.T, sqlDB *sql.DB) {
 
 	var captionPath string
 	err = sqlDB.QueryRow(`
-		SELECT c.media_path
+		SELECT m.path
 		FROM captions c
+		JOIN media m ON m.id = c.media_id
 		JOIN captions_fts ON c.rowid = captions_fts.rowid
 		WHERE captions_fts MATCH 'hello'
 	`).Scan(&captionPath)
@@ -351,7 +479,7 @@ func assertCanonicalFTSSchema(t *testing.T, sqlDB *sql.DB) {
 
 	for table, expectedColumns := range map[string][]string{
 		"media_fts":    {"path", "path_tokenized", "title", "description", "time_deleted"},
-		"captions_fts": {"media_path", "text"},
+		"captions_fts": {"media_id", "text"},
 	} {
 		columns := tableColumnNames(t, sqlDB, table)
 		if !slices.Equal(columns, expectedColumns) {

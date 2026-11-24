@@ -35,7 +35,8 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 	// Create tables
 	_, err = db.Exec(`
 		CREATE TABLE media (
-			path TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			path TEXT UNIQUE NOT NULL,
 			title TEXT,
 			media_type TEXT,
 			size INTEGER,
@@ -43,8 +44,7 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 			time_deleted INTEGER DEFAULT 0
 		);
 		CREATE TABLE captions (
-			rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-			media_path TEXT,
+			media_id INTEGER NOT NULL,
 			time REAL,
 			text TEXT
 		);
@@ -68,12 +68,12 @@ func TestHandleDU_CaptionsView(t *testing.T) {
 
 	// Insert test captions
 	_, err = db.Exec(`
-		INSERT INTO captions (media_path, time, text) VALUES
-			(?, 10.5, 'Hello world from video 1'),
-			(?, 20.3, 'Another caption in video 1'),
-			(?, 15.0, 'Caption from video 2'),
-			(?, 5.0, 'First caption in video 3'),
-			(?, 25.0, 'Second caption in video 3')`,
+		INSERT INTO captions (media_id, time, text) VALUES
+			((SELECT id FROM media WHERE path = ?), 10.5, 'Hello world from video 1'),
+			((SELECT id FROM media WHERE path = ?), 20.3, 'Another caption in video 1'),
+			((SELECT id FROM media WHERE path = ?), 15.0, 'Caption from video 2'),
+			((SELECT id FROM media WHERE path = ?), 5.0, 'First caption in video 3'),
+			((SELECT id FROM media WHERE path = ?), 25.0, 'Second caption in video 3')`,
 		filepath.FromSlash("/videos/test1.mp4"),
 		filepath.FromSlash("/videos/test1.mp4"),
 		filepath.FromSlash("/videos/test2.mp4"),
@@ -245,7 +245,8 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 	// Create tables
 	_, err = db.Exec(`
 		CREATE TABLE media (
-			path TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			path TEXT UNIQUE NOT NULL,
 			title TEXT,
 			media_type TEXT,
 			size INTEGER,
@@ -253,8 +254,7 @@ func TestHandleDU_CaptionsView_EmptyDatabase(t *testing.T) {
 			time_deleted INTEGER DEFAULT 0
 		);
 		CREATE TABLE captions (
-			rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-			media_path TEXT,
+			media_id INTEGER NOT NULL,
 			time REAL,
 			text TEXT
 		);
@@ -313,10 +313,10 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 		t.Fatalf("Failed to open db1: %v", err)
 	}
 	_, err = db1.Exec(`
-		CREATE TABLE media (path TEXT PRIMARY KEY, title TEXT, media_type TEXT, size INTEGER, duration INTEGER, time_deleted INTEGER DEFAULT 0);
-		CREATE TABLE captions (rowid INTEGER PRIMARY KEY AUTOINCREMENT, media_path TEXT, time REAL, text TEXT);
+		CREATE TABLE media (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE NOT NULL, title TEXT, media_type TEXT, size INTEGER, duration INTEGER, time_deleted INTEGER DEFAULT 0);
+		CREATE TABLE captions (media_id INTEGER NOT NULL, time REAL, text TEXT);
 		INSERT INTO media (path, title, media_type, size, duration) VALUES (?, 'DB1 Video', 'video/mp4', 1024, 120);
-		INSERT INTO captions (media_path, time, text) VALUES (?, 10.0, 'Caption from DB1');
+		INSERT INTO captions (media_id, time, text) SELECT id, 10.0, 'Caption from DB1' FROM media WHERE path = ?;
 	`, filepath.FromSlash("/db1/video1.mp4"), filepath.FromSlash("/db1/video1.mp4"))
 	if err != nil {
 		t.Fatalf("Failed to setup db1: %v", err)
@@ -329,10 +329,10 @@ func TestHandleDU_CaptionsView_MultipleDatabases(t *testing.T) {
 		t.Fatalf("Failed to open db2: %v", err)
 	}
 	_, err = db2.Exec(`
-		CREATE TABLE media (path TEXT PRIMARY KEY, title TEXT, media_type TEXT, size INTEGER, duration INTEGER, time_deleted INTEGER DEFAULT 0);
-		CREATE TABLE captions (rowid INTEGER PRIMARY KEY AUTOINCREMENT, media_path TEXT, time REAL, text TEXT);
+		CREATE TABLE media (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE NOT NULL, title TEXT, media_type TEXT, size INTEGER, duration INTEGER, time_deleted INTEGER DEFAULT 0);
+		CREATE TABLE captions (media_id INTEGER NOT NULL, time REAL, text TEXT);
 		INSERT INTO media (path, title, media_type, size, duration) VALUES (?, 'DB2 Video', 'video/mp4', 2048, 180);
-		INSERT INTO captions (media_path, time, text) VALUES (?, 20.0, 'Caption from DB2');
+		INSERT INTO captions (media_id, time, text) SELECT id, 20.0, 'Caption from DB2' FROM media WHERE path = ?;
 	`, filepath.FromSlash("/db2/video1.mp4"), filepath.FromSlash("/db2/video1.mp4"))
 	if err != nil {
 		t.Fatalf("Failed to setup db2: %v", err)

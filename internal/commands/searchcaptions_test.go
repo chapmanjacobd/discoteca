@@ -42,14 +42,15 @@ func TestSearchCaptionsCmd_Run(t *testing.T) {
 
 	// Insert captions for different media types
 	_, err = sqlDB.Exec(`
-		INSERT INTO captions (media_path, time, text)
-		VALUES
-		('/path/video1.mp4', 10.0, 'hello world'),
-		('/path/video1.mp4', 12.0, 'this is overlapping'),
-		('/path/video1.mp4', 40.0, 'different world'),
-		('/path/video2.mp4', 15.0, 'video caption world'),
-		('/path/audio1.mp3', 15.0, 'audio caption world'),
-		('/path/image1.jpg', 5.0, 'image caption world')
+		INSERT INTO captions (media_id, time, text)
+		SELECT id, v.time, v.text FROM media m
+		JOIN (SELECT '/path/video1.mp4' AS path, 10.0 AS time, 'hello world' AS text
+			UNION ALL SELECT '/path/video1.mp4', 12.0, 'this is overlapping'
+			UNION ALL SELECT '/path/video1.mp4', 40.0, 'different world'
+			UNION ALL SELECT '/path/video2.mp4', 15.0, 'video caption world'
+			UNION ALL SELECT '/path/audio1.mp3', 15.0, 'audio caption world'
+			UNION ALL SELECT '/path/image1.jpg', 5.0, 'image caption world') v
+		ON m.path = v.path
 	`)
 	if err != nil {
 		t.Fatal(err)

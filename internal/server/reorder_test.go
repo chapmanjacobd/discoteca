@@ -35,7 +35,12 @@ func TestServeReorder_Playlist(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		path := filepath.FromSlash(fmt.Sprintf("/media%d.mp4", i))
 		sqlDB.Exec(`INSERT INTO media (path, media_type, time_deleted) VALUES (?, 'video', 0)`, path)
-		sqlDB.Exec(`INSERT INTO playlist_items (playlist_id, media_path, track_number) VALUES (?, ?, ?)`, pid, path, i)
+		sqlDB.Exec(
+			`INSERT INTO playlist_items (playlist_id, media_id, track_number) SELECT ?, id, ? FROM media WHERE path = ?`,
+			pid,
+			i,
+			path,
+		)
 	}
 	sqlDB.Close()
 
@@ -67,7 +72,7 @@ func TestServeReorder_Playlist(t *testing.T) {
 	sqlDB, _ = sql.Open("sqlite3", dbPath)
 	defer sqlDB.Close()
 	rows, _ := sqlDB.Query(
-		`SELECT media_path, track_number FROM playlist_items WHERE playlist_id = ? ORDER BY track_number`,
+		`SELECT m.path, pi.track_number FROM playlist_items pi JOIN media m ON m.id = pi.media_id WHERE pi.playlist_id = ? ORDER BY pi.track_number`,
 		pid,
 	)
 	defer rows.Close()

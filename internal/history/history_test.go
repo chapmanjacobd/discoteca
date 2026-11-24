@@ -28,7 +28,8 @@ func setupTestDB(t *testing.T) (*sql.DB, string) {
 
 	schema := `
 	CREATE TABLE media (
-		path TEXT PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		path TEXT UNIQUE NOT NULL,
 		time_first_played INTEGER,
 		time_last_played INTEGER,
 		playhead INTEGER,
@@ -37,7 +38,7 @@ func setupTestDB(t *testing.T) (*sql.DB, string) {
 	);
 	CREATE TABLE history (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		media_path TEXT NOT NULL,
+		media_id INTEGER NOT NULL,
 		time_played INTEGER,
 		playhead INTEGER,
 		done INTEGER
@@ -78,7 +79,9 @@ func TestUpdateHistorySimple(t *testing.T) {
 	defer dbVerify.Close()
 
 	var done int64
-	err = dbVerify.QueryRow("SELECT done FROM history WHERE media_path = ?", path).Scan(&done)
+	err = dbVerify.QueryRow(`
+		SELECT h.done FROM history h JOIN media m ON m.id = h.media_id WHERE m.path = ?`,
+		path).Scan(&done)
 	if err != nil {
 		t.Fatalf("Failed to query history: %v", err)
 	}
@@ -215,14 +218,15 @@ func TestDeleteHistoryByPaths(t *testing.T) {
 
 	path := "todelete.mp4"
 	sqlDB.Exec("INSERT INTO media (path, play_count) VALUES (?, 5)", path)
-	sqlDB.Exec("INSERT INTO history (media_path, playhead) VALUES (?, 100)", path)
+	sqlDB.Exec("INSERT INTO history (media_id, playhead) SELECT id, 100 FROM media WHERE path = ?", path)
 
 	if err := history.DeleteHistoryByPaths(context.Background(), dbPath, []string{path}); err != nil {
 		t.Fatal(err)
 	}
 
 	var count int
-	sqlDB.QueryRow("SELECT COUNT(*) FROM history WHERE media_path = ?", path).Scan(&count)
+	sqlDB.QueryRow("SELECT COUNT(*) FROM history h JOIN media m ON m.id = h.media_id WHERE m.path = ?", path).
+		Scan(&count)
 	if count != 0 {
 		t.Error("history.History record should be deleted")
 	}
